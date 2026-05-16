@@ -32,7 +32,10 @@ FROM nginx:alpine AS production
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Copy custom nginx config
+# Copy main nginx.conf with worker_processes at main level
+COPY nginx-main.conf /etc/nginx/nginx.conf
+
+# Copy server-level config (without worker_processes)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built files from build stage
