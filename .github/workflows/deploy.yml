@@ -21,6 +21,9 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+env:
+  DEPLOY_KEY: ~/.ssh/deploy_key
+
 jobs:
   # ============================================================
   # JOB 1: Validate Configuration
@@ -38,6 +41,8 @@ jobs:
       - name: Validate required GitHub Secrets
         id: validate
         run: |
+          set -euo pipefail
+
           echo "=== Validating GitHub Configuration ==="
           echo ""
 
@@ -50,14 +55,14 @@ jobs:
 
           # Validate SERVER_USER
           if [ -z "${{ secrets.SERVER_USER }}" ] || [ "${{ secrets.SERVER_USER }}" = "" ]; then
-            echo "::error::SERVER_USER is not set. Please set it in Settings → Secrets and variables → Actions → Secrets."
+            echo "::error::SERVER_USER is not set. Please set it in Settings → Secrets and Variables → Actions → Secrets."
             exit 1
           fi
           echo "✓ SERVER_USER: [SET]"
 
           # Validate SERVER_SSH_PORT
           if [ -z "${{ secrets.SERVER_SSH_PORT }}" ] || [ "${{ secrets.SERVER_SSH_PORT }}" = "" ]; then
-            echo "::error::SERVER_SSH_PORT is not set. Please set it in Settings → Secrets and variables → Actions → Secrets."
+            echo "::error::SERVER_SSH_PORT is not set. Please set it in Settings → Secrets and Variables → Actions → Secrets."
             exit 1
           fi
 
@@ -76,14 +81,14 @@ jobs:
 
           # Validate SERVER_APP_DIR
           if [ -z "${{ secrets.SERVER_APP_DIR }}" ] || [ "${{ secrets.SERVER_APP_DIR }}" = "" ]; then
-            echo "::error::SERVER_APP_DIR is not set. Please set it in Settings → Secrets and variables → Actions → Secrets."
+            echo "::error::SERVER_APP_DIR is not set. Please set it in Settings → Secrets and Variables → Actions → Secrets."
             exit 1
           fi
           echo "✓ SERVER_APP_DIR: [SET]"
 
           # Validate PUBLIC_PORT
           if [ -z "${{ secrets.PUBLIC_PORT }}" ] || [ "${{ secrets.PUBLIC_PORT }}" = "" ]; then
-            echo "::error::PUBLIC_PORT is not set. Please set it in Settings → Secrets and variables → Actions → Secrets."
+            echo "::error::PUBLIC_PORT is not set. Please set it in Settings → Secrets and Variables → Actions → Secrets."
             exit 1
           fi
 
@@ -102,7 +107,7 @@ jobs:
 
           # Validate SERVER_SSH_KEY (secret)
           if [ -z "${{ secrets.SERVER_SSH_KEY }}" ] || [ "${{ secrets.SERVER_SSH_KEY }}" = "" ]; then
-            echo "::error::SERVER_SSH_KEY is not set. Please add it to Settings → Secrets and variables → Actions → Secrets."
+            echo "::error::SERVER_SSH_KEY is not set. Please add it to Settings → Secrets and Variables → Actions → Secrets."
             exit 1
           fi
           echo "✓ SERVER_SSH_KEY: [SET]"
@@ -256,6 +261,8 @@ jobs:
       # ----------------------------------------
       - name: Prepare backend Docker context
         run: |
+          set -euo pipefail
+
           mkdir -p backend-docker
 
           # Copy pre-built published files (DLL, config, etc.)
@@ -278,6 +285,8 @@ jobs:
       # ----------------------------------------
       - name: Prepare frontend Docker context
         run: |
+          set -euo pipefail
+
           mkdir -p frontend-docker
           cp -r frontend/dist/* frontend-docker/
           cp thesis-frontend/Dockerfile frontend-docker/Dockerfile
@@ -313,6 +322,8 @@ jobs:
       # ----------------------------------------
       - name: Build backend Docker image
         run: |
+          set -euo pipefail
+
           echo "=== Building backend image ==="
           docker build \
             --tag graduation-thesis-api:${{ github.sha }} \
@@ -327,6 +338,8 @@ jobs:
       # ----------------------------------------
       - name: Build frontend Docker image
         run: |
+          set -euo pipefail
+
           echo "=== Building frontend image ==="
           docker build \
             --tag graduation-thesis-web:${{ github.sha }} \
@@ -341,6 +354,8 @@ jobs:
       # ----------------------------------------
       - name: Save Docker images
         run: |
+          set -euo pipefail
+
           echo "=== Saving Docker images ==="
           docker save graduation-thesis-api:${{ github.sha }} | gzip > backend-image-${{ github.sha }}.tar.gz
           docker save graduation-thesis-web:${{ github.sha }} | gzip > frontend-image-${{ github.sha }}.tar.gz
@@ -383,71 +398,132 @@ jobs:
           path: ./
 
       # ----------------------------------------
-      # Step 1: Prepare SSH
+      # Step 1: Setup SSH key
       # ----------------------------------------
-      - name: Prepare SSH key
+      - name: Setup SSH key
+        shell: bash
+        env:
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
         run: |
-          echo "=== Preparing SSH ==="
+          set -euo pipefail
+
+          echo "=== Setting up SSH key ==="
+
+          if [ -z "${SERVER_SSH_KEY:-}" ]; then
+            echo "::error::SERVER_SSH_KEY is not set. Please add it to Settings → Secrets and Variables → Actions → Secrets."
+            exit 1
+          fi
+
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # Write private key
-          echo "${{ env.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          printf '%s\n' "$SERVER_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
 
-          echo "✓ SSH key prepared"
+          # Validate private key format without printing the key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > ~/.ssh/deploy_key.pub 2>/dev/null; then
+            echo "::error::SERVER_SSH_KEY is not a valid private key, or it is incorrectly formatted."
+            exit 1
+          fi
 
+          echo "✓ SSH private key loaded"
+
+      # ----------------------------------------
+      # Step 2: Create SSH known_hosts dynamically
+      # ----------------------------------------
       - name: Create SSH known_hosts dynamically
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
         run: |
+          set -euo pipefail
+
           echo "=== Creating SSH known_hosts ==="
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # ssh-keyscan to add host key (no SERVER_SSH_KNOWN_HOSTS needed)
-          ssh-keyscan -p "${{ env.SERVER_SSH_PORT }}" "${{ env.SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          # ssh-keyscan to add host key
+          ssh-keyscan -p "$SERVER_SSH_PORT" "$SERVER_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
           echo "✓ known_hosts created"
 
       # ----------------------------------------
-      # Step 2: Test SSH connection
+      # Step 3: Test SSH connection
       # ----------------------------------------
       - name: Test SSH connection
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
         run: |
+          set -euo pipefail
+
           echo "=== Testing SSH connection ==="
-          ssh -o StrictHostKeyChecking=no \
+
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -p "${{ env.SERVER_SSH_PORT }}" \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
-              "echo '✓ SSH connection OK'; uname -a; docker --version; docker compose version"
+              -p "$SERVER_SSH_PORT" \
+              "$SERVER_USER@$SERVER_HOST" \
+              "whoami && hostname && pwd"
+
+          echo "✓ SSH connection OK"
 
       # ----------------------------------------
-      # Step 3: Create remote directory
+      # Step 4: Create remote directory
       # ----------------------------------------
       - name: Create remote directory
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
         run: |
+          set -euo pipefail
+
           echo "=== Creating remote directory ==="
-          ssh -o StrictHostKeyChecking=no \
+
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -p "${{ env.SERVER_SSH_PORT }}" \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
-              "mkdir -p ${{ env.SERVER_APP_DIR }}/images && ls -la ${{ env.SERVER_APP_DIR }}/"
+              -p "$SERVER_SSH_PORT" \
+              "$SERVER_USER@$SERVER_HOST" \
+              "mkdir -p '$SERVER_APP_DIR/images' && ls -la '$SERVER_APP_DIR/'"
+
+          echo "✓ Remote directory ready"
 
       # ----------------------------------------
-      # Step 4: Check .env.runtime exists
+      # Step 5: Check .env.runtime exists
       # ----------------------------------------
       - name: Verify .env.runtime exists
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
         run: |
+          set -euo pipefail
+
           echo "=== Checking .env.runtime ==="
-          SSH_RESULT=$(ssh -o StrictHostKeyChecking=no \
+
+          SSH_RESULT=$(ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -p "${{ env.SERVER_SSH_PORT }}" \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
-              "test -f ${{ env.SERVER_APP_DIR }}/.env.runtime && echo 'EXISTS' || echo 'NOT_FOUND'")
+              -p "$SERVER_SSH_PORT" \
+              "$SERVER_USER@$SERVER_HOST" \
+              "test -f '$SERVER_APP_DIR/.env.runtime' && echo 'EXISTS' || echo 'NOT_FOUND'")
 
           if [ "$SSH_RESULT" = "NOT_FOUND" ]; then
             echo ""
             echo "::error::=============================================="
-            echo "::error::Missing /opt/graduation-thesis/.env.runtime on server."
+            echo "::error::Missing .env.runtime on server."
             echo "::error::Please create it manually with DB_CONNECTION_STRING,"
             echo "::error::JWT_SECRET and database variables."
             echo "::error::Runtime secrets must not be stored in GitHub Secrets."
@@ -458,91 +534,181 @@ jobs:
           echo "✓ .env.runtime exists on server"
 
       # ----------------------------------------
-      # Step 5: Upload Docker images
+      # Step 6: Upload Docker images via SCP
       # ----------------------------------------
       - name: Upload Docker images via SCP
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
         run: |
+          set -euo pipefail
+
           echo "=== Uploading Docker images ==="
-          scp -o StrictHostKeyChecking=no \
+
+          scp -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -P "${{ env.SERVER_SSH_PORT }}" \
+              -P "$SERVER_SSH_PORT" \
               backend-image-${{ github.sha }}.tar.gz \
               frontend-image-${{ github.sha }}.tar.gz \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.SERVER_APP_DIR }}/images/"
+              "$SERVER_USER@$SERVER_HOST:$SERVER_APP_DIR/images/"
+
+          echo "✓ Docker images uploaded"
 
       # ----------------------------------------
-      # Step 6: Upload docker-compose
+      # Step 7: Upload docker-compose file
       # ----------------------------------------
       - name: Upload docker-compose file
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
         run: |
+          set -euo pipefail
+
           echo "=== Uploading docker-compose.production.yml ==="
-          scp -o StrictHostKeyChecking=no \
+
+          scp -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -P "${{ env.SERVER_SSH_PORT }}" \
+              -P "$SERVER_SSH_PORT" \
               docker-compose.production.yml \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.SERVER_APP_DIR }}/"
+              "$SERVER_USER@$SERVER_HOST:$SERVER_APP_DIR/"
+
+          echo "✓ docker-compose.production.yml uploaded"
 
       # ----------------------------------------
-      # Step 7: Load Docker images
+      # Step 8: Load Docker images on server
       # ----------------------------------------
       - name: Load Docker images on server
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
         run: |
+          set -euo pipefail
+
           echo "=== Loading Docker images ==="
-          ssh -o StrictHostKeyChecking=no \
+
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -p "${{ env.SERVER_SSH_PORT }}" \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
-            "cd ${{ env.SERVER_APP_DIR }}/images && \
+              -p "$SERVER_SSH_PORT" \
+              "$SERVER_USER@$SERVER_HOST" \
+            "cd '$SERVER_APP_DIR/images' && \
              docker load < backend-image-${{ github.sha }}.tar.gz && \
              docker load < frontend-image-${{ github.sha }}.tar.gz"
 
+          echo "✓ Docker images loaded"
+
       # ----------------------------------------
-      # Step 8: Create .deploy.env
+      # Step 9: Create .deploy.env
       # ----------------------------------------
       - name: Create .deploy.env
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
+          PUBLIC_PORT: ${{ secrets.PUBLIC_PORT }}
         run: |
+          set -euo pipefail
+
           echo "=== Creating .deploy.env ==="
-          ssh -o StrictHostKeyChecking=no \
+
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -p "${{ env.SERVER_SSH_PORT }}" \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
-            'printf "%s\n" "# Deployment Configuration" "# Auto-generated by GitHub Actions" "" "BACKEND_IMAGE=graduation-thesis-api:${{ github.sha }}" "FRONTEND_IMAGE=graduation-thesis-web:${{ github.sha }}" "PUBLIC_PORT=${{ env.PUBLIC_PORT }}" > ${{ env.SERVER_APP_DIR }}/.deploy.env'
+              -p "$SERVER_SSH_PORT" \
+              "$SERVER_USER@$SERVER_HOST" \
+            'printf "%s\n" "# Deployment Configuration" "# Auto-generated by GitHub Actions" "" "BACKEND_IMAGE=graduation-thesis-api:${{ github.sha }}" "FRONTEND_IMAGE=graduation-thesis-web:${{ github.sha }}" "PUBLIC_PORT=$PUBLIC_PORT" > $SERVER_APP_DIR/.deploy.env'
+
+          echo "✓ .deploy.env created"
 
       # ----------------------------------------
-      # Step 9: Merge .deploy.env + .env.runtime -> .env
+      # Step 10: Merge .deploy.env + .env.runtime -> .env
       # ----------------------------------------
       - name: Merge environment files
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
         run: |
+          set -euo pipefail
+
           echo "=== Merging environment files ==="
-          ssh -o StrictHostKeyChecking=no \
+
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -p "${{ env.SERVER_SSH_PORT }}" \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
-            "cd ${{ env.SERVER_APP_DIR }} && cat .deploy.env > .env && echo '' >> .env && echo '# Runtime Secrets' >> .env && cat .env.runtime >> .env"
+              -p "$SERVER_SSH_PORT" \
+              "$SERVER_USER@$SERVER_HOST" \
+            "cd '$SERVER_APP_DIR' && cat .deploy.env > .env && echo '' >> .env && echo '# Runtime Secrets' >> .env && cat .env.runtime >> .env"
+
+          echo "✓ Environment files merged"
 
       # ----------------------------------------
-      # Step 10: Deploy with Docker Compose
+      # Step 11: Deploy with Docker Compose
       # ----------------------------------------
       - name: Deploy services
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
         run: |
+          set -euo pipefail
+
           echo "=== Deploying with Docker Compose ==="
-          ssh -o StrictHostKeyChecking=no \
+
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -p "${{ env.SERVER_SSH_PORT }}" \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
-            "cd ${{ env.SERVER_APP_DIR }} && docker compose --env-file .env -f docker-compose.production.yml down --remove-orphans 2>/dev/null; docker compose --env-file .env -f docker-compose.production.yml up -d --remove-orphans"
+              -p "$SERVER_SSH_PORT" \
+              "$SERVER_USER@$SERVER_HOST" \
+            "cd '$SERVER_APP_DIR' && docker compose --env-file .env -f docker-compose.production.yml down --remove-orphans 2>/dev/null; docker compose --env-file .env -f docker-compose.production.yml up -d --remove-orphans"
+
+          echo "✓ Services deployed"
 
       # ----------------------------------------
-      # Step 11: Wait for services to be healthy
+      # Step 12: Wait for services to be healthy
       # ----------------------------------------
       - name: Wait for services
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
         run: |
+          set -euo pipefail
+
           echo "=== Waiting for services ==="
-          ssh -o StrictHostKeyChecking=no \
+
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -p "${{ env.SERVER_SSH_PORT }}" \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
-            "cd ${{ env.SERVER_APP_DIR }} && \
+              -p "$SERVER_SSH_PORT" \
+              "$SERVER_USER@$SERVER_HOST" \
+            "cd '$SERVER_APP_DIR' && \
              MAX_WAIT=120 && \
              ELAPSED=0 && \
              INTERVAL=5 && \
@@ -560,11 +726,21 @@ jobs:
                ELAPSED=\$((ELAPSED + INTERVAL)); \
              done"
 
+          echo "✓ Services ready"
+
       # ----------------------------------------
-      # Step 12: Healthcheck
+      # Step 13: Healthcheck
       # ----------------------------------------
       - name: Healthcheck
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+          PUBLIC_PORT: ${{ secrets.PUBLIC_PORT }}
         run: |
+          set -euo pipefail
+
           echo "=== Running Healthcheck ==="
           MAX_ATTEMPTS=12
           ATTEMPT=0
@@ -573,11 +749,13 @@ jobs:
             ATTEMPT=$((ATTEMPT + 1))
             echo "Healthcheck attempt $ATTEMPT/$MAX_ATTEMPTS..."
 
-            HTTP_CODE=$(ssh -o StrictHostKeyChecking=no \
+            HTTP_CODE=$(ssh -i ~/.ssh/deploy_key \
+                -o IdentitiesOnly=yes \
+                -o StrictHostKeyChecking=no \
                 -o UserKnownHostsFile=~/.ssh/known_hosts \
-                -p "${{ env.SERVER_SSH_PORT }}" \
-                "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
-                "curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:${{ env.PUBLIC_PORT }}/ || echo '000'")
+                -p "$SERVER_SSH_PORT" \
+                "$SERVER_USER@$SERVER_HOST" \
+                "curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:$PUBLIC_PORT/ || echo '000'")
 
             if [ "$HTTP_CODE" = "200" ]; then
               echo "✓ Healthcheck passed! HTTP Status: $HTTP_CODE"
@@ -591,38 +769,57 @@ jobs:
           echo "::error::Healthcheck failed after $MAX_ATTEMPTS attempts"
           echo ""
           echo "=== Debug: Backend logs ==="
-          ssh -o StrictHostKeyChecking=no \
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -p "${{ env.SERVER_SSH_PORT }}" \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
+              -p "$SERVER_SSH_PORT" \
+              "$SERVER_USER@$SERVER_HOST" \
               "docker logs graduation-thesis-api --tail 50"
           echo ""
           echo "=== Debug: Frontend logs ==="
-          ssh -o StrictHostKeyChecking=no \
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -p "${{ env.SERVER_SSH_PORT }}" \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
+              -p "$SERVER_SSH_PORT" \
+              "$SERVER_USER@$SERVER_HOST" \
               "docker logs graduation-thesis-web --tail 50"
 
           exit 1
 
       # ----------------------------------------
-      # Step 13: Final verification
+      # Step 14: Final verification
       # ----------------------------------------
       - name: Final verification
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
         run: |
+          set -euo pipefail
+
           echo "=== Final Verification ==="
-          ssh -o StrictHostKeyChecking=no \
+
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -p "${{ env.SERVER_SSH_PORT }}" \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
-            "cd ${{ env.SERVER_APP_DIR }} && \
+              -p "$SERVER_SSH_PORT" \
+              "$SERVER_USER@$SERVER_HOST" \
+            "cd '$SERVER_APP_DIR' && \
              echo 'Running Containers:' && \
              docker ps --filter 'name=graduation-thesis' --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' && \
+             echo '' && \
              echo 'Backend Health:' && \
              docker exec graduation-thesis-api wget -qO- http://localhost:8080/healthz 2>/dev/null || echo 'FAILED' && \
+             echo '' && \
              echo 'Docker Images:' && \
              docker images | grep graduation-thesis"
+
+          echo "✓ Deployment complete"
 
   # ============================================================
   # JOB 6: Cleanup (always runs)
@@ -637,13 +834,75 @@ jobs:
       SERVER_USER: ${{ secrets.SERVER_USER }}
       SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
       SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
+      SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
     steps:
-      - name: Cleanup old image tar.gz files
+      # ----------------------------------------
+      # Step 1: Setup SSH key for cleanup
+      # ----------------------------------------
+      - name: Setup SSH key for cleanup
+        shell: bash
+        env:
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
         run: |
+          set -euo pipefail
+
+          echo "=== Setting up SSH key for cleanup ==="
+
+          if [ -z "${SERVER_SSH_KEY:-}" ]; then
+            echo "::error::SERVER_SSH_KEY is not set."
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$SERVER_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          echo "✓ SSH key loaded for cleanup"
+
+      # ----------------------------------------
+      # Step 2: Create known_hosts for cleanup
+      # ----------------------------------------
+      - name: Create SSH known_hosts for cleanup
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+        run: |
+          set -euo pipefail
+
+          echo "=== Creating SSH known_hosts for cleanup ==="
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          ssh-keyscan -p "$SERVER_SSH_PORT" "$SERVER_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          echo "✓ known_hosts created for cleanup"
+
+      # ----------------------------------------
+      # Step 3: Cleanup old image tar.gz files
+      # ----------------------------------------
+      - name: Cleanup old image files
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
+        run: |
+          set -euo pipefail
+
           echo "=== Cleaning up old image files ==="
-          ssh -o StrictHostKeyChecking=no \
+
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -p "${{ env.SERVER_SSH_PORT }}" \
-              "${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}" \
-            "cd ${{ env.SERVER_APP_DIR }}/images && \
+              -p "$SERVER_SSH_PORT" \
+              "$SERVER_USER@$SERVER_HOST" \
+            "mkdir -p '$SERVER_APP_DIR/images' && \
+             cd '$SERVER_APP_DIR/images' && \
              find . -name '*.tar.gz' ! -name '*${{ github.sha }}.tar.gz' -delete 2>/dev/null || true"
+
+          echo "✓ Old image files cleaned"
