@@ -257,8 +257,12 @@ jobs:
       - name: Prepare backend Docker context
         run: |
           mkdir -p backend-docker
+
+          # Copy pre-built published files (DLL, config, etc.)
           cp -r backend/* backend-docker/
-          cp ThesisManagement.Api/Dockerfile backend-docker/Dockerfile
+
+          # Use runtime Dockerfile (no build needed, artifact is pre-built)
+          cp ThesisManagement.Api/Dockerfile.runtime backend-docker/Dockerfile
 
           # Verify DLL exists
           if [ ! -f "backend-docker/ThesisManagement.Api.dll" ]; then
