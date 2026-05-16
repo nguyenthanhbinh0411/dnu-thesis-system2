@@ -69,11 +69,12 @@ Internet (port 8888)
 | DB_CONNECTION_STRING | Server: `/opt/graduation-thesis/.env.runtime` | NO |
 | JWT_SECRET | Server: `/opt/graduation-thesis/.env.runtime` | NO |
 | DB_PASSWORD | Server: `/opt/graduation-thesis/.env.runtime` | NO |
+| SERVER_HOST | GitHub Secrets | YES |
+| SERVER_USER | GitHub Secrets | YES |
+| SERVER_SSH_PORT | GitHub Secrets | YES |
+| SERVER_APP_DIR | GitHub Secrets | YES |
+| PUBLIC_PORT | GitHub Secrets | YES |
 | SERVER_SSH_KEY | GitHub Secrets | YES |
-| SERVER_SSH_PORT | GitHub Variables | YES |
-| SERVER_HOST | GitHub Variables | YES |
-| SERVER_USER | GitHub Variables | YES |
-| SERVER_APP_DIR | GitHub Variables | YES |
 
 ### Forbidden Actions
 
@@ -98,7 +99,9 @@ Internet (port 8888)
 
 ## 3. GitHub Configuration
 
-### GitHub Variables (Settings → Variables → Actions variables)
+> **IMPORTANT:** All deployment configuration has been moved from GitHub Variables to GitHub Secrets for easier management.
+
+### GitHub Secrets (Settings → Secrets and variables → Actions → Secrets)
 
 | Name | Value | Required |
 |------|-------|----------|
@@ -106,21 +109,23 @@ Internet (port 8888)
 | `SERVER_USER` | `devfit` | Yes |
 | `SERVER_SSH_PORT` | `1912` | Yes |
 | `SERVER_APP_DIR` | `/opt/graduation-thesis` | Yes |
-
-### GitHub Secrets (Settings → Secrets → Actions secrets)
-
-| Name | Value | Required |
-|------|-------|----------|
+| `PUBLIC_PORT` | `8888` | Yes |
 | `SERVER_SSH_KEY` | Private key content | Yes |
+
+### How to Add Secrets
+
+1. Go to **Settings** → **Secrets and variables** → **Actions**
+2. Click **New repository secret**
+3. Add each secret from the table above
 
 ### NOT Required (Security)
 
-The following are NOT needed in GitHub:
+The following are NOT needed in GitHub and must NOT be added:
 
-- `DB_CONNECTION_STRING` - Stored on server only
-- `JWT_SECRET` - Stored on server only
-- `DB_PASSWORD` - Stored on server only
-- `SERVER_SSH_KNOWN_HOSTS` - Workflow generates dynamically
+- ~~`DB_CONNECTION_STRING`~~ - Stored on server only in `.env.runtime`
+- ~~`JWT_SECRET`~~ - Stored on server only in `.env.runtime`
+- ~~`DB_PASSWORD`~~ - Stored on server only in `.env.runtime`
+- ~~`SERVER_SSH_KNOWN_HOSTS`~~ - Workflow generates dynamically via ssh-keyscan
 
 ---
 
