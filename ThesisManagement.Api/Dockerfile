@@ -39,8 +39,8 @@ RUN dotnet publish ThesisManagement.Api.csproj \
 # ============================================
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 
-# NOTE: aspnet image includes wget for healthcheck
-# No additional packages needed
+# Install wget for healthcheck
+RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
 RUN groupadd --gid 1000 appgroup && \
