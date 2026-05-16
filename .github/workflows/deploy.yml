@@ -282,11 +282,24 @@ jobs:
           cp -r frontend/dist/* frontend-docker/
           cp thesis-frontend/Dockerfile frontend-docker/Dockerfile
           cp thesis-frontend/nginx.conf frontend-docker/nginx.conf
+
+          # Copy source files needed for build
           cp thesis-frontend/package.json frontend-docker/
           cp thesis-frontend/package-lock.json frontend-docker/
+          cp thesis-frontend/tsconfig*.json frontend-docker/
+          cp thesis-frontend/vite.config.ts frontend-docker/
+          cp thesis-frontend/index.html frontend-docker/
+          cp thesis-frontend/tailwind.config.js frontend-docker/
+          cp thesis-frontend/postcss.config.js frontend-docker/
+          cp thesis-frontend/eslint.config.js frontend-docker/
+          cp -r thesis-frontend/src frontend-docker/
+          cp -r thesis-frontend/public frontend-docker/
 
           echo "=== Frontend Docker context ==="
           ls -la frontend-docker/
+          echo ""
+          echo "=== src directory ==="
+          ls -la frontend-docker/src/ 2>/dev/null || echo "No src dir"
 
       # ----------------------------------------
       # Setup Docker Buildx
