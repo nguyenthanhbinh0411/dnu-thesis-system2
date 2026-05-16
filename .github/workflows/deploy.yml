@@ -282,6 +282,8 @@ jobs:
           cp -r frontend/dist/* frontend-docker/
           cp thesis-frontend/Dockerfile frontend-docker/Dockerfile
           cp thesis-frontend/nginx.conf frontend-docker/nginx.conf
+          cp thesis-frontend/package.json frontend-docker/
+          cp thesis-frontend/package-lock.json frontend-docker/
 
           echo "=== Frontend Docker context ==="
           ls -la frontend-docker/
