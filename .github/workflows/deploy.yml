@@ -282,6 +282,7 @@ jobs:
           cp -r frontend/dist/* frontend-docker/
           cp thesis-frontend/Dockerfile frontend-docker/Dockerfile
           cp thesis-frontend/nginx.conf frontend-docker/nginx.conf
+          cp thesis-frontend/nginx-main.conf frontend-docker/nginx-main.conf
 
           # Copy source files needed for build
           cp thesis-frontend/package.json frontend-docker/
