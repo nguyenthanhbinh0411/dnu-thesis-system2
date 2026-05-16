@@ -328,6 +328,7 @@ jobs:
           docker build \
             --tag graduation-thesis-api:${{ github.sha }} \
             --file backend-docker/Dockerfile \
+            --pull \
             backend-docker/
 
           echo "✓ Backend image built"
@@ -345,6 +346,7 @@ jobs:
             --tag graduation-thesis-web:${{ github.sha }} \
             --file frontend-docker/Dockerfile \
             --build-arg VITE_API_BASE_URL=/api \
+            --no-cache \
             frontend-docker/
 
           echo "✓ Frontend image built"
