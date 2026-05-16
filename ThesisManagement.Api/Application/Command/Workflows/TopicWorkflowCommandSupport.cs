@@ -239,7 +239,7 @@ namespace ThesisManagement.Api.Application.Command.Workflows
 
             var targetState = action switch
             {
-                "approve" => "Đề tài đã duyệt",
+                "approve" => "Đang thực hiện",
                 "reject" => "Bị từ chối",
                 "revision" => "Yêu cầu sửa đổi",
                 _ => "Cập nhật"
@@ -272,7 +272,10 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                     milestone.Ordinal = 2;
                     milestone.CompletedAt1 = DateTime.UtcNow;
                 }
-                milestone.State = targetState;
+                else
+                {
+                    milestone.State = targetState;
+                }
                 milestone.LastUpdated = DateTime.UtcNow;
                 _uow.ProgressMilestones.Update(milestone);
             }
