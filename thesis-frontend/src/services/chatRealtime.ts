@@ -5,23 +5,14 @@ import {
   LogLevel,
 } from "@microsoft/signalr";
 import { getAccessToken } from "./auth-session.service";
+import { API_BASE_PATH } from "../utils/apiConfig";
 import type { ChatRealtimeEvent } from "../types/chat";
 
 export type ChatRealtimeListener = (event: ChatRealtimeEvent) => void;
 
-const envBaseRaw = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5180"
-).toString();
-
-const ensureScheme = (value: string) =>
-  /^https?:\/\//i.test(value) ? value : `http://${value}`;
-
-const normalizedBase = (() => {
-  const value = ensureScheme(envBaseRaw.trim());
-  return value.endsWith("/") ? value.slice(0, -1) : value;
-})();
-
-const defaultHubUrl = `${normalizedBase}/hubs/chat`;
+// Use relative path so SignalR resolves against current origin (browser).
+// Vite proxy (dev) and nginx (prod) both forward /hubs/chat → backend.
+const defaultHubUrl = `${API_BASE_PATH}/hubs/chat`;
 const hubUrl = (import.meta.env.VITE_CHAT_HUB_URL || defaultHubUrl).toString();
 
 export class ChatRealtimeService {

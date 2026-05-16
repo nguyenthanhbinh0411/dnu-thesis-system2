@@ -1,4 +1,5 @@
 import { fetchData } from "../api/fetchData";
+import { API_BASE_PATH } from "../utils/apiConfig";
 import type { ApiResponse } from "../types/api";
 import type {
   NotificationFeedQuery,
@@ -98,11 +99,9 @@ export async function updateMyNotificationPreference(
 }
 
 function getNormalizedBaseUrl(): string {
-  const raw = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5180")
-    .toString()
-    .trim();
-  const normalized = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`;
-  return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
+  // VITE_API_BASE_URL is always a path prefix like /api.
+  // The browser uses relative URL /hubs/notifications via the same proxy.
+  return API_BASE_PATH;
 }
 
 export function getNotificationsHubUrl(): string {

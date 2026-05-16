@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { fetchData, FetchDataError } from "../../api/fetchData";
 import { getAccessToken } from "../../services/auth-session.service";
+import { apiPath } from "../../utils/apiConfig";
 import { useToast } from "../../context/useToast";
 import type { ApiResponse } from "../../types/api";
 import {
@@ -284,11 +285,7 @@ function extractFileNameFromDisposition(headerValue: string | null): string | nu
 }
 
 function resolveApiBase(): string {
-  const raw = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5180")
-    .toString()
-    .trim();
-  const withScheme = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`;
-  return withScheme.endsWith("/") ? withScheme.slice(0, -1) : withScheme;
+  return apiPath("");
 }
 
 async function readRawErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
