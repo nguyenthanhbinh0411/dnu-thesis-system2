@@ -63,10 +63,7 @@ services:
 
     # Logging configuration
     logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      driver: "local"
 
     # Resource limits (optional, adjust as needed)
     deploy:
@@ -105,10 +102,7 @@ services:
 
     # Logging configuration
     logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      driver: "local"
 
 # ================================================
 # Docker Networks
