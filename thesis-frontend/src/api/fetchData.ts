@@ -14,7 +14,7 @@ const stripProtocol = (value: string) =>
 
 // VITE_API_BASE_URL is a PATH PREFIX for production (e.g. /api).
 // Never use http://api, http://backend, or Docker service names in browser requests.
-const envBase = stripProtocol(envBaseRaw.trim()).split("/")[0].replace(/\/.*$/, "");
+const envBase = stripProtocol(envBaseRaw.trim()).split("/").filter(Boolean)[0] ?? "";
 const apiBase = envBase.startsWith("/")
   ? envBase                                        // /api → /api
   : `/${envBase}`;                                // localhost:5180 → /localhost:5180

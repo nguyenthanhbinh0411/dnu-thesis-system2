@@ -14,12 +14,13 @@ const envRaw = (
   import.meta.env.VITE_API_BASE_URL ?? "/api"
 ).toString().trim();
 
-// Strip any protocol prefix, then extract just the path prefix (first segment).
-// "/api"            → "/api"
-// "http://api"      → "/api"
-// "http://localhost:5180" → "/localhost:5180"
+// Strip any protocol prefix, then extract the first non-empty path segment.
+// "/api"                          → first non-empty = "api"  → "/api"
+// "http://localhost:5180"          → first non-empty = "localhost:5180" → "/localhost:5180"
+// "http://localhost:5180/some/path" → first non-empty = "localhost:5180" → "/localhost:5180"
 const withoutProtocol = envRaw.replace(/^https?:\/\//i, "");
-const firstSegment = withoutProtocol.split("/")[0];
+const segments = withoutProtocol.split("/").filter(Boolean);
+const firstSegment = segments[0] ?? "";
 
 // If the value is a path (starts with /) use it as-is.
 // Otherwise wrap it as a path (for localhost:5180 etc).

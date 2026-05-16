@@ -187,7 +187,7 @@ export default function DefenseTopicsSection({
     }
 
     try {
-      await fetchData(`/api/defense-periods/${defenseTermId}/topics/${row.topicId}`, {
+      await fetchData(`/defense-periods/${defenseTermId}/topics/${row.topicId}`, {
         method: "DELETE",
       });
       addToast("Đã xóa đề tài.", "success");
