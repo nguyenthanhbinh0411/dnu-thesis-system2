@@ -344,6 +344,7 @@ jobs:
           docker build \
             --tag graduation-thesis-web:${{ github.sha }} \
             --file frontend-docker/Dockerfile \
+            --build-arg VITE_API_BASE_URL=/api \
             frontend-docker/
 
           echo "✓ Frontend image built"
