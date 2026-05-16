@@ -29,7 +29,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { fetchData } from "../../api/fetchData";
+import { fetchData, normalizeUrl } from "../../api/fetchData";
 import { useToast } from "../../context/useToast";
 import type { ApiResponse } from "../../types/api";
 import { readEnvelopeData, readEnvelopeSuccess } from "../../utils/api-envelope";
@@ -37,6 +37,7 @@ import { useAuth } from "../../hooks/useAuth";
 import DefenseTermStudentsSection, { type DefenseTermStudentsSectionHandle } from "../../components/admin/DefenseTermStudentsSection";
 import DefenseTermLecturersSection, { type DefenseTermLecturersSectionHandle } from "../../components/admin/DefenseTermLecturersSection";
 import ImportExportActions from "../../components/admin/ImportExportActions";
+import { getAccessToken } from "../../services/auth-session.service";
 import { Copy, PlusCircle, Search as SearchIcon, Filter as FilterIcon, MoreHorizontal, AlertTriangle, Eye, ChevronLeft, ChevronRight as ChevronRightIcon } from "lucide-react";
 
 // --- Types & Constants ---
@@ -94,28 +95,78 @@ const defensePeriodApi = {
     }),
   snapshot: (id: number) => fetchData<ApiResponse<any>>(`/defense-periods/${id}/management/snapshot`, { method: "GET" }),
   monitoring: (id: number) => fetchData<ApiResponse<any>>(`/defense-periods/${id}/monitoring/snapshot`, { method: "GET" }),
-  export: (id: number, reportType: string, format: string = "xlsx", councilId?: number) => {
-    const isSpecial = ["students", "lecturers", "assigned-topics"].includes(reportType);
+  export: (id: number, reportType: string, format: string = "xlsx", councilId?: number, fields?: string[]) => {
+    const isSpecial = ["students", "lecturers", "assigned-topics", "lecturers-grouped-students"].includes(reportType);
+    let baseUrl = "";
+    
     if (isSpecial) {
-      return `${import.meta.env.VITE_API_BASE_URL}/api/defense-periods/${id}/exports/${reportType}?format=${format}`;
+      baseUrl = `/api/defense-periods/${id}/exports/${reportType}`;
+    } else {
+      baseUrl = `/api/defense-periods/${id}/reports/export`;
     }
-    // For general reports, use the unified report/export endpoint
-    let url = `${import.meta.env.VITE_API_BASE_URL}/api/defense-periods/${id}/reports/export?reportType=${reportType}&format=${format}`;
-    if (councilId) {
-      url += `&councilId=${councilId}`;
-    }
-    return url;
+
+    const params = new URLSearchParams();
+    params.set("format", format);
+    if (reportType && !isSpecial) params.set("reportType", reportType);
+    if (councilId) params.set("councilId", String(councilId));
+    if (fields && fields.length > 0) params.set("fields", fields.join(","));
+    
+    return normalizeUrl(`${baseUrl}?${params.toString()}`);
   },
 };
 
+const STUDENT_FIELDS = [
+  { key: "StudentCode", label: "Mã sinh viên", category: "Thông tin cơ bản" },
+  { key: "FullName", label: "Họ và tên", category: "Thông tin cơ bản" },
+  { key: "Gender", label: "Giới tính", category: "Thông tin cơ bản" },
+  { key: "DateOfBirth", label: "Ngày sinh", category: "Thông tin cơ bản" },
+  { key: "FacultyCode", label: "Khoa", category: "Đơn vị" },
+  { key: "DepartmentCode", label: "Bộ môn", category: "Đơn vị" },
+  { key: "ClassCode", label: "Lớp", category: "Đơn vị" },
+  { key: "EnrollmentYear", label: "Khóa học", category: "Tiến độ" },
+  { key: "GraduationYear", label: "Năm tốt nghiệp", category: "Tiến độ" },
+  { key: "GPA", label: "Điểm TB", category: "Kết quả" },
+  { key: "AcademicStanding", label: "Xếp loại", category: "Kết quả" },
+  { key: "ParticipationStatus", label: "Trạng thái tham gia", category: "Trạng thái" },
+  { key: "StudentEmail", label: "Email", category: "Liên lạc" },
+  { key: "PhoneNumber", label: "Số điện thoại", category: "Liên lạc" },
+];
+
+const LECTURER_FIELDS = [
+  { key: "LecturerCode", label: "Mã giảng viên", category: "Thông tin cơ bản" },
+  { key: "FullName", label: "Họ và tên", category: "Thông tin cơ bản" },
+  { key: "Degree", label: "Học hàm/Học vị", category: "Thông tin cơ bản" },
+  { key: "Gender", label: "Giới tính", category: "Thông tin cơ bản" },
+  { key: "DepartmentCode", label: "Bộ môn", category: "Đơn vị" },
+  { key: "Organization", label: "Cơ quan công tác", category: "Đơn vị" },
+  { key: "Email", label: "Email", category: "Liên lạc" },
+  { key: "PhoneNumber", label: "Số điện thoại", category: "Liên lạc" },
+  { key: "GuideQuota", label: "Định mức hướng dẫn", category: "Hạn ngạch" },
+  { key: "CurrentGuidingCount", label: "Đang hướng dẫn", category: "Hạn ngạch" },
+  { key: "RemainingGuideQuota", label: "Hạn ngạch còn lại", category: "Hạn ngạch" },
+  { key: "Status", label: "Trạng thái", category: "Trạng thái" },
+];
+
+const TOPIC_FIELDS = [
+  { key: "TopicCode", label: "Mã đề tài", category: "Thông tin đề tài" },
+  { key: "Title", label: "Tên đề tài", category: "Thông tin đề tài" },
+  { key: "Type", label: "Loại đề tài", category: "Thông tin đề tài" },
+  { key: "ProposerStudentCode", label: "Mã sinh viên", category: "Sinh viên" },
+  { key: "ProposerName", label: "Sinh viên thực hiện", category: "Sinh viên" },
+  { key: "SupervisorLecturerCode", label: "Mã giảng viên HD", category: "Giảng viên" },
+  { key: "SupervisorName", label: "Giảng viên hướng dẫn", category: "Giảng viên" },
+  { key: "DepartmentCode", label: "Bộ môn quản lý", category: "Quản lý" },
+  { key: "Score", label: "Điểm số", category: "Kết quả" },
+  { key: "Status", label: "Trạng thái", category: "Trạng thái" },
+];
+
 const STATISTICS_REPORTS = [
-  { key: "students", label: "Danh sách sinh viên đủ điều kiện", desc: "Danh sách sinh viên đủ điều kiện tham gia thực hiện đồ án tốt nghiệp.", icon: <Users size={20} />, type: "excel" },
-  { key: "lecturers", label: "Danh sách giảng viên hướng dẫn", desc: "Danh sách giảng viên tham gia hướng dẫn và quản lý trong đợt.", icon: <UserCheck size={20} />, type: "excel" },
-  { key: "assigned-topics", label: "Danh sách đề tài đã phân công", desc: "Báo cáo chi tiết các đề tài đã được gán sinh viên và giảng viên.", icon: <CheckCircle size={20} />, type: "excel" },
-  { key: "committee-roster", label: "Danh sách Hội đồng & Phân công", desc: "Xuất file Excel tổng hợp hội đồng, thành viên và đề tài.", icon: <LayoutDashboard size={20} />, type: "excel" },
-  { key: "council-summary", label: "Tổng hợp kết quả theo Hội đồng", desc: "Báo cáo tổng kết điểm số theo từng đơn vị hội đồng.", icon: <FileSpreadsheet size={20} />, type: "excel" },
+  { key: "students", label: "Danh sách sinh viên theo đợt", desc: "Xuất dữ liệu chi tiết sinh viên trong đợt (đề tài, điểm số, trạng thái).", icon: <Users size={20} />, type: "modular", fields: STUDENT_FIELDS },
+  { key: "lecturers", label: "Danh sách giảng viên theo đợt", desc: "Dữ liệu giảng viên tham gia, bao gồm hạn ngạch hướng dẫn và chấm điểm.", icon: <UserCheck size={20} />, type: "modular", fields: LECTURER_FIELDS },
+  { key: "assigned-topics", label: "Phân công đề tài & Giảng viên hướng dẫn", desc: "Báo cáo chi tiết các đề tài đã được gán sinh viên và giảng viên hướng dẫn.", icon: <FileSpreadsheet size={20} />, type: "modular", fields: TOPIC_FIELDS },
+  { key: "lecturers-grouped-students", label: "Danh sách hướng dẫn gộp theo giảng viên", desc: "Báo cáo danh sách sinh viên theo từng giảng viên hướng dẫn.", icon: <LayoutDashboard size={20} />, type: "modular", fields: TOPIC_FIELDS },
+  { key: "committee-roster", label: "Danh sách Hội đồng & Phân công", desc: "Xuất file Excel tổng hợp hội đồng, thành viên và đề tài.", icon: <Users size={20} />, type: "excel" },
   { key: "final-term", label: "Bảng điểm tổng kết đợt", desc: "Danh sách điểm số cuối cùng của toàn bộ sinh viên trong đợt.", icon: <ShieldCheck size={20} />, type: "pdf" },
-  { key: "form-1", label: "Phiếu chấm điểm (Mẫu 1)", desc: "Mẫu phiếu chấm điểm dành cho thành viên hội đồng.", icon: <FileDown size={20} />, type: "pdf" },
 ];
 
 // --- Helper Functions ---
@@ -404,8 +455,6 @@ const DefensePeriodsManagement: React.FC = () => {
 
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; action: string; title: string; message: string; type: "info" | "warning" | "danger" } | null>(null);
   const [periodModal, setPeriodModal] = useState<{ isOpen: boolean; mode: "create" | "edit" | "clone"; row?: DefensePeriod } | null>(null);
-  const [downloadModal, setDownloadModal] = useState<{ isOpen: boolean; report: any | null; councilId?: number }>({ isOpen: false, report: null });
-
   const studentSectionRef = useRef<DefenseTermStudentsSectionHandle>(null);
   const lecturerSectionRef = useRef<DefenseTermLecturersSectionHandle>(null);
 
@@ -545,20 +594,13 @@ const DefensePeriodsManagement: React.FC = () => {
     }
   };
 
-  const handleDownloadReport = async (item: any, format?: string) => {
+  const handleDownloadReport = async (item: any, format: string = "xlsx", fields?: string[]) => {
     if (!selectedId) return;
 
-    // If no format is provided, open the selection modal
-    if (!format) {
-      setDownloadModal({ isOpen: true, report: item });
-      return;
-    }
-
-    const url = defensePeriodApi.export(selectedId, item.key, format, downloadModal.councilId);
-    const token = localStorage.getItem("accessToken") || (auth as any).accessToken;
+    const url = defensePeriodApi.export(selectedId, item.key, format, undefined, fields);
+    const token = getAccessToken();
 
     setRefreshing(true);
-    setDownloadModal({ isOpen: false, report: null });
 
     try {
       const response = await fetch(url, {
@@ -998,57 +1040,6 @@ const DefensePeriodsManagement: React.FC = () => {
     );
   };
 
-  const renderStatistics = () => {
-    return (
-      <div style={{ display: "grid", gap: "24px" }}>
-        {renderTimeline()}
-
-        <div style={{ background: "#f8fafc", padding: "24px", borderRadius: "20px", border: "1px solid #e2e8f0" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
-            <Download size={18} color={DEEP_BLUE_PRIMARY} />
-            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: DEEP_BLUE_PRIMARY }}>Xuất báo cáo & Dữ liệu</h3>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
-            {STATISTICS_REPORTS.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => handleDownloadReport(item)}
-                disabled={!selectedId || refreshing}
-                style={{
-                  background: "#fff",
-                  border: "1px solid #cbd5e1",
-                  borderRadius: "14px",
-                  padding: "16px",
-                  display: "flex",
-                  alignItems: "center",
-                  width: "100%",
-                  textAlign: "left",
-                  gap: "16px",
-                  cursor: (!selectedId || refreshing) ? "not-allowed" : "pointer",
-                  transition: "all 0.2s ease",
-                  opacity: (!selectedId || refreshing) ? 0.7 : 1
-                }}
-                onMouseEnter={(e) => { if (selectedId && !refreshing) e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; }}
-                onMouseLeave={(e) => { if (selectedId && !refreshing) e.currentTarget.style.borderColor = "#cbd5e1"; }}
-              >
-                <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: LIGHT_BLUE_SOFTEN, display: "flex", alignItems: "center", justifyContent: "center", color: DEEP_BLUE_PRIMARY }}>
-                  {item.icon}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "14px", fontWeight: "700", color: "#1e293b" }}>{item.label}</div>
-                  <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>{item.desc}</div>
-                </div>
-                <div style={{ color: "#94a3b8" }}>
-                  <Download size={16} />
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   const renderEmptyState = () => {
     return (
@@ -1426,94 +1417,6 @@ const DefensePeriodsManagement: React.FC = () => {
             {selectedRow ? `Điều hành: ${selectedRow.name}` : "Điều hành vòng đời, theo dõi tiến độ và quản lý thành viên đợt đồ án tốt nghiệp."}
           </p>
         </div>
-      {downloadModal.isOpen && downloadModal.report && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}>
-          <div style={{ background: "white", borderRadius: "24px", width: "100%", maxWidth: "420px", padding: "32px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-              <h3 style={{ margin: 0, fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>Chọn định dạng tải</h3>
-              <button onClick={() => setDownloadModal({ isOpen: false, report: null })} style={{ border: "none", background: "none", color: "#94a3b8", cursor: "pointer" }}><Plus style={{ transform: "rotate(45deg)" }} size={24} /></button>
-            </div>
-            
-            <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "24px", lineHeight: "1.6" }}>
-              Bạn đang chuẩn bị tải xuống: <strong>{downloadModal.report.label}</strong>. Vui lòng chọn định dạng tệp phù hợp với nhu cầu của bạn.
-            </p>
-
-            {(downloadModal.report.key === "form-1" || downloadModal.report.key === "scoreboard") && (
-              <div style={{ marginBottom: "24px", padding: "16px", background: "#f8fafc", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "8px" }}>Chọn Hội đồng (Bắt buộc)</label>
-                <select 
-                  value={downloadModal.councilId || ""} 
-                  onChange={e => setDownloadModal({ ...downloadModal, councilId: e.target.value ? Number(e.target.value) : undefined })}
-                  style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "1px solid #cbd5e1", background: "white", fontSize: "14px" }}
-                >
-                  <option value="">-- Chọn hội đồng --</option>
-                  {(snapshot?.committees || snapshot?.councils || []).map((c: any) => (
-                    <option key={c.committeeID || c.id} value={c.committeeID || c.id}>
-                      {c.committeeCode || c.code} - {c.name}
-                    </option>
-                  ))}
-                </select>
-                {!downloadModal.councilId && <div style={{ color: "#ef4444", fontSize: "11px", marginTop: "4px", fontWeight: "600" }}>Vui lòng chọn một hội đồng để tiếp tục.</div>}
-              </div>
-            )}
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-              <button 
-                onClick={() => {
-                  if ((downloadModal.report.key === "form-1" || downloadModal.report.key === "scoreboard") && !downloadModal.councilId) {
-                    addToast("Vui lòng chọn hội đồng.", "warning");
-                    return;
-                  }
-                  handleDownloadReport(downloadModal.report, "xlsx");
-                }}
-                disabled={(downloadModal.report.key === "form-1" || downloadModal.report.key === "scoreboard") && !downloadModal.councilId}
-                style={{
-                  padding: "20px", borderRadius: "16px", border: "2px solid #e2e8f0", background: "#fff",
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", cursor: "pointer", transition: "all 0.2s ease",
-                  opacity: ((downloadModal.report.key === "form-1" || downloadModal.report.key === "scoreboard") && !downloadModal.councilId) ? 0.5 : 1
-                }}
-                onMouseEnter={e => { if (!e.currentTarget.disabled) { e.currentTarget.style.borderColor = "#10b981"; e.currentTarget.style.background = "#f0fdf4"; } }}
-                onMouseLeave={e => { if (!e.currentTarget.disabled) { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#fff"; } }}
-              >
-                <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center", color: "#10b981" }}>
-                  <FileSpreadsheet size={24} />
-                </div>
-                <span style={{ fontWeight: "700", color: "#1e293b" }}>Excel (.xlsx)</span>
-              </button>
-
-              <button 
-                onClick={() => {
-                  if ((downloadModal.report.key === "form-1" || downloadModal.report.key === "scoreboard") && !downloadModal.councilId) {
-                    addToast("Vui lòng chọn hội đồng.", "warning");
-                    return;
-                  }
-                  handleDownloadReport(downloadModal.report, "pdf");
-                }}
-                disabled={(downloadModal.report.key === "form-1" || downloadModal.report.key === "scoreboard") && !downloadModal.councilId}
-                style={{
-                  padding: "20px", borderRadius: "16px", border: "2px solid #e2e8f0", background: "#fff",
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", cursor: "pointer", transition: "all 0.2s ease",
-                  opacity: ((downloadModal.report.key === "form-1" || downloadModal.report.key === "scoreboard") && !downloadModal.councilId) ? 0.5 : 1
-                }}
-                onMouseEnter={e => { if (!e.currentTarget.disabled) { e.currentTarget.style.borderColor = "#ef4444"; e.currentTarget.style.background = "#fef2f2"; } }}
-                onMouseLeave={e => { if (!e.currentTarget.disabled) { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#fff"; } }}
-              >
-                <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center", color: "#ef4444" }}>
-                  <FileDown size={24} />
-                </div>
-                <span style={{ fontWeight: "700", color: "#1e293b" }}>PDF (.pdf)</span>
-              </button>
-            </div>
-            
-            <button 
-              onClick={() => setDownloadModal({ isOpen: false, report: null })}
-              style={{ width: "100%", marginTop: "24px", padding: "12px", borderRadius: "12px", border: "1px solid #e2e8f0", background: "white", color: "#64748b", fontWeight: "700", cursor: "pointer" }}
-            >
-              Hủy bỏ
-            </button>
-          </div>
-        </div>
-      )}
 
         <div style={{ display: "flex", gap: "12px" }}>
 
@@ -1604,7 +1507,13 @@ const DefensePeriodsManagement: React.FC = () => {
             </div>
           )}
           {activeTab === "operations" && renderOperations()}
-          {activeTab === "statistics" && renderStatistics()}
+          {activeTab === "statistics" && (
+            <StatisticsSection
+              selectedId={selectedId}
+              refreshing={refreshing}
+              onDownload={handleDownloadReport}
+            />
+          )}
         </div>
       </div>
 
@@ -1636,4 +1545,171 @@ const DefensePeriodsManagement: React.FC = () => {
   );
 };
 
+
 export default DefensePeriodsManagement;
+
+const StatisticsSection: React.FC<{
+  selectedId: number | null;
+  refreshing: boolean;
+  onDownload: (item: any, format: string, fields?: string[]) => void;
+}> = ({ selectedId, refreshing, onDownload }) => {
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(STATISTICS_REPORTS[0].key);
+  const [selectedFields, setSelectedFields] = useState<string[]>(STATISTICS_REPORTS[0].fields?.map(f => f.key) || []);
+  const [exportFormat, setExportFormat] = useState("xlsx");
+
+  const currentTemplate = STATISTICS_REPORTS.find(t => t.key === selectedTemplateKey) || STATISTICS_REPORTS[0];
+  
+  const categories = useMemo(() => {
+    const cats: Record<string, any[]> = {};
+    if (currentTemplate.fields) {
+      currentTemplate.fields.forEach((f: any) => {
+        if (!cats[f.category]) cats[f.category] = [];
+        cats[f.category].push(f);
+      });
+    }
+    return cats;
+  }, [currentTemplate]);
+
+  // Sync fields when template changes
+  useEffect(() => {
+    if (currentTemplate.fields) {
+      setSelectedFields(currentTemplate.fields.map(f => f.key));
+    } else {
+      setSelectedFields([]);
+    }
+  }, [selectedTemplateKey, currentTemplate]);
+
+  const toggleField = (key: string) => {
+    setSelectedFields(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  };
+
+  return (
+    <div style={{ display: "grid", gap: "24px", animation: "fadeIn 0.4s ease-out" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "24px", alignItems: "start" }}>
+        
+        <div style={{ background: "#f8fafc", padding: "24px", borderRadius: "20px", border: "1px solid #e2e8f0", height: "100%" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+            <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: DEEP_BLUE_PRIMARY, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800" }}>1</div>
+            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chọn mẫu báo cáo</h3>
+          </div>
+          
+          <div style={{ display: "grid", gap: "10px" }}>
+            {STATISTICS_REPORTS.map((item) => (
+              <button
+                key={item.key}
+                onClick={() => setSelectedTemplateKey(item.key)}
+                style={{
+                  width: "100%", padding: "16px", borderRadius: "16px", textAlign: "left",
+                  border: `2px solid ${selectedTemplateKey === item.key ? DEEP_BLUE_PRIMARY : "transparent"}`,
+                  background: selectedTemplateKey === item.key ? "white" : "transparent",
+                  boxShadow: selectedTemplateKey === item.key ? "0 4px 12px rgba(0,0,0,0.05)" : "none",
+                  cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", gap: "12px"
+                }}
+              >
+                <div style={{ color: selectedTemplateKey === item.key ? DEEP_BLUE_PRIMARY : "#94a3b8" }}>{item.icon}</div>
+                <span style={{ fontSize: "14px", fontWeight: selectedTemplateKey === item.key ? "700" : "600", color: selectedTemplateKey === item.key ? "#1e293b" : "#64748b" }}>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ background: "white", padding: "32px", borderRadius: "20px", border: "1px solid #e2e8f0", minHeight: "500px", display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: DEEP_BLUE_PRIMARY, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800" }}>2</div>
+              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Cấu hình trường dữ liệu</h3>
+            </div>
+            {currentTemplate.fields && (
+              <div style={{ display: "flex", gap: "16px" }}>
+                <button onClick={() => setSelectedFields(currentTemplate.fields?.map(f => f.key) || [])} style={{ background: "none", border: "none", color: DEEP_BLUE_PRIMARY, fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>Chọn tất cả</button>
+                <button onClick={() => setSelectedFields([])} style={{ background: "none", border: "none", color: "#ef4444", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>Bỏ chọn</button>
+              </div>
+            )}
+          </div>
+
+          {currentTemplate.fields ? (
+            <div style={{ flex: 1, display: "grid", gap: "32px" }}>
+              {Object.entries(categories).map(([cat, fields]) => (
+                <div key={cat}>
+                  <div style={{ fontSize: "12px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "16px", display: "flex", alignItems: "center", gap: "10px" }}>
+                    {cat} <div style={{ flex: 1, height: "1px", background: "#f1f5f9" }} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px" }}>
+                    {fields.map(field => (
+                      <label
+                        key={field.key}
+                        style={{
+                          display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderRadius: "14px",
+                          border: `1px solid ${selectedFields.includes(field.key) ? DEEP_BLUE_PRIMARY : "#f1f5f9"}`,
+                          background: selectedFields.includes(field.key) ? `${DEEP_BLUE_PRIMARY}05` : "#fcfdfe",
+                          cursor: "pointer", transition: "all 0.2s"
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedFields.includes(field.key)}
+                          onChange={() => toggleField(field.key)}
+                          style={{ width: "18px", height: "18px", accentColor: DEEP_BLUE_PRIMARY, cursor: "pointer" }}
+                        />
+                        <span style={{ fontSize: "13px", fontWeight: "600", color: selectedFields.includes(field.key) ? "#1e293b" : "#64748b" }}>{field.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#94a3b8", gap: "16px" }}>
+              <Info size={48} strokeWidth={1} />
+              <div style={{ fontSize: "14px", fontWeight: "600" }}>Mẫu báo cáo này không yêu cầu cấu hình trường dữ liệu bổ sung.</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ background: "#1e293b", padding: "32px", borderRadius: "24px", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "32px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.2)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800" }}>3</div>
+            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.05em" }}>Định dạng & Xuất file</h3>
+          </div>
+          
+          <div style={{ display: "flex", gap: "8px", background: "rgba(0,0,0,0.2)", padding: "4px", borderRadius: "12px" }}>
+            {[
+              { id: "xlsx", label: "Excel (.xlsx)", icon: <FileSpreadsheet size={16} /> },
+              { id: "pdf", label: "PDF (.pdf)", icon: <FileDown size={16} /> },
+            ].map(opt => (
+              <button
+                key={opt.id}
+                onClick={() => setExportFormat(opt.id)}
+                style={{
+                  padding: "10px 20px", borderRadius: "10px", border: "none",
+                  background: exportFormat === opt.id ? "white" : "transparent",
+                  color: exportFormat === opt.id ? "#1e293b" : "#94a3b8",
+                  fontWeight: "700", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
+                  transition: "all 0.2s"
+                }}
+              >
+                {opt.icon} {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          onClick={() => onDownload(currentTemplate, exportFormat, selectedFields)}
+          disabled={!selectedId || refreshing || (currentTemplate.fields && selectedFields.length === 0)}
+          style={{
+            padding: "16px 48px", borderRadius: "16px", border: "none",
+            background: "#3b82f6", color: "white", fontWeight: "800", fontSize: "15px",
+            cursor: "pointer", display: "flex", alignItems: "center", gap: "12px",
+            boxShadow: "0 10px 15px -3px rgba(59, 130, 246, 0.3)", transition: "all 0.2s"
+          }}
+        >
+          {refreshing ? <RefreshCw size={20} style={{ animation: "spin 2s linear infinite" }} /> : <Download size={20} />}
+          Xuất dữ liệu ngay
+        </button>
+      </div>
+    </div>
+  );
+};

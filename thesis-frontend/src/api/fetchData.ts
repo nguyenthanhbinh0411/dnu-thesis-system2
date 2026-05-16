@@ -41,7 +41,8 @@ export function normalizeUrl(path: string | null | undefined): string {
   }
 
   const normalizedPath = value.startsWith("/") ? value : `/${value}`;
-  return `${normalizedBase}${normalizedPath}`;
+  const base = (normalizedBase && normalizedBase !== "undefined") ? normalizedBase : "";
+  return `${base}${normalizedPath}`;
 }
 
 // Helper function to get full avatar URL

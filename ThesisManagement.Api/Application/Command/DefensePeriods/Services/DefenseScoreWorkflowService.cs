@@ -16,6 +16,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
         Task OpenSessionAsync(int committeeId, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default);
         Task LockSessionAsync(int committeeId, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default);
         Task CloseSessionAsync(int committeeId, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default);
+        Task ReopenFinalizedSessionAsync(int committeeId, int actorUserId, CancellationToken cancellationToken = default);
     }
 
     public sealed class DefenseScoreWorkflowService : IDefenseScoreWorkflowService
@@ -350,6 +351,66 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
             {
                 await _hub.Clients.All.SendAsync("DefenseSessionClosed", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
+            }, cancellationToken);
+        }
+
+        public async Task ReopenFinalizedSessionAsync(int committeeId, int actorUserId, CancellationToken cancellationToken = default)
+        {
+            await using var tx = await _uow.BeginTransactionAsync(cancellationToken);
+
+            var committee = await _db.Committees.FirstOrDefaultAsync(x => x.CommitteeID == committeeId, cancellationToken);
+            if (committee == null)
+            {
+                throw new BusinessRuleException("Không tìm thấy hội đồng.");
+            }
+
+            var committeeStatus = DefenseWorkflowStateMachine.ParseCommitteeStatus(committee.Status);
+            if (committeeStatus != CommitteeStatus.Finalized && committeeStatus != CommitteeStatus.Published)
+            {
+                throw new BusinessRuleException("Chỉ có thể mở lại hội đồng khi đã ở trạng thái Finalized/Published.", "UC3.6.INVALID_COMMITTEE_STATE");
+            }
+
+            var now = DateTime.UtcNow;
+            committee.Status = DefenseWorkflowStateMachine.ToValue(CommitteeStatus.Ongoing);
+            committee.LastUpdated = now;
+            _uow.Committees.Update(committee);
+
+            var assignments = await _db.DefenseAssignments.Where(x => x.CommitteeID == committeeId).ToListAsync(cancellationToken);
+            var assignmentIds = assignments.Select(x => x.AssignmentID).ToList();
+
+            // Remove old results so reopening starts with clean slate
+            var oldResults = await _db.DefenseResults.Where(x => assignmentIds.Contains(x.AssignmentId)).ToListAsync(cancellationToken);
+            foreach (var r in oldResults)
+            {
+                _uow.DefenseResults.Remove(r);
+            }
+
+            foreach (var assignment in assignments)
+            {
+                var assignmentStatus = DefenseWorkflowStateMachine.ParseAssignmentStatus(assignment.Status);
+                if (assignmentStatus != AssignmentStatus.Defending)
+                {
+                    assignment.Status = DefenseWorkflowStateMachine.ToValue(AssignmentStatus.Defending);
+                    assignment.LastUpdated = now;
+                    _uow.DefenseAssignments.Update(assignment);
+                }
+            }
+
+            await _uow.SaveChangesAsync();
+            await tx.CommitAsync(cancellationToken);
+
+            await _auditTrail.WriteAsync(
+                "ADMIN_REOPEN_SESSION",
+                "SUCCESS",
+                new { CommitteeId = committeeId, BeforeStatus = CommitteeStatus.Finalized },
+                new { CommitteeId = committeeId, AfterStatus = CommitteeStatus.Ongoing },
+                new { CommitteeId = committeeId },
+                actorUserId,
+                cancellationToken);
+
+            await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
+            {
+                await _hub.Clients.All.SendAsync("DefenseSessionReopened", new { CommitteeId = committeeId }, ct);
             }, cancellationToken);
         }
 

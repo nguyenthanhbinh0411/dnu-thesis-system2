@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using Aspose.Words;
 using ThesisManagement.Api.DTOs.DocumentExports;
 using DocumentFormat.OpenXml;
@@ -13,7 +14,7 @@ public sealed class DocumentExportService : IDocumentExportService
 {
     private static readonly IReadOnlyDictionary<DocumentExportType, string> TemplateNames = new Dictionary<DocumentExportType, string>
     {
-        [DocumentExportType.BangDiem] = "BẢNG ĐIỂM GHI KẾT QUẢ ĐỒ ÁN TỐT NGHIỆP.docx",
+        [DocumentExportType.BangDiem] = "BẢNG ĐIỂM GHI KẾT QUẢ BẢO VỆ.docx",
         [DocumentExportType.BienBan] = "BIÊN BẢN HỌP.docx",
         [DocumentExportType.NhanXet] = "NHẬN XÉT CỦA NGƯỜI PHẢN BIỆN.docx"
     };
@@ -30,7 +31,7 @@ public sealed class DocumentExportService : IDocumentExportService
         var templatePath = GetTemplatePath(type);
         var templateBytes = await ReadTemplateBytesWithRetryAsync(templatePath, cancellationToken);
         var tokens = BuildTokenMap(reportData);
-        var resultBytes = ReplaceTokensInDocx(templateBytes, tokens);
+        var resultBytes = ReplaceTokensInDocx(type, templateBytes, tokens, reportData);
 
         return new ExportFileResult(
             resultBytes,
@@ -88,7 +89,11 @@ public sealed class DocumentExportService : IDocumentExportService
             lastIOException);
     }
 
-    private static byte[] ReplaceTokensInDocx(byte[] templateBytes, IReadOnlyDictionary<string, string?> tokenMap)
+    private static byte[] ReplaceTokensInDocx(
+        DocumentExportType type,
+        byte[] templateBytes,
+        IReadOnlyDictionary<string, string?> tokenMap,
+        ReportData reportData)
     {
         using var stream = new MemoryStream();
         stream.Write(templateBytes, 0, templateBytes.Length);
@@ -100,6 +105,12 @@ public sealed class DocumentExportService : IDocumentExportService
             if (mainPart == null)
             {
                 return templateBytes;
+            }
+
+            // For BangDiem, expand row markers before global replacement so row-level tokens are preserved.
+            if (type == DocumentExportType.BangDiem)
+            {
+                ExpandBangDiemRows(mainPart, reportData);
             }
 
             ReplaceTokensInPart(mainPart, tokenMap);
@@ -133,6 +144,118 @@ public sealed class DocumentExportService : IDocumentExportService
         return outMs.ToArray();
     }
 
+    private static void ExpandBangDiemRows(MainDocumentPart mainPart, ReportData reportData)
+    {
+        if (!reportData.AdditionalTokens.TryGetValue("StudentRowsJson", out var rowsJson) || string.IsNullOrWhiteSpace(rowsJson))
+        {
+            return;
+        }
+
+        var rows = JsonSerializer.Deserialize<List<ScoreboardRowTokenData>>(rowsJson) ?? new List<ScoreboardRowTokenData>();
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        var table = mainPart.Document?.Body?.Descendants<Table>()
+            .FirstOrDefault(t => t.Descendants<Text>().Any(text =>
+                text.Text.Contains("{{RowNumber}}", StringComparison.OrdinalIgnoreCase)
+                || text.Text.Contains("{{StudentCode}}", StringComparison.OrdinalIgnoreCase)
+                || text.Text.Contains("{{StudentName}}", StringComparison.OrdinalIgnoreCase)));
+
+        if (table == null)
+        {
+            return;
+        }
+
+        var markerRow = table.Elements<TableRow>()
+            .FirstOrDefault(tr => tr.Descendants<Text>().Any(text =>
+                text.Text.Contains("{{RowNumber}}", StringComparison.OrdinalIgnoreCase)
+                || text.Text.Contains("{{StudentCode}}", StringComparison.OrdinalIgnoreCase)
+                || text.Text.Contains("{{StudentName}}", StringComparison.OrdinalIgnoreCase)));
+
+        if (markerRow == null)
+        {
+            return;
+        }
+
+        foreach (var row in rows)
+        {
+            var clone = (TableRow)markerRow.CloneNode(true);
+            var rowTokens = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["{{RowNumber}}"] = row.RowNumber,
+                ["{{StudentCode}}"] = row.StudentCode,
+                ["{{StudentName}}"] = row.StudentName,
+                ["{{ClassName}}"] = row.ClassName,
+                ["{{CohortCode}}"] = row.CohortCode,
+                ["{{Khoa}}"] = row.CohortCode,
+                ["{{ClassCode}}"] = row.ClassCode,
+                ["{{Supervisor}}"] = row.Supervisor,
+                ["{{ScoreGVHD}}"] = row.ScoreGVHD,
+                ["{{ScoreCT}}"] = row.ScoreCT,
+                ["{{ScoreTK}}"] = row.ScoreTK,
+                ["{{ScorePB}}"] = row.ScorePB,
+                ["{{FinalScore}}"] = row.FinalScore,
+                ["{{TopicTitle}}"] = row.TopicTitle,
+            };
+
+            ReplaceTokensInElement(clone, rowTokens);
+            markerRow.InsertBeforeSelf(clone);
+        }
+
+        markerRow.Remove();
+    }
+
+    private static void ReplaceTokensInElement(OpenXmlElement element, IReadOnlyDictionary<string, string?> tokenMap)
+    {
+        foreach (var paragraph in element.Descendants<OpenXmlParagraph>())
+        {
+            var texts = paragraph.Descendants<Text>().ToList();
+            if (texts.Count == 0)
+            {
+                continue;
+            }
+
+            var original = string.Concat(texts.Select(x => x.Text));
+            var modified = original;
+
+            foreach (var kv in tokenMap)
+            {
+                if (modified.Contains(kv.Key, StringComparison.OrdinalIgnoreCase))
+                {
+                    modified = modified.Replace(kv.Key, kv.Value ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            if (!string.Equals(original, modified, StringComparison.Ordinal))
+            {
+                texts[0].Text = modified;
+                for (var i = 1; i < texts.Count; i++)
+                {
+                    texts[i].Text = string.Empty;
+                }
+            }
+        }
+    }
+
+    private sealed class ScoreboardRowTokenData
+    {
+        public string RowNumber { get; set; } = string.Empty;
+        public string StudentCode { get; set; } = string.Empty;
+        public string StudentName { get; set; } = string.Empty;
+        public string ClassName { get; set; } = string.Empty;
+        public string CohortCode { get; set; } = string.Empty;
+        public string ClassCode { get; set; } = string.Empty;
+        public string Supervisor { get; set; } = string.Empty;
+        public string ScoreGVHD { get; set; } = string.Empty;
+        public string ScoreCT { get; set; } = string.Empty;
+        public string ScoreTK { get; set; } = string.Empty;
+        public string ScorePB { get; set; } = string.Empty;
+        public string FinalScore { get; set; } = string.Empty;
+        public string TopicTitle { get; set; } = string.Empty;
+    }
+
     private static void ReplaceTokensInPart(OpenXmlPart? part, IReadOnlyDictionary<string, string?> tokenMap)
     {
         if (part?.RootElement == null)
@@ -149,13 +272,6 @@ public sealed class DocumentExportService : IDocumentExportService
             }
 
             var original = string.Concat(texts.Select(x => x.Text));
-            var upper = original.ToUpperInvariant();
-            // Remove small standalone table captions/titles from templates
-            if (upper.Contains("BẢNG") || upper.Contains("BANG") || upper.Contains("DANH SÁCH") || upper.Contains("THEO DÕI"))
-            {
-                paragraph.Remove();
-                continue;
-            }
             var modified = original;
 
             foreach (var kv in tokenMap)

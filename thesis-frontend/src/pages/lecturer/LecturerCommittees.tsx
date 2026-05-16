@@ -39,7 +39,6 @@ import {
   Eye,
   ExternalLink,
   FileText,
-  Gavel,
   Info,
   LayoutDashboard,
   Lock,
@@ -530,19 +529,6 @@ const LecturerCommittees: React.FC = () => {
                   <button className="action-btn btn-ghost" style={{ flex: 1 }} onClick={() => setDetailCommitteeId(c.id)}>
                     <Eye size={16} /> Chi tiết
                   </button>
-                  {(() => {
-                    const canJoin = c.normalizedRole === 'CT' || c.status === 'Đang họp';
-                    return (
-                      <button 
-                        className={`action-btn ${canJoin ? "btn-primary" : "btn-disabled"}`} 
-                        style={{ flex: 1.5 }} 
-                        onClick={() => canJoin && openRoleWorkspace(c)}
-                        disabled={!canJoin}
-                      >
-                        <Gavel size={16} /> Tham gia hội đồng
-                      </button>
-                    );
-                  })()}
                 </div>
               </div>
             );
@@ -622,18 +608,6 @@ const LecturerCommittees: React.FC = () => {
 
             <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button className="action-btn btn-ghost" onClick={() => setDetailCommitteeId("")}>Đóng lại</button>
-              {(() => {
-                const canJoin = detailCommittee.normalizedRole === 'CT' || detailCommittee.status === 'Đang họp';
-                return (
-                  <button 
-                    className={`action-btn ${canJoin ? "btn-primary" : "btn-disabled"}`} 
-                    onClick={() => canJoin && openRoleWorkspace(detailCommittee)}
-                    disabled={!canJoin}
-                  >
-                    Tham gia ngay
-                  </button>
-                );
-              })()}
             </div>
           </div>
         </div>
