@@ -152,7 +152,8 @@ type RowStatus =
   | "rejected"
   | "revision"
   | "defense-ready"
-  | "committee-assigned";
+  | "committee-assigned"
+  | "none";
 
 type DashboardRowView = StudentDashboardItem & {
   __status: RowStatus;
