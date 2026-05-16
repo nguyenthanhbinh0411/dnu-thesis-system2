@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { fetchData } from "../../api/fetchData";
+import { apiPath } from "../../utils/apiConfig";
 import { useToast } from "../../context/useToast";
 import { getAccessToken } from "../../services/auth-session.service";
 import type { ApiResponse } from "../../types/api";
@@ -173,19 +174,9 @@ function getRowValue(row: PreviewRow, key: string): unknown {
 }
 
 function buildModuleUrl(path: string, format?: DataExchangeFormat): string {
-  const envBaseRaw = (
-    import.meta.env.VITE_API_BASE_URL || "http://localhost:5180"
-  ).toString();
-  const ensureScheme = (value: string) =>
-    /^https?:\/\//i.test(value) ? value : `http://${value}`;
-  const normalizedBase = (() => {
-    const base = ensureScheme(envBaseRaw.trim());
-    return base.endsWith("/") ? base.slice(0, -1) : base;
-  })();
-  const apiBase = `${normalizedBase}/api`;
   const url = path.startsWith("http")
     ? path
-    : `${apiBase}${path.startsWith("/") ? path : `/${path}`}`;
+    : apiPath(path);
   if (!format) return url;
   return url.includes("?")
     ? `${url}&format=${encodeURIComponent(format)}`

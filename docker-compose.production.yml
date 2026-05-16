@@ -1,0 +1,133 @@
+version: '3.8'
+
+# ================================================
+# Graduation Thesis Management System
+# Docker Compose Production Configuration
+# ================================================
+#
+# IMPORTANT:
+# - This compose file assumes Oracle external database.
+# - DB_CONNECTION_STRING and JWT_SECRET are stored in .env.runtime on server.
+# - DO NOT put secrets in this file or GitHub Secrets.
+# - Only backend and frontend services are managed here.
+# - Database is external Oracle (not managed by this compose).
+#
+
+services:
+  # ----------------------------------------
+  # Backend Service (ASP.NET Core 8)
+  # ----------------------------------------
+  backend:
+    image: ${BACKEND_IMAGE}
+    container_name: graduation-thesis-api
+    restart: unless-stopped
+
+    environment:
+      # ASP.NET Core settings
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - ASPNETCORE_URLS=http://+:8080
+
+      # Database connection (from .env.runtime)
+      # Format: User Id=USER;Password=PASS;Data Source=HOST:PORT/SERVICE;
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+
+      # JWT Configuration (from .env.runtime)
+      - Jwt__Key=${JWT_SECRET}
+      - Jwt__Issuer=${JWT_ISSUER:-ThesisManagement.Api}
+      - Jwt__Audience=${JWT_AUDIENCE:-ThesisManagement.Client}
+      - Jwt__ExpiryMinutes=${JWT_EXPIRY_MINUTES:-60}
+
+      # File Storage (Mega.nz)
+      - Mega__ApiKey=${MEGA_API_KEY:-}
+
+      # Logging
+      - Logging__LogLevel__Default=Information
+      - Logging__LogLevel__Microsoft=Warning
+      - Logging__LogLevel__Microsoft.EntityFrameworkCore=Warning
+
+    # Internal network only - NOT exposed to host
+    expose:
+      - "8080"
+
+    # Docker internal network
+    networks:
+      - graduation-thesis-net
+
+    # Healthcheck using wget (aspnet image has wget, not curl)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+    # Resource limits (optional, adjust as needed)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+  # ----------------------------------------
+  # Frontend Service (React + Vite + Nginx)
+  # ----------------------------------------
+  frontend:
+    image: ${FRONTEND_IMAGE}
+    container_name: graduation-thesis-web
+    restart: unless-stopped
+
+    # Public port binding
+    ports:
+      - "${PUBLIC_PORT:-8888}:80"
+
+    depends_on:
+      backend:
+        condition: service_healthy
+
+    networks:
+      - graduation-thesis-net
+
+    # Healthcheck
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# ================================================
+# Docker Networks
+# ================================================
+networks:
+  graduation-thesis-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ================================================
+# Notes
+# ================================================
+#
+# Database Configuration:
+# - This system uses external Oracle database.
+# - Database is NOT managed by this docker-compose.
+# - Connection string is stored in /opt/graduation-thesis/.env.runtime
+#
+# Security:
+# - Backend (port 8080) is internal only, not exposed to host.
+# - Frontend (port 80) is proxied through nginx and accessible via port 8888.
+# - API calls from frontend go to /api/ which is proxied to backend.
+#
+# Environment Files:
+# - .deploy.env: Non-sensitive deployment config (image tags, ports).
+# - .env.runtime: Sensitive secrets (DB connection, JWT secret).
+# - .env: Merged from .deploy.env + .env.runtime.
+#
+# To deploy:
+#   docker compose --env-file .env -f docker-compose.production.yml up -d
+#
+# To check status:
+#   docker ps | grep graduation
+#
