@@ -763,11 +763,24 @@ const DefensePeriodsManagement: React.FC = () => {
   const handleAction = async (action: string) => {
     if (!selectedId) return;
 
+    const currentStatus = selectedRow?.status || "Draft";
+    const nextAction = getNextActionLabel(currentStatus);
+
     // Business Logic Validations
-    if (action === "START") {
+    if (action === "NEXT") {
+      if (currentStatus === "Draft") {
+        // Validation: Ensure at least some milestones have deadlines set
+        const hasDeadlines = milestones.some(m => m.deadline);
+        if (!hasDeadlines) {
+          addToast("Bạn cần thiết lập Lộ trình thời gian (Milestones) trước khi mở đăng ký đề tài.", "warning");
+          setActiveTab("milestones");
+          return;
+        }
+      }
+
       const runningExists = rows.find(r => r.status === "Running" && r.defenseTermId !== selectedId);
       if (runningExists) {
-        addToast(`Đã có đợt "${runningExists.name}" đang chạy. Hệ thống chỉ cho phép 1 đợt đồ án tốt nghiệp hoạt động tại một thời điểm.`, "warning");
+        addToast(`Đã có đợt "${runningExists.name}" đang chạy. Hệ thống chỉ cho phép 1 đợt hoạt động tại một thời điểm.`, "warning");
         return;
       }
     }
@@ -780,8 +793,8 @@ const DefensePeriodsManagement: React.FC = () => {
     }
 
     if (action === "CLOSE") {
-      if (selectedRow?.status !== "Finalized" && selectedRow?.status !== "Published") {
-        addToast("Đợt đồ án tốt nghiệp phải được Tổng kết (Finalized) hoặc Công bố (Published) trước khi Đóng.", "warning");
+      if (currentStatus !== "Finalized" && currentStatus !== "Published") {
+        addToast("Đợt đồ án phải được Tổng kết hoặc Công bố trước khi Đóng.", "warning");
         return;
       }
     }
@@ -789,8 +802,8 @@ const DefensePeriodsManagement: React.FC = () => {
     setConfirmState({
       isOpen: true,
       action,
-      title: `Xác nhận: ${action}`,
-      message: `Hệ thống sẽ thực hiện lệnh ${action} cho đợt đồ án tốt nghiệp này. Hành động này có thể thay đổi trạng thái và quyền hạn của các bên liên quan.`,
+      title: `Xác nhận điều hành: ${action === "NEXT" ? nextAction : action}`,
+      message: `Hệ thống sẽ thực hiện lệnh ${action} cho đợt "${selectedRow?.name}". Hành động này sẽ chuyển trạng thái quy trình, kích hoạt lộ trình thời gian và cập nhật quyền hạn truy cập của sinh viên, giảng viên.`,
       type: action === "FINALIZE" || action === "CLOSE" ? "warning" : "info"
     });
   };
@@ -976,110 +989,58 @@ const DefensePeriodsManagement: React.FC = () => {
 
   const renderTimeline = () => {
     const steps = [
-      { key: "Draft", label: "Soạn thảo", desc: "Khởi tạo" },
-      { key: "Registration", label: "Đăng ký", desc: "Đề tài & SV" },
-      { key: "Assignment", label: "Phân công", desc: "Gán hội đồng" },
-      { key: "ProgressTracking", label: "Tiến độ", desc: "Theo dõi nộp" },
+      { key: "Draft", label: "Soạn thảo", desc: "Khởi tạo đợt" },
+      { key: "Registration", label: "Đăng ký", desc: "Mở đăng ký đề tài" },
+      { key: "Assignment", label: "Phân công", desc: "Gán GV & Hội đồng" },
+      { key: "ProgressTracking", label: "Tiến độ", desc: "Theo dõi nộp bài" },
       { key: "CommitteePreparation", label: "Chuẩn bị", desc: "Lịch bảo vệ" },
       { key: "Running", label: "Bảo vệ", desc: "Đang diễn ra" },
-      { key: "ScoringLocked", label: "Hậu bảo vệ", desc: "Phê duyệt hậu" },
-      { key: "Finalization", label: "Tổng kết", desc: "Điểm & Báo cáo" },
-      { key: "Closed", label: "Kết thúc", desc: "Đóng đợt" },
+      { key: "ScoringLocked", label: "Hậu bảo vệ", desc: "Duyệt kết quả" },
+      { key: "Finalization", label: "Tổng kết", desc: "Hoàn tất điểm" },
+      { key: "Closed", label: "Kết thúc", desc: "Đóng & Lưu trữ" },
     ];
 
     const currentStatus = selectedRow?.status || "Draft";
-    const statusOrder: Record<string | number, number> = {
-      draft: 0, 0: 0, "soạn thảo": 0, "khoi tao": 0, "khởi tạo": 0,
-      registration: 1, 1: 1, "đăng ký": 1, "đang đăng ký": 1, "dang ky": 1,
-      assignment: 2, 2: 2, "phân công": 2, "phan cong": 2, "thiết lập hội đồng": 2,
-      progresstracking: 3, 3: 3, "tiến độ": 3, "theo dõi tiến độ": 3, "tien do": 3,
-      committeepreparation: 4, 4: 4, "chuẩn bị": 4, "chuẩn bị bảo vệ": 4, "chuan bi": 4,
-      running: 5, 5: 5, "bảo vệ": 5, "đang bảo vệ": 5, "đang diễn ra": 5, "bao ve": 5,
-      paused: 5,
-      scoringlocked: 6, "hậu bảo vệ": 6, "hau bao ve": 6, "phê duyệt hậu bảo vệ": 6, "scoring_locked": 6,
-      finalization: 7, 6: 7, "tổng kết": 7, "tong ket": 7, "tong ket diem": 7,
-      finalized: 7,
-      published: 8, "công bố": 8, "cong bo": 8,
-      closed: 8, 7: 8, "kết thúc": 8, "ket thuc": 8, "dong dot": 8,
-      archived: 8
+    const statusOrder: Record<string, number> = {
+      draft: 0, registration: 1, assignment: 2, progresstracking: 3,
+      committeepreparation: 4, running: 5, paused: 5,
+      scoringlocked: 6, finalization: 7, finalized: 7,
+      published: 8, closed: 8, archived: 8
     };
 
-    // Use a normalized lookup for the status
-    const rawStatus = selectedRow?.status || "Draft";
-    const normalizedKey = String(rawStatus).toLowerCase().trim();
-    let currentIndex = 0;
-
-    // Build a clean map for lookup
-    const lookup: Record<string, number> = {};
-    Object.entries(statusOrder).forEach(([k, v]) => {
-      lookup[String(k).toLowerCase().trim()] = v;
-    });
-
-    if (lookup[normalizedKey] !== undefined) {
-      currentIndex = lookup[normalizedKey];
-    } else {
-      // Fallback: search for partial matches if exact match fails
-      const foundKey = Object.keys(lookup).find(key => normalizedKey.includes(key) || key.includes(normalizedKey));
-      if (foundKey) {
-        currentIndex = lookup[foundKey];
-      }
-    }
-
-    // Smart Fallback: If status is Draft (index 0) but we have monitoring data showing progress, use the pipeline data
-    if (currentIndex === 0 && monitoring?.pipeline?.stages) {
-      const stages = monitoring.pipeline.stages;
-      if (stages[4]?.completionPercent === 100 || stages[4]?.completedCount > 0) currentIndex = 7;
-      else if (stages[3]?.completionPercent === 100 || stages[3]?.completedCount > 0) currentIndex = 6;
-      else if (stages[2]?.completionPercent === 100 || stages[2]?.completedCount > 0) currentIndex = 5;
-      else if (stages[1]?.completionPercent === 100 || stages[1]?.completedCount > 0) currentIndex = 3;
-      else if (stages[0]?.completionPercent === 100 || stages[0]?.completedCount > 0) currentIndex = 1;
-    }
+    const normalizedKey = String(currentStatus).toLowerCase().trim();
+    const currentIndex = statusOrder[normalizedKey] ?? 0;
 
     return (
-      <div style={{ background: "#fff", padding: "24px", borderRadius: "16px", border: "1px solid #e2e8f0", marginBottom: "24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-          <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: DEEP_BLUE_PRIMARY }}>Lộ trình đợt đồ án tốt nghiệp</h3>
-          <div style={{ fontSize: "12px", color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>
-            <Clock size={14} /> Cập nhật lần cuối: {selectedRow?.lastUpdated ? new Date(selectedRow.lastUpdated).toLocaleString() : "--"}
+      <div style={{ background: "#fff", padding: "24px", borderRadius: "16px", border: "1px solid #e2e8f0", marginBottom: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <Activity size={18} color={DEEP_BLUE_PRIMARY} />
+            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: DEEP_BLUE_PRIMARY }}>Tiến trình điều hành đợt</h3>
+          </div>
+          <div style={{ fontSize: "12px", color: "#64748b", display: "flex", alignItems: "center", gap: "6px", background: "#f8fafc", padding: "6px 12px", borderRadius: "8px" }}>
+            <Clock size={14} /> Cập nhật: {selectedRow?.lastUpdated ? new Date(selectedRow.lastUpdated).toLocaleString() : "--"}
           </div>
         </div>
         <div style={{ display: "flex", position: "relative", padding: "0 10px" }}>
           {steps.map((step, idx) => {
-            const isCompleted = idx < currentIndex || (idx === steps.length - 1 && (normalizedKey === "closed" || normalizedKey === "archived"));
-            const isActive = idx === currentIndex && !isCompleted;
+            const isCompleted = idx < currentIndex;
+            const isActive = idx === currentIndex;
             const color = isCompleted ? "#10b981" : (isActive ? DEEP_BLUE_PRIMARY : "#cbd5e1");
-
-            // Dynamic description based on state - AS REQUESTED BY USER
-            let displayDesc = step.desc;
-            let descColor = "#64748b";
-            let descWeight = "normal";
-
-            if (isCompleted) {
-              displayDesc = "Đã hoàn thành";
-              descColor = "#10b981";
-              descWeight = "600";
-            } else if (isActive) {
-              displayDesc = step.desc; // Keep original description for active step
-              descColor = DEEP_BLUE_PRIMARY;
-              descWeight = "700";
-            } else {
-              displayDesc = "Chờ thực hiện";
-              descColor = "#94a3b8";
-            }
 
             return (
               <React.Fragment key={step.key}>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 2 }}>
                   <div style={{
                     width: "36px", height: "36px", borderRadius: "50%", background: "#fff",
-                    border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center",
+                    border: `2.5px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center",
                     boxShadow: isActive ? `0 0 0 4px ${color}20` : "none", transition: "all 0.3s ease"
                   }}>
-                    {isCompleted ? <CheckCircle size={20} color="#10b981" /> : (isActive ? <Activity size={20} color={DEEP_BLUE_PRIMARY} /> : <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#cbd5e1" }} />)}
+                    {isCompleted ? <CheckCircle size={20} color="#10b981" /> : (isActive ? <Play size={20} fill={DEEP_BLUE_PRIMARY} color={DEEP_BLUE_PRIMARY} /> : <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#cbd5e1" }} />)}
                   </div>
-                  <div style={{ marginTop: "12px", textAlign: "center" }}>
-                    <div style={{ fontSize: "13px", fontWeight: "700", color: isActive || isCompleted ? "#1e293b" : "#94a3b8" }}>{step.label}</div>
-                    <div style={{ fontSize: "11px", color: descColor, marginTop: "2px", fontWeight: descWeight }}>{displayDesc}</div>
+                  <div style={{ marginTop: "14px", textAlign: "center" }}>
+                    <div style={{ fontSize: "13px", fontWeight: "800", color: isActive ? DEEP_BLUE_PRIMARY : (isCompleted ? "#1e293b" : "#94a3b8") }}>{step.label}</div>
+                    <div style={{ fontSize: "10px", color: isActive ? DEEP_BLUE_PRIMARY : "#94a3b8", marginTop: "3px", fontWeight: isActive ? "700" : "500" }}>{step.desc}</div>
                   </div>
                 </div>
                 {idx < steps.length - 1 && (
@@ -1090,17 +1051,18 @@ const DefensePeriodsManagement: React.FC = () => {
                     width: `${100 / steps.length}%`,
                     height: "2px",
                     background: idx < currentIndex ? "#10b981" : "#e2e8f0",
-                    zIndex: 1
+                    zIndex: 1,
+                    transition: "all 0.5s ease"
                   }} />
                 )}
               </React.Fragment>
             );
           })}
         </div>
-        {renderPipeline()}
       </div>
     );
   };
+
 
   const renderOverview = () => {
     const stats = monitoring?.analytics?.overview || {};
@@ -1188,76 +1150,143 @@ const DefensePeriodsManagement: React.FC = () => {
   };
 
   const renderOperations = () => {
+    const currentStatus = selectedRow?.status || "Draft";
+    const nextAction = getNextActionLabel(currentStatus);
+    
+    // Find matching milestone for current stage
+    const currentMilestone = milestones.find(m => {
+      if (currentStatus === "Registration") return m.ordinal === 1;
+      if (currentStatus === "ProgressTracking") return m.ordinal === 2;
+      if (currentStatus === "CommitteePreparation") return m.ordinal === 3;
+      if (currentStatus === "Running") return m.ordinal === 4;
+      return false;
+    });
+
     return (
-      <div style={{ display: "grid", gap: "24px" }}>
-        {/* Period Context Info */}
-        <div style={{ background: LIGHT_BLUE_SOFTEN, padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Đang điều hành đợt</div>
-            <div style={{ fontSize: "18px", fontWeight: "800", color: DEEP_BLUE_PRIMARY, marginTop: "4px" }}>{selectedRow?.name} ({selectedRow?.termCode || `DT-${selectedRow?.defenseTermId}`})</div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", background: "#fff", borderRadius: "12px", border: "1px solid #cbd5e1" }}>
-            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: getStatusPresentation(selectedRow?.status).color }} />
-            <span style={{ fontSize: "14px", fontWeight: "700", color: getStatusPresentation(selectedRow?.status).color }}>{getStatusPresentation(selectedRow?.status).label}</span>
-          </div>
-        </div>
+      <div style={{ display: "grid", gap: "24px", animation: "fadeIn 0.4s ease-out" }}>
+        {/* 1. Visual Process Integration */}
+        {renderTimeline()}
 
-        <div style={{ background: "#fff", padding: "24px", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-            <Zap size={20} color={DEEP_BLUE_PRIMARY} />
-            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: DEEP_BLUE_PRIMARY }}>Điều hành vòng đời (Lifecycle)</h3>
-          </div>
-          <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "24px" }}>
-            Thực hiện các chuyển đổi trạng thái cho đợt đồ án tốt nghiệp. Lưu ý các ràng buộc nghiệp vụ: Chỉ có 1 đợt đồ án tốt nghiệp được phép ở trạng thái <b>Running</b>.
-          </p>
+        {/* 2. Focused Action Center */}
+        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "24px" }}>
+          <div style={{ background: "#fff", padding: "32px", borderRadius: "24px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: "24px", boxShadow: "0 10px 30px rgba(0,0,0,0.04)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontSize: "12px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>Giai đoạn hiện tại</div>
+                <h3 style={{ margin: "8px 0 0 0", fontSize: "24px", fontWeight: "900", color: DEEP_BLUE_PRIMARY }}>{getStatusPresentation(currentStatus).label}</h3>
+              </div>
+              <div style={{ padding: "12px", borderRadius: "16px", background: `${getStatusPresentation(currentStatus).color}10`, color: getStatusPresentation(currentStatus).color }}>
+                {getStatusPresentation(currentStatus).icon}
+              </div>
+            </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
-            {[
-              { action: "SYNC", label: "Đồng bộ dữ liệu", desc: "Cập nhật danh sách sinh viên & đề tài mới nhất từ hệ thống đào tạo.", icon: <RefreshCw size={20} />, color: "#0ea5e9" },
-              { action: "NEXT", label: getNextActionLabel(selectedRow?.status), desc: "Thực hiện bước tiếp theo trong quy trình quản lý đợt.", icon: <Play size={20} />, color: "#10b981", disabled: !selectedRow || selectedRow.status === "Archived" },
-              { action: "PAUSE", label: "Tạm dừng", desc: "Tạm ngắt các hoạt động ghi nhận điểm của hội đồng.", icon: <Pause size={20} />, color: "#f59e0b", disabled: selectedRow?.status !== "Running" },
-              { action: "RESUME", label: "Tiếp tục", desc: "Khôi phục trạng thái Running từ trạng thái Tạm dừng.", icon: <Play size={20} />, color: "#10b981", disabled: selectedRow?.status !== "Paused" },
-              { action: "LOCK_SCORING", label: "Khóa chấm điểm", desc: "Không cho phép hội đồng chỉnh sửa điểm nữa.", icon: <Lock size={20} />, color: "#ef4444", disabled: selectedRow?.status !== "Running" },
-              { action: "FINALIZE", label: "Tổng kết điểm", desc: "Tính toán điểm tổng kết cuối cùng cho toàn bộ sinh viên.", icon: <CheckCircle size={20} />, color: "#6366f1", disabled: selectedRow?.status !== "ScoringLocked" },
-              { action: "CLOSE", label: "Đóng đợt", desc: "Kết thúc mọi hoạt động và lưu trữ dữ liệu.", icon: <Archive size={20} />, color: "#1e293b", disabled: selectedRow?.status !== "Finalized" && selectedRow?.status !== "Published" },
-            ].map((op) => (
+            <div style={{ padding: "20px", background: "#f8fafc", borderRadius: "16px", border: "1px solid #f1f5f9" }}>
+              <div style={{ fontSize: "14px", color: "#475569", lineHeight: "1.6" }}>
+                {currentStatus === "Draft" && "Đợt đồ án đang trong quá trình khởi tạo. Bạn cần thiết lập lộ trình thời gian và kiểm tra danh sách thành viên trước khi mở đăng ký."}
+                {currentStatus === "Registration" && "Sinh viên đang thực hiện đăng ký đề tài. Bạn có thể theo dõi số lượng đăng ký và duyệt các đề tài hợp lệ."}
+                {currentStatus === "Assignment" && "Giai đoạn phân công giảng viên hướng dẫn và chuẩn bị nhân sự cho các hội đồng bảo vệ."}
+                {currentStatus === "ProgressTracking" && "Theo dõi tiến độ nộp báo cáo của sinh viên theo các mốc thời gian đã thiết lập trong lộ trình."}
+                {currentStatus === "CommitteePreparation" && "Thiết lập lịch bảo vệ chi tiết, gán phòng và thời gian cho từng hội đồng."}
+                {currentStatus === "Running" && "Hội đồng đang thực hiện chấm điểm. Điểm số sẽ được cập nhật thời gian thực vào hệ thống."}
+                {currentStatus === "ScoringLocked" && "Điểm số đã được khóa. Bạn cần phê duyệt các báo cáo hậu bảo vệ (nếu có) trước khi tổng kết."}
+                {currentStatus === "Finalization" && "Tính toán kết quả cuối cùng và chuẩn bị công bố điểm cho sinh viên."}
+              </div>
+            </div>
+
+            {currentMilestone && (
+              <div style={{ display: "flex", alignItems: "center", gap: "16px", padding: "16px", background: "#fffbeb", borderRadius: "16px", border: "1px solid #fef3c7" }}>
+                <Clock size={20} color="#f59e0b" />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: "13px", fontWeight: "800", color: "#92400e" }}>Hạn chót Giai đoạn {currentMilestone.ordinal}: {currentMilestone.name}</div>
+                  <div style={{ fontSize: "12px", color: "#b45309" }}>{currentMilestone.deadline ? `Hết hạn vào: ${new Date(currentMilestone.deadline).toLocaleString("vi-VN")}` : "Chưa thiết lập hạn nộp bài"}</div>
+                </div>
+                <button 
+                  onClick={() => setActiveTab("milestones")}
+                  style={{ background: "white", border: "1px solid #fef3c7", padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "700", color: "#f59e0b", cursor: "pointer" }}
+                >
+                  Điều chỉnh
+                </button>
+              </div>
+            )}
+
+            <div style={{ marginTop: "auto", paddingTop: "24px", borderTop: "1px solid #f1f5f9" }}>
               <button
-                key={op.action}
-                disabled={op.disabled || refreshing}
-                onClick={() => handleAction(op.action)}
+                disabled={refreshing || currentStatus === "Archived"}
+                onClick={() => handleAction("NEXT")}
                 style={{
-                  background: op.disabled ? "#f8fafc" : "#fff",
-                  border: `1px solid ${op.disabled ? "#e2e8f0" : "#cbd5e1"}`,
-                  borderRadius: "14px",
-                  padding: "16px",
-                  textAlign: "left",
-                  cursor: op.disabled ? "not-allowed" : "pointer",
-                  display: "flex",
-                  gap: "16px",
-                  transition: "all 0.2s ease",
-                  opacity: op.disabled ? 0.6 : 1,
-                  boxShadow: op.disabled ? "none" : "0 1px 2px rgba(0,0,0,0.05)"
+                  width: "100%", padding: "18px", borderRadius: "16px", border: "none",
+                  background: `linear-gradient(135deg, ${DEEP_BLUE_PRIMARY}, #2c5282)`,
+                  color: "white", fontSize: "16px", fontWeight: "800", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
+                  boxShadow: "0 10px 20px -5px rgba(30, 58, 95, 0.3)", transition: "all 0.2s"
                 }}
-                onMouseEnter={(e) => { if (!op.disabled) e.currentTarget.style.borderColor = op.color; }}
-                onMouseLeave={(e) => { if (!op.disabled) e.currentTarget.style.borderColor = "#cbd5e1"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}
               >
-                <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: op.disabled ? "#f1f5f9" : `${op.color}10`, display: "flex", alignItems: "center", justifyContent: "center", color: op.disabled ? "#94a3b8" : op.color, flexShrink: 0 }}>
-                  {op.icon}
+                {refreshing ? <RefreshCw size={22} className="animate-spin" /> : <ChevronRightIcon size={22} />}
+                {nextAction}
+              </button>
+              {currentStatus === "Draft" && (
+                <div style={{ textAlign: "center", marginTop: "12px" }}>
+                  <button 
+                    onClick={() => setActiveTab("milestones")}
+                    style={{ background: "none", border: "none", color: DEEP_BLUE_PRIMARY, fontSize: "13px", fontWeight: "700", cursor: "pointer", textDecoration: "underline" }}
+                  >
+                    Thiết lập lộ trình thời gian trước khi bắt đầu
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+            <div style={{ background: "#fff", padding: "24px", borderRadius: "24px", border: "1px solid #e2e8f0" }}>
+              <h4 style={{ margin: "0 0 20px 0", fontSize: "15px", fontWeight: "800", color: "#1e293b", display: "flex", alignItems: "center", gap: "10px" }}>
+                <Settings size={18} color={DEEP_BLUE_PRIMARY} /> Thao tác quản trị
+              </h4>
+              <div style={{ display: "grid", gap: "12px" }}>
+                {[
+                  { action: "SYNC", label: "Đồng bộ dữ liệu", icon: <RefreshCw size={18} />, color: "#3b82f6", disabled: false },
+                  { action: "PAUSE", label: "Tạm dừng đợt", icon: <Pause size={18} />, color: "#f59e0b", disabled: currentStatus !== "Running" },
+                  { action: "RESUME", label: "Tiếp tục đợt", icon: <Play size={18} />, color: "#10b981", disabled: currentStatus !== "Paused" },
+                  { action: "LOCK_SCORING", label: "Khóa chấm điểm", icon: <Lock size={18} />, color: "#ef4444", disabled: currentStatus !== "Running" },
+                ].map(op => (
+                  <button
+                    key={op.action}
+                    disabled={op.disabled || refreshing}
+                    onClick={() => handleAction(op.action)}
+                    style={{
+                      width: "100%", padding: "14px 16px", borderRadius: "12px", border: "1px solid #e2e8f0",
+                      background: op.disabled ? "#f8fafc" : "white", color: op.disabled ? "#cbd5e1" : "#475569",
+                      fontSize: "14px", fontWeight: "700", cursor: op.disabled ? "not-allowed" : "pointer",
+                      display: "flex", alignItems: "center", gap: "12px", transition: "all 0.2s"
+                    }}
+                  >
+                    <span style={{ color: op.disabled ? "#cbd5e1" : op.color }}>{op.icon}</span>
+                    {op.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: "#fef2f2", padding: "24px", borderRadius: "24px", border: "1px solid #fee2e2" }}>
+              <div style={{ display: "flex", gap: "16px" }}>
+                <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: "#fee2e2", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <AlertCircle size={24} />
                 </div>
                 <div>
-                  <div style={{ fontSize: "14px", fontWeight: "700", color: op.disabled ? "#94a3b8" : "#1e293b" }}>{op.label}</div>
-                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px", lineHeight: "1.4" }}>{op.desc}</div>
+                  <div style={{ fontSize: "14px", fontWeight: "800", color: "#991b1b" }}>Vùng nguy hiểm</div>
+                  <p style={{ margin: "4px 0 16px 0", fontSize: "12px", color: "#b91c1c", lineHeight: "1.5" }}>Các thao tác này sẽ ảnh hưởng vĩnh viễn đến dữ liệu và điểm số.</p>
+                  <button 
+                    onClick={() => handleAction("CLOSE")}
+                    disabled={currentStatus !== "Finalized" && currentStatus !== "Published"}
+                    style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #fca5a5", background: "white", color: "#b91c1c", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}
+                  >
+                    Đóng & Lưu trữ đợt
+                  </button>
                 </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ background: "#fef2f2", padding: "20px", borderRadius: "16px", border: "1px solid #fee2e2", display: "flex", gap: "16px", alignItems: "flex-start" }}>
-          <AlertCircle color="#ef4444" size={24} style={{ flexShrink: 0 }} />
-          <div>
-            <div style={{ fontSize: "14px", fontWeight: "700", color: "#b91c1c" }}>Cảnh báo hệ thống</div>
-            <div style={{ fontSize: "13px", color: "#991b1b", marginTop: "4px" }}>Các hành động như Xóa hoặc Tổng kết đợt là vĩnh viễn. Hãy đảm bảo dữ liệu đã được sao lưu trước khi thực hiện.</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

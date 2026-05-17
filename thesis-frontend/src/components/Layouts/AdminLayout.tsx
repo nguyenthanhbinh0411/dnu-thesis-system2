@@ -177,7 +177,7 @@ const AdminLayout: React.FC = () => {
             top: 0,
             left: 0,
             height: "100vh",
-            zIndex: 30,
+            zIndex: 9999,
           }}
         >
           <div
@@ -322,7 +322,10 @@ const AdminLayout: React.FC = () => {
             </p>
           </div>
 
-          <div style={{ flex: 1, padding: "12px 16px", overflowY: "auto" }}>
+          <div
+            className="sidebar-nav-container"
+            style={{ flex: 1, padding: "12px 16px", overflowY: "auto" }}
+          >
             <AdminNav
               collapsed={isSidebarCollapsed}
               onNavigate={() => setIsMobileMenuOpen(false)}

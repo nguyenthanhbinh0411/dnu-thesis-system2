@@ -9,6 +9,8 @@
   --active-text: #ffffff;
   --active-shadow: 0 6px 14px rgba(243, 112, 33, 0.3);
   --border-color: rgba(255, 255, 255, 0.1);
+  --tooltip-bg: #1e3a5f;
+  --tooltip-text: #ffffff;
 }
 
 .sidenav.lecturer-theme a {

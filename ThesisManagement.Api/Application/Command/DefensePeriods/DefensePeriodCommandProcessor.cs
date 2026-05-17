@@ -2811,6 +2811,12 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 await tx.CommitAsync(cancellationToken);
 
                 await AddAuditSnapshotAsync("START", "SUCCESS", new { period.Status }, new { Status = "Running" }, new { PeriodId = periodId }, actorUserId, cancellationToken);
+                
+                await NotifyParticipantsAsync(periodId, 
+                    $"Đợt đồ án đang chạy: {period.Name}", 
+                    "Hệ thống đã kích hoạt trạng thái Đang bảo vệ cho đợt đồ án này. Sinh viên và giảng viên có thể theo dõi lịch và kết quả.",
+                    "LIFECYCLE", cancellationToken);
+
                 return ApiResponse<bool>.SuccessResponse(true);
             }
             catch (BusinessRuleException ex)
@@ -2856,6 +2862,12 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     }
                 }
 
+                // If moving to Registration, deploy the roadmap
+                if (nextStatus == DefenseTermStatus.Registration)
+                {
+                    await DeployRoadmapAsync(periodId, cancellationToken);
+                }
+
                 period.Status = DefenseWorkflowStateMachine.ToValue(nextStatus);
                 period.LastUpdated = DateTime.UtcNow;
                 _uow.DefenseTerms.Update(period);
@@ -2863,12 +2875,100 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 await tx.CommitAsync(cancellationToken);
 
                 await AddAuditSnapshotAsync("MOVE_NEXT", "SUCCESS", new { Before = currentStatus.ToString() }, new { After = nextStatus.ToString() }, new { PeriodId = periodId }, actorUserId, cancellationToken);
+                
+                // Send notifications
+                var statusLabel = DefenseWorkflowStateMachine.GetStatusLabel(nextStatus);
+                var title = $"Cập nhật trạng thái đợt đồ án: {period.Name}";
+                var body = $"Đợt đồ án đã chuyển sang giai đoạn: {statusLabel}.";
+                
+                if (nextStatus == DefenseTermStatus.Registration)
+                {
+                    body = $"Đợt đồ án đã mở đăng ký đề tài. Lộ trình thời gian (Roadmap) đã được triển khai và áp dụng cho toàn bộ sinh viên/giảng viên tham gia.";
+                }
+
+                await NotifyParticipantsAsync(periodId, title, body, "LIFECYCLE", cancellationToken);
+
                 return ApiResponse<bool>.SuccessResponse(true);
             }
             catch (BusinessRuleException ex)
             {
                 await tx.RollbackAsync(cancellationToken);
                 return Fail<bool>(ex.Message, 400, ResolveUcCode(ex.Code, "UC2.NEXT"), ex.Details);
+            }
+        }
+
+        private async Task DeployRoadmapAsync(int periodId, CancellationToken cancellationToken)
+        {
+            var templates = await _db.MilestoneTemplates.AsNoTracking().OrderBy(x => x.Ordinal).ToListAsync(cancellationToken);
+            if (templates.Count == 0) return;
+
+            var topics = await _db.Topics.Where(x => x.DefenseTermId == periodId).ToListAsync(cancellationToken);
+            if (topics.Count == 0) return;
+
+            var now = DateTime.UtcNow;
+            foreach (var topic in topics)
+            {
+                var existingMilestones = await _db.ProgressMilestones.Where(x => x.TopicID == topic.TopicID).ToListAsync(cancellationToken);
+                
+                foreach (var template in templates)
+                {
+                    var milestone = existingMilestones.FirstOrDefault(x => x.MilestoneTemplateCode == template.MilestoneTemplateCode);
+                    if (milestone == null)
+                    {
+                        milestone = new ProgressMilestone
+                        {
+                            MilestoneCode = $"{topic.TopicCode}-{template.MilestoneTemplateCode}",
+                            TopicID = topic.TopicID,
+                            TopicCode = topic.TopicCode,
+                            MilestoneTemplateCode = template.MilestoneTemplateCode,
+                            Ordinal = template.Ordinal,
+                            Deadline = template.Deadline,
+                            State = "Pending",
+                            CreatedAt = now,
+                            LastUpdated = now
+                        };
+                        await _db.ProgressMilestones.AddAsync(milestone, cancellationToken);
+                    }
+                    else
+                    {
+                        milestone.Deadline = template.Deadline;
+                        milestone.LastUpdated = now;
+                        _db.ProgressMilestones.Update(milestone);
+                    }
+                }
+            }
+            await _uow.SaveChangesAsync();
+        }
+
+        private async Task NotifyParticipantsAsync(int periodId, string title, string body, string category = "SYSTEM", CancellationToken cancellationToken = default)
+        {
+            var studentUserCodes = await _db.DefenseTermStudents
+                .Where(x => x.DefenseTermId == periodId && !string.IsNullOrWhiteSpace(x.UserCode))
+                .Select(x => x.UserCode!)
+                .ToListAsync(cancellationToken);
+
+            var lecturerUserCodes = await _db.DefenseTermLecturers
+                .Where(x => x.DefenseTermId == periodId && !string.IsNullOrWhiteSpace(x.UserCode))
+                .Select(x => x.UserCode!)
+                .ToListAsync(cancellationToken);
+
+            var allTargetCodes = studentUserCodes.Concat(lecturerUserCodes).Distinct().ToList();
+
+            if (allTargetCodes.Count > 0)
+            {
+                await _notificationEventPublisher.PublishAsync(new NotificationEventRequest(
+                    category,
+                    title,
+                    body,
+                    "HIGH",
+                    "NAVIGATE",
+                    "/defense-periods",
+                    "DefenseTerm",
+                    periodId.ToString(),
+                    periodId,
+                    false,
+                    allTargetCodes
+                ));
             }
         }
 

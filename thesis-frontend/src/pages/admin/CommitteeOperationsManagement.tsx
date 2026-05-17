@@ -3518,45 +3518,31 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-        gap: 16
+        gap: 20
       }}>
-        {[
-          { label: "Tổng hội đồng", value: dashboardMetrics.totalCouncils, trend: `${dashboardMetrics.activeCouncils} đang chạy`, icon: <Users size={20} />, tone: DEEP_BLUE_PRIMARY },
-          { label: "Tổng đề tài", value: dashboardMetrics.totalTopics, trend: `${dashboardMetrics.scoredTopics} đã chấm`, icon: <FileText size={20} />, tone: "#f37021" },
-          { label: "Tỷ lệ hoàn thành", value: `${dashboardMetrics.completionRate}%`, trend: `${dashboardMetrics.lockedTopics} đã chốt`, icon: <Activity size={20} />, tone: "#16a34a" },
-          { label: "Số cảnh báo", value: keyAlerts.length, trend: "Cần xử lý ngay", icon: <ShieldAlert size={20} />, tone: "#ef4444" },
-        ].map((stat, i) => (
-          <div key={i} style={{
-            background: "white",
-            padding: 24,
-            borderRadius: 24,
-            border: "1px solid #e2e8f0",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)"
-          }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>{stat.label}</div>
-              <div style={{ fontSize: 32, fontWeight: 900, color: "#1e293b", lineHeight: 1 }}>{stat.value}</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: stat.tone, marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
-                {stat.trend}
-              </div>
-            </div>
-            <div style={{
-              width: 56,
-              height: 56,
-              borderRadius: 16,
-              background: `${stat.tone}10`,
-              color: stat.tone,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
-              {stat.icon}
-            </div>
-          </div>
-        ))}
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tổng số Đề tài</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: "#f37021" }}>{dashboardMetrics.totalTopics ?? 0}</div>
+          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Đã chấm: {dashboardMetrics.scoredTopics ?? 0} / Đã chốt: {dashboardMetrics.lockedTopics ?? 0}</p>
+        </section>
+
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tổng số Hội đồng</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{dashboardMetrics.totalCouncils ?? 0}</div>
+          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>{dashboardMetrics.activeCouncils ?? 0} hội đồng đang hoạt động</p>
+        </section>
+
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tỷ lệ Hoàn thành</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: "#16a34a" }}>{dashboardMetrics.completionRate}%</div>
+          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Tiến độ tổng thể của đợt bảo vệ</p>
+        </section>
+
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Cảnh báo Hệ thống</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: keyAlerts.length > 0 ? "#ef4444" : "#16a34a" }}>{keyAlerts.length}</div>
+          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>{keyAlerts.length > 0 ? "Cần kiểm tra các hội đồng bị trễ" : "Hệ thống hoạt động ổn định"}</p>
+        </section>
       </div>
 
       {/* 2. Main Dashboard Layout */}

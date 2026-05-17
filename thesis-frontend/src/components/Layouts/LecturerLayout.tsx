@@ -378,15 +378,14 @@ const LecturerLayout: React.FC = () => {
           boxShadow: "2px 0 8px rgba(0, 0, 0, 0.15)",
           position: "fixed",
           top: 0,
-          left: 0,
           height: "100vh",
-          zIndex: 30,
+          zIndex: 9999,
         }}
       >
         <div
           style={{
             textAlign: "center",
-            padding: "24px 18px",
+            padding: "44px 20px 28px",
             background:
               "linear-gradient(180deg, rgba(243, 112, 33, 0.12) 0%, rgba(0, 40, 85, 0.95) 100%)",
             borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
@@ -528,6 +527,7 @@ const LecturerLayout: React.FC = () => {
         </div>
 
         <div
+          className="sidebar-nav-container"
           style={{ flex: 1, padding: "12px 16px", overflowY: "auto" }}
         >
           <LecturerNav
