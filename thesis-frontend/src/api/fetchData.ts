@@ -31,6 +31,20 @@ function isMegaProxyUrl(value: string): boolean {
   return /^\/api\/storage\/mega(?:[/?#]|$)/i.test(value);
 }
 
+function prependApiBase(path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (!apiBase) {
+    return normalizedPath;
+  }
+
+  if (normalizedPath === apiBase || normalizedPath.startsWith(`${apiBase}/`)) {
+    return normalizedPath;
+  }
+
+  return `${apiBase}${normalizedPath}`;
+}
+
 export function normalizeUrl(path: string | null | undefined): string {
   if (!path) return "";
 
@@ -41,8 +55,7 @@ export function normalizeUrl(path: string | null | undefined): string {
     return value;
   }
 
-  const normalizedPath = value.startsWith("/") ? value : `/${value}`;
-  return `${apiBase}${normalizedPath}`;
+  return prependApiBase(value);
 }
 
 // Helper function to get full avatar URL
@@ -84,8 +97,7 @@ function resolveUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) {
     return path;
   }
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${apiBase}${normalizedPath}`;
+  return prependApiBase(path);
 }
 
 function resolveBody(body: BodyInitCompatible): BodyInit | undefined {

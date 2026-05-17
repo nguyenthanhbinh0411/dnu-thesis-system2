@@ -54,6 +54,11 @@ namespace ThesisManagement.Api.Application.Common
         public static string ToValue(CommitteeStatus status) => status.ToString();
         public static string ToValue(DefenseTermStatus status) => status.ToString();
 
+        public static string GetStatusLabel(CommitteeStatus status) => TranslateStatusLabel(status.ToString());
+        public static string GetStatusLabel(DefenseTermStatus status) => TranslateStatusLabel(status.ToString());
+        public static string GetStatusLabel(AssignmentStatus status) => TranslateStatusLabel(status.ToString());
+        public static string GetStatusLabel(ScoreStatus status) => TranslateStatusLabel(status.ToString());
+
         public static void EnsureCommitteeTransition(CommitteeStatus from, CommitteeStatus to, string errorCode)
         {
             if (from == to)
@@ -131,6 +136,38 @@ namespace ThesisManagement.Api.Application.Common
             }
 
             return isSubmitted ? ScoreStatus.Submitted.ToString() : ScoreStatus.Draft.ToString();
+        }
+
+        private static string TranslateStatusLabel(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+
+            return value.Trim().ToUpperInvariant() switch
+            {
+                "DRAFT" => "Nháp",
+                "READY" => "Sẵn sàng",
+                "ONGOING" => "Đang diễn ra",
+                "COMPLETED" => "Hoàn thành",
+                "FINALIZED" => "Đã chốt",
+                "PUBLISHED" => "Đã công bố",
+                "REGISTRATION" => "Đăng ký",
+                "ASSIGNMENT" => "Phân công",
+                "PROGRESSTRACKING" => "Theo dõi tiến độ",
+                "COMMITTEEPREPARATION" => "Chuẩn bị hội đồng",
+                "RUNNING" => "Đang chạy",
+                "PAUSED" => "Tạm dừng",
+                "SCORINGLOCKED" => "Khóa chấm điểm",
+                "FINALIZATION" => "Hoàn tất",
+                "CLOSED" => "Đã đóng",
+                "ARCHIVED" => "Đã lưu trữ",
+                "PENDING" => "Chờ xử lý",
+                "SUBMITTED" => "Đã nộp",
+                "LOCKED" => "Đã khóa",
+                _ => value
+            };
         }
     }
 }

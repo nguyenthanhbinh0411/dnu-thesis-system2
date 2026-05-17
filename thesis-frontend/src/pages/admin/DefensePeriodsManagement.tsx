@@ -113,9 +113,9 @@ const defensePeriodApi = {
     let baseUrl = "";
 
     if (isSpecial) {
-      baseUrl = `/api/defense-periods/${id}/exports/${reportType}`;
+      baseUrl = `/defense-periods/${id}/exports/${reportType}`;
     } else {
-      baseUrl = `/api/defense-periods/${id}/reports/export`;
+      baseUrl = `/defense-periods/${id}/reports/export`;
     }
 
     const params = new URLSearchParams();
@@ -130,6 +130,7 @@ const defensePeriodApi = {
 
 const STUDENT_FIELDS = [
   { key: "StudentCode", label: "Mã sinh viên", category: "Thông tin cơ bản" },
+  { key: "UserCode", label: "Mã user", category: "Thông tin cơ bản" },
   { key: "FullName", label: "Họ và tên", category: "Thông tin cơ bản" },
   { key: "Gender", label: "Giới tính", category: "Thông tin cơ bản" },
   { key: "DateOfBirth", label: "Ngày sinh", category: "Thông tin cơ bản" },
@@ -143,10 +144,14 @@ const STUDENT_FIELDS = [
   { key: "ParticipationStatus", label: "Trạng thái tham gia", category: "Trạng thái" },
   { key: "StudentEmail", label: "Email", category: "Liên lạc" },
   { key: "PhoneNumber", label: "Số điện thoại", category: "Liên lạc" },
+  { key: "Address", label: "Địa chỉ", category: "Liên lạc" },
+  { key: "Status", label: "Trạng thái hồ sơ", category: "Trạng thái" },
+  { key: "Notes", label: "Ghi chú", category: "Khác" },
 ];
 
 const LECTURER_FIELDS = [
   { key: "LecturerCode", label: "Mã giảng viên", category: "Thông tin cơ bản" },
+  { key: "UserCode", label: "Mã user", category: "Thông tin cơ bản" },
   { key: "FullName", label: "Họ và tên", category: "Thông tin cơ bản" },
   { key: "Degree", label: "Học hàm/Học vị", category: "Thông tin cơ bản" },
   { key: "Gender", label: "Giới tính", category: "Thông tin cơ bản" },
@@ -155,20 +160,51 @@ const LECTURER_FIELDS = [
   { key: "Email", label: "Email", category: "Liên lạc" },
   { key: "PhoneNumber", label: "Số điện thoại", category: "Liên lạc" },
   { key: "GuideQuota", label: "Định mức hướng dẫn", category: "Hạn ngạch" },
+  { key: "DefenseQuota", label: "Định mức bảo vệ", category: "Hạn ngạch" },
   { key: "CurrentGuidingCount", label: "Đang hướng dẫn", category: "Hạn ngạch" },
   { key: "RemainingGuideQuota", label: "Hạn ngạch còn lại", category: "Hạn ngạch" },
-  { key: "Status", label: "Trạng thái", category: "Trạng thái" },
+  { key: "Specialties", label: "Chuyên môn", category: "Thông tin cơ bản" },
+  { key: "ProfileImage", label: "Ảnh hồ sơ", category: "Khác" },
+  { key: "Address", label: "Địa chỉ", category: "Liên lạc" },
+  { key: "Notes", label: "Ghi chú", category: "Khác" },
 ];
 
 const TOPIC_FIELDS = [
   { key: "TopicCode", label: "Mã đề tài", category: "Thông tin đề tài" },
+  { key: "CatalogTopicCode", label: "Mã danh mục", category: "Thông tin đề tài" },
   { key: "Title", label: "Tên đề tài", category: "Thông tin đề tài" },
   { key: "Type", label: "Loại đề tài", category: "Thông tin đề tài" },
+  { key: "Summary", label: "Tóm tắt", category: "Thông tin đề tài" },
   { key: "ProposerStudentCode", label: "Mã sinh viên", category: "Sinh viên" },
+  { key: "ProposerUserCode", label: "Mã user sinh viên", category: "Sinh viên" },
   { key: "ProposerName", label: "Sinh viên thực hiện", category: "Sinh viên" },
   { key: "SupervisorLecturerCode", label: "Mã giảng viên HD", category: "Giảng viên" },
+  { key: "SupervisorUserCode", label: "Mã user giảng viên", category: "Giảng viên" },
   { key: "SupervisorName", label: "Giảng viên hướng dẫn", category: "Giảng viên" },
   { key: "DepartmentCode", label: "Bộ môn quản lý", category: "Quản lý" },
+  { key: "LecturerComment", label: "Nhận xét giảng viên", category: "Quản lý" },
+  { key: "ResubmitCount", label: "Số lần nộp lại", category: "Tiến độ" },
+  { key: "NumChapters", label: "Số chương", category: "Cấu trúc" },
+  { key: "NumPages", label: "Số trang", category: "Cấu trúc" },
+  { key: "NumTables", label: "Số bảng", category: "Cấu trúc" },
+  { key: "NumFigures", label: "Số hình", category: "Cấu trúc" },
+  { key: "NumReferences", label: "Tài liệu tham khảo", category: "Cấu trúc" },
+  { key: "NumVietnameseReferences", label: "Tài liệu tiếng Việt", category: "Cấu trúc" },
+  { key: "NumForeignReferences", label: "Tài liệu tiếng Anh", category: "Cấu trúc" },
+  { key: "TopicTags", label: "Tag đề tài", category: "Phân loại" },
+  { key: "Score", label: "Điểm số", category: "Kết quả" },
+  { key: "Status", label: "Trạng thái", category: "Trạng thái" },
+];
+
+const GROUPED_LECTURER_FIELDS = [
+  { key: "TopicCode", label: "Mã đề tài", category: "Thông tin đề tài" },
+  { key: "Title", label: "Tên đề tài", category: "Thông tin đề tài" },
+  { key: "Type", label: "Loại đề tài", category: "Thông tin đề tài" },
+  { key: "TopicTags", label: "Tag đề tài", category: "Phân loại" },
+  { key: "ProposerStudentCode", label: "Mã SV", category: "Sinh viên" },
+  { key: "ProposerName", label: "Sinh viên thực hiện", category: "Sinh viên" },
+  { key: "DepartmentCode", label: "Bộ môn", category: "Quản lý" },
+  { key: "LecturerComment", label: "Nhận xét giảng viên", category: "Quản lý" },
   { key: "Score", label: "Điểm số", category: "Kết quả" },
   { key: "Status", label: "Trạng thái", category: "Trạng thái" },
 ];
@@ -181,7 +217,7 @@ const STATISTICS_REPORTS = [
   { key: "students", label: "Danh sách sinh viên theo đợt", desc: "Xuất dữ liệu chi tiết sinh viên trong đợt (đề tài, điểm số, trạng thái).", icon: <Users size={20} />, type: "modular", fields: STUDENT_FIELDS },
   { key: "lecturers", label: "Danh sách giảng viên theo đợt", desc: "Dữ liệu giảng viên tham gia, bao gồm hạn ngạch hướng dẫn và chấm điểm.", icon: <UserCheck size={20} />, type: "modular", fields: LECTURER_FIELDS },
   { key: "assigned-topics", label: "Phân công đề tài & Giảng viên hướng dẫn", desc: "Báo cáo chi tiết các đề tài đã được gán sinh viên và giảng viên hướng dẫn.", icon: <FileSpreadsheet size={20} />, type: "modular", fields: TOPIC_FIELDS },
-  { key: "lecturers-grouped-students", label: "Danh sách hướng dẫn gộp theo giảng viên", desc: "Báo cáo danh sách sinh viên theo từng giảng viên hướng dẫn.", icon: <LayoutDashboard size={20} />, type: "modular", fields: TOPIC_FIELDS },
+  { key: "lecturers-grouped-students", label: "Danh sách hướng dẫn gộp theo giảng viên", desc: "Báo cáo danh sách sinh viên theo từng giảng viên hướng dẫn, có gộp cột giảng viên.", icon: <LayoutDashboard size={20} />, type: "modular", fields: GROUPED_LECTURER_FIELDS },
   { key: "committee-roster", label: "Danh sách Hội đồng & Phân công", desc: "Xuất file Excel tổng hợp hội đồng, thành viên và đề tài.", icon: <Users size={20} />, type: "excel" },
   { key: "final-term", label: "Bảng điểm tổng kết đợt", desc: "Danh sách điểm số cuối cùng của toàn bộ sinh viên trong đợt.", icon: <ShieldCheck size={20} />, type: "pdf" },
 ];

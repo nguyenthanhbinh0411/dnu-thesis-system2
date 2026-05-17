@@ -5,6 +5,7 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   Download,
   Eye,
@@ -9381,192 +9382,352 @@ const CommitteeManagement: React.FC = () => {
             <div
               className="committee-modal-overlay"
               onClick={() => setShowEligibleTopicsModal(false)}
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(15, 23, 42, 0.7)",
+                backdropFilter: "blur(8px)",
+                zIndex: 999999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "24px"
+              }}
             >
                 <div
                   style={{
                     background: "white",
                     width: "100%",
-                    maxWidth: "1120px",
-                    borderRadius: "20px",
-                    padding: "32px",
-                    boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
+                    maxWidth: "1280px",
+                    borderRadius: "32px",
+                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
                     position: "relative",
                     display: "flex",
                     flexDirection: "column",
-                    maxHeight: "90vh"
+                    maxHeight: "90vh",
+                    overflow: "hidden"
                   }}
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>Danh sách đề tài đủ điều kiện</h3>
-                      <p style={{ margin: "4px 0 0 0", fontSize: "14px", color: "#64748b" }}>
-                        Tổng cộng {eligibleTopicRows.length} đề tài sẵn sàng phân công hội đồng trong đợt hiện tại.
-                      </p>
+                  {/* Header with gradient */}
+                  <div style={{ padding: "32px 40px 24px", background: "linear-gradient(to bottom, #f8fafc, white)", borderBottom: "1px solid #f1f5f9" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20 }}>
+                      <div style={{ flex: 1 }}>
+                        <h2 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.02em", marginBottom: 8 }}>
+                          Danh sách đề tài đủ điều kiện
+                        </h2>
+                        <p style={{ margin: 0, fontSize: 14, color: "#64748b", fontWeight: 600 }}>
+                          Tổng cộng <span style={{ fontWeight: 800, color: "#1e3a5f" }}>{eligibleTopicRows.length}</span> đề tài sẵn sàng phân công hội đồng trong đợt hiện tại
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowEligibleTopicsModal(false)}
+                        style={{
+                          border: "none",
+                          background: "#f1f5f9",
+                          padding: 10,
+                          borderRadius: 14,
+                          cursor: "pointer",
+                          color: "#64748b",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition: "all 0.2s",
+                          flexShrink: 0
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = "#e2e8f0"}
+                        onMouseLeave={(e) => e.currentTarget.style.background = "#f1f5f9"}
+                      >
+                        <X size={24} />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowEligibleTopicsModal(false)}
-                      style={{ border: "none", background: "#f1f5f9", padding: "8px", borderRadius: "50%", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}
-                    >
-                      <X size={18} />
-                    </button>
                   </div>
 
+                  {/* Table Container */}
                   <div
                     style={{
-                      border: "1px solid #e2e8f0",
-                      borderRadius: "16px",
-                      overflowX: "auto",
+                      flex: 1,
                       overflowY: "auto",
-                      flex: 1
+                      padding: "0 40px"
                     }}
                   >
-                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
-                      <colgroup>
-                        <col style={{ width: "14%" }} />
-                        <col style={{ width: "32%" }} />
-                        <col style={{ width: "18%" }} />
-                        <col style={{ width: "24%" }} />
-                        <col style={{ width: "12%" }} />
-                      </colgroup>
-                      <thead>
-                        <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                          <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "12px", fontWeight: "700", color: "#475569", textTransform: "uppercase" }}>TopicCode</th>
-                          <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "12px", fontWeight: "700", color: "#475569", textTransform: "uppercase" }}>Tên đề tài</th>
-                          <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "12px", fontWeight: "700", color: "#475569", textTransform: "uppercase" }}>Tên sinh viên</th>
-                          <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "12px", fontWeight: "700", color: "#475569", textTransform: "uppercase" }}>Tên giảng viên</th>
-                          <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "12px", fontWeight: "700", color: "#475569", textTransform: "uppercase" }}>Trạng thái</th>
-                        </tr>
-                      </thead>
-                    <tbody>
-                      {paginatedEligibleTopics.map((item, index) => {
-                        const isWarningStatus = /warning|cảnh báo|chưa|thiếu/i.test(
-                          item.status,
-                        );
-                        return (
-                          <tr key={`${item.topicCode}-${item.studentName}-${index}`} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "16px", fontSize: "13px", fontWeight: "700", color: "#0f172a" }}>{item.topicCode}</td>
-                            <td style={{ padding: "16px" }}>
-                              <div style={{ display: "grid", gap: "6px" }}>
-                                <div style={{ fontSize: "13px", fontWeight: "600", color: "#1e293b", lineHeight: "1.4" }}>
-                                  {item.topicTitle}
-                                </div>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                                  {item.topicTags.length > 0 ? (
-                                    item.topicTags.map((tag) => (
-                                      <span
-                                        key={`${item.topicCode}-topic-tag-${tag}`}
-                                        style={{ padding: "2px 8px", background: "#f1f5f9", borderRadius: "6px", fontSize: "11px", color: "#475569", border: "1px solid #e2e8f0" }}
-                                      >
-                                        {getTagDisplayName(tag)}
-                                      </span>
-                                    ))
-                                  ) : (
-                                    <span style={{ color: "#94a3b8", fontSize: "12px" }}>-</span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            <td style={{ padding: "16px", fontSize: "13px", color: "#334155" }}>{item.studentName}</td>
-                            <td style={{ padding: "16px" }}>
-                              <div style={{ display: "grid", gap: "6px" }}>
-                                <div style={{ fontSize: "13px", fontWeight: "600", color: "#1e293b" }}>
-                                  {item.lecturerName}
-                                </div>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                                  {item.lecturerTags.length > 0 ? (
-                                    item.lecturerTags.map((tag) => (
-                                      <span
-                                        key={`${item.topicCode}-lecturer-tag-${tag}`}
-                                        style={{ padding: "2px 8px", background: "#f0fdfa", borderRadius: "6px", fontSize: "11px", color: "#0f766e", border: "1px solid #ccfbf1" }}
-                                      >
-                                        {getTagDisplayName(tag)}
-                                      </span>
-                                    ))
-                                  ) : (
-                                    <span style={{ color: "#94a3b8", fontSize: "12px" }}>-</span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            <td style={{ padding: "16px" }}>
-                              <span
+                    <div style={{ borderRadius: "20px", border: "1px solid #e2e8f0", overflow: "hidden", background: "#ffffff", marginTop: 24 }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <colgroup>
+                          <col style={{ width: "12%" }} />
+                          <col style={{ width: "30%" }} />
+                          <col style={{ width: "16%" }} />
+                          <col style={{ width: "26%" }} />
+                          <col style={{ width: "16%" }} />
+                        </colgroup>
+                        <thead>
+                          <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                            <th style={{ padding: "16px 20px", textAlign: "left", fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Mã đề tài</th>
+                            <th style={{ padding: "16px 20px", textAlign: "left", fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tên đề tài</th>
+                            <th style={{ padding: "16px 20px", textAlign: "left", fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sinh viên</th>
+                            <th style={{ padding: "16px 20px", textAlign: "left", fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Giảng viên</th>
+                            <th style={{ padding: "16px 20px", textAlign: "left", fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Trạng thái</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedEligibleTopics.length > 0 ? (
+                            paginatedEligibleTopics.map((item, index) => {
+                              const isWarningStatus = /warning|cảnh báo|chưa|thiếu/i.test(item.status);
+                              return (
+                                <tr
+                                  key={`${item.topicCode}-${item.studentName}-${index}`}
+                                  style={{
+                                    borderBottom: "1px solid #f1f5f9",
+                                    background: index % 2 === 0 ? "white" : "#fcfdfe",
+                                    transition: "background 0.2s ease",
+                                    cursor: "default"
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.background = "#f0f4f8"}
+                                  onMouseLeave={(e) => e.currentTarget.style.background = index % 2 === 0 ? "white" : "#fcfdfe"}
+                                >
+                                  <td style={{ padding: "16px 20px", fontSize: 13, fontWeight: 700, color: "#1e3a5f" }}>
+                                    <span style={{ background: "#f0f4f8", padding: "4px 8px", borderRadius: 6, display: "inline-block" }}>
+                                      {item.topicCode}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: "16px 20px" }}>
+                                    <div style={{ display: "grid", gap: 6 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", lineHeight: 1.4 }}>
+                                        {item.topicTitle}
+                                      </div>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                        {item.topicTags.length > 0 ? (
+                                          item.topicTags.slice(0, 2).map((tag) => (
+                                            <span
+                                              key={`${item.topicCode}-topic-tag-${tag}`}
+                                              style={{
+                                                padding: "3px 8px",
+                                                background: "#f1f5f9",
+                                                borderRadius: 6,
+                                                fontSize: 11,
+                                                color: "#475569",
+                                                fontWeight: 600
+                                              }}
+                                            >
+                                              {getTagDisplayName(tag)}
+                                            </span>
+                                          ))
+                                        ) : (
+                                          <span style={{ color: "#94a3b8", fontSize: 11, fontStyle: "italic" }}>-</span>
+                                        )}
+                                        {item.topicTags.length > 2 && (
+                                          <span style={{ padding: "3px 8px", fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>
+                                            +{item.topicTags.length - 2}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: "16px 20px", fontSize: 13, color: "#334155", fontWeight: 600 }}>
+                                    {item.studentName}
+                                  </td>
+                                  <td style={{ padding: "16px 20px" }}>
+                                    <div style={{ display: "grid", gap: 6 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>
+                                        {item.lecturerName}
+                                      </div>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                        {item.lecturerTags.length > 0 ? (
+                                          item.lecturerTags.slice(0, 2).map((tag) => (
+                                            <span
+                                              key={`${item.topicCode}-lecturer-tag-${tag}`}
+                                              style={{
+                                                padding: "3px 8px",
+                                                background: "#f0fdfa",
+                                                borderRadius: 6,
+                                                fontSize: 11,
+                                                color: "#0f766e",
+                                                fontWeight: 600
+                                              }}
+                                            >
+                                              {getTagDisplayName(tag)}
+                                            </span>
+                                          ))
+                                        ) : (
+                                          <span style={{ color: "#94a3b8", fontSize: 11, fontStyle: "italic" }}>-</span>
+                                        )}
+                                        {item.lecturerTags.length > 2 && (
+                                          <span style={{ padding: "3px 8px", fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>
+                                            +{item.lecturerTags.length - 2}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: "16px 20px" }}>
+                                    <span
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        padding: "6px 12px",
+                                        borderRadius: 8,
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        ...(isWarningStatus
+                                          ? { background: "#fffbeb", color: "#b45309" }
+                                          : { background: "#ecfdf5", color: "#047857" })
+                                      }}
+                                    >
+                                      {item.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          ) : (
+                            <tr>
+                              <td
+                                colSpan={5}
                                 style={{
-                                  display: "inline-block",
-                                  padding: "4px 10px",
-                                  borderRadius: "8px",
-                                  fontSize: "12px",
-                                  fontWeight: "700",
-                                  ...(isWarningStatus
-                                    ? { background: "#fffbeb", color: "#b45309", border: "1px solid #fde68a" }
-                                    : { background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0" }),
+                                  padding: 60,
+                                  textAlign: "center",
+                                  color: "#94a3b8",
+                                  fontSize: 14,
+                                  fontWeight: 600
                                 }}
                               >
-                                {item.status}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {paginatedEligibleTopics.length === 0 && (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            style={{
-                              padding: "24px",
-                              textAlign: "center",
-                              color: "#64748b",
-                              fontSize: "14px"
-                            }}
-                          >
-                            Chưa có dữ liệu để hiển thị.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {totalEligiblePages > 1 && (
-                  <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "16px", marginTop: "24px" }}>
-                    <button
-                      onClick={() => setEligibleTopicsPage(p => Math.max(1, p - 1))}
-                      disabled={eligibleTopicsPage === 1}
-                      style={{
-                        padding: "8px 16px",
-                        borderRadius: "10px",
-                        border: "1px solid #cbd5e1",
-                        background: "white",
-                        color: eligibleTopicsPage === 1 ? "#94a3b8" : "#0f172a",
-                        cursor: eligibleTopicsPage === 1 ? "not-allowed" : "pointer",
-                        fontWeight: "600",
-                        fontSize: "13px"
-                      }}
-                    >
-                      Trước
-                    </button>
-                    <span style={{ fontSize: "13px", fontWeight: "600", color: "#475569" }}>
-                      Trang {eligibleTopicsPage} / {totalEligiblePages}
-                    </span>
-                    <button
-                      onClick={() => setEligibleTopicsPage(p => Math.min(totalEligiblePages, p + 1))}
-                      disabled={eligibleTopicsPage === totalEligiblePages}
-                      style={{
-                        padding: "8px 16px",
-                        borderRadius: "10px",
-                        border: "1px solid #cbd5e1",
-                        background: "white",
-                        color: eligibleTopicsPage === totalEligiblePages ? "#94a3b8" : "#0f172a",
-                        cursor: eligibleTopicsPage === totalEligiblePages ? "not-allowed" : "pointer",
-                        fontWeight: "600",
-                        fontSize: "13px"
-                      }}
-                    >
-                      Sau
-                    </button>
+                                <div style={{ display: "grid", gap: 12, alignItems: "center", justifyContent: "center" }}>
+                                  <div style={{ fontSize: 48, opacity: 0.2 }}>📋</div>
+                                  <div>Chưa có dữ liệu để hiển thị</div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                )}
+
+                  {/* Footer with Pagination */}
+                  {totalEligiblePages > 1 && (
+                    <div
+                      style={{
+                        padding: "24px 40px",
+                        background: "white",
+                        borderTop: "1px solid #f1f5f9",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 16
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>
+                        Hiển thị <span style={{ fontWeight: 800, color: "#1e293b" }}>{(eligibleTopicsPage - 1) * 10 + 1}</span> -{" "}
+                        <span style={{ fontWeight: 800, color: "#1e293b" }}>
+                          {Math.min(eligibleTopicsPage * 10, eligibleTopicRows.length)}
+                        </span>{" "}
+                        trong <span style={{ fontWeight: 800, color: "#1e293b" }}>{eligibleTopicRows.length}</span> đề tài
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <button
+                          onClick={() => setEligibleTopicsPage((p) => Math.max(1, p - 1))}
+                          disabled={eligibleTopicsPage === 1}
+                          style={{
+                            padding: "8px 16px",
+                            borderRadius: 12,
+                            border: "1px solid #e2e8f0",
+                            background: eligibleTopicsPage === 1 ? "#f8fafc" : "white",
+                            color: eligibleTopicsPage === 1 ? "#94a3b8" : "#1e3a5f",
+                            cursor: eligibleTopicsPage === 1 ? "not-allowed" : "pointer",
+                            fontWeight: 600,
+                            fontSize: 13,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            transition: "all 0.2s"
+                          }}
+                          onMouseEnter={(e) => {
+                            if (eligibleTopicsPage > 1) {
+                              e.currentTarget.style.borderColor = "#1e3a5f";
+                              e.currentTarget.style.background = "#f0f4f8";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = "#e2e8f0";
+                            e.currentTarget.style.background = eligibleTopicsPage === 1 ? "#f8fafc" : "white";
+                          }}
+                        >
+                          <ChevronLeft size={16} />
+                          Trước
+                        </button>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 12px" }}>
+                          {Array.from({ length: Math.min(5, totalEligiblePages) }).map((_, i) => {
+                            const pageNum = Math.max(1, Math.min(eligibleTopicsPage - 2, totalEligiblePages - 4)) + i;
+                            return (
+                              <button
+                                key={pageNum}
+                                onClick={() => setEligibleTopicsPage(pageNum)}
+                                style={{
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: 8,
+                                  border: "1px solid #e2e8f0",
+                                  background: pageNum === eligibleTopicsPage ? "#1e3a5f" : "white",
+                                  color: pageNum === eligibleTopicsPage ? "white" : "#1e293b",
+                                  cursor: "pointer",
+                                  fontWeight: pageNum === eligibleTopicsPage ? 700 : 600,
+                                  fontSize: 12,
+                                  transition: "all 0.2s"
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (pageNum !== eligibleTopicsPage) {
+                                    e.currentTarget.style.borderColor = "#1e3a5f";
+                                    e.currentTarget.style.background = "#f0f4f8";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (pageNum !== eligibleTopicsPage) {
+                                    e.currentTarget.style.borderColor = "#e2e8f0";
+                                    e.currentTarget.style.background = "white";
+                                  }
+                                }}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <button
+                          onClick={() => setEligibleTopicsPage((p) => Math.min(totalEligiblePages, p + 1))}
+                          disabled={eligibleTopicsPage === totalEligiblePages}
+                          style={{
+                            padding: "8px 16px",
+                            borderRadius: 12,
+                            border: "1px solid #e2e8f0",
+                            background: eligibleTopicsPage === totalEligiblePages ? "#f8fafc" : "white",
+                            color: eligibleTopicsPage === totalEligiblePages ? "#94a3b8" : "#1e3a5f",
+                            cursor: eligibleTopicsPage === totalEligiblePages ? "not-allowed" : "pointer",
+                            fontWeight: 600,
+                            fontSize: 13,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            transition: "all 0.2s"
+                          }}
+                          onMouseEnter={(e) => {
+                            if (eligibleTopicsPage < totalEligiblePages) {
+                              e.currentTarget.style.borderColor = "#1e3a5f";
+                              e.currentTarget.style.background = "#f0f4f8";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = "#e2e8f0";
+                            e.currentTarget.style.background =
+                              eligibleTopicsPage === totalEligiblePages ? "#f8fafc" : "white";
+                          }}
+                        >
+                          Sau
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
               </div>
             </div>,
             document.body,

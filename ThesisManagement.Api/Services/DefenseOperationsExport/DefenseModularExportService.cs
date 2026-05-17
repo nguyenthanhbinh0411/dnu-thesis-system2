@@ -48,7 +48,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
 
             WriteInstitutionalHeader(ws, ref row, "DANH SÁCH SINH VIÊN THEO ĐỢT", period.Description ?? period.TermCode);
 
-            var finalFields = fields?.Count > 0 ? fields : new List<string> { "StudentCode", "FullName", "ClassCode", "GPA", "AcademicStanding", "StudentEmail" };
+            var finalFields = fields?.Count > 0 ? fields : new List<string> { "StudentCode", "UserCode", "FullName", "Gender", "DateOfBirth", "FacultyCode", "DepartmentCode", "ClassCode", "EnrollmentYear", "GraduationYear", "GPA", "AcademicStanding", "ParticipationStatus", "StudentEmail", "PhoneNumber", "Address", "Status" };
             var headers = finalFields.Select(GetLabel).ToList();
             headers.Insert(0, "STT");
 
@@ -98,7 +98,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
 
             WriteInstitutionalHeader(ws, ref row, "DANH SÁCH GIẢNG VIÊN THEO ĐỢT", period.Description ?? period.TermCode);
 
-            var finalFields = fields?.Count > 0 ? fields : new List<string> { "LecturerCode", "FullName", "Degree", "DepartmentCode", "GuideQuota", "Email" };
+            var finalFields = fields?.Count > 0 ? fields : new List<string> { "LecturerCode", "UserCode", "FullName", "Degree", "Gender", "DepartmentCode", "Organization", "Email", "PhoneNumber", "GuideQuota", "DefenseQuota", "CurrentGuidingCount", "RemainingGuideQuota", "Specialties", "Address", "Status" };
             var headers = finalFields.Select(GetLabel).ToList();
             headers.Insert(0, "STT");
 
@@ -151,13 +151,23 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
                 .Where(x => supervisorCodes.Contains(x.LecturerCode))
                 .ToDictionaryAsync(x => x.LecturerCode!, x => x.FullName ?? x.LecturerCode!, cancellationToken);
 
+            var topicCodes = topics.Select(x => x.TopicCode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+            var topicTagMap = await (from topicTag in _db.TopicTags.AsNoTracking()
+                                     where topicTag.TopicCode != null && topicCodes.Contains(topicTag.TopicCode)
+                                     join tag in _db.Tags.AsNoTracking() on topicTag.TagID equals tag.TagID
+                                     select new { topicTag.TopicCode, tag.TagName })
+                .ToListAsync(cancellationToken);
+            var topicTagLookup = topicTagMap
+                .GroupBy(x => x.TopicCode!)
+                .ToDictionary(g => g.Key, g => string.Join(", ", g.Select(x => x.TagName).Distinct()));
+
             using var workbook = new XLWorkbook();
             var ws = workbook.AddWorksheet("DeTaiPhanCong");
             int row = 1;
 
             WriteInstitutionalHeader(ws, ref row, "DANH SÁCH PHÂN CÔNG ĐỀ TÀI & GVHD", period.Description ?? period.TermCode);
 
-            var finalFields = fields?.Count > 0 ? fields : new List<string> { "TopicCode", "Title", "ProposerName", "SupervisorName", "DepartmentCode", "Status" };
+            var finalFields = fields?.Count > 0 ? fields : new List<string> { "TopicCode", "CatalogTopicCode", "Title", "Type", "TopicTags", "ProposerStudentCode", "ProposerName", "SupervisorLecturerCode", "SupervisorName", "DepartmentCode", "Score", "Status", "ResubmitCount", "LecturerComment" };
             var headers = finalFields.Select(GetLabel).ToList();
             headers.Insert(0, "STT");
 
@@ -170,6 +180,12 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
                 var values = new List<object> { stt++ };
                 foreach (var f in finalFields)
                 {
+                    if (f == "TopicTags")
+                    {
+                        values.Add(!string.IsNullOrWhiteSpace(t.TopicCode) && topicTagLookup.TryGetValue(t.TopicCode, out var tags) ? tags : "-");
+                        continue;
+                    }
+
                     if (f == "SupervisorName")
                     {
                         values.Add(t.SupervisorLecturerCode != null ? lecturerMap.GetValueOrDefault(t.SupervisorLecturerCode, t.SupervisorUserCode ?? t.SupervisorLecturerCode) : "-");
@@ -208,6 +224,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
                 .AsNoTracking()
                 .Where(x => x.DefenseTermId == periodId && x.SupervisorLecturerCode != null)
                 .OrderBy(x => x.SupervisorLecturerCode)
+                .ThenBy(x => x.TopicCode)
                 .ToListAsync(cancellationToken);
 
             var proposerCodes = topics.Select(x => x.ProposerStudentCode).Where(x => x != null).Distinct().ToList();
@@ -220,15 +237,30 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
                 .Where(x => supervisorCodes.Contains(x.LecturerCode))
                 .ToDictionaryAsync(x => x.LecturerCode!, x => x, cancellationToken);
 
+            var topicCodes = topics.Select(x => x.TopicCode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+            var topicTagMap = await (from topicTag in _db.TopicTags.AsNoTracking()
+                                     where topicTag.TopicCode != null && topicCodes.Contains(topicTag.TopicCode)
+                                     join tag in _db.Tags.AsNoTracking() on topicTag.TagID equals tag.TagID
+                                     select new { topicTag.TopicCode, tag.TagName })
+                .ToListAsync(cancellationToken);
+            var topicTagLookup = topicTagMap
+                .GroupBy(x => x.TopicCode!)
+                .ToDictionary(g => g.Key, g => string.Join(", ", g.Select(x => x.TagName).Distinct()));
+
             var grouped = topics.GroupBy(x => x.SupervisorLecturerCode).ToList();
 
             using var workbook = new XLWorkbook();
             var ws = workbook.AddWorksheet("HuongDanGop");
             int row = 1;
 
-            WriteInstitutionalHeader(ws, ref row, "DANH SÁCH HƯỚNG DẪN CHI TIẾT THEO GIẢNG VIÊN", period.Description ?? period.TermCode);
+            WriteInstitutionalHeader(ws, ref row, "DANH SÁCH GIẢNG VIÊN HƯỚNG DẪN", period.Description ?? period.TermCode);
 
-            var headers = new List<string> { "STT", "Giảng viên hướng dẫn", "SL đang HD", "Mã đề tài", "Tên đề tài", "Sinh viên thực hiện", "Trạng thái" };
+            var finalFields = fields?.Count > 0
+                ? fields.Where(x => !string.Equals(x, "LecturerCode", StringComparison.OrdinalIgnoreCase) && !string.Equals(x, "FullName", StringComparison.OrdinalIgnoreCase)).ToList()
+                : new List<string> { "TopicCode", "CatalogTopicCode", "Title", "Type", "TopicTags", "ProposerStudentCode", "ProposerName", "DepartmentCode", "Score", "Status", "LecturerComment" };
+
+            var headers = new List<string> { "STT", "Mã giảng viên", "Giảng viên hướng dẫn" };
+            headers.AddRange(finalFields.Select(GetLabel));
             WriteTableHeader(ws, row, headers);
             row++;
 
@@ -236,36 +268,69 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
             foreach (var group in grouped)
             {
                 var lecturer = group.Key != null ? lecturerMap.GetValueOrDefault(group.Key) : null;
-                var lecturerDisplay = lecturer != null ? $"{lecturer.FullName}\n({lecturer.LecturerCode})" : (group.Key ?? "N/A");
-                var guidingCount = lecturer?.CurrentGuidingCount ?? group.Count();
-                
-                int startRow = row;
-                foreach (var t in group)
-                {
-                    var studentName = t.ProposerStudentCode != null ? studentMap.GetValueOrDefault(t.ProposerStudentCode, t.ProposerUserCode ?? t.ProposerStudentCode) : "-";
-                    var studentDisplay = $"{studentName} ({t.ProposerStudentCode})";
+                var lecturerCode = lecturer?.LecturerCode ?? group.Key ?? "-";
+                var lecturerDisplay = lecturer?.FullName ?? lecturerCode;
 
-                    var values = new List<object> 
-                    { 
-                        stt++, 
-                        lecturerDisplay, 
-                        guidingCount, 
-                        t.TopicCode, 
-                        t.Title, 
-                        studentDisplay, 
-                        t.Status 
-                    };
+                int startRow = row;
+                foreach (var t in group.OrderBy(x => x.TopicCode))
+                {
+                    var studentCode = t.ProposerStudentCode ?? "-";
+                    var studentName = !string.IsNullOrWhiteSpace(t.ProposerStudentCode) && studentMap.TryGetValue(t.ProposerStudentCode, out var mappedStudentName)
+                        ? mappedStudentName
+                        : (t.ProposerUserCode ?? studentCode);
+
+                    var values = new List<object> { stt++, lecturerCode, lecturerDisplay };
+                    foreach (var field in finalFields)
+                    {
+                        if (field == "TopicTags")
+                        {
+                            values.Add(!string.IsNullOrWhiteSpace(t.TopicCode) && topicTagLookup.TryGetValue(t.TopicCode, out var tags) ? tags : "-");
+                            continue;
+                        }
+
+                        if (field == "ProposerName")
+                        {
+                            values.Add(studentName);
+                            continue;
+                        }
+
+                        if (field == "ProposerStudentCode")
+                        {
+                            values.Add(studentCode);
+                            continue;
+                        }
+
+                        if (field == "DepartmentCode")
+                        {
+                            values.Add(t.DepartmentCode ?? lecturer?.DepartmentCode ?? "-");
+                            continue;
+                        }
+
+                        if (field == "Score")
+                        {
+                            values.Add(t.Score?.ToString("0.0") ?? "-");
+                            continue;
+                        }
+
+                        values.Add(ResolveTopicValue(t, field));
+                    }
 
                     WriteDataRow(ws, row, values);
                     row++;
                 }
 
-                if (group.Count() > 1)
+                if (row - startRow > 1)
                 {
-                    // Merge Lecturer info and Count
-                    ws.Range(startRow, 2, row - 1, 2).Merge().Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                    ws.Range(startRow, 2, row - 1, 2).Style.Alignment.WrapText = true;
-                    ws.Range(startRow, 3, row - 1, 3).Merge().Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                    var lecturerCodeRange = ws.Range(startRow, 2, row - 1, 2);
+                    lecturerCodeRange.Merge();
+                    lecturerCodeRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                    lecturerCodeRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                    lecturerCodeRange.Style.Alignment.WrapText = true;
+
+                    var lecturerNameRange = ws.Range(startRow, 3, row - 1, 3);
+                    lecturerNameRange.Merge();
+                    lecturerNameRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                    lecturerNameRange.Style.Alignment.WrapText = true;
                 }
             }
 
@@ -357,6 +422,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
             return key switch
             {
                 "StudentCode" => "Mã sinh viên",
+                "UserCode" => "Mã user",
                 "FullName" => "Họ và tên",
                 "Gender" => "Giới tính",
                 "DateOfBirth" => "Ngày sinh",
@@ -367,25 +433,44 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
                 "GraduationYear" => "Năm tốt nghiệp",
                 "GPA" => "Điểm TB",
                 "AcademicStanding" => "Xếp loại",
-                "ParticipationStatus" => "Trạng thái",
+                "ParticipationStatus" => "Trạng thái tham gia",
                 "StudentEmail" => "Email",
                 "PhoneNumber" => "Số điện thoại",
+                "Address" => "Địa chỉ",
+                "Status" => "Trạng thái",
+                "Notes" => "Ghi chú",
                 "LecturerCode" => "Mã giảng viên",
+                "ProfileImage" => "Ảnh hồ sơ",
                 "Degree" => "Học hàm/Học vị",
                 "Organization" => "Cơ quan công tác",
                 "Email" => "Email",
                 "GuideQuota" => "Định mức HD",
+                "DefenseQuota" => "Định mức bảo vệ",
                 "CurrentGuidingCount" => "Đang HD",
                 "RemainingGuideQuota" => "Còn lại",
-                "Status" => "Trạng thái",
+                "Specialties" => "Chuyên môn",
                 "TopicCode" => "Mã đề tài",
+                "CatalogTopicCode" => "Mã danh mục",
                 "Title" => "Tên đề tài",
                 "Type" => "Loại đề tài",
+                "Summary" => "Tóm tắt",
                 "ProposerStudentCode" => "Mã SV",
                 "ProposerName" => "Sinh viên thực hiện",
+                "ProposerUserCode" => "Mã user SV",
                 "SupervisorLecturerCode" => "Mã GVHD",
                 "SupervisorName" => "Giảng viên hướng dẫn",
+                "SupervisorUserCode" => "Mã user GVHD",
                 "Score" => "Điểm số",
+                "TopicTags" => "Tag đề tài",
+                "LecturerComment" => "Nhận xét giảng viên",
+                "ResubmitCount" => "Số lần nộp lại",
+                "NumChapters" => "Số chương",
+                "NumPages" => "Số trang",
+                "NumTables" => "Số bảng",
+                "NumFigures" => "Số hình",
+                "NumReferences" => "Tài liệu tham khảo",
+                "NumVietnameseReferences" => "Tài liệu tiếng Việt",
+                "NumForeignReferences" => "Tài liệu tiếng Anh",
                 _ => key
             };
         }
@@ -395,6 +480,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
             return key switch
             {
                 "StudentCode" => s.StudentCode,
+                "UserCode" => s.UserCode ?? string.Empty,
                 "FullName" => s.FullName ?? string.Empty,
                 "Gender" => s.Gender ?? string.Empty,
                 "DateOfBirth" => s.DateOfBirth?.ToString("dd/MM/yyyy") ?? string.Empty,
@@ -408,6 +494,9 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
                 "StudentEmail" => s.StudentEmail ?? string.Empty,
                 "PhoneNumber" => s.PhoneNumber ?? string.Empty,
                 "ParticipationStatus" => "Đã đăng ký",
+                "Address" => s.Address ?? string.Empty,
+                "Status" => s.Status ?? string.Empty,
+                "Notes" => s.Notes ?? string.Empty,
                 _ => string.Empty
             };
         }
@@ -417,17 +506,22 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
             return key switch
             {
                 "LecturerCode" => l.LecturerCode,
+                "UserCode" => l.UserCode ?? string.Empty,
                 "FullName" => l.FullName ?? string.Empty,
                 "Degree" => l.Degree ?? string.Empty,
+                "ProfileImage" => l.ProfileImage ?? string.Empty,
                 "Gender" => l.Gender ?? string.Empty,
                 "DepartmentCode" => l.DepartmentCode ?? string.Empty,
                 "Organization" => l.Organization ?? string.Empty,
                 "Email" => l.Email ?? string.Empty,
                 "PhoneNumber" => l.PhoneNumber ?? string.Empty,
                 "GuideQuota" => l.GuideQuota ?? 0,
+                "DefenseQuota" => l.DefenseQuota ?? 0,
                 "CurrentGuidingCount" => l.CurrentGuidingCount,
                 "RemainingGuideQuota" => (l.GuideQuota ?? 0) - l.CurrentGuidingCount,
-                "Status" => "Hoạt động",
+                "Specialties" => l.Specialties ?? string.Empty,
+                "Address" => l.Address ?? string.Empty,
+                "Notes" => l.Notes ?? string.Empty,
                 _ => string.Empty
             };
         }
@@ -437,15 +531,29 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
             return key switch
             {
                 "TopicCode" => t.TopicCode,
+                "CatalogTopicCode" => t.CatalogTopicCode ?? string.Empty,
                 "Title" => t.Title,
                 "Type" => t.Type,
+                "Summary" => t.Summary ?? string.Empty,
                 "ProposerStudentCode" => t.ProposerStudentCode ?? string.Empty,
                 "ProposerName" => t.ProposerStudentCode ?? string.Empty, // Will be overridden in main loops if possible
+                "ProposerUserCode" => t.ProposerUserCode ?? string.Empty,
                 "SupervisorLecturerCode" => t.SupervisorLecturerCode ?? string.Empty,
                 "SupervisorName" => t.SupervisorUserCode ?? string.Empty, // Simplified for now
+                "SupervisorUserCode" => t.SupervisorUserCode ?? string.Empty,
                 "DepartmentCode" => t.DepartmentCode ?? string.Empty,
+                "LecturerComment" => t.LecturerComment ?? string.Empty,
+                "ResubmitCount" => t.ResubmitCount?.ToString() ?? string.Empty,
+                "NumChapters" => t.NumChapters?.ToString() ?? string.Empty,
+                "NumPages" => t.NumPages?.ToString() ?? string.Empty,
+                "NumTables" => t.NumTables?.ToString() ?? string.Empty,
+                "NumFigures" => t.NumFigures?.ToString() ?? string.Empty,
+                "NumReferences" => t.NumReferences?.ToString() ?? string.Empty,
+                "NumVietnameseReferences" => t.NumVietnameseReferences?.ToString() ?? string.Empty,
+                "NumForeignReferences" => t.NumForeignReferences?.ToString() ?? string.Empty,
                 "Score" => t.Score?.ToString("0.0") ?? string.Empty,
                 "Status" => t.Status,
+                "TopicTags" => string.Empty,
                 _ => string.Empty
             };
         }
