@@ -342,7 +342,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
                 (ms.ToArray(), $"HuongDanGopGV_{period.TermCode}_{DateTime.Now:yyyyMMdd}.xlsx", XlsxContentType));
         }
 
-        private void WriteInstitutionalHeader(IXLWorksheet ws, ref int row, string title, string subTitle)
+        private void WriteInstitutionalHeader(IXLWorksheet ws, ref int row, string title, string? subTitle)
         {
             ws.Cell(row, 1).Value = _branding.Institution;
             ws.Cell(row, 1).Style.Font.Bold = true;
@@ -369,7 +369,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
             row++;
 
             var subRange = ws.Range(row, 1, row, 10);
-            subRange.Merge().Value = subTitle;
+            subRange.Merge().Value = subTitle ?? string.Empty;
             subRange.Style.Font.Bold = true;
             subRange.Style.Font.FontSize = 12;
             subRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;

@@ -4238,16 +4238,6 @@ const CommitteeManagement: React.FC = () => {
       ),
     );
 
-    const normalizedSelectedLecturerProfileIds = Array.from(
-      new Set(
-        selectedLecturerRows
-          .map((lecturer) =>
-            Number(lecturer.lecturerProfileId ?? lecturer.lecturerId ?? 0),
-          )
-          .filter((id) => Number.isFinite(id) && id > 0),
-      ),
-    );
-
     if (normalizedSelectedLecturerCodes.length === 0) {
       showAutoGenerateModalError(
         "Không ánh xạ được mã giảng viên từ danh sách đã chọn. Vui lòng đồng bộ lại dữ liệu.",
@@ -4255,9 +4245,9 @@ const CommitteeManagement: React.FC = () => {
       return;
     }
 
-    if (normalizedSelectedLecturerProfileIds.length === 0 || !defensePeriodId) {
+    if (!defensePeriodId) {
       showAutoGenerateModalError(
-        "Không ánh xạ được LecturerProfileID hợp lệ từ danh sách giảng viên đã chọn.",
+        "Không xác định được đợt đồ án tốt nghiệp hiện tại.",
       );
       return;
     }
@@ -4344,22 +4334,6 @@ const CommitteeManagement: React.FC = () => {
     setAssignmentLoading(true);
     setActionInFlight("Mô phỏng và tạo hội đồng tự động");
     try {
-      const createSelectedResponse = await adminApi.createSelectedLecturers({
-        defenseTermId: defensePeriodId,
-        lecturerProfileIds: normalizedSelectedLecturerProfileIds,
-      });
-      const createSelectedParsed = parseApiEnvelope(createSelectedResponse);
-      if (!createSelectedParsed.ok) {
-        setAutoGenerateModalAlert({
-          type: "error",
-          message: extractApiErrorMessage(
-            createSelectedResponse,
-            "Không thể cập nhật danh sách giảng viên vào đợt.",
-          ),
-        });
-        return;
-      }
-
       const simulateResponse = await adminApi.simulateAutoGenerateCouncils(
         payload,
         makeIdempotencyKey("AUTOGEN-SIM"),
@@ -9958,6 +9932,15 @@ const CommitteeManagement: React.FC = () => {
                           {availableAutoLecturers.map(lecturer => {
                             const id = lecturer.lecturerProfileId ?? lecturer.lecturerId ?? lecturer.lecturerCode ?? "";
                             const checked = selectedAutoLecturerIds.includes(id);
+                            const lecturerLabel = getLecturerDisplayNameByCode(
+                              String(lecturer.lecturerCode ?? "").trim(),
+                              String(lecturer.lecturerName ?? "").trim(),
+                              lecturer.degree,
+                            );
+                            const lecturerDegree =
+                              String(lecturer.degree ?? "").trim() ||
+                              getLecturerDegreeByCode(String(lecturer.lecturerCode ?? "").trim()) ||
+                              "Chưa cập nhật học vị";
                             return (
                               <label key={`lecturer-${id}`} style={{
                                 display: "grid",
@@ -9971,8 +9954,12 @@ const CommitteeManagement: React.FC = () => {
                               }}>
                                 <input type="checkbox" checked={checked} onChange={() => toggleAutoLecturer(id)} />
                                 <div style={{ fontSize: 12 }}>
-                                  <div style={{ fontWeight: 700 }}>{lecturer.lecturerName}</div>
-                                  <div style={{ color: "#64748b", marginTop: 2 }}>Mã: {lecturer.lecturerCode} | {lecturer.degree}</div>
+                                  <div style={{ fontWeight: 700 }} title={lecturerLabel}>
+                                    {lecturer.lecturerCode ? `${lecturer.lecturerCode} - ${lecturerLabel}` : lecturerLabel}
+                                  </div>
+                                  <div style={{ color: "#64748b", marginTop: 2 }} title={lecturerDegree}>
+                                    Học vị: {lecturerDegree}
+                                  </div>
                                   {lecturer.tagCodes && lecturer.tagCodes.length > 0 && (
                                     <div style={{ fontSize: 10, color: "#f59e0b", marginTop: 4 }}>
                                       Tags: {lecturer.tagCodes.join(", ")}
