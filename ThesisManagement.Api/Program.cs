@@ -646,6 +646,36 @@ app.UseStaticFiles(new Microsoft.AspNetCore.Builder.StaticFileOptions
 
 app.UseAuthorization();
 
+// Auto-apply migrations on startup & seed admin user
+try
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        // Log migration status
+        var pendingMigrations = dbContext.Database.GetPendingMigrations();
+        if (pendingMigrations.Any())
+        {
+            Console.WriteLine($"[Migration] Found {pendingMigrations.Count()} pending migrations. Applying...");
+            dbContext.Database.Migrate();
+            Console.WriteLine("[Migration] Migrations applied successfully.");
+        }
+        else
+        {
+            Console.WriteLine("[Migration] Database is up to date.");
+        }
+    }
+    
+    // Seed admin user after migrations
+    await ThesisManagement.Api.Helpers.DbSeeder.SeedAdminAsync(app.Services);
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[Startup Error] Failed to initialize database: {ex.Message}");
+    throw;
+}
+
 app.MapControllers();
 app.MapHealthChecks("/healthz");
 app.MapHub<ChatHub>("/hubs/chat");

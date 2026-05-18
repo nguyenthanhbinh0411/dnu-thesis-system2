@@ -5,15 +5,21 @@ echo "=========================================="
 echo "ThesisManagement.Api - Startup Script"
 echo "=========================================="
 
-# Run EF Core migrations
-echo "Running database migrations..."
-cd /app
-dotnet ef database update --no-build --assembly ThesisManagement.Api.dll
+if [ -n "${DB_HOST:-}" ] && [ -n "${DB_PORT:-}" ]; then
+	echo "Waiting for database at ${DB_HOST}:${DB_PORT}..."
+	for i in $(seq 1 60); do
+		if (echo > /dev/tcp/${DB_HOST}/${DB_PORT}) >/dev/null 2>&1; then
+			echo "Database is reachable."
+			break
+		fi
 
-if [ $? -eq 0 ]; then
-    echo "Database migrations completed successfully."
-else
-    echo "Warning: Migration failed or database already up to date."
+		if [ "$i" -eq 60 ]; then
+			echo "Database is still unreachable after waiting."
+			exit 1
+		fi
+
+		sleep 2
+	done
 fi
 
 echo "Starting application..."
