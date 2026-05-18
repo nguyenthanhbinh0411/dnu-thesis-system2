@@ -564,6 +564,23 @@ builder.Services.AddScoped<ThesisManagement.Api.Filters.ActivityLogFilter>();
 
 var app = builder.Build();
 
+// Programmatic database fix for Oracle unique constraint UQ_SUBMISSIONFILES_SUBMISSIONCODE
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    try
+    {
+        // Drop the unique constraint if it exists in Oracle database to allow multiple files/links per progress submission.
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"SUBMISSIONFILES\" DROP CONSTRAINT \"UQ_SUBMISSIONFILES_SUBMISSIONCODE\"");
+        Console.WriteLine("[INFO] Successfully dropped UQ_SUBMISSIONFILES_SUBMISSIONCODE unique constraint.");
+    }
+    catch (System.Exception ex)
+    {
+        // Ignore if the constraint does not exist or was already dropped
+        Console.WriteLine($"[INFO] Safe ignore UQ_SUBMISSIONFILES_SUBMISSIONCODE drop: {ex.Message}");
+    }
+}
+
 // Development: Swagger
 if (app.Environment.IsDevelopment())
 {

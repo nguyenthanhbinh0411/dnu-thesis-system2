@@ -1,5 +1,9 @@
+using System.Collections.Generic;
+
 namespace ThesisManagement.Api.DTOs.Reports.Command
 {
+    public record ExternalLinkDto(string Name, string Url);
+
     public record StudentProgressSubmitFormDto(
         string TopicCode,
         string MilestoneCode,
@@ -8,5 +12,6 @@ namespace ThesisManagement.Api.DTOs.Reports.Command
         string? LecturerCode,
         string? ReportTitle,
         string? ReportDescription,
-        int? AttemptNumber);
+        int? AttemptNumber,
+        List<ExternalLinkDto>? ExternalLinks = null);
 }

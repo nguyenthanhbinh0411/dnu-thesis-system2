@@ -57,7 +57,9 @@ namespace ThesisManagement.Api.Controllers
                 request.MilestoneName,
                 request.ReportTitle,
                 request.ReportDescription,
-                request.FileUrl);
+                request.FileUrl,
+                request.FileUrls,
+                request.ExternalLinks);
 
             return Ok(ApiResponse<ProgressReportAiAnalysisResult>.SuccessResponse(result));
         }

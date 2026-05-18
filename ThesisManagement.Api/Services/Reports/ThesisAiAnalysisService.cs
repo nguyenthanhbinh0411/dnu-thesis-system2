@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using ThesisManagement.Api.Helpers;
 using ThesisManagement.Api.Services.Chat;
+using ThesisManagement.Api.DTOs.Reports.Command;
 
 namespace ThesisManagement.Api.Services.Reports
 {
@@ -53,29 +55,79 @@ namespace ThesisManagement.Api.Services.Reports
             string milestoneName, 
             string reportTitle, 
             string reportDescription,
-            string? fileUrl = null)
+            string? fileUrl = null,
+            List<string>? fileUrls = null,
+            List<ExternalLinkDto>? externalLinks = null)
         {
-            string extractedContent = "Không có tệp đính kèm hoặc không thể trích xuất nội dung.";
-            
-            if (!string.IsNullOrEmpty(fileUrl))
+            var filesToProcess = new List<string>();
+            if (fileUrls != null && fileUrls.Count > 0)
             {
-                extractedContent = await _extractor.ExtractTextAsync(fileUrl, reportDescription);
-                if (string.IsNullOrWhiteSpace(extractedContent))
+                filesToProcess.AddRange(fileUrls);
+            }
+            else if (!string.IsNullOrEmpty(fileUrl))
+            {
+                filesToProcess.Add(fileUrl);
+            }
+
+            var sbContent = new System.Text.StringBuilder();
+
+            if (filesToProcess.Count > 0)
+            {
+                for (int i = 0; i < filesToProcess.Count; i++)
                 {
-                    extractedContent = "Không thể trích xuất nội dung từ tệp (có thể file bị lỗi hoặc không có chữ).";
+                    var url = filesToProcess[i];
+                    string fileName = $"Tệp #{i + 1}";
+                    try
+                    {
+                        var uri = new Uri(url);
+                        var decodedPath = System.Web.HttpUtility.UrlDecode(uri.AbsolutePath);
+                        var name = System.IO.Path.GetFileName(decodedPath);
+                        if (!string.IsNullOrEmpty(name)) fileName = name;
+                    }
+                    catch { }
+
+                    string text = await _extractor.ExtractTextAsync(url, reportDescription);
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        sbContent.AppendLine($"\n--- NỘI DUNG TỪ TỆP: {fileName} ---");
+                        sbContent.AppendLine(text);
+                        sbContent.AppendLine($"--- HẾT NỘI DUNG TỆP: {fileName} ---\n");
+                    }
                 }
             }
+
+            string extractedContent = sbContent.ToString();
+            if (string.IsNullOrWhiteSpace(extractedContent))
+            {
+                extractedContent = filesToProcess.Count > 0 
+                    ? "Không thể trích xuất nội dung từ các tệp đính kèm (có thể file lỗi hoặc không chứa text)." 
+                    : "Không có tệp đính kèm.";
+            }
+
+            // Xử lý thông tin liên kết ngoài
+            var sbLinks = new System.Text.StringBuilder();
+            if (externalLinks != null && externalLinks.Count > 0)
+            {
+                sbLinks.AppendLine("\n--- CÁC LIÊN KẾT NGOÀI ĐÍNH KÈM ---");
+                foreach (var link in externalLinks)
+                {
+                    sbLinks.AppendLine($"- [{link.Name}]: {link.Url}");
+                }
+                sbLinks.AppendLine("----------------------------------\n");
+            }
+            string linksContent = sbLinks.ToString();
 
             var userMessage = $@"
 [MỐC TIẾN ĐỘ]: {milestoneCode} - {milestoneName}
 [TIÊU ĐỀ BÁO CÁO]: {reportTitle}
 [MÔ TẢ CỦA SINH VIÊN]: {reportDescription}
-[NỘI DUNG THỰC TẾ TRÍCH XUẤT TỪ FILE]: 
+{linksContent}
+[NỘI DUNG THỰC TẾ TRÍCH XUẤT TỪ CÁC FILE]: 
 --- BẮT ĐẦU NỘI DUNG FILE ---
 {extractedContent}
 --- KẾT THÚC NỘI DUNG FILE ---
 
-NHIỆM VỤ: Hãy đối chiếu mô tả của sinh viên với nội dung thực tế trong file. Xác định xem sinh viên có trung thực và báo cáo có đạt chất lượng không.
+NHIỆM VỤ: Hãy đối chiếu mô tả của sinh viên, các liên kết ngoài đã nộp và nội dung thực tế trích xuất từ file. Xác định xem sinh viên có trung thực và báo cáo có đạt chất lượng không.
 ";
 
             try
