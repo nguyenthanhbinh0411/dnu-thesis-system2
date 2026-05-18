@@ -653,17 +653,39 @@ try
     {
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
-        // Log migration status
-        var pendingMigrations = dbContext.Database.GetPendingMigrations();
-        if (pendingMigrations.Any())
+        // Log migration status with retry/backoff so app doesn't crash if DB is not yet ready
+        const int maxMigrationAttempts = 10;
+        const int baseDelayMs = 2000; // 2s
+        for (int attempt = 1; attempt <= maxMigrationAttempts; attempt++)
         {
-            Console.WriteLine($"[Migration] Found {pendingMigrations.Count()} pending migrations. Applying...");
-            dbContext.Database.Migrate();
-            Console.WriteLine("[Migration] Migrations applied successfully.");
-        }
-        else
-        {
-            Console.WriteLine("[Migration] Database is up to date.");
+            try
+            {
+                var pendingMigrations = dbContext.Database.GetPendingMigrations();
+                if (pendingMigrations.Any())
+                {
+                    Console.WriteLine($"[Migration] Found {pendingMigrations.Count()} pending migrations. Applying...");
+                    dbContext.Database.Migrate();
+                    Console.WriteLine("[Migration] Migrations applied successfully.");
+                }
+                else
+                {
+                    Console.WriteLine("[Migration] Database is up to date.");
+                }
+
+                break; // success
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Migration] Database not ready (attempt {attempt}/{maxMigrationAttempts}): {ex.Message}");
+                if (attempt == maxMigrationAttempts)
+                {
+                    Console.WriteLine("[Startup Error] Failed to initialize database after retries.");
+                    throw;
+                }
+
+                var delay = baseDelayMs * attempt;
+                await Task.Delay(delay);
+            }
         }
     }
     

@@ -21,12 +21,12 @@ public static class DbSeeder
 
         if (existingAdmin != null)
         {
-            if (existingAdmin.Role != "SYSTEM_ADMIN")
+            if (existingAdmin.Role != "Admin")
             {
-                existingAdmin.Role = "SYSTEM_ADMIN";
+                existingAdmin.Role = "Admin";
                 existingAdmin.LastUpdated = DateTime.UtcNow;
                 await db.SaveChangesAsync();
-                Console.WriteLine("[Seeder] Existing admin user updated to SYSTEM_ADMIN.");
+                Console.WriteLine("[Seeder] Existing admin user updated to Admin.");
             }
             else
             {
@@ -40,7 +40,7 @@ public static class DbSeeder
         {
             UserCode = adminUserCode,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("12345"),
-            Role = "SYSTEM_ADMIN",
+            Role = "Admin",
             CreatedAt = DateTime.UtcNow,
             LastUpdated = DateTime.UtcNow
         };
