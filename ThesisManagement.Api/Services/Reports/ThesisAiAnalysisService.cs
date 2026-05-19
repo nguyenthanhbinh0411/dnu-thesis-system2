@@ -117,18 +117,6 @@ namespace ThesisManagement.Api.Services.Reports
                 sbLinks.AppendLine("----------------------------------\n");
             }
             string linksContent = sbLinks.ToString();
-            string? fileUrl = null)
-        {
-            string extractedContent = "Không có tệp đính kèm hoặc không thể trích xuất nội dung.";
-            
-            if (!string.IsNullOrEmpty(fileUrl))
-            {
-                extractedContent = await _extractor.ExtractTextAsync(fileUrl, reportDescription);
-                if (string.IsNullOrWhiteSpace(extractedContent))
-                {
-                    extractedContent = "Không thể trích xuất nội dung từ tệp (có thể file bị lỗi hoặc không có chữ).";
-                }
-            }
 
             var userMessage = $@"
 [MỐC TIẾN ĐỘ]: {milestoneCode} - {milestoneName}
@@ -136,8 +124,6 @@ namespace ThesisManagement.Api.Services.Reports
 [MÔ TẢ CỦA SINH VIÊN]: {reportDescription}
 {linksContent}
 [NỘI DUNG THỰC TẾ TRÍCH XUẤT TỪ CÁC FILE]: 
-
-[NỘI DUNG THỰC TẾ TRÍCH XUẤT TỪ FILE]: 
 
 --- BẮT ĐẦU NỘI DUNG FILE ---
 {extractedContent}
@@ -187,6 +173,16 @@ NHIỆM VỤ: Hãy đối chiếu mô tả của sinh viên, các liên kết ng
                     new CriterionRating { Name = "Lỗi", Score = 0, Comment = "Vui lòng thử lại sau hoặc liên hệ quản trị viên." }
                 }
             };
+        }
+
+        public Task<ProgressReportAiAnalysisResult> AnalyzeProgressReportAsync(
+            string milestoneCode,
+            string milestoneName,
+            string reportTitle,
+            string reportDescription,
+            string? fileUrl = null)
+        {
+            return AnalyzeProgressReportAsync(milestoneCode, milestoneName, reportTitle, reportDescription, fileUrl, null, null);
         }
     }
 }

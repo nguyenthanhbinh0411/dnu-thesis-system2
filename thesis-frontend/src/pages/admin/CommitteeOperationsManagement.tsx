@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  ClipboardList,
   Download,
   ExternalLink,
   Eye,
@@ -28,6 +29,7 @@ import {
   Grid,
   Hash,
   History,
+  Image,
   Info,
   LayoutDashboard,
   LineChart,
@@ -38,6 +40,7 @@ import {
   MessageSquare,
   Minimize2,
   MoreVertical,
+  Package,
   Paperclip,
   Pencil,
   PieChart,
@@ -72,6 +75,7 @@ import {
   readEnvelopeMessage,
   readEnvelopeSuccess,
   readEnvelopeWarningMessages,
+  readEnvelopeTotalCount,
 } from "../../utils/api-envelope";
 import {
   extractDefensePeriodId,
@@ -292,8 +296,11 @@ type CommitteeSummary = {
   name: string;
   room: string;
   chair: string;
+  chairCode?: string;
   secretary: string;
+  secretaryCode?: string;
   reviewer: string;
+  reviewerCode?: string;
   totalTopics: number;
   scoredTopics: number;
   lockedTopics: number;
@@ -958,7 +965,7 @@ const normalizeCommitteeStatus = (value: string | null | undefined) => {
   if (normalized.includes("PUBLISHED") || normalized === "PUBLISHED") {
     return "PUBLISHED";
   }
-  if (normalized.includes("LOCKED") || normalized === "LOCKED") {
+  if (normalized.includes("LOCKED") || normalized === "LOCKED" || normalized.includes("CHOT")) {
     return "LOCKED";
   }
   if (normalized.includes("READY") || normalized === "READY") {
@@ -1247,7 +1254,31 @@ const CommitteeOperationsManagement: React.FC = () => {
   const [exportDownloadMenuOpen, setExportDownloadMenuOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportPreviewModalOpen, setExportPreviewModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "committee" | "post-defense" | "audit">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "committee" | "post-defense" | "export" | "audit">("overview");
+  
+  // System logs state
+  const [systemLogs, setSystemLogs] = useState<any[]>([]);
+  const [logsTotalCount, setLogsTotalCount] = useState(0);
+  const [logsPage, setLogsPage] = useState(1);
+  const [logsPageSize, setLogsPageSize] = useState(10);
+  const [logsSearch, setLogsSearch] = useState("");
+  const [logsActionFilter, setLogsActionFilter] = useState("all");
+  const [logsModuleFilter, setLogsModuleFilter] = useState("all");
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [selectedLogDetail, setSelectedLogDetail] = useState<any | null>(null);
+  // System logs export state
+  const [logExportModalOpen, setLogExportModalOpen] = useState(false);
+  const [logExportSelectedFields, setLogExportSelectedFields] = useState<string[]>([
+    "PerformedAt",
+    "UserCode",
+    "Module",
+    "ActionType",
+    "ActionDescription",
+    "Status",
+  ]);
+  const [logExportFormat, setLogExportFormat] = useState<ReportFormat>("excel");
+  const [logIsExporting, setLogIsExporting] = useState(false);
+
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [activeRowActionId, setActiveRowActionId] = useState<string | null>(null);
 
@@ -1291,7 +1322,7 @@ const CommitteeOperationsManagement: React.FC = () => {
         alignItems: "center",
         justifyContent: "center",
         padding: "32px",
-        background: "#0f172a",
+        background: "#ffffff",
         position: "relative",
         overflow: "hidden",
         fontFamily: "'Be Vietnam Pro', sans-serif"
@@ -1303,8 +1334,8 @@ const CommitteeOperationsManagement: React.FC = () => {
           left: "-5%",
           width: "40%",
           height: "40%",
-          background: "radial-gradient(circle, rgba(30, 58, 95, 0.4) 0%, transparent 70%)",
-          filter: "blur(60px)",
+          background: "radial-gradient(circle, rgba(30, 58, 95, 0.06) 0%, transparent 70%)",
+          filter: "blur(40px)",
           animation: "float 15s infinite ease-in-out"
         }} />
         <div style={{
@@ -1313,8 +1344,8 @@ const CommitteeOperationsManagement: React.FC = () => {
           right: "-5%",
           width: "50%",
           height: "50%",
-          background: "radial-gradient(circle, rgba(243, 112, 33, 0.15) 0%, transparent 70%)",
-          filter: "blur(80px)",
+          background: "radial-gradient(circle, rgba(243, 112, 33, 0.06) 0%, transparent 70%)",
+          filter: "blur(60px)",
           animation: "float 20s infinite ease-in-out reverse"
         }} />
 
@@ -1327,13 +1358,13 @@ const CommitteeOperationsManagement: React.FC = () => {
           {/* Glass Card */}
           <div style={{
             position: "relative",
-            background: "rgba(255, 255, 255, 0.85)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            border: "1px solid rgba(255, 255, 255, 0.4)",
+            background: "#ffffff",
+            backdropFilter: "none",
+            WebkitBackdropFilter: "none",
+            border: "1px solid #f1f5f9",
             borderRadius: 32,
             padding: "48px 40px",
-            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+            boxShadow: "0 8px 20px rgba(16,24,40,0.06)",
             textAlign: "center"
           }}>
             {/* Logo Section */}
@@ -1351,23 +1382,23 @@ const CommitteeOperationsManagement: React.FC = () => {
 
             <div style={{ marginBottom: 32 }}>
               <div style={{
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 700,
                 color: "#f37021",
                 textTransform: "uppercase",
-                letterSpacing: "0.2em",
-                marginBottom: 8
+                letterSpacing: "0.16em",
+                marginBottom: 6
               }}>
                 Đang kết nối dữ liệu
               </div>
               <h2 style={{
-                fontSize: 28,
+                fontSize: 22,
                 fontWeight: 800,
-                color: "#1e293b",
+                color: "#0f172a",
                 margin: 0,
-                letterSpacing: "-0.02em"
+                letterSpacing: "-0.01em"
               }}>
-                Committee Operations
+                Điều hành hội đồng
               </h2>
             </div>
 
@@ -1887,9 +1918,104 @@ const CommitteeOperationsManagement: React.FC = () => {
     }
   };
 
+  const fetchSystemLogs = useCallback(async () => {
+    setLogsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", String(logsPage));
+      params.set("pageSize", String(logsPageSize));
+      if (logsSearch.trim()) {
+        params.set("search", logsSearch.trim());
+      }
+      if (logsActionFilter !== "all") {
+        params.set("actionType", logsActionFilter);
+      }
+      if (logsModuleFilter !== "all") {
+        params.set("module", logsModuleFilter);
+      }
+      
+      const response = await fetchData<ApiResponse<any[]>>(
+        `/SystemActivityLogs/get-list?${params.toString()}`,
+        { method: "GET" }
+      );
+      
+      const parsed = parseEnvelope(response, "Không tải được nhật ký hoạt động hệ thống.");
+      if (parsed.ok && parsed.data) {
+        setSystemLogs(parsed.data);
+        const total = readEnvelopeTotalCount(response);
+        setLogsTotalCount(total || parsed.data.length);
+      }
+    } catch (error) {
+      console.error("System logs error:", error);
+      notifyError("Lỗi đồng bộ dữ liệu nhật ký hoạt động.");
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [
+    logsPage,
+    logsPageSize,
+    logsSearch,
+    logsActionFilter,
+    logsModuleFilter,
+    parseEnvelope,
+    notifyError
+  ]);
+
+  const exportSystemLogs = useCallback(async () => {
+    setLogIsExporting(true);
+    try {
+      const payload = {
+        fields: logExportSelectedFields,
+        format: toApiExportFormat(logExportFormat),
+        filters: {
+          search: logsSearch || undefined,
+          module: logsModuleFilter !== "all" ? logsModuleFilter : undefined,
+          actionType: logsActionFilter !== "all" ? logsActionFilter : undefined,
+        },
+      };
+
+      const arrayBuffer = await fetchData<ArrayBuffer>(`/SystemActivityLogs/export`, {
+        method: "POST",
+        body: payload,
+        timeoutMs: 120000,
+        headers: { Accept: logExportFormat === "pdf" ? "application/pdf" : logExportFormat === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv" },
+      });
+
+      if (!arrayBuffer) {
+        throw new Error("Không nhận được dữ liệu file từ server.");
+      }
+
+      const mime = logExportFormat === "pdf" ? "application/pdf" : logExportFormat === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv";
+      const ext = logExportFormat === "pdf" ? "pdf" : logExportFormat === "excel" ? "xlsx" : "csv";
+      const blob = new Blob([arrayBuffer as ArrayBuffer], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `system-activity-logs.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      notifySuccess("Đã xuất nhật ký hoạt động.");
+    } catch (error) {
+      console.error("Export system logs error:", error);
+      notifyError(error instanceof Error ? error.message : "Không thể xuất nhật ký hoạt động.");
+    } finally {
+      setLogIsExporting(false);
+      setLogExportModalOpen(false);
+    }
+  }, [logExportFormat, logExportSelectedFields, logsSearch, logsModuleFilter, logsActionFilter, notifyError, notifySuccess]);
+
   useEffect(() => {
     void loadOperationsSnapshot();
   }, [loadOperationsSnapshot]);
+
+  useEffect(() => {
+    if (activeTab === "audit") {
+      void fetchSystemLogs();
+    }
+  }, [activeTab, fetchSystemLogs]);
 
   useEffect(() => {
     if (activeTab !== "analytics" || !periodId) return;
@@ -2070,7 +2196,7 @@ const CommitteeOperationsManagement: React.FC = () => {
 
         const isModularTemplate = ["dashboard", "scoring", "post-defense", "councils", "topics", "custom"].includes(effectiveTemplate);
 
-        if (activeTab === "audit" || (isModularTemplate && ["pdf", "excel", "xlsx", "csv"].includes(apiFormat))) {
+        if (activeTab === "export" || (isModularTemplate && ["pdf", "excel", "xlsx", "csv"].includes(apiFormat))) {
           // Use the new modular export endpoint
           const params = new URLSearchParams();
           params.set("format", apiFormat);
@@ -2445,9 +2571,12 @@ const CommitteeOperationsManagement: React.FC = () => {
         code: firstRow?.committeeCode ?? committeeCode,
         name: firstRow?.committeeName ?? fallbackName,
         room: firstRow?.room ?? pickText(analyticsRecord, ["room", "Room"], "-"),
-        chair: pickRowText(topicRows, ["chairName", "committeeChairName", "chair", "committeeChair", "committeeChairCode"], "") || pickText(analyticsRecord, ["chair", "chairName", "Chair", "chairman", "committeeChair", "committeeChairName"], "-"),
-        secretary: pickRowText(topicRows, ["secretaryName", "committeeSecretaryName", "secretary", "committeeSecretary", "committeeSecretaryCode"], "") || pickText(analyticsRecord, ["secretary", "secretaryName", "Secretary", "clerk", "committeeSecretary", "committeeSecretaryName"], "-"),
-        reviewer: pickRowText(topicRows, ["reviewerName", "committeeReviewerName", "reviewer", "committeeReviewer", "committeeReviewerCode"], "") || pickText(analyticsRecord, ["reviewer", "reviewerName", "Reviewer", "critic", "committeeReviewer", "committeeReviewerName"], "-"),
+        chair: pickRowText(topicRows, ["chairName", "committeeChairName", "chair", "committeeChair"], "") || pickText(analyticsRecord, ["chair", "chairName", "Chair", "chairman", "committeeChair", "committeeChairName"], "-"),
+        chairCode: pickRowText(topicRows, ["committeeChairCode"], "") || pickText(analyticsRecord, ["committeeChairCode", "chairCode"], ""),
+        secretary: pickRowText(topicRows, ["secretaryName", "committeeSecretaryName", "secretary", "committeeSecretary"], "") || pickText(analyticsRecord, ["secretary", "secretaryName", "Secretary", "clerk", "committeeSecretary", "committeeSecretaryName"], "-"),
+        secretaryCode: pickRowText(topicRows, ["committeeSecretaryCode"], "") || pickText(analyticsRecord, ["committeeSecretaryCode", "secretaryCode"], ""),
+        reviewer: pickRowText(topicRows, ["reviewerName", "committeeReviewerName", "reviewer", "committeeReviewer"], "") || pickText(analyticsRecord, ["reviewer", "reviewerName", "Reviewer", "critic", "committeeReviewer", "committeeReviewerName"], "-"),
+        reviewerCode: pickRowText(topicRows, ["committeeReviewerCode"], "") || pickText(analyticsRecord, ["committeeReviewerCode", "reviewerCode"], ""),
         totalTopics,
         scoredTopics,
         lockedTopics,
@@ -2472,6 +2601,38 @@ const CommitteeOperationsManagement: React.FC = () => {
       .map(([committeeCode, topicRows], index) => buildSummary(committeeCode, topicRows, index))
       .sort((left, right) => left.code.localeCompare(right.code));
   }, [analytics?.byCouncil, committeeStatusOverrides, scoringMatrix, scoresPublished]);
+
+  // 1. Đề tài đã đóng hội đồng không có đủ điểm
+  const topicsClosedNoScoreAlerts = useMemo(() => {
+    return scoringMatrix.filter((row) => {
+      const isClosed = row.isLocked === true || row.status === "LOCKED" || row.status === "FINALIZED" || row.status === "COMPLETED" || scoresPublished;
+      const isMissingScores = row.finalScore == null || Number(row.finalScore) <= 0 || 
+        (row.submittedCount != null && row.requiredCount != null && row.submittedCount < row.requiredCount);
+      return isClosed && isMissingScores;
+    });
+  }, [scoringMatrix, scoresPublished]);
+
+  // 2. Hội đồng quá hạn (hết ngày) chưa chốt điểm và đóng phiên hội đồng
+  const overdueCommitteesAlerts = useMemo(() => {
+    return committeeOperationalRows.filter((row) => {
+      const isNotClosed = row.status !== "LOCKED" && row.status !== "COMPLETED" && row.status !== "FINALIZED" && row.status !== "PUBLISHED" && !scoresPublished;
+      if (!isNotClosed) return false;
+      
+      const dateStr = row.defenseDate;
+      if (!dateStr || dateStr === "-") return false;
+      
+      const parts = dateStr.split("/");
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        const d = new Date(year, month, day);
+        d.setHours(23, 59, 59, 999);
+        return d.getTime() < Date.now();
+      }
+      return false;
+    });
+  }, [committeeOperationalRows, scoresPublished]);
 
   const dashboardMetrics = useMemo(() => {
     const totalTopics = pipeline?.totalTopics ?? scoringMatrix.length;
@@ -2542,10 +2703,14 @@ const CommitteeOperationsManagement: React.FC = () => {
       .sort((left, right) => String(left.topicCode ?? "").localeCompare(String(right.topicCode ?? "")));
   }, [scoringMatrix, selectedCommittee]);
 
-  const selectedCommitteeChair = selectedCommittee?.chair ?? "-";
   const selectedCommitteeSupervisor = useMemo(() => {
     const row = selectedCommitteeRows.find((row) => row.supervisorLecturerName || row.supervisorName);
     return row?.supervisorLecturerName ?? row?.supervisorName ?? "-";
+  }, [selectedCommitteeRows]);
+
+  const selectedCommitteeSupervisorCode = useMemo(() => {
+    const row = selectedCommitteeRows.find((row) => row.supervisorLecturerCode);
+    return row?.supervisorLecturerCode ?? "";
   }, [selectedCommitteeRows]);
 
   const selectedCommitteeFinalized = useMemo(() => {
@@ -2584,7 +2749,7 @@ const CommitteeOperationsManagement: React.FC = () => {
         case "warning":
           return row.delayLabel !== "On time" || row.scoredTopics < row.totalTopics;
         case "completed":
-          return row.progressPercent >= 100 || row.status === "COMPLETED" || row.status === "PUBLISHED";
+          return row.progressPercent >= 100 || ["COMPLETED", "PUBLISHED", "LOCKED", "FINALIZED"].includes(row.status);
         case "all":
         default:
           return true;
@@ -2594,6 +2759,22 @@ const CommitteeOperationsManagement: React.FC = () => {
 
   const keyAlerts = useMemo<DashboardAlert[]>(() => {
     const alertItems: DashboardAlert[] = [
+      ...topicsClosedNoScoreAlerts.map((row) => ({
+        severity: "critical" as DashboardAlertSeverity,
+        title: `Đóng hội đồng thiếu điểm: ${row.topicTitle ?? "-"}`,
+        detail: `Hội đồng ${row.committeeCode} · SV: ${row.studentName} (${row.studentCode}) · Nhập: ${row.submittedCount}/${row.requiredCount} cột điểm`,
+        committeeCode: row.committeeCode ?? "-",
+        focusKey: row.committeeCode ?? "-",
+        priority: 1,
+      })),
+      ...overdueCommitteesAlerts.map((row) => ({
+        severity: "critical" as DashboardAlertSeverity,
+        title: `Hội đồng quá hạn chưa đóng phiên: ${row.code}`,
+        detail: `Ngày bảo vệ: ${row.defenseDate} · Phòng: ${row.room} · Chưa khóa chốt điểm`,
+        committeeCode: row.code,
+        focusKey: row.code,
+        priority: 1,
+      })),
       ...scoringMatrix
         .filter((row) => row.finalScore == null || Number(row.finalScore) <= 0)
         .slice(0, 4)
@@ -2654,7 +2835,7 @@ const CommitteeOperationsManagement: React.FC = () => {
     return alertItems
       .sort((left, right) => left.priority - right.priority)
       .slice(0, 10);
-  }, [committeeOperationalRows, scoringMatrix, committeeStatusOverrides]);
+  }, [committeeOperationalRows, scoringMatrix, committeeStatusOverrides, topicsClosedNoScoreAlerts, overdueCommitteesAlerts]);
 
   const leaderboardEntries = useMemo(() => {
     if (!snapshot) return { highest: null, lowest: null, strictest: null, lenient: null, fastest: null, delayed: null };
@@ -2842,7 +3023,7 @@ const CommitteeOperationsManagement: React.FC = () => {
     const countdownLabel = daysRemaining == null ? "-" : `${Math.max(0, daysRemaining)} ngày`;
 
     return {
-      name: pickText(record, ["name", "Name", "title", "Title"], periodId ? `Đợt ${periodId}` : "Chưa xác định"),
+      name: pickText(record, ["termCode","TermCode","term_code","Term_Code","termName","TermName","term_name","Term_Name","periodName","PeriodName","period_name","Period_Name","code","Code","name","Name","title","Title"], periodId ? `Đợt ${periodId}` : "Chưa xác định"),
       status: statusValue,
       startDate: startDateText,
       endDate: endDateText,
@@ -3526,6 +3707,67 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
           <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Đã chấm: {dashboardMetrics.scoredTopics ?? 0} / Đã chốt: {dashboardMetrics.lockedTopics ?? 0}</p>
         </section>
 
+        {/* System Logs Export Modal */}
+        {logExportModalOpen && (
+          <ModalOverlay onClose={() => setLogExportModalOpen(false)} width={720}>
+            <div style={{ maxWidth: 680 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Xuất Nhật ký Hoạt động</h3>
+              <div style={{ marginTop: 12, color: "#64748b" }}>Chọn trường cần xuất và định dạng file.</div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: 12, marginTop: 16 }}>
+                <div style={{ maxHeight: 320, overflow: "auto", padding: 12, border: "1px solid #e6eef6", borderRadius: 8, background: "#fff" }}>
+                  {[
+                    { key: "PerformedAt", label: "Thời gian" },
+                    { key: "UserCode", label: "Tài khoản" },
+                    { key: "UserRole", label: "Vai trò" },
+                    { key: "Module", label: "Phân hệ" },
+                    { key: "ActionType", label: "Hành động" },
+                    { key: "ActionDescription", label: "Mô tả" },
+                    { key: "EntityName", label: "Đối tượng" },
+                    { key: "EntityId", label: "ID đối tượng" },
+                    { key: "Status", label: "Trạng thái" },
+                    { key: "OldValue", label: "Giá trị cũ" },
+                    { key: "NewValue", label: "Giá trị mới" },
+                    { key: "IPAddress", label: "Địa chỉ IP" },
+                  ].map((f) => (
+                    <label key={f.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px" }}>
+                      <input
+                        type="checkbox"
+                        checked={logExportSelectedFields.includes(f.key)}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setLogExportSelectedFields((prev) => checked ? Array.from(new Set([...prev, f.key])) : prev.filter((x) => x !== f.key));
+                        }}
+                      />
+                      <span style={{ fontWeight: 600 }}>{f.label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div style={{ padding: 12, border: "1px solid #e6eef6", borderRadius: 8, background: "#fff", height: 160 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Định dạng</div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="radio" name="logExportFormat" checked={logExportFormat === "excel"} onChange={() => setLogExportFormat("excel")} /> Excel (.xlsx)
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="radio" name="logExportFormat" checked={logExportFormat === "pdf"} onChange={() => setLogExportFormat("pdf")} /> PDF
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="radio" name="logExportFormat" checked={logExportFormat === "csv"} onChange={() => setLogExportFormat("csv")} /> CSV
+                  </label>
+
+                  <div style={{ marginTop: 12 }}>
+                    <button onClick={() => exportSystemLogs()} disabled={logIsExporting} style={{ padding: "10px 16px", borderRadius: 10, background: "#1e3a5f", color: "white", border: "none", fontWeight: 800, cursor: "pointer" }}>
+                      {logIsExporting ? "Đang xuất..." : "Xuất"}
+                    </button>
+                    <button onClick={() => setLogExportModalOpen(false)} style={{ marginLeft: 8, padding: "10px 12px", borderRadius: 10, background: "white", border: "1px solid #e2e8f0", cursor: "pointer" }}>Hủy</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ModalOverlay>
+        )}
+
         <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tổng số Hội đồng</div>
           <div style={{ fontSize: 32, fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{dashboardMetrics.totalCouncils ?? 0}</div>
@@ -3544,6 +3786,68 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
           <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>{keyAlerts.length > 0 ? "Cần kiểm tra các hội đồng bị trễ" : "Hệ thống hoạt động ổn định"}</p>
         </section>
       </div>
+
+      {/* 1.5. Critical Operational Warnings */}
+      {(overdueCommitteesAlerts.length > 0 || topicsClosedNoScoreAlerts.length > 0) && (
+        <div style={{
+          background: "linear-gradient(135deg, #fff1f2 0%, #fff5f5 100%)",
+          border: "1px solid #fecaca",
+          borderRadius: "24px",
+          padding: "24px",
+          boxShadow: "0 10px 25px -5px rgba(239, 68, 68, 0.05)",
+          display: "grid",
+          gap: 16
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <ShieldAlert size={22} color="#ef4444" />
+            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#991b1b" }}>Cảnh Báo Vận Hành Quan Trọng</h4>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
+            {/* Overdue Committees */}
+            {overdueCommitteesAlerts.length > 0 && (
+              <div style={{ background: "white", padding: 16, borderRadius: 18, border: "1px solid #fee2e2", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.02)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <AlertCircle size={16} color="#ef4444" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>Hội đồng quá hạn chưa đóng phiên ({overdueCommitteesAlerts.length})</span>
+                </div>
+                <div style={{ display: "grid", gap: 8, maxHeight: "200px", overflowY: "auto", paddingRight: 4 }}>
+                  {overdueCommitteesAlerts.map((row) => (
+                    <div key={row.key} style={{ fontSize: 13, padding: 12, borderRadius: 12, background: "#fef2f2", color: "#991b1b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <strong>{row.code}</strong> - {row.name}
+                        <div style={{ fontSize: 11, color: "#b91c1c", marginTop: 2 }}>Phòng: {row.room} • Ngày bảo vệ: {row.defenseDate}</div>
+                      </div>
+                      <span style={{ fontSize: 11, background: "#fecaca", padding: "2px 6px", borderRadius: 6, fontWeight: 700 }}>QUÁ HẠN</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Closed topics with missing scores */}
+            {topicsClosedNoScoreAlerts.length > 0 && (
+              <div style={{ background: "white", padding: 16, borderRadius: 18, border: "1px solid #fed7aa", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.02)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <AlertTriangle size={16} color="#ea580c" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#c2410c" }}>Đề tài đóng hội đồng thiếu điểm ({topicsClosedNoScoreAlerts.length})</span>
+                </div>
+                <div style={{ display: "grid", gap: 8, maxHeight: "200px", overflowY: "auto", paddingRight: 4 }}>
+                  {topicsClosedNoScoreAlerts.map((row) => (
+                    <div key={row.assignmentId} style={{ fontSize: 13, padding: 12, borderRadius: 12, background: "#fff7ed", color: "#c2410c" }}>
+                      <strong>{row.studentName}</strong> ({row.studentCode})
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#9a3412", marginTop: 2 }}>{row.topicTitle}</div>
+                      <div style={{ fontSize: 11, color: "#ea580c", marginTop: 2 }}>
+                        Hội đồng: {row.committeeCode} • Nhập: {row.submittedCount}/{row.requiredCount} cột điểm • Tổng: {row.finalScore ?? "Chưa có"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 2. Main Dashboard Layout */}
       <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 24 }}>
@@ -3655,6 +3959,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               })}
             </div>
           </section>
+
         </div>
 
         {/* Right Column: Alerts & Global Progress */}
@@ -4457,16 +4762,19 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               {/* Members Grid */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                 {[
-                  { role: "Chủ tịch", name: selectedCommittee.chair, icon: <User size={16} /> },
-                  { role: "Thư ký", name: selectedCommittee.secretary, icon: <MessageSquare size={16} /> },
-                  { role: "Phản biện", name: selectedCommittee.reviewer, icon: <Activity size={16} /> },
-                  { role: "Hướng dẫn", name: selectedCommitteeSupervisor, icon: <Users size={16} /> },
+                  { role: "Chủ tịch", name: selectedCommittee.chair, code: selectedCommittee.chairCode, icon: <User size={16} /> },
+                  { role: "Thư ký", name: selectedCommittee.secretary, code: selectedCommittee.secretaryCode, icon: <MessageSquare size={16} /> },
+                  { role: "Phản biện", name: selectedCommittee.reviewer, code: selectedCommittee.reviewerCode, icon: <Activity size={16} /> },
+                  { role: "Hướng dẫn", name: selectedCommitteeSupervisor, code: selectedCommitteeSupervisorCode, icon: <Users size={16} /> },
                 ].map((member, i) => (
                   <div key={i} style={{ padding: 20, borderRadius: 20, background: "#f8fafc", border: "1px solid #f1f5f9" }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                       {member.icon} {member.role}
                     </div>
                     <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b" }}>{member.name || "Chưa phân công"}</div>
+                    {member.name && member.name !== "-" && member.code && (
+                      <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{member.code}</div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -4512,17 +4820,96 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                           }}>{row.isPassed ? "ĐẠT" : "TRƯỢT"}</span>
                         </td>
                         <td style={{ padding: "20px 16px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                            <button onClick={() => { 
-                              setSelectedMatrixRow(row); 
-                              hydrateMinutes(row.assignmentId as number, row.committeeId as number);
-                              setPreviewModalType("meeting"); 
-                            }} style={{ padding: "8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: DEEP_BLUE_PRIMARY }} title="Biên bản"><FileText size={18} /></button>
-                            <button onClick={() => { 
-                              setSelectedMatrixRow(row); 
-                              hydrateMinutes(row.assignmentId as number, row.committeeId as number);
-                              setPreviewModalType("reviewer"); 
-                            }} style={{ padding: "8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: "#f37021" }} title="Nhận xét"><Eye size={18} /></button>
+                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
+                            {/* Dropdown for documents */}
+                            <div style={{ position: "relative" }}>
+                              <button 
+                                onClick={(e) => { 
+                                  e.stopPropagation();
+                                  const rowId = `${row.studentCode}-${row.committeeCode}-op`;
+                                  setActiveRowActionId(activeRowActionId === rowId ? null : rowId);
+                                }}
+                                title="Tài liệu liên quan"
+                                style={{ 
+                                  padding: "8px", 
+                                  borderRadius: 10, 
+                                  border: "1px solid #e2e8f0", 
+                                  background: activeRowActionId === `${row.studentCode}-${row.committeeCode}-op` ? "#f1f5f9" : "white", 
+                                  cursor: "pointer", 
+                                  color: DEEP_BLUE_PRIMARY, 
+                                  display: "flex", 
+                                  alignItems: "center", 
+                                  justifyContent: "center",
+                                  transition: "all 0.2s"
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; }}
+                                onMouseLeave={(e) => { if (activeRowActionId !== `${row.studentCode}-${row.committeeCode}-op`) e.currentTarget.style.borderColor = "#e2e8f0"; }}
+                              >
+                                <Files size={18} />
+                              </button>
+
+                              {activeRowActionId === `${row.studentCode}-${row.committeeCode}-op` && (
+                                <div 
+                                  style={{ 
+                                    position: "absolute", 
+                                    right: 0, 
+                                    top: "calc(100% + 8px)", 
+                                    background: "white", 
+                                    borderRadius: 14, 
+                                    boxShadow: "0 10px 25px rgba(0,0,0,0.15)", 
+                                    border: "1px solid #f1f5f9",
+                                    minWidth: 180,
+                                    zIndex: 100,
+                                    padding: "6px",
+                                    animation: "fadeIn 0.2s ease"
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {[
+                                    { label: "Xem biên bản", icon: <FileText size={14} />, type: "meeting" },
+                                    { label: "Xem nhận xét", icon: <MessageSquare size={14} />, type: "reviewer" },
+                                  ].map((item) => (
+                                    <button
+                                      key={item.type}
+                                      onClick={() => {
+                                        setSelectedMatrixRow(row); 
+                                        hydrateMinutes(row.assignmentId as number, row.committeeId as number);
+                                        setPreviewModalType(item.type as any);
+                                        setActiveRowActionId(null);
+                                      }}
+                                      style={{
+                                        width: "100%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 10,
+                                        padding: "10px 12px",
+                                        borderRadius: 8,
+                                        border: "none",
+                                        background: "transparent",
+                                        cursor: "pointer",
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        color: "#334155",
+                                        textAlign: "left",
+                                        transition: "all 0.15s"
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = "#f1f5f9";
+                                        e.currentTarget.style.color = DEEP_BLUE_PRIMARY;
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = "transparent";
+                                        e.currentTarget.style.color = "#334155";
+                                      }}
+                                    >
+                                      {item.icon}
+                                      {item.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
                             <button onClick={() => { setSelectedTopic(row); setTopicDetailModalOpen(true); }} style={{ padding: "8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: "#64748b" }} title="Chi tiết"><Search size={18} /></button>
                           </div>
                         </td>
@@ -4647,7 +5034,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
     </section>
   );
   
-    const renderAuditTab = () => {
+    const renderExportTab = () => {
       const currentTemplate = exportTemplateOptions.find(t => t.value === exportTemplateMode) || exportTemplateOptions[0];
       const filteredGroups = exportFieldGroups.map(group => ({
         ...group,
@@ -4886,6 +5273,329 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
       );
     };
 
+  const renderSystemLogsTab = () => {
+    return (
+      <section style={{ display: "grid", gap: 24 }}>
+        {/* 1. Summary Header */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+          <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tổng số tác vụ</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{logsTotalCount}</div>
+            <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Ghi nhận hoạt động quan trọng trong hệ thống</p>
+          </section>
+
+          <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Trạng thái hoạt động</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 18, fontWeight: 800, color: "#16a34a", marginTop: 8 }}>
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#16a34a", display: "inline-block" }} />
+              Đang hoạt động ổn định
+            </div>
+            <p style={{ margin: "14px 0 0 0", fontSize: 13, color: "#64748b" }}>Tự động ghi nhận log kiểm toán thời gian thực</p>
+          </section>
+        </div>
+
+        {/* 2. Log History Table Card */}
+        <section style={{ background: "white", borderRadius: 28, padding: 32, border: "1px solid #e2e8f0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Lịch sử Hoạt động Hệ thống</h3>
+              <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Nhật ký các thao tác tạo/sửa hội đồng, công bố lịch, nhập/khóa điểm, duyệt hồ sơ hậu bảo vệ</p>
+            </div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              {/* Search */}
+              <div style={{ position: "relative" }}>
+                <Search size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                <input 
+                  placeholder="Mã SV, mã đề tài, người dùng..."
+                  style={{ padding: "10px 16px 10px 38px", borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 14, width: 240, outline: "none" }}
+                  value={logsSearch}
+                  onChange={(e) => {
+                    setLogsSearch(e.target.value);
+                    setLogsPage(1);
+                  }}
+                />
+              </div>
+
+              {/* Module Filter */}
+              <select 
+                style={{ 
+                  padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
+                  backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
+                  backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", outline: "none"
+                }}
+                value={logsModuleFilter}
+                onChange={(e) => {
+                  setLogsModuleFilter(e.target.value);
+                  setLogsPage(1);
+                }}
+              >
+                <option value="all">Tất cả Phân hệ</option>
+                <option value="Defense">Lịch & Đợt bảo vệ</option>
+                <option value="Committee">Quản lý Hội đồng</option>
+                <option value="Topic">Đề tài & Hồ sơ</option>
+              </select>
+
+              {/* Action Filter */}
+              <select 
+                style={{ 
+                  padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
+                  backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
+                  backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", outline: "none"
+                }}
+                value={logsActionFilter}
+                onChange={(e) => {
+                  setLogsActionFilter(e.target.value);
+                  setLogsPage(1);
+                }}
+              >
+                <option value="all">Tất cả Hành động</option>
+                <option value="CREATE">Tạo mới (CREATE)</option>
+                <option value="UPDATE">Cập nhật (UPDATE)</option>
+                <option value="PUBLISH">Công bố (PUBLISH)</option>
+                <option value="LOCK">Khóa điểm (LOCK)</option>
+                <option value="SUBMIT">Nhập điểm/Nộp (SUBMIT)</option>
+                <option value="APPROVE">Phê duyệt (APPROVE)</option>
+                <option value="REJECT">Từ chối (REJECT)</option>
+              </select>
+
+              {/* Refresh Button */}
+              <button 
+                onClick={() => fetchSystemLogs()}
+                disabled={logsLoading}
+                style={{ padding: "10px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: "#64748b" }}
+              >
+                <RefreshCw size={18} className={logsLoading ? "animate-spin" : ""} />
+              </button>
+              {/* Export Button */}
+              <button
+                onClick={() => setLogExportModalOpen(true)}
+                disabled={logsLoading}
+                style={{ marginLeft: 8, padding: "10px 14px", borderRadius: 12, border: "1px solid #1e3a5f", background: "#1e3a5f", color: "white", cursor: "pointer", fontWeight: 700 }}
+              >
+                Export
+              </button>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
+              <thead>
+                <tr style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>
+                  <th style={{ padding: "12px 20px", textAlign: "left" }}>Thời gian</th>
+                  <th style={{ padding: "12px 20px", textAlign: "left" }}>Tài khoản</th>
+                  <th style={{ padding: "12px 20px", textAlign: "left" }}>Phân hệ</th>
+                  <th style={{ padding: "12px 20px", textAlign: "left" }}>Hành động</th>
+                  <th style={{ padding: "12px 20px", textAlign: "left" }}>Mô tả chi tiết</th>
+                  <th style={{ padding: "12px 20px", textAlign: "center" }}>Trạng thái</th>
+                  <th style={{ padding: "12px 20px", textAlign: "right" }}>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logsLoading ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
+                      <Loader2 size={32} className="animate-spin" style={{ margin: "0 auto 12px auto", display: "block" }} />
+                      Đang tải dữ liệu lịch sử nhật ký...
+                    </td>
+                  </tr>
+                ) : systemLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "#64748b", fontStyle: "italic" }}>
+                      Không tìm thấy bản ghi nhật ký hoạt động nào.
+                    </td>
+                  </tr>
+                ) : (
+                  systemLogs.map((log) => {
+                    const isSuccess = String(log.status || "").toUpperCase() === "SUCCESS";
+                    return (
+                      <tr 
+                        key={log.logID} 
+                        style={{ background: "#f8fafc", transition: "all 0.2s", borderRadius: 16 }}
+                      >
+                        <td style={{ padding: "16px 20px", borderRadius: "16px 0 0 16px", whiteSpace: "nowrap", fontSize: 13, fontWeight: 600 }}>
+                          {new Date(log.performedAt).toLocaleString("vi-VN")}
+                        </td>
+                        <td style={{ padding: "16px 20px" }}>
+                          <div style={{ fontWeight: 700, color: "#1e293b" }}>{log.userCode || "Hệ thống"}</div>
+                          <div style={{ fontSize: 11, color: "#94a3b8" }}>{log.userRole || "-"}</div>
+                        </td>
+                        <td style={{ padding: "16px 20px" }}>
+                          <span style={{ 
+                            padding: "4px 8px", borderRadius: 8, fontSize: 11, fontWeight: 700,
+                            background: log.module === "Defense" ? "#e0f2fe" : log.module === "Committee" ? "#f5f3ff" : "#f1f5f9",
+                            color: log.module === "Defense" ? "#0369a1" : log.module === "Committee" ? "#6d28d9" : "#475569"
+                          }}>{log.module || "Hệ thống"}</span>
+                        </td>
+                        <td style={{ padding: "16px 20px" }}>
+                          <span style={{ 
+                            padding: "4px 8px", borderRadius: 8, fontSize: 11, fontWeight: 800,
+                            background: 
+                              log.actionType === "CREATE" ? "#dcfce7" : 
+                              log.actionType === "UPDATE" ? "#eff6ff" : 
+                              log.actionType === "DELETE" ? "#fee2e2" : 
+                              log.actionType === "LOCK" ? "#fef3c7" : "#f1f5f9",
+                            color: 
+                              log.actionType === "CREATE" ? "#15803d" : 
+                              log.actionType === "UPDATE" ? "#1d4ed8" : 
+                              log.actionType === "DELETE" ? "#991b1b" : 
+                              log.actionType === "LOCK" ? "#b45309" : "#475569"
+                          }}>{log.actionType}</span>
+                        </td>
+                        <td style={{ padding: "16px 20px", fontSize: 13, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <span title={log.actionDescription}>{log.actionDescription || "-"}</span>
+                        </td>
+                        <td style={{ padding: "16px 20px", textAlign: "center" }}>
+                          <span style={{ 
+                            padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800,
+                            background: isSuccess ? "#dcfce7" : "#fee2e2",
+                            color: isSuccess ? "#16a34a" : "#ef4444"
+                          }}>{isSuccess ? "Thành công" : "Lỗi"}</span>
+                        </td>
+                        <td style={{ padding: "16px 20px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
+                          <button 
+                            onClick={() => setSelectedLogDetail(log)}
+                            style={{ background: "white", border: "1px solid #e2e8f0", padding: "8px 12px", borderRadius: 10, cursor: "pointer", color: DEEP_BLUE_PRIMARY, fontWeight: 700 }}
+                          >Chi tiết</button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {logsTotalCount > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, padding: "0 8px" }}>
+              <div style={{ fontSize: 14, color: "#64748b" }}>
+                Hiển thị {(logsPage - 1) * logsPageSize + 1} - {Math.min(logsPage * logsPageSize, logsTotalCount)} trên tổng số {logsTotalCount} kết quả
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button 
+                  disabled={logsPage === 1}
+                  onClick={() => setLogsPage(p => Math.max(1, p - 1))}
+                  style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", fontWeight: 700, cursor: logsPage === 1 ? "not-allowed" : "pointer", opacity: logsPage === 1 ? 0.5 : 1 }}
+                >Trước</button>
+                <button 
+                  disabled={logsPage * logsPageSize >= logsTotalCount}
+                  onClick={() => setLogsPage(p => p + 1)}
+                  style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", fontWeight: 700, cursor: logsPage * logsPageSize >= logsTotalCount ? "not-allowed" : "pointer", opacity: logsPage * logsPageSize >= logsTotalCount ? 0.5 : 1 }}
+                >Tiếp theo</button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* 3. Log Details Modal */}
+        {selectedLogDetail && (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(8px)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+            animation: "fadeIn 0.2s ease"
+          }}>
+            <div style={{
+              background: "white", borderRadius: 24, width: "100%", maxWidth: 640,
+              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", overflow: "hidden",
+              border: "1px solid #e2e8f0"
+            }}>
+              {/* Modal Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "24px 32px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#0f172a" }}>Chi tiết Nhật ký Hoạt động</h3>
+                  <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Log ID: #{selectedLogDetail.logID}</p>
+                </div>
+                <button 
+                  onClick={() => setSelectedLogDetail(null)}
+                  style={{ background: "#e2e8f0", border: "none", width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569" }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div style={{ padding: 32, display: "grid", gap: 16, maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: 16, fontSize: 14 }}>
+                  <div style={{ fontWeight: 700, color: "#64748b" }}>Thời gian:</div>
+                  <div style={{ color: "#0f172a" }}>{new Date(selectedLogDetail.performedAt).toLocaleString("vi-VN")}</div>
+
+                  <div style={{ fontWeight: 700, color: "#64748b" }}>Tài khoản:</div>
+                  <div style={{ color: "#0f172a", fontWeight: 600 }}>{selectedLogDetail.userCode || "Hệ thống"} ({selectedLogDetail.userRole || "-"})</div>
+
+                  <div style={{ fontWeight: 700, color: "#64748b" }}>IP Address / Device:</div>
+                  <div style={{ color: "#0f172a" }}>{selectedLogDetail.ipAddress || "-"} <span style={{ fontSize: 12, color: "#64748b" }}>({selectedLogDetail.deviceInfo || "-"})</span></div>
+
+                  <div style={{ fontWeight: 700, color: "#64748b" }}>Phân hệ & Thao tác:</div>
+                  <div style={{ color: "#0f172a" }}>
+                    <span style={{ padding: "2px 6px", borderRadius: 4, background: "#f1f5f9", marginRight: 8, fontSize: 12, fontWeight: 700 }}>{selectedLogDetail.module}</span>
+                    <span style={{ padding: "2px 6px", borderRadius: 4, background: "#eff6ff", color: "#1d4ed8", fontSize: 12, fontWeight: 700 }}>{selectedLogDetail.actionType}</span>
+                  </div>
+
+                  <div style={{ fontWeight: 700, color: "#64748b" }}>Mô tả chi tiết:</div>
+                  <div style={{ color: "#0f172a", lineHeight: 1.5 }}>{selectedLogDetail.actionDescription || "-"}</div>
+
+                  <div style={{ fontWeight: 700, color: "#64748b" }}>Trạng thái:</div>
+                  <div>
+                    <span style={{ 
+                      padding: "4px 8px", borderRadius: 99, fontSize: 12, fontWeight: 800,
+                      background: String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "#dcfce7" : "#fee2e2",
+                      color: String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "#16a34a" : "#ef4444"
+                    }}>{String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "Thành công" : "Thất bại"}</span>
+                  </div>
+
+                  {selectedLogDetail.relatedRecordCode && (
+                    <>
+                      <div style={{ fontWeight: 700, color: "#64748b" }}>Đề tài/Bản ghi liên quan:</div>
+                      <div style={{ color: "#0f172a", fontWeight: 600 }}>{selectedLogDetail.relatedRecordCode}</div>
+                    </>
+                  )}
+
+                  {selectedLogDetail.comment && (
+                    <>
+                      <div style={{ fontWeight: 700, color: "#64748b" }}>Ghi chú:</div>
+                      <div style={{ color: "#0f172a", fontStyle: "italic" }}>{selectedLogDetail.comment}</div>
+                    </>
+                  )}
+                </div>
+
+                {/* Old vs New Values */}
+                {(selectedLogDetail.oldValue || selectedLogDetail.newValue) && (
+                  <div style={{ borderTop: "1px solid #f1f5f9", marginTop: 16, paddingTop: 16 }}>
+                    <div style={{ fontWeight: 700, color: "#64748b", marginBottom: 12 }}>Thay đổi dữ liệu chi tiết:</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 6 }}>Dữ liệu cũ:</div>
+                        <pre style={{ margin: 0, padding: 12, background: "#f8fafc", borderRadius: 8, fontSize: 12, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 150, border: "1px solid #e2e8f0" }}>
+                          {selectedLogDetail.oldValue || "(Không có)"}
+                        </pre>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 6 }}>Dữ liệu mới:</div>
+                        <pre style={{ margin: 0, padding: 12, background: "#f8fafc", borderRadius: 8, fontSize: 12, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 150, border: "1px solid #e2e8f0" }}>
+                          {selectedLogDetail.newValue || "(Không có)"}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{ display: "flex", justifyContent: "flex-end", padding: "16px 32px", borderTop: "1px solid #f1f5f9", background: "#f8fafc" }}>
+                <button 
+                  onClick={() => setSelectedLogDetail(null)}
+                  style={{ padding: "10px 20px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", fontWeight: 700, color: "#475569" }}
+                >Đóng</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  };
+
   const renderExportPreviewModal = () => {
     if (!exportPreviewModalOpen) return null;
 
@@ -5048,101 +5758,128 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
             {/* Section: Documents */}
             <section>
               <h4 style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-                <Paperclip size={16} color={DEEP_BLUE_PRIMARY} /> Tài liệu & Báo cáo
+                <Paperclip size={16} color={DEEP_BLUE_PRIMARY} /> Tài liệu & Báo cáo ({(selectedTopic.defenseDocuments?.length || 0) + (selectedTopic.revisionFileUrl ? 1 : 0)})
               </h4>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                {/* Regular Defense Documents */}
-                {selectedTopic.defenseDocuments && selectedTopic.defenseDocuments.length > 0 && 
-                  selectedTopic.defenseDocuments.map((doc: any, i: number) => (
-                    <a 
-                      key={`def-${i}`}
-                      href={doc.url || doc.path || "#"} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      style={{ 
-                        padding: "16px", 
-                        borderRadius: 16, 
-                        background: "white", 
-                        border: "1px solid #e2e8f0", 
-                        display: "flex", 
-                        alignItems: "center", 
-                        gap: 12, 
-                        color: "#1e293b", 
-                        textDecoration: "none", 
-                        fontSize: 14, 
-                        fontWeight: 700,
-                        transition: "all 0.2s"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY;
-                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "#e2e8f0";
-                        e.currentTarget.style.boxShadow = "none";
-                      }}
-                    >
-                      <div style={{ background: "#f0f9ff", padding: 10, borderRadius: 10 }}>
-                        <FileText size={20} color={DEEP_BLUE_PRIMARY} />
-                      </div>
-                      <div style={{ overflow: "hidden" }}>
-                        <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{doc.name || `Tài liệu ${i + 1}`}</div>
-                        <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Tài liệu bảo vệ</div>
-                      </div>
-                    </a>
-                  ))
-                }
+              <div style={{ display: "grid", gap: 12 }}>
+                {/* Defense Documents */}
+                {selectedTopic.defenseDocuments && selectedTopic.defenseDocuments.length > 0 ? (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Tài liệu nộp</div>
+                    {selectedTopic.defenseDocuments.map((doc: any, i: number) => {
+                      const fileName = doc.fileName || doc.name || `Tài liệu ${i + 1}`;
+                      const fileExt = fileName.split('.').pop()?.toLowerCase() || "file";
+                      const getFileIcon = () => {
+                        if (["pdf"].includes(fileExt)) return <FileText size={16} />;
+                        if (["doc", "docx"].includes(fileExt)) return <FileText size={16} />;
+                        if (["xls", "xlsx", "csv"].includes(fileExt)) return <BarChart3 size={16} />;
+                        if (["zip", "rar", "7z"].includes(fileExt)) return <Package size={16} />;
+                        if (["jpg", "jpeg", "png", "gif"].includes(fileExt)) return <Image size={16} />;
+                        return <Paperclip size={16} />;
+                      };
+                      return (
+                        <a
+                          key={`doc-${i}`}
+                          href={doc.fileUrl || doc.url || doc.path || "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            padding: "12px 14px",
+                            borderRadius: 12,
+                            background: "white",
+                            border: "1px solid #e2e8f0",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            color: "#1e293b",
+                            textDecoration: "none",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            transition: "all 0.2s"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY;
+                            e.currentTarget.style.background = "#f0f9ff";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = "#e2e8f0";
+                            e.currentTarget.style.background = "white";
+                          }}
+                        >
+                          <div style={{ minWidth: 20, display: "flex", alignItems: "center" }}>{getFileIcon()}</div>
+                          <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+                            <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 13, fontWeight: 700 }}>
+                              {fileName}
+                            </div>
+                            {doc.uploadedAt && (
+                              <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>
+                                Nộp: {new Date(doc.uploadedAt).toLocaleDateString("vi-VN")}
+                              </div>
+                            )}
+                          </div>
+                          <ExternalLink size={14} color={DEEP_BLUE_PRIMARY} style={{ flexShrink: 0 }} />
+                        </a>
+                      );
+                    })}
+                  </div>
+                ) : null}
 
                 {/* Post-Defense New Report */}
                 {selectedTopic.revisionFileUrl && (
-                  <a 
-                    href={selectedTopic.revisionFileUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    style={{ 
-                      padding: "16px", 
-                      borderRadius: 16, 
-                      background: "#fffbeb", 
-                      border: "1px solid #fcd34d", 
-                      display: "flex", 
-                      alignItems: "center", 
-                      gap: 12, 
-                      color: "#92400e", 
-                      textDecoration: "none", 
-                      fontSize: 14, 
-                      fontWeight: 800,
-                      transition: "all 0.2s"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "#fef3c7";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(245, 158, 11, 0.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "#fffbeb";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
-                  >
-                    <div style={{ background: "#fef3c7", padding: 10, borderRadius: 10 }}>
-                      <FileSpreadsheet size={20} color="#f59e0b" />
-                    </div>
-                    <div style={{ overflow: "hidden" }}>
-                      <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Báo cáo Hậu bảo vệ mới</div>
-                      <div style={{ fontSize: 11, color: "#b45309", fontWeight: 700 }}>Nhấn để tải về</div>
-                    </div>
-                  </a>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {selectedTopic.defenseDocuments && selectedTopic.defenseDocuments.length > 0 && (
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginTop: 8, paddingTop: 8, borderTop: "1px solid #e2e8f0" }}>
+                        Báo cáo hậu bảo vệ
+                      </div>
+                    )}
+                    <a
+                      href={selectedTopic.revisionFileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: "12px 14px",
+                        borderRadius: 12,
+                        background: "#fffbeb",
+                        border: "1px solid #fcd34d",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        color: "#92400e",
+                        textDecoration: "none",
+                        fontSize: 13,
+                        fontWeight: 800,
+                        transition: "all 0.2s"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "#fef3c7";
+                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(245, 158, 11, 0.1)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "#fffbeb";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    >
+                      <ClipboardList size={16} color="#f59e0b" style={{ flexShrink: 0 }} />
+                      <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+                        <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          Báo cáo Hậu bảo vệ mới
+                        </div>
+                        <div style={{ fontSize: 11, color: "#b45309", fontWeight: 700 }}>Nhấn để tải về</div>
+                      </div>
+                      <ExternalLink size={14} color="#f59e0b" style={{ flexShrink: 0 }} />
+                    </a>
+                  </div>
                 )}
 
                 {(!selectedTopic.defenseDocuments || selectedTopic.defenseDocuments.length === 0) && !selectedTopic.revisionFileUrl && (
-                  <div style={{ gridColumn: "span 2", padding: "40px 20px", borderRadius: 20, background: "#f8fafc", border: "1px dashed #e2e8f0", color: "#94a3b8", textAlign: "center" }}>
-                    <div style={{ marginBottom: 12 }}>
-                      <FileText size={48} style={{ opacity: 0.2, margin: "0 auto" }} />
-                    </div>
+                  <div style={{ padding: "32px 20px", borderRadius: 16, background: "#f8fafc", border: "1px dashed #e2e8f0", color: "#94a3b8", textAlign: "center" }}>
+                    <FileText size={40} style={{ opacity: 0.2, margin: "0 auto 12px" }} />
                     <div style={{ fontSize: 14, fontWeight: 700 }}>Chưa có tài liệu nào được nộp</div>
-                    <div style={{ fontSize: 12, marginTop: 4 }}>Các báo cáo bảo vệ và hậu bảo vệ sẽ xuất hiện tại đây</div>
+                    <div style={{ fontSize: 12, marginTop: 6, color: "#cbd5e1" }}>Các báo cáo bảo vệ và hậu bảo vệ sẽ xuất hiện tại đây</div>
                   </div>
                 )}
               </div>
             </section>
+
           </div>
 
           <aside style={{ display: "grid", gap: 40 }}>
@@ -5701,7 +6438,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               lineHeight: 1,
               animation: "slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1)"
             }}>
-              Committee <span style={{ color: "#f37021" }}>Operations</span>
+              Điều hành <span style={{ color: "#f37021" }}>hội đồng</span>
             </h1>
             
             <p style={{
@@ -5798,7 +6535,8 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
             { key: "analytics", label: "Phân tích & Thống kê", icon: <Activity size={18} />, badge: null },
             { key: "committee", label: "Danh sách Hội đồng", icon: <Users size={18} />, badge: snapshot?.committees?.length ? String(snapshot.committees.length) : null },
             { key: "post-defense", label: "Hồ sơ Sau bảo vệ", icon: <Archive size={18} />, badge: snapshot?.postDefense?.items?.length ? String(snapshot.postDefense.items.length) : null },
-            { key: "audit", label: "Nhật ký Hệ thống", icon: <ShieldCheck size={18} />, badge: null },
+            { key: "export", label: "Xuất bản Báo cáo", icon: <Download size={18} />, badge: null },
+            { key: "audit", label: "Nhật ký Hoạt động", icon: <ShieldCheck size={18} />, badge: null },
           ].map((tab) => {
             const isActive = activeTab === tab.key;
             return (
@@ -5811,13 +6549,15 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 10,
-                  padding: "14px 20px",
+                  padding: "10px 14px",
                   borderRadius: 14,
                   border: "none",
                   background: isActive ? DEEP_BLUE_PRIMARY : "transparent",
                   color: isActive ? "white" : "#64748b",
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  minWidth: 120,
                   cursor: "pointer",
                   transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                   position: "relative"
@@ -5851,7 +6591,8 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
           {activeTab === "analytics" && renderAnalyticsTab()}
           {activeTab === "committee" && renderCommitteeTab()}
           {activeTab === "post-defense" && renderPostDefenseTab()}
-          {activeTab === "audit" && renderAuditTab()}
+          {activeTab === "export" && renderExportTab()}
+          {activeTab === "audit" && renderSystemLogsTab()}
         </div>
 
         {/* Global Modals Area */}

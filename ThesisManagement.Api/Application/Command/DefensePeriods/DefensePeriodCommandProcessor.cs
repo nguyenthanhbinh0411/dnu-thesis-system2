@@ -78,6 +78,10 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
         public bool ScoresPublished { get; set; }
         public ConfirmCouncilConfigDto CouncilConfig { get; set; } = new();
         public List<int> CouncilIds { get; set; } = new();
+        
+        // Rollback tracking for accidentally advanced phases
+        public string? PreviousStatus { get; set; }
+        public bool CanRollbackStage { get; set; }
     }
 
     public class DefensePeriodCommandProcessor : IDefensePeriodCommandProcessor
@@ -133,6 +137,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
         private readonly IDefenseAuditTrailService _auditTrailService;
         private readonly IDefenseResiliencePolicy _resiliencePolicy;
         private readonly INotificationEventPublisher _notificationEventPublisher;
+        private readonly ISystemActivityLogger _systemActivityLogger;
         private static string? _cachedRoomCodesReadSql;
 
         public DefensePeriodCommandProcessor(
@@ -145,7 +150,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             IDefenseRevisionWorkflowService revisionWorkflowService,
             IDefenseAuditTrailService auditTrailService,
             IDefenseResiliencePolicy resiliencePolicy,
-            INotificationEventPublisher notificationEventPublisher)
+            INotificationEventPublisher notificationEventPublisher,
+            ISystemActivityLogger systemActivityLogger)
         {
             _db = db;
             _uow = uow;
@@ -157,6 +163,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             _auditTrailService = auditTrailService;
             _resiliencePolicy = resiliencePolicy;
             _notificationEventPublisher = notificationEventPublisher;
+            _systemActivityLogger = systemActivityLogger;
         }
 
         public async Task<ApiResponse<SyncDefensePeriodResponseDto>> SyncAsync(int periodId, SyncDefensePeriodRequestDto request, int actorUserId, CancellationToken cancellationToken = default)
@@ -1120,6 +1127,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 _uow.DefenseTerms.Update(period);
 
                 await _uow.SaveChangesAsync();
+
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "DefensePeriod",
+                    entityId: periodId.ToString(),
+                    actionType: "PUBLISH",
+                    actionDescription: $"Công bố lịch bảo vệ / Chốt danh sách hội đồng cho đợt bảo vệ {period.TermCode} - {period.Description}",
+                    actorUserId: actorUserId,
+                    module: "Defense",
+                    status: "SUCCESS",
+                    relatedRecordCode: period.TermCode,
+                    cancellationToken: cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
 
                 await AddAuditSnapshotAsync(
@@ -1213,6 +1232,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 _uow.DefenseTerms.Update(period);
 
                 await _uow.SaveChangesAsync();
+
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "DefensePeriod",
+                    entityId: periodId.ToString(),
+                    actionType: "UPDATE",
+                    actionDescription: $"Mở lại danh sách hội đồng/lịch bảo vệ cho đợt bảo vệ {period.TermCode} - {period.Description}",
+                    actorUserId: actorUserId,
+                    module: "Defense",
+                    status: "SUCCESS",
+                    relatedRecordCode: period.TermCode,
+                    cancellationToken: cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
 
                 await AddAuditSnapshotAsync(
@@ -1298,6 +1329,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 period.LastUpdated = now;
                 _uow.DefenseTerms.Update(period);
                 await _uow.SaveChangesAsync();
+
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "Committee",
+                    entityId: committee.CommitteeID.ToString(),
+                    actionType: "CREATE",
+                    actionDescription: $"Tạo hội đồng mới {committee.CommitteeCode} - {committee.Name} tại phòng {committee.Room}",
+                    actorUserId: actorUserId,
+                    module: "Committee",
+                    status: "SUCCESS",
+                    relatedRecordCode: committee.CommitteeCode,
+                    cancellationToken: cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
                 await AddAuditSnapshotAsync(
                     "CREATE_COUNCIL",
@@ -1386,6 +1429,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
                 await ApplyCouncilPayloadAsync(committee, request, now, cancellationToken);
                 await _uow.SaveChangesAsync();
+
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "Committee",
+                    entityId: committee.CommitteeID.ToString(),
+                    actionType: "UPDATE",
+                    actionDescription: $"Cập nhật thông tin hội đồng {committee.CommitteeCode} - {committee.Name} tại phòng {committee.Room}",
+                    actorUserId: actorUserId,
+                    module: "Committee",
+                    status: "SUCCESS",
+                    relatedRecordCode: committee.CommitteeCode,
+                    cancellationToken: cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
                 await AddAuditSnapshotAsync(
                     "UPDATE_COUNCIL",
@@ -1544,6 +1599,17 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 _uow.DefenseTerms.Update(period);
                 await _uow.SaveChangesAsync();
 
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "Committee",
+                    entityId: committee.CommitteeID.ToString(),
+                    actionType: "CREATE",
+                    actionDescription: $"Tạo hội đồng mới {committee.CommitteeCode} - {committee.Name} tại phòng {committee.Room}",
+                    actorUserId: actorUserId,
+                    module: "Committee",
+                    status: "SUCCESS",
+                    relatedRecordCode: committee.CommitteeCode,
+                    cancellationToken: cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
                 await AddAuditSnapshotAsync(
                     "CREATE_COUNCIL_STEP1",
@@ -1619,6 +1685,17 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
                 await SaveCouncilTagsAsync(committee, request.CouncilTags, now, cancellationToken);
                 await _uow.SaveChangesAsync();
+
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "Committee",
+                    entityId: committee.CommitteeID.ToString(),
+                    actionType: "UPDATE",
+                    actionDescription: $"Cập nhật thông tin cơ bản hội đồng {committee.CommitteeCode} - {committee.Name} (Phòng: {committee.Room}, Ngày bảo vệ: {committee.DefenseDate:dd/MM/yyyy})",
+                    actorUserId: actorUserId,
+                    module: "Committee",
+                    status: "SUCCESS",
+                    relatedRecordCode: committee.CommitteeCode,
+                    cancellationToken: cancellationToken);
 
                 await tx.CommitAsync(cancellationToken);
                 await AddAuditSnapshotAsync(
@@ -1971,6 +2048,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 committee.LastUpdated = DateTime.UtcNow;
                 _uow.Committees.Update(committee);
                 await _uow.SaveChangesAsync();
+
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "Committee",
+                    entityId: committee.CommitteeID.ToString(),
+                    actionType: "UPDATE",
+                    actionDescription: $"Cập nhật thành viên hội đồng {committee.CommitteeCode}: Thay thế giảng viên {normalizedSourceCode} bằng {nextLecturerCode} vai trò {nextRole}",
+                    actorUserId: actorUserId,
+                    module: "Committee",
+                    status: "SUCCESS",
+                    relatedRecordCode: committee.CommitteeCode,
+                    cancellationToken: cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
 
                 await AddAuditSnapshotAsync(
@@ -2284,6 +2373,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 committee.LastUpdated = DateTime.UtcNow;
                 _uow.Committees.Update(committee);
                 await _uow.SaveChangesAsync();
+
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "Committee",
+                    entityId: committee.CommitteeID.ToString(),
+                    actionType: "UPDATE",
+                    actionDescription: $"Cập nhật lịch bảo vệ đề tài {assignment.TopicCode} trong hội đồng {committee.CommitteeCode}: Ca {session}, Thứ tự {orderIndex}, Bắt đầu {start:hh\\:mm}, Kết thúc {end:hh\\:mm}",
+                    actorUserId: actorUserId,
+                    module: "Committee",
+                    status: "SUCCESS",
+                    relatedRecordCode: committee.CommitteeCode,
+                    cancellationToken: cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
 
                 await AddAuditSnapshotAsync(
@@ -2415,6 +2516,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     throw new BusinessRuleException("Vẫn còn warning, bật allowFinalizeAfterWarning để chốt.", "UC2.4.FINALIZE_BLOCKED_BY_WARNING", warnings);
                 }
 
+                config.PreviousStatus = period.Status;
+                config.CanRollbackStage = true;
                 config.Finalized = true;
                 period.Status = "Finalized";
                 period.ConfigJson = JsonSerializer.Serialize(config);
@@ -2538,6 +2641,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     _uow.DefenseResults.Update(result);
                 }
 
+                config.PreviousStatus = period.Status;
+                config.CanRollbackStage = true;
                 config.ScoresPublished = true;
                 period.Status = "Published";
                 period.ConfigJson = JsonSerializer.Serialize(config);
@@ -2600,9 +2705,9 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     throw new BusinessRuleException("Lý do rollback là bắt buộc.", "UC4.4.ROLLBACK_REASON_REQUIRED");
                 }
 
-                if (target != "PUBLISH" && target != "FINALIZE" && target != "ALL")
+                if (target != "PUBLISH" && target != "FINALIZE" && target != "ALL" && target != "STAGE")
                 {
-                    throw new BusinessRuleException("Target rollback không hợp lệ. Chỉ hỗ trợ PUBLISH, FINALIZE hoặc ALL.", "UC4.4.ROLLBACK_TARGET_INVALID");
+                    throw new BusinessRuleException("Target rollback không hợp lệ. Chỉ hỗ trợ PUBLISH, FINALIZE, ALL hoặc STAGE.", "UC4.4.ROLLBACK_TARGET_INVALID");
                 }
 
                 var now = DateTime.UtcNow;
@@ -2690,6 +2795,32 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     config.Finalized = false;
                     period.Status = "Preparing";
                     return localCommitteeCount;
+                }
+
+                if (target == "STAGE")
+                {
+                    if (!config.CanRollbackStage || string.IsNullOrWhiteSpace(config.PreviousStatus))
+                    {
+                        throw new BusinessRuleException("Không thể rollback trạng thái. Chỉ được phép rollback tối đa 1 lần sau khi chuyển tiếp và không thể rollback liên tục.", "UC2.ROLLBACK.DISABLED");
+                    }
+
+                    var currentStatus = period.Status;
+                    var targetStatus = config.PreviousStatus;
+
+                    if (currentStatus == "Published")
+                    {
+                        var rollbackPublish = await RollbackPublishAsync();
+                        updatedCommitteeCount += rollbackPublish.CommitteeCount;
+                        updatedResultCount += rollbackPublish.ResultCount;
+                    }
+                    else if (currentStatus == "Finalized")
+                    {
+                        updatedCommitteeCount += await RollbackFinalizeAsync();
+                    }
+
+                    period.Status = targetStatus;
+                    config.CanRollbackStage = false;
+                    config.PreviousStatus = null;
                 }
 
                 if (target == "PUBLISH")
@@ -2847,6 +2978,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     return ApiResponse<bool>.SuccessResponse(true, code: "UC2.START.ALREADY_STARTED");
                 }
 
+                var config = ReadConfig(period);
+                config.PreviousStatus = period.Status;
+                config.CanRollbackStage = true;
+                period.ConfigJson = JsonSerializer.Serialize(config);
+
                 period.Status = "Running";
                 period.LastUpdated = DateTime.UtcNow;
                 _uow.DefenseTerms.Update(period);
@@ -2910,6 +3046,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 {
                     await DeployRoadmapAsync(periodId, cancellationToken);
                 }
+
+                var config = ReadConfig(period);
+                config.PreviousStatus = period.Status;
+                config.CanRollbackStage = true;
+                period.ConfigJson = JsonSerializer.Serialize(config);
 
                 period.Status = DefenseWorkflowStateMachine.ToValue(nextStatus);
                 period.LastUpdated = DateTime.UtcNow;
@@ -3026,6 +3167,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     throw new BusinessRuleException("Chỉ có thể tạm dừng đợt đồ án tốt nghiệp đang chạy.", "UC2.PAUSE.INVALID_STATE");
                 }
 
+                var config = ReadConfig(period);
+                config.PreviousStatus = period.Status;
+                config.CanRollbackStage = true;
+                period.ConfigJson = JsonSerializer.Serialize(config);
+
                 period.Status = "Paused";
                 period.LastUpdated = DateTime.UtcNow;
                 _uow.DefenseTerms.Update(period);
@@ -3062,6 +3208,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     throw new BusinessRuleException("Đã có đợt đồ án tốt nghiệp khác đang chạy. Không thể resume đợt này.", "UC2.RESUME.ALREADY_RUNNING");
                 }
 
+                var config = ReadConfig(period);
+                config.PreviousStatus = period.Status;
+                config.CanRollbackStage = true;
+                period.ConfigJson = JsonSerializer.Serialize(config);
+
                 period.Status = "Running";
                 period.LastUpdated = DateTime.UtcNow;
                 _uow.DefenseTerms.Update(period);
@@ -3096,7 +3247,10 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     throw new BusinessRuleException("Chỉ có thể khóa scoring khi đợt đang chạy hoặc tạm dừng.", "UC2.LOCK_SCORING.INVALID_STATE");
                 }
 
+                config.PreviousStatus = period.Status;
+                config.CanRollbackStage = true;
                 period.Status = "ScoringLocked";
+                period.ConfigJson = JsonSerializer.Serialize(config);
                 period.LastUpdated = DateTime.UtcNow;
                 _uow.DefenseTerms.Update(period);
                 await _uow.SaveChangesAsync();
@@ -3125,7 +3279,10 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     throw new BusinessRuleException("Cần finalize đợt đồ án tốt nghiệp trước khi đóng.", "UC2.CLOSE.NOT_FINALIZED");
                 }
 
+                config.PreviousStatus = period.Status;
+                config.CanRollbackStage = true;
                 period.Status = "Closed";
+                period.ConfigJson = JsonSerializer.Serialize(config);
                 period.LastUpdated = DateTime.UtcNow;
                 _uow.DefenseTerms.Update(period);
                 await _uow.SaveChangesAsync();
@@ -3446,7 +3603,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
             try
             {
-                return JsonSerializer.Deserialize<MinuteExtendedData>(jsonPart) ?? new MinuteExtendedData();
+                return JsonSerializer.Deserialize<MinuteExtendedData>(jsonPart, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new MinuteExtendedData();
             }
             catch
             {

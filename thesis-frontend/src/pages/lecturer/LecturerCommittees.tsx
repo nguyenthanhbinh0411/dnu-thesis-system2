@@ -529,6 +529,24 @@ const LecturerCommittees: React.FC = () => {
                   <button className="action-btn btn-ghost" style={{ flex: 1 }} onClick={() => setDetailCommitteeId(c.id)}>
                     <Eye size={16} /> Chi tiết
                   </button>
+                  {c.status !== "Đã đóng" ? (
+                    <button 
+                      className="action-btn btn-primary" 
+                      style={{ flex: 1, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }} 
+                      onClick={() => openRoleWorkspace(c)}
+                    >
+                      <ArrowRight size={16} /> Tham gia
+                    </button>
+                  ) : (
+                    <button 
+                      className="action-btn btn-disabled" 
+                      style={{ flex: 1, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }} 
+                      disabled
+                      title="Hội đồng đã đóng phiên"
+                    >
+                      <Lock size={16} /> Đã đóng
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -608,6 +626,26 @@ const LecturerCommittees: React.FC = () => {
 
             <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button className="action-btn btn-ghost" onClick={() => setDetailCommitteeId("")}>Đóng lại</button>
+              {detailCommittee.status !== "Đã đóng" ? (
+                <button
+                  className="action-btn btn-primary"
+                  onClick={() => {
+                    openRoleWorkspace(detailCommittee);
+                    setDetailCommitteeId("");
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <ArrowRight size={16} /> Tham gia phòng
+                </button>
+              ) : (
+                <button
+                  className="action-btn btn-disabled"
+                  disabled
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Lock size={16} /> Đã đóng
+                </button>
+              )}
             </div>
           </div>
         </div>

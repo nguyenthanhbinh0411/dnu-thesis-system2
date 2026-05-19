@@ -7,6 +7,7 @@ using ThesisManagement.Api.Data;
 using ThesisManagement.Api.DTOs.DefensePeriods;
 using ThesisManagement.Api.Hubs;
 using ThesisManagement.Api.Models;
+using ThesisManagement.Api.Services;
 
 namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
 {
@@ -46,19 +47,22 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
         private readonly IHubContext<ChatHub> _hub;
         private readonly IDefenseAuditTrailService _auditTrail;
         private readonly IDefenseResiliencePolicy _resiliencePolicy;
+        private readonly ISystemActivityLogger _systemActivityLogger;
 
         public DefenseScoreWorkflowService(
             ApplicationDbContext db,
             ThesisManagement.Api.Services.IUnitOfWork uow,
             IHubContext<ChatHub> hub,
             IDefenseAuditTrailService auditTrail,
-            IDefenseResiliencePolicy resiliencePolicy)
+            IDefenseResiliencePolicy resiliencePolicy,
+            ISystemActivityLogger systemActivityLogger)
         {
             _db = db;
             _uow = uow;
             _hub = hub;
             _auditTrail = auditTrail;
             _resiliencePolicy = resiliencePolicy;
+            _systemActivityLogger = systemActivityLogger;
         }
 
         public async Task SubmitIndependentScoreAsync(int committeeId, LecturerScoreSubmitDto request, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default)
@@ -204,6 +208,25 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                     }, cancellationToken);
                 }
             }
+
+            string? topicCode = assignment?.TopicCode;
+            string? studentCode = null;
+            if (!string.IsNullOrEmpty(topicCode))
+            {
+                var topic = await _db.Topics.AsNoTracking().FirstOrDefaultAsync(t => t.TopicCode == topicCode, cancellationToken);
+                studentCode = topic?.ProposerStudentCode;
+            }
+
+            await _systemActivityLogger.WriteLogAsync(
+                entityName: "DefenseScore",
+                entityId: score.ScoreID.ToString(),
+                actionType: "UPDATE",
+                actionDescription: $"Giảng viên {lecturerCode} nhập/cập nhật điểm độc lập cho đề tài {topicCode} (Sinh viên {studentCode ?? "không rõ"}): {request.Score} điểm",
+                actorUserId: actorUserId,
+                module: "Defense",
+                status: "SUCCESS",
+                relatedRecordCode: topicCode,
+                cancellationToken: cancellationToken);
 
             await tx.CommitAsync(cancellationToken);
         }
@@ -644,6 +667,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                         LastUpdated = now
                     };
                     await _uow.DefenseRevisions.AddAsync(revision);
+
+                    topicByAssignmentId.TryGetValue(assignmentId, out var topicObj);
+                    await _systemActivityLogger.WriteLogAsync(
+                        entityName: "DefenseRevision",
+                        entityId: assignmentId.ToString(),
+                        actionType: "CREATE",
+                        actionDescription: $"Tạo yêu cầu hậu bảo vệ cho đề tài {topicObj?.TopicCode} (Sinh viên {topicObj?.ProposerStudentCode}). Lý do yêu cầu chỉnh sửa từ Chủ tịch: {chairSubmissionForRevision.RevisionReason}. Hạn nộp: {now.AddDays(deadlineDays):dd/MM/yyyy}",
+                        actorUserId: actorUserId,
+                        module: "Defense",
+                        status: "SUCCESS",
+                        relatedRecordCode: topicObj?.TopicCode,
+                        cancellationToken: cancellationToken);
                 }
                 else
                 {
@@ -716,6 +751,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             }
 
             await _uow.SaveChangesAsync();
+
+            await _systemActivityLogger.WriteLogAsync(
+                entityName: "Committee",
+                entityId: committeeId.ToString(),
+                actionType: "LOCK",
+                actionDescription: $"Chủ tịch hội đồng {committee.CommitteeCode} khóa điểm ca bảo vệ",
+                actorUserId: actorUserId,
+                module: "Defense",
+                status: "SUCCESS",
+                relatedRecordCode: committee.CommitteeCode,
+                cancellationToken: cancellationToken);
+
             await tx.CommitAsync(cancellationToken);
 
             await _auditTrail.WriteAsync(

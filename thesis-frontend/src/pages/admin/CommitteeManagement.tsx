@@ -7,12 +7,14 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Download,
   Eye,
   FileSpreadsheet,
   FileText,
   Gavel,
   GraduationCap,
+  Clock,
   Layers3,
   Lock,
   Pencil,
@@ -9567,7 +9569,7 @@ const CommitteeManagement: React.FC = () => {
                                 }}
                               >
                                 <div style={{ display: "grid", gap: 12, alignItems: "center", justifyContent: "center" }}>
-                                  <div style={{ fontSize: 48, opacity: 0.2 }}>📋</div>
+                                  <ClipboardList size={48} opacity={0.2} style={{ color: "#94a3b8" }} />
                                   <div>Chưa có dữ liệu để hiển thị</div>
                                 </div>
                               </td>
@@ -10207,92 +10209,119 @@ const CommitteeManagement: React.FC = () => {
               <div
                 className="committee-modal"
                 onClick={(event) => event.stopPropagation()}
+                style={{
+                  padding: 0,
+                  borderRadius: 24,
+                  border: "none",
+                  boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                  overflow: "hidden",
+                  display: "flex",
+                  flexDirection: "column"
+                }}
               >
-                <div className="committee-modal-head">
-                  <div>
-                    <div className="committee-modal-title">
-                      {manualMode === "create"
-                        ? "Thêm hội đồng mới"
-                        : manualReadOnly
-                          ? `Chi tiết hội đồng ${selectedCouncilId}`
-                          : `Chỉnh sửa hội đồng ${selectedCouncilId}`}
+                <div style={{ padding: "28px 32px 20px", background: "linear-gradient(to bottom, #f8fafc, white)", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "start", gap: 24 }}>
+                  <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                    <div style={{ 
+                      width: 56, 
+                      height: 56, 
+                      borderRadius: 18, 
+                      background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", 
+                      color: "white", 
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "center",
+                      boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
+                      flexShrink: 0
+                    }}>
+                      <Gavel size={28} />
                     </div>
-                    <div className="committee-modal-sub">
-                      {manualMode === "create"
-                        ? "Hoàn tất đủ 3 bước rồi bấm Thêm hội đồng ở góc dưới bên phải để tạo hội đồng thật."
-                        : manualReadOnly
-                          ? "Xem chi tiết, xác nhận chỉnh sửa, hủy hoặc lưu thay đổi."
-                          : "Chỉnh sửa thông tin hội đồng, đề tài và thành viên rồi lưu thay đổi."}
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.02em" }}>
+                        {manualMode === "create"
+                          ? "Thêm hội đồng mới"
+                          : manualReadOnly
+                            ? `Chi tiết hội đồng ${selectedCouncilId}`
+                            : `Chỉnh sửa hội đồng ${selectedCouncilId}`}
+                      </h2>
+                      <div style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b", fontWeight: 500 }}>
+                        {manualMode === "create"
+                          ? "Hoàn tất đủ 3 bước rồi bấm Thêm hội đồng ở góc dưới bên phải để tạo hội đồng thật."
+                          : manualReadOnly
+                            ? "Xem chi tiết, xác nhận chỉnh sửa, hủy hoặc lưu thay đổi."
+                            : "Chỉnh sửa thông tin hội đồng, đề tài và thành viên rồi lưu thay đổi."}
+                      </div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      type="button"
-                      className="committee-ghost-btn committee-icon-btn"
-                      onClick={closeManualModal}
-                      title="Đóng"
-                      aria-label="Đóng"
-                      disabled={Boolean(actionInFlight)}
-                    >
-                      <X size={16} />
-                    </button>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     {manualReadOnly ? (
                       <button
                         type="button"
-                        className="committee-primary-btn committee-icon-btn"
+                        className="committee-primary-btn"
                         onClick={enableEditFromDetail}
-                        title="Chuyển sang chỉnh sửa"
-                        aria-label="Chuyển sang chỉnh sửa"
+                        style={{ height: 38, padding: "0 16px", borderRadius: 10, display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700 }}
                         disabled={councilListLocked || Boolean(actionInFlight)}
                       >
-                        <Pencil size={16} />
+                        <Pencil size={15} /> Chỉnh sửa
                       </button>
                     ) : manualMode === "edit" ? (
                       <button
                         type="button"
-                        className="committee-accent-btn committee-icon-btn"
+                        className="committee-accent-btn"
+                        style={{ height: 38, padding: "0 16px", borderRadius: 10, display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700 }}
                         onClick={() => {
                           void saveManualCouncil(3);
                         }}
                         disabled={Boolean(actionInFlight)}
-                        title="Lưu toàn bộ thay đổi"
-                        aria-label="Lưu toàn bộ thay đổi"
                       >
-                        <Save size={16} />
+                        <Save size={15} /> Lưu thay đổi
                       </button>
                     ) : null}
+                    <button
+                      type="button"
+                      onClick={closeManualModal}
+                      style={{ background: "#f1f5f9", border: "none", padding: 10, borderRadius: 12, cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "#e2e8f0"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "#f1f5f9"}
+                      disabled={Boolean(actionInFlight)}
+                    >
+                      <X size={18} />
+                    </button>
                   </div>
                 </div>
 
                 {showManualWizardSteps && (
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      marginBottom: 10,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {[1, 2, 3].map((step) => (
+                  <div style={{ display: "flex", background: "#f1f5f9", padding: 6, borderRadius: 14, margin: "20px 32px 0 32px", gap: 4 }}>
+                    {[
+                      { step: 1, label: "Bước 1: Cấu hình chung" },
+                      { step: 2, label: "Bước 2: Xếp đề tài" },
+                      { step: 3, label: "Bước 3: Thành viên hội đồng" },
+                    ].map((item) => (
                       <button
-                        key={`create-step-${step}`}
+                        key={`create-step-${item.step}`}
                         type="button"
-                        className={
-                          createStep === step
-                            ? "committee-primary-btn"
-                            : "committee-ghost-btn"
-                        }
-                        style={{ minHeight: 34, padding: "6px 10px" }}
-                        onClick={() => proceedCreateStep(step as 1 | 2 | 3)}
+                        style={{
+                          flex: 1,
+                          height: 36,
+                          borderRadius: 10,
+                          border: "none",
+                          background: createStep === item.step ? "white" : "transparent",
+                          color: createStep === item.step ? "#0f172a" : "#64748b",
+                          fontWeight: 700,
+                          fontSize: 13,
+                          cursor: "pointer",
+                          boxShadow: createStep === item.step ? "0 4px 6px -1px rgba(0,0,0,0.05)" : "none",
+                          transition: "all 0.15s"
+                        }}
+                        onClick={() => proceedCreateStep(item.step as 1 | 2 | 3)}
                         disabled={councilListLocked}
                       >
-                        Bước {step}
+                        {item.label}
                       </button>
                     ))}
                   </div>
                 )}
 
-                <div className="committee-modal-body">
+                <div className="committee-modal-body" style={{ padding: "24px 32px 32px", overflowY: "auto", maxHeight: "calc(100vh - 180px)" }}>
                   {(manualReadOnly || createStep === 1 || isManualDetailMode) && (
                     <>
                       <div
@@ -10300,10 +10329,12 @@ const CommitteeManagement: React.FC = () => {
                       >
                         Trường bắt buộc: ngày bảo vệ, phòng, tags và lịch hội đồng.
                       </div>
-                      <div className="committee-modal-grid-3">
-                        <label className="committee-modal-card">
-                          <span className="committee-modal-label">Mã hội đồng</span>
-                          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>
+                      <div className="committee-modal-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 24 }}>
+                        <div className="committee-modal-card" style={{ background: "linear-gradient(135deg, #f8fafc, #f1f5f9)", borderRadius: 12, padding: "16px 20px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span className="committee-modal-label" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color: "#475569" }}>
+                            <Gavel size={15} style={{ color: "#2563eb" }} /> Mã hội đồng
+                          </span>
+                          <div style={{ fontSize: 11, color: "#64748b", margin: "4px 0" }}>
                             {manualMode === "create"
                               ? "Mã sẽ được hệ thống sinh sau khi lưu toàn bộ 3 bước."
                               : "Mã chỉ dùng để tham chiếu, không chỉnh sửa trực tiếp."}
@@ -10313,14 +10344,16 @@ const CommitteeManagement: React.FC = () => {
                             readOnly
                             aria-readonly="true"
                             placeholder="Mã hội đồng"
-                            style={{ background: "#f8fafc", cursor: "not-allowed" }}
+                            style={{ background: "#e2e8f0", cursor: "not-allowed", border: "1px solid #cbd5e1", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontWeight: 700, color: "#475569" }}
                           />
-                        </label>
+                        </div>
 
-                        <label className="committee-modal-card">
-                          <span className="committee-modal-label">Tên hội đồng</span>
+                        <div className="committee-modal-card" style={{ background: "linear-gradient(135deg, #ffffff, #f8fafc)", borderRadius: 12, padding: "16px 20px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span className="committee-modal-label" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color: "#475569" }}>
+                            <FileText size={15} style={{ color: "#2563eb" }} /> Tên hội đồng
+                          </span>
                           {manualReadOnly ? (
-                            <div className="committee-modal-value">
+                            <div className="committee-modal-value" style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", marginTop: 4 }}>
                               {manualName || "-"}
                             </div>
                           ) : (
@@ -10328,14 +10361,17 @@ const CommitteeManagement: React.FC = () => {
                               value={manualName}
                               onChange={(event) => setManualName(event.target.value)}
                               placeholder="Ví dụ: Hội đồng 1"
+                              style={{ width: "100%", height: 38, border: "1px solid #cbd5e1", borderRadius: 8, padding: "8px 12px", fontSize: 13, outline: "none", transition: "border-color 0.2s", marginTop: 4 }}
                             />
                           )}
-                        </label>
+                        </div>
 
-                        <label className="committee-modal-card">
-                          <span className="committee-modal-label">Ngày bảo vệ</span>
+                        <div className="committee-modal-card" style={{ background: "linear-gradient(135deg, #ffffff, #f8fafc)", borderRadius: 12, padding: "16px 20px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span className="committee-modal-label" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color: "#475569" }}>
+                            <CalendarDays size={15} style={{ color: "#2563eb" }} /> Ngày bảo vệ
+                          </span>
                           {manualReadOnly ? (
-                            <div className="committee-modal-value">
+                            <div className="committee-modal-value" style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", marginTop: 4 }}>
                               {new Date(manualDefenseDate).toLocaleDateString("vi-VN")}
                             </div>
                           ) : (
@@ -10359,14 +10395,17 @@ const CommitteeManagement: React.FC = () => {
                                   },
                                 );
                               }}
+                              style={{ width: "100%", height: 38, border: "1px solid #cbd5e1", borderRadius: 8, padding: "8px 12px", fontSize: 13, outline: "none", transition: "border-color 0.2s", marginTop: 4 }}
                             />
                           )}
-                        </label>
+                        </div>
 
-                        <label className="committee-modal-card">
-                          <span className="committee-modal-label">Phòng</span>
+                        <div className="committee-modal-card" style={{ background: "linear-gradient(135deg, #ffffff, #f8fafc)", borderRadius: 12, padding: "16px 20px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span className="committee-modal-label" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color: "#475569" }}>
+                            <Building2 size={15} style={{ color: "#2563eb" }} /> Phòng
+                          </span>
                           {manualReadOnly ? (
-                            <div className="committee-modal-value">
+                            <div className="committee-modal-value" style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", marginTop: 4 }}>
                               {manualRoom || "-"}
                             </div>
                           ) : (
@@ -10405,18 +10444,20 @@ const CommitteeManagement: React.FC = () => {
                               </div>
                             </>
                           )}
-                        </label>
+                        </div>
 
-                        <label className="committee-modal-card">
-                          <span className="committee-modal-label">Lịch hội đồng</span>
+                        <div className="committee-modal-card" style={{ background: "linear-gradient(135deg, #ffffff, #f8fafc)", borderRadius: 12, padding: "16px 20px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span className="committee-modal-label" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color: "#475569" }}>
+                            <Clock size={15} style={{ color: "#2563eb" }} /> Lịch hội đồng
+                          </span>
                           {manualReadOnly ? (
-                            <div className="committee-modal-value">
+                            <div className="committee-modal-value" style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", marginTop: 4 }}>
                               {manualScheduleMode === "FULL_DAY"
                                 ? `Cả ngày · ${manualStartTime} - ${manualEndTime}`
                                 : `1 buổi · ${manualSessionCode === "AFTERNOON" ? "Buổi chiều" : "Buổi sáng"} · ${manualStartTime} - ${manualEndTime}`}
                             </div>
                           ) : (
-                            <div style={{ display: "grid", gap: 8 }}>
+                            <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
                               <InlinePicker
                                 value={manualScheduleMode}
                                 onChange={(event) => {
@@ -10588,42 +10629,59 @@ const CommitteeManagement: React.FC = () => {
                               )}
                             </div>
                           )}
-                        </label>
+                        </div>
                       </div>
                     </>
                   )}
 
                   {(manualReadOnly || createStep === 1) && (
-                    <div className="committee-modal-card">
-                      <span className="committee-modal-label">Tags hội đồng</span>
+                    <div className="committee-modal-card" style={{ background: "linear-gradient(135deg, #ffffff, #f8fafc)", borderRadius: 12, padding: 20, border: "1px solid #e2e8f0", marginBottom: 24 }}>
+                      <span className="committee-modal-label" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 800, color: "#1e293b", marginBottom: 12 }}>
+                        <Layers3 size={16} style={{ color: "#2563eb" }} /> Tags hội đồng
+                      </span>
                       {manualReadOnly ? (
-                        <div className="committee-modal-value">
-                          {getTagDisplayList(manualCouncilTags).join(", ") || "-"}
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {getTagDisplayList(manualCouncilTags).length > 0 ? (
+                            getTagDisplayList(manualCouncilTags).map(tag => (
+                              <span key={tag} style={{ fontSize: 11, fontWeight: 700, color: "#1e293b", background: "#e2e8f0", padding: "4px 10px", borderRadius: 8 }}>
+                                {tag}
+                              </span>
+                            ))
+                          ) : (
+                            <span style={{ color: "#64748b", fontSize: 13 }}>-</span>
+                          )}
                         </div>
                       ) : (
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          {allTags.map((tag: string) => (
-                            <button
-                              key={`manual-tag-${tag}`}
-                              type="button"
-                              className={`committee-tag-toggle ${manualCouncilTags.includes(resolveTagCode(tag)) ? "active" : ""}`}
-                              onClick={() => toggleManualCouncilTag(tag)}
-                              style={{
-                                minHeight: 34,
-                                padding: "6px 10px",
-                              }}
-                            >
-                              {getTagDisplayName(tag)}
-                            </button>
-                          ))}
+                          {allTags.map((tag: string) => {
+                            const isActive = manualCouncilTags.includes(resolveTagCode(tag));
+                            return (
+                              <button
+                                key={`manual-tag-${tag}`}
+                                type="button"
+                                onClick={() => toggleManualCouncilTag(tag)}
+                                style={{
+                                  minHeight: 32,
+                                  padding: "6px 12px",
+                                  borderRadius: 8,
+                                  border: isActive ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                                  background: isActive ? "#eff6ff" : "white",
+                                  color: isActive ? "#2563eb" : "#475569",
+                                  fontWeight: 700,
+                                  fontSize: 12,
+                                  cursor: "pointer",
+                                  transition: "all 0.2s"
+                                }}
+                              >
+                                {getTagDisplayName(tag)}
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                       {!manualReadOnly && allTags.length === 0 && (
-                        <div
-                          style={{ marginTop: 8, fontSize: 12, color: "#f37021" }}
-                        >
-                          Chưa có tags từ API. Hãy kiểm tra endpoint /Tags/list rồi
-                          tải lại để có thể cấu hình hội đồng.
+                        <div style={{ marginTop: 8, fontSize: 12, color: "#f37021" }}>
+                          Chưa có tags từ API. Hãy kiểm tra endpoint /Tags/list rồi tải lại để có thể cấu hình hội đồng.
                         </div>
                       )}
                     </div>
@@ -10653,26 +10711,26 @@ const CommitteeManagement: React.FC = () => {
                   )}
 
                   {(manualReadOnly || createStep === 3 || isManualDetailMode) && (
-                    <div className="committee-modal-card">
+                    <div className="committee-modal-card" style={{ background: "white", borderRadius: 16, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", marginBottom: 24 }}>
                       <div
                         style={{
                           display: "flex",
                           justifyContent: "space-between",
                           alignItems: "center",
-                          gap: 8,
-                          marginBottom: 8,
+                          gap: 12,
+                          marginBottom: 16,
                           flexWrap: "wrap",
                         }}
                       >
-                        <div style={{ display: "grid", gap: 2 }}>
-                          <span className="committee-modal-label">
-                            Danh sách thành viên hội đồng
+                        <div style={{ display: "grid", gap: 4 }}>
+                          <span className="committee-modal-label" style={{ fontSize: 16, fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 6 }}>
+                            <Users size={18} style={{ color: "#2563eb" }} /> Danh sách thành viên hội đồng
                           </span>
-                          <span className="committee-member-caption">
+                          <span className="committee-member-caption" style={{ color: "#64748b", fontSize: 12 }}>
                             Mặc định hiển thị 3 slot đầu tiên. Chủ tịch, Ủy viên thư ký và Ủy viên phản biện là 3 slot cố định; có thể thêm tối đa 4 Ủy viên phản biện nữa, nhưng không quá 7 thành viên.
                           </span>
                           {!manualReadOnly && occupiedLecturerCodesOnManualDate.size > 0 && (
-                            <span className="committee-member-caption">
+                            <span className="committee-member-caption" style={{ color: "#b45309", fontSize: 12, fontWeight: 600 }}>
                               Ngày {normalizeDefenseDateOnly(manualDefenseDate)} đã có {occupiedLecturerCodesOnManualDate.size} giảng viên thuộc hội đồng khác, hệ thống đã ẩn khỏi danh sách chọn.
                             </span>
                           )}
@@ -10683,162 +10741,172 @@ const CommitteeManagement: React.FC = () => {
                             className="committee-ghost-btn committee-member-slot-action"
                             onClick={addManualMemberSlot}
                             disabled={councilListLocked || manualMembers.length >= MAX_MANUAL_MEMBER_COUNT}
+                            style={{
+                              padding: "6px 12px",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              background: "#eff6ff",
+                              color: "#2563eb",
+                              border: "1px solid #bfdbfe",
+                              borderRadius: 8,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4
+                            }}
                           >
-                            <Plus size={13} /> Thêm Ủy viên phản biện
+                            <Plus size={14} /> Thêm Ủy viên phản biện
                           </button>
                         )}
                       </div>
 
-                      <div className="committee-manual-members-grid">
-                        {manualMembers.map(
-                          (member: CouncilMember, idx: number) => {
-                            const isFixedRoleSlot =
-                              idx < FIXED_MANUAL_MEMBER_SLOT_COUNT;
-                            const roleLabel = getManualMemberSlotRoleLabel(
-                              idx,
-                              member.role,
-                            );
-                            const lecturerOptions = buildManualMemberLecturerOptions(
-                              idx,
-                              member.role,
-                            );
-                            const selectedDegree = getLecturerDegreeByCode(
-                              member.lecturerCode,
-                            );
-                            const selectedTags = getTagDisplayList(
-                              getLecturerTagsByCode(member.lecturerCode),
-                            );
-                            const selectedLabel = member.lecturerCode
-                              ? formatLecturerOptionLabel({
-                                lecturerCode: member.lecturerCode,
-                                lecturerName: member.lecturerName,
-                                degree: selectedDegree,
-                              })
-                              : "-";
-                            const requiresDoctorDegree = isChairRole(member.role);
+                      <div className="committee-manual-members-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 }}>
+                        {manualMembers.map((member: CouncilMember, idx: number) => {
+                          const isFixedRoleSlot = idx < FIXED_MANUAL_MEMBER_SLOT_COUNT;
+                          const roleLabel = getManualMemberSlotRoleLabel(idx, member.role);
+                          const lecturerOptions = buildManualMemberLecturerOptions(idx, member.role);
+                          const selectedDegree = getLecturerDegreeByCode(member.lecturerCode);
+                          const selectedTags = getTagDisplayList(getLecturerTagsByCode(member.lecturerCode));
+                          const selectedLabel = member.lecturerCode
+                            ? formatLecturerOptionLabel({
+                              lecturerCode: member.lecturerCode,
+                              lecturerName: member.lecturerName,
+                              degree: selectedDegree,
+                            })
+                            : "-";
+                          const requiresDoctorDegree = isChairRole(member.role);
 
-                            return (
-                              <div
-                                key={`${member.role}-${idx}`}
-                                className="committee-member-slot-card"
-                              >
-                                {!isFixedRoleSlot && idx >= FIXED_MANUAL_MEMBER_SLOT_COUNT && (
-                                  <button
-                                    type="button"
-                                    className="committee-member-slot-action"
-                                    aria-label={`Xóa slot ${idx + 1}`}
-                                    onClick={() => removeManualMemberSlot(idx)}
-                                    style={{
-                                      position: "absolute",
-                                      top: 8,
-                                      right: 8,
-                                      width: 24,
-                                      height: 24,
-                                      borderRadius: 999,
-                                      border: "1px solid #fdba74",
-                                      background: "#fff7ed",
-                                      color: "#c2410c",
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      padding: 0,
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    <X size={14} />
-                                  </button>
-                                )}
-                                <div className="committee-member-slot-head">
-                                  <span className="committee-modal-label">
-                                    {roleLabel}
+                          // Color-coded borders based on role
+                          let borderLeftColor = "#3b82f6"; // default blue (chair)
+                          let bgGradient = "linear-gradient(135deg, #ffffff, #f8fafc)";
+                          if (idx === 1) { // secretary
+                            borderLeftColor = "#10b981"; // green
+                          } else if (idx >= 2) { // reviewers
+                            borderLeftColor = "#f59e0b"; // amber
+                          }
+
+                          return (
+                            <div
+                              key={`${member.role}-${idx}`}
+                              className="committee-member-slot-card"
+                              style={{
+                                position: "relative",
+                                padding: "20px",
+                                background: bgGradient,
+                                border: "1px solid #e2e8f0",
+                                borderLeft: `5px solid ${borderLeftColor}`,
+                                borderRadius: 12,
+                                boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 10
+                              }}
+                            >
+                              {!isFixedRoleSlot && idx >= FIXED_MANUAL_MEMBER_SLOT_COUNT && (
+                                <button
+                                  type="button"
+                                  className="committee-member-slot-action"
+                                  aria-label={`Xóa slot ${idx + 1}`}
+                                  onClick={() => removeManualMemberSlot(idx)}
+                                  style={{
+                                    position: "absolute",
+                                    top: 12,
+                                    right: 12,
+                                    width: 24,
+                                    height: 24,
+                                    borderRadius: 999,
+                                    border: "1px solid #fecaca",
+                                    background: "#fee2e2",
+                                    color: "#dc2626",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    padding: 0,
+                                    cursor: "pointer",
+                                    boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                                  }}
+                                >
+                                  <X size={14} />
+                                </button>
+                              )}
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", paddingBottom: 8 }}>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: "#1e293b" }}>{roleLabel}</span>
+                                {isFixedRoleSlot && (
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: "#d97706", background: "#fef3c7", border: "1px solid #fde68a", padding: "2px 8px", borderRadius: 99 }}>
+                                    Khóa cứng
                                   </span>
-                                  {isFixedRoleSlot && (
-                                    <span className="committee-member-role-hint">
-                                      Khóa cứng
-                                    </span>
-                                  )}
-                                </div>
-
-                                {manualReadOnly ? (
-                                  <>
-                                    <div className="committee-member-readonly-role">
-                                      Vai trò: {roleLabel}
-                                    </div>
-                                    <div className="committee-modal-value">
-                                      {selectedLabel}
-                                    </div>
-                                    {member.lecturerCode && (
-                                      <div className="committee-member-meta">
-                                        <div>
-                                          Học vị: {selectedDegree || "Chưa cập nhật học vị"} · Tags:{" "}
-                                          {selectedTags.join(", ") || "-"}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </>
-                                ) : (
-                                  <>
-                                    <div className="committee-member-readonly-role">
-                                      Vai trò: {roleLabel}
-                                    </div>
-
-                                    <label className="committee-member-field">
-                                      <span className="committee-member-field-label">
-                                        Giảng viên {requiresDoctorDegree ? "(tiến sĩ)" : ""}
-                                      </span>
-                                      <InlinePicker
-                                        value={member?.lecturerCode ?? ""}
-                                        onChange={(event) =>
-                                          updateManualMember(
-                                            idx,
-                                            event,
-                                          )
-                                        }
-                                        ariaLabel={`Chọn giảng viên cho slot ${idx + 1}`}
-                                        disabled={lecturerOptions.length === 0}
-                                        className="committee-lecturer-picker"
-                                        options={[
-                                          {
-                                            value: "",
-                                            label: requiresDoctorDegree
-                                              ? "Chọn giảng viên (tiến sĩ)"
-                                              : "Chọn giảng viên",
-                                            displayLabel: requiresDoctorDegree
-                                              ? "Chọn giảng viên (tiến sĩ)"
-                                              : "Chọn giảng viên",
-                                            className: "committee-lecturer-picker-placeholder",
-                                          },
-                                          ...lecturerOptions.map((lecturer) => ({
-                                            value: lecturer.lecturerCode,
-                                            label: renderLecturerPickerOption(lecturer),
-                                            displayLabel: `${lecturer.lecturerCode} - ${lecturer.lecturerName}`,
-                                          })),
-                                        ]}
-                                      />
-                                    </label>
-
-                                    {requiresDoctorDegree &&
-                                      lecturerOptions.length === 0 && (
-                                        <div className="committee-member-warning">
-                                          Không có giảng viên Tiến sĩ khả dụng cho slot Chủ tịch.
-                                        </div>
-                                      )}
-
-                                    {member.lecturerCode && (
-                                      <div className="committee-member-meta">
-                                        <div>
-                                          Học vị: {selectedDegree || "Chưa cập nhật học vị"} · Tags:{" "}
-                                          {selectedTags.join(", ") || "-"}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                  </>
                                 )}
                               </div>
-                            );
-                          },
-                        )}
+
+                              {manualReadOnly ? (
+                                <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 4 }}>
+                                  <div style={{ width: 40, height: 40, borderRadius: 99, background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "#64748b", fontSize: 14 }}>
+                                    {(member.lecturerName || "?")[0].toUpperCase()}
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 14, fontWeight: 800, color: "#0f172a" }}>{member.lecturerName || "-"}</div>
+                                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>Mã GV: {member.lecturerCode || "Chưa phân công"}</div>
+                                    {member.lecturerCode && (
+                                      <div style={{ fontSize: 11, color: "#475569", marginTop: 4 }}>
+                                        Học vị: <strong style={{ color: "#0f172a" }}>{selectedDegree || "Chưa cập nhật"}</strong>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
+                                  <label style={{ display: "grid", gap: 4 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>
+                                      Giảng viên {requiresDoctorDegree ? "(tiến sĩ)" : ""}
+                                    </span>
+                                    <InlinePicker
+                                      value={member?.lecturerCode ?? ""}
+                                      onChange={(event) => updateManualMember(idx, event)}
+                                      ariaLabel={`Chọn giảng viên cho slot ${idx + 1}`}
+                                      disabled={lecturerOptions.length === 0}
+                                      className="committee-lecturer-picker"
+                                      options={[
+                                        {
+                                          value: "",
+                                          label: requiresDoctorDegree ? "Chọn giảng viên (tiến sĩ)" : "Chọn giảng viên",
+                                          displayLabel: requiresDoctorDegree ? "Chọn giảng viên (tiến sĩ)" : "Chọn giảng viên",
+                                          className: "committee-lecturer-picker-placeholder",
+                                        },
+                                        ...lecturerOptions.map((lecturer) => ({
+                                          value: lecturer.lecturerCode,
+                                          label: renderLecturerPickerOption(lecturer),
+                                          displayLabel: `${lecturer.lecturerCode} - ${lecturer.lecturerName}`,
+                                        })),
+                                      ]}
+                                    />
+                                  </label>
+
+                                  {requiresDoctorDegree && lecturerOptions.length === 0 && (
+                                    <div style={{ color: "#ef4444", fontSize: 11, fontWeight: 600, marginTop: 4 }}>
+                                      Không có giảng viên Tiến sĩ khả dụng cho slot Chủ tịch.
+                                    </div>
+                                  )}
+
+                                  {member.lecturerCode && (
+                                    <div style={{ fontSize: 11, color: "#475569", background: "#f8fafc", padding: "8px 12px", borderRadius: 8, marginTop: 4 }}>
+                                      Học vị: <strong style={{ color: "#0f172a" }}>{selectedDegree || "Chưa cập nhật"}</strong>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {member.lecturerCode && selectedTags.length > 0 && (
+                                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
+                                  {selectedTags.map(tag => (
+                                    <span key={tag} style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "#f1f5f9", color: "#475569" }}>
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -10879,23 +10947,22 @@ const CommitteeManagement: React.FC = () => {
                   )}
 
                   {(manualReadOnly || createStep === 2 || isManualDetailMode) && (
-                    <div className="committee-modal-card">
-                      <span className="committee-modal-label">
+                    <div className="committee-modal-card" style={{ background: "white", borderRadius: 16, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
+                      <span className="committee-modal-label" style={{ fontSize: 16, fontWeight: 800, color: "#0f172a" }}>
                         Danh sách đề tài của hội đồng
                       </span>
-                      <span className="committee-member-caption">
+                      <span className="committee-member-caption" style={{ display: "block", color: "#64748b", marginTop: 4, marginBottom: 16 }}>
                         {showManualTopicWorkspace
-                          ? "Chọn đề tài liên quan để xếp vào hội đồng. Danh sách hiển thị đầy đủ mã, GVHD và tags."
-                          : "Chỉ hiển thị các đề tài thuộc hội đồng, gồm tên đề tài, sinh viên, giảng viên hướng dẫn, tags và buổi."}
+                          ? "Chọn đề tài liên quan để xếp vào hội đồng. Kéo thả đề tài hoặc bấm nút thêm nhanh để sắp xếp buổi."
+                          : "Danh sách các đề tài đã phân công trong hội đồng."}
                       </span>
                       {showManualTopicWorkspace ? (
                         <div className="committee-manual-topic-grid">
                           <div className="committee-topic-panel">
-                            <div className="committee-topic-panel-head">
-                              <span>Danh sách đề tài</span>
-                              <span>{manualSelectedTopicRows.length}</span>
+                            <div className="committee-topic-panel-head" style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <span style={{ fontWeight: 800, color: "#0f172a" }}>Đề tài đã chọn ({manualSelectedTopicRows.length})</span>
                             </div>
-                            <div className="committee-session-stack">
+                            <div className="committee-session-stack" style={{ display: "grid", gap: 16 }}>
                               <div
                                 className="committee-session-box"
                                 onDragOver={(event) => event.preventDefault()}
@@ -10903,96 +10970,81 @@ const CommitteeManagement: React.FC = () => {
                                   event.preventDefault();
                                   handleManualTopicDrop("MORNING");
                                 }}
+                                style={{ padding: 16, background: "#f8fafc", borderRadius: 16, border: "1px solid #e2e8f0" }}
                               >
-                                <div className="committee-session-box-head">
-                                  <span className="committee-inline-icon-label">
-                                    <span>Buổi sáng</span>
-                                  </span>
-                                  <span className="committee-session-box-time">
-                                    {getManualSessionTimeLabel("MORNING")}
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                                  <span style={{ fontWeight: 800, fontSize: 13, color: "#0f172a" }}>Buổi sáng</span>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: "#2563eb", background: "#eff6ff", padding: "2px 8px", borderRadius: 99 }}>
+                                    {getManualSessionTimeLabel("MORNING")} ({manualMorningTopicRows.length})
                                   </span>
                                 </div>
-                                <div className="committee-topic-panel-list">
+                                <div className="committee-topic-panel-list" style={{ maxHeight: 250, overflowY: "auto" }}>
                                   {manualMorningTopicRows.length > 0 ? (
-                                    manualMorningTopicRows.map((item, index) => (
-                                      <article
-                                        key={`morning-${item.studentCode}`}
-                                        className="committee-topic-item committee-topic-item--selected committee-topic-item--interactive"
-                                        draggable={!manualReadOnly}
-                                        onDragStart={() => {
-                                          if (!manualReadOnly) {
-                                            setManualTopicDragStudentCode(item.studentCode);
-                                          }
-                                        }}
-                                        onDragEnd={() => {
-                                          setManualTopicDragStudentCode("");
-                                        }}
-                                        onDragOver={(event) => {
-                                          if (!manualReadOnly) {
-                                            event.preventDefault();
-                                          }
-                                        }}
-                                        onDrop={(event) => {
-                                          if (manualReadOnly) {
-                                            return;
-                                          }
-                                          event.preventDefault();
-                                          handleManualTopicDrop("MORNING", item.studentCode);
-                                        }}
-                                      >
-                                        {!manualReadOnly && (
-                                          <button
-                                            type="button"
-                                            className="committee-topic-remove-btn"
-                                            onClick={() => removeManualTopic(item.studentCode)}
-                                            title="Bỏ đề tài khỏi hội đồng"
-                                            aria-label="Bỏ đề tài khỏi hội đồng"
+                                    <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
+                                      <tbody>
+                                        {manualMorningTopicRows.map((item, index) => (
+                                          <tr
+                                            key={`morning-${item.studentCode}`}
+                                            draggable={!manualReadOnly}
+                                            onDragStart={() => {
+                                              if (!manualReadOnly) {
+                                                setManualTopicDragStudentCode(item.studentCode);
+                                              }
+                                            }}
+                                            onDragEnd={() => {
+                                              setManualTopicDragStudentCode("");
+                                            }}
+                                            onDragOver={(event) => {
+                                              if (!manualReadOnly) {
+                                                event.preventDefault();
+                                              }
+                                            }}
+                                            onDrop={(event) => {
+                                              if (manualReadOnly) return;
+                                              event.preventDefault();
+                                              handleManualTopicDrop("MORNING", item.studentCode);
+                                            }}
+                                            style={{ background: "white", borderRadius: 8, boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
                                           >
-                                            <X size={12} />
-                                          </button>
-                                        )}
-                                        <div className="committee-topic-item-head">
-                                          <span className="committee-topic-item-code">
-                                            {item.topicCode}
-                                          </span>
-                                          <span className="committee-topic-item-student-code">
-                                            {item.studentCode}
-                                          </span>
-                                        </div>
-                                        <div className="committee-topic-item-title">
-                                          {item.topicTitle}
-                                        </div>
-                                        <div className="committee-topic-item-meta">
-                                          Sinh viên: {item.studentName}
-                                        </div>
-                                        <div className="committee-topic-item-meta">
-                                          GVHD: {item.supervisorName}
-                                        </div>
-                                        <div className="committee-modal-chip-list">
-                                          <span className="committee-modal-chip committee-modal-chip--muted">
-                                            #{item.orderIndex || index + 1}
-                                          </span>
-                                        </div>
-                                        <div className="committee-modal-chip-list">
-                                          {item.topicTags.length > 0 ? (
-                                            item.topicTags.map((tag) => (
-                                              <span
-                                                key={`morning-${item.studentCode}-${tag}`}
-                                                className="committee-modal-chip"
-                                              >
-                                                {getTagDisplayName(tag)}
-                                              </span>
-                                            ))
-                                          ) : (
-                                            <span className="committee-modal-chip committee-modal-chip--muted">
-                                              -
-                                            </span>
-                                          )}
-                                        </div>
-                                      </article>
-                                    ))
+                                            <td style={{ padding: "8px 10px", borderRadius: "8px 0 0 8px", fontSize: 12, fontWeight: 800, color: "#64748b", width: 40 }}>
+                                              #{item.orderIndex || index + 1}
+                                            </td>
+                                            <td style={{ padding: "8px 10px" }}>
+                                              <div style={{ fontWeight: 800, color: "#1e293b", fontSize: 12 }}>{item.studentName}</div>
+                                              <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>{item.studentCode}</div>
+                                            </td>
+                                            <td style={{ padding: "8px 10px" }}>
+                                              <div style={{ fontWeight: 600, color: "#1e293b", fontSize: 12, lineHeight: 1.3 }}>{item.topicTitle}</div>
+                                              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>{item.topicCode}</div>
+                                              <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 4 }}>
+                                                {item.topicTags.map(tag => (
+                                                  <span key={tag} style={{ fontSize: 9, padding: "1px 4px", borderRadius: 3, background: "#e2e8f0", color: "#475569" }}>
+                                                    {getTagDisplayName(tag)}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            </td>
+                                            <td style={{ padding: "8px 10px", fontSize: 11, color: "#475569" }}>
+                                              {item.supervisorName}
+                                            </td>
+                                            <td style={{ padding: "8px 10px", borderRadius: "0 8px 8px 0", textAlign: "right", width: 40 }}>
+                                              {!manualReadOnly && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => removeManualTopic(item.studentCode)}
+                                                  style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+                                                  title="Bỏ đề tài khỏi hội đồng"
+                                                >
+                                                  <X size={14} />
+                                                </button>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
                                   ) : (
-                                    <div className="committee-topic-empty">
+                                    <div className="committee-topic-empty" style={{ padding: "16px", textAlign: "center", color: "#64748b", fontSize: 12 }}>
                                       Chưa có đề tài buổi sáng.
                                     </div>
                                   )}
@@ -11006,21 +11058,103 @@ const CommitteeManagement: React.FC = () => {
                                   event.preventDefault();
                                   handleManualTopicDrop("AFTERNOON");
                                 }}
+                                style={{ padding: 16, background: "#f8fafc", borderRadius: 16, border: "1px solid #e2e8f0" }}
                               >
-                                <div className="committee-session-box-head">
-                                  <span className="committee-inline-icon-label">
-                                    <span>Buổi chiều</span>
-                                  </span>
-                                  <span className="committee-session-box-time">
-                                    {getManualSessionTimeLabel("AFTERNOON")}
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                                  <span style={{ fontWeight: 800, fontSize: 13, color: "#0f172a" }}>Buổi chiều</span>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: "#2563eb", background: "#eff6ff", padding: "2px 8px", borderRadius: 99 }}>
+                                    {getManualSessionTimeLabel("AFTERNOON")} ({manualAfternoonTopicRows.length})
                                   </span>
                                 </div>
-                                <div className="committee-topic-panel-list">
+                                <div className="committee-topic-panel-list" style={{ maxHeight: 250, overflowY: "auto" }}>
                                   {manualAfternoonTopicRows.length > 0 ? (
-                                    manualAfternoonTopicRows.map((item, index) => (
-                                      <article
-                                        key={`afternoon-${item.studentCode}`}
-                                        className="committee-topic-item committee-topic-item--selected committee-topic-item--interactive"
+                                    <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
+                                      <tbody>
+                                        {manualAfternoonTopicRows.map((item, index) => (
+                                          <tr
+                                            key={`afternoon-${item.studentCode}`}
+                                            draggable={!manualReadOnly}
+                                            onDragStart={() => {
+                                              if (!manualReadOnly) {
+                                                setManualTopicDragStudentCode(item.studentCode);
+                                              }
+                                            }}
+                                            onDragEnd={() => {
+                                              setManualTopicDragStudentCode("");
+                                            }}
+                                            onDragOver={(event) => {
+                                              if (!manualReadOnly) {
+                                                event.preventDefault();
+                                              }
+                                            }}
+                                            onDrop={(event) => {
+                                              if (manualReadOnly) return;
+                                              event.preventDefault();
+                                              handleManualTopicDrop("AFTERNOON", item.studentCode);
+                                            }}
+                                            style={{ background: "white", borderRadius: 8, boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
+                                          >
+                                            <td style={{ padding: "8px 10px", borderRadius: "8px 0 0 8px", fontSize: 12, fontWeight: 800, color: "#64748b", width: 40 }}>
+                                              #{item.orderIndex || index + 1}
+                                            </td>
+                                            <td style={{ padding: "8px 10px" }}>
+                                              <div style={{ fontWeight: 800, color: "#1e293b", fontSize: 12 }}>{item.studentName}</div>
+                                              <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>{item.studentCode}</div>
+                                            </td>
+                                            <td style={{ padding: "8px 10px" }}>
+                                              <div style={{ fontWeight: 600, color: "#1e293b", fontSize: 12, lineHeight: 1.3 }}>{item.topicTitle}</div>
+                                              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>{item.topicCode}</div>
+                                              <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 4 }}>
+                                                {item.topicTags.map(tag => (
+                                                  <span key={tag} style={{ fontSize: 9, padding: "1px 4px", borderRadius: 3, background: "#e2e8f0", color: "#475569" }}>
+                                                    {getTagDisplayName(tag)}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            </td>
+                                            <td style={{ padding: "8px 10px", fontSize: 11, color: "#475569" }}>
+                                              {item.supervisorName}
+                                            </td>
+                                            <td style={{ padding: "8px 10px", borderRadius: "0 8px 8px 0", textAlign: "right", width: 40 }}>
+                                              {!manualReadOnly && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => removeManualTopic(item.studentCode)}
+                                                  style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+                                                  title="Bỏ đề tài khỏi hội đồng"
+                                                >
+                                                  <X size={14} />
+                                                </button>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  ) : (
+                                    <div className="committee-topic-empty" style={{ padding: "16px", textAlign: "center", color: "#64748b", fontSize: 12 }}>
+                                      Chưa có đề tài buổi chiều.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="committee-topic-panel" style={{ padding: 16, background: "#f8fafc", borderRadius: 16, border: "1px solid #e2e8f0" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                              <span style={{ fontWeight: 800, fontSize: 14, color: "#0f172a" }}>Danh sách đề tài đề xuất</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: "#475569", background: "#e2e8f0", padding: "2px 8px", borderRadius: 99 }}>
+                                {manualAvailableTopicRows.length}
+                              </span>
+                            </div>
+                            <div className="committee-topic-panel-list" style={{ maxHeight: 540, overflowY: "auto" }}>
+                              {manualAvailableTopicRows.length > 0 ? (
+                                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
+                                  <tbody>
+                                    {manualAvailableTopicRows.map((item) => (
+                                      <tr
+                                        key={`available-${item.studentCode}`}
                                         draggable={!manualReadOnly}
                                         onDragStart={() => {
                                           if (!manualReadOnly) {
@@ -11030,347 +11164,54 @@ const CommitteeManagement: React.FC = () => {
                                         onDragEnd={() => {
                                           setManualTopicDragStudentCode("");
                                         }}
-                                        onDragOver={(event) => {
-                                          if (!manualReadOnly) {
-                                            event.preventDefault();
-                                          }
-                                        }}
-                                        onDrop={(event) => {
-                                          if (manualReadOnly) {
-                                            return;
-                                          }
-                                          event.preventDefault();
-                                          handleManualTopicDrop("AFTERNOON", item.studentCode);
-                                        }}
+                                        style={{ background: "white", borderRadius: 8, boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
                                       >
-                                        {!manualReadOnly && (
-                                          <button
-                                            type="button"
-                                            className="committee-topic-remove-btn"
-                                            onClick={() => removeManualTopic(item.studentCode)}
-                                            title="Bỏ đề tài khỏi hội đồng"
-                                            aria-label="Bỏ đề tài khỏi hội đồng"
-                                          >
-                                            <X size={12} />
-                                          </button>
-                                        )}
-                                        <div className="committee-topic-item-head">
-                                          <span className="committee-topic-item-code">
-                                            {item.topicCode}
-                                          </span>
-                                          <span className="committee-topic-item-student-code">
-                                            {item.studentCode}
-                                          </span>
-                                        </div>
-                                        <div className="committee-topic-item-title">
-                                          {item.topicTitle}
-                                        </div>
-                                        <div className="committee-topic-item-meta">
-                                          Sinh viên: {item.studentName}
-                                        </div>
-                                        <div className="committee-topic-item-meta">
-                                          GVHD: {item.supervisorName}
-                                        </div>
-                                        <div className="committee-modal-chip-list">
-                                          <span className="committee-modal-chip committee-modal-chip--muted">
-                                            #{item.orderIndex || index + 1}
-                                          </span>
-                                        </div>
-                                        <div className="committee-modal-chip-list">
-                                          {item.topicTags.length > 0 ? (
-                                            item.topicTags.map((tag) => (
-                                              <span
-                                                key={`afternoon-${item.studentCode}-${tag}`}
-                                                className="committee-modal-chip"
-                                              >
+                                        <td style={{ padding: "8px 10px", borderRadius: "8px 0 0 8px" }}>
+                                          <div style={{ fontWeight: 800, color: "#1e293b", fontSize: 12 }}>{item.studentName}</div>
+                                          <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>{item.studentCode}</div>
+                                        </td>
+                                        <td style={{ padding: "8px 10px" }}>
+                                          <div style={{ fontWeight: 600, color: "#1e293b", fontSize: 12, lineHeight: 1.3 }}>{item.topicTitle}</div>
+                                          <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>{item.topicCode}</div>
+                                          <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 4 }}>
+                                            {item.topicTags.map(tag => (
+                                              <span key={tag} style={{ fontSize: 9, padding: "1px 4px", borderRadius: 3, background: "#e2e8f0", color: "#475569" }}>
                                                 {getTagDisplayName(tag)}
                                               </span>
-                                            ))
-                                          ) : (
-                                            <span className="committee-modal-chip committee-modal-chip--muted">
-                                              -
-                                            </span>
+                                            ))}
+                                          </div>
+                                        </td>
+                                        <td style={{ padding: "8px 10px", fontSize: 11, color: "#475569" }}>
+                                          {item.supervisorName}
+                                        </td>
+                                        <td style={{ padding: "8px 10px", borderRadius: "0 8px 8px 0", textAlign: "right" }}>
+                                          {!manualReadOnly && (
+                                            <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                                              <button
+                                                type="button"
+                                                className="committee-primary-btn"
+                                                onClick={() => moveManualTopicToSession(item.studentCode, "MORNING")}
+                                                style={{ padding: "4px 8px", fontSize: 10, fontWeight: 700, minHeight: "auto", borderRadius: 6 }}
+                                              >
+                                                + Sáng
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="committee-primary-btn"
+                                                onClick={() => moveManualTopicToSession(item.studentCode, "AFTERNOON")}
+                                                style={{ padding: "4px 8px", fontSize: 10, fontWeight: 700, minHeight: "auto", borderRadius: 6 }}
+                                              >
+                                                + Chiều
+                                              </button>
+                                            </div>
                                           )}
-                                        </div>
-                                      </article>
-                                    ))
-                                  ) : (
-                                    <div className="committee-topic-empty">
-                                      Chưa có đề tài buổi chiều.
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="committee-topic-panel-list" style={{ display: "none" }}>
-                              {manualRelatedStudentView.map((item) => {
-                                const topicSession = getManualTopicSessionCode(item.studentCode);
-                                const currentAssignment =
-                                  manualAssignmentByStudentCode.get(item.studentCode);
-                                return (
-                                  <article
-                                    key={`related-${item.studentCode}`}
-                                    className="committee-topic-item committee-topic-item--selected"
-                                  >
-                                    <div className="committee-topic-item-head">
-                                      <span className="committee-topic-item-code">
-                                        {item.topicCode}
-                                      </span>
-                                      <span className="committee-topic-item-student-code">
-                                        {item.studentCode}
-                                      </span>
-                                    </div>
-                                    <div className="committee-topic-item-title">
-                                      {item.topicTitle}
-                                    </div>
-                                    <div className="committee-topic-item-meta">
-                                      Sinh viên: {item.studentName}
-                                    </div>
-                                    <div className="committee-topic-item-meta">
-                                      GVHD: {item.supervisorName}
-                                    </div>
-                                    <div
-                                      style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 6,
-                                        flexWrap: "wrap",
-                                      }}
-                                    >
-                                      {!manualReadOnly && manualScheduleMode === "FULL_DAY" && (
-                                        <>
-                                          <button
-                                            type="button"
-                                            className={topicSession === "MORNING" ? "committee-primary-btn" : "committee-ghost-btn"}
-                                            style={{ minHeight: 28, padding: "2px 8px" }}
-                                            onClick={() =>
-                                              assignTopicToSession(item.studentCode, "MORNING")
-                                            }
-                                          >
-                                            Sáng
-                                          </button>
-                                          <button
-                                            type="button"
-                                            className={topicSession === "AFTERNOON" ? "committee-primary-btn" : "committee-ghost-btn"}
-                                            style={{ minHeight: 28, padding: "2px 8px" }}
-                                            onClick={() =>
-                                              assignTopicToSession(item.studentCode, "AFTERNOON")
-                                            }
-                                          >
-                                            Chiều
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
-                                    <div className="committee-modal-chip-list">
-                                      {item.topicTags.length > 0 ? (
-                                        item.topicTags.map((tag) => (
-                                          <span
-                                            key={`related-${item.studentCode}-${tag}`}
-                                            className="committee-modal-chip"
-                                          >
-                                            {getTagDisplayName(tag)}
-                                          </span>
-                                        ))
-                                      ) : (
-                                        <span className="committee-modal-chip committee-modal-chip--muted">
-                                          -
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    <div className="committee-member-meta">
-                                      <div>
-                                        Ngày: {formatDateLabel(currentAssignment?.scheduledAt ?? manualDefenseDate)}
-                                      </div>
-                                      <div>
-                                        Khung giờ: {currentAssignment?.startTime ?? manualStartTime} - {currentAssignment?.endTime ?? manualEndTime}
-                                      </div>
-                                      <div>
-                                        Thứ tự: {currentAssignment?.orderIndex ?? 1}
-                                      </div>
-                                    </div>
-
-                                    {!manualReadOnly && (
-                                      <div style={{ display: "grid", gap: 8 }}>
-                                        <label className="committee-member-field">
-                                          <span className="committee-member-field-label">Ngày</span>
-                                          <input
-                                            type="date"
-                                            value={currentAssignment?.scheduledAt ?? manualDefenseDate}
-                                            onChange={(event) => {
-                                              const nextDate =
-                                                normalizeDefenseDateOnly(event.target.value) ||
-                                                manualDefenseDate;
-                                              updateManualAssignment(item.studentCode, (assignment) => ({
-                                                ...assignment,
-                                                scheduledAt: nextDate,
-                                              }));
-                                            }}
-                                          />
-                                        </label>
-                                        <div className="prepare-time-grid">
-                                          <label className="committee-member-field">
-                                            <span className="committee-member-field-label">Giờ bắt đầu</span>
-                                            <input
-                                              type="time"
-                                              value={currentAssignment?.startTime ?? manualStartTime}
-                                              onChange={(event) => {
-                                                const nextTime =
-                                                  normalizeTimeOnly(event.target.value) ||
-                                                  currentAssignment?.startTime ||
-                                                  manualStartTime;
-                                                updateManualAssignment(item.studentCode, (assignment) => ({
-                                                  ...assignment,
-                                                  startTime: nextTime,
-                                                }));
-                                              }}
-                                            />
-                                          </label>
-                                          <label className="committee-member-field">
-                                            <span className="committee-member-field-label">Giờ kết thúc</span>
-                                            <input
-                                              type="time"
-                                              value={currentAssignment?.endTime ?? manualEndTime}
-                                              onChange={(event) => {
-                                                const nextTime =
-                                                  normalizeTimeOnly(event.target.value) ||
-                                                  currentAssignment?.endTime ||
-                                                  manualEndTime;
-                                                updateManualAssignment(item.studentCode, (assignment) => ({
-                                                  ...assignment,
-                                                  endTime: nextTime,
-                                                }));
-                                              }}
-                                            />
-                                          </label>
-                                          <label className="committee-member-field">
-                                            <span className="committee-member-field-label">Thứ tự</span>
-                                            <input
-                                              type="number"
-                                              min={1}
-                                              step={1}
-                                              value={currentAssignment?.orderIndex ?? 1}
-                                              onChange={(event) => {
-                                                const nextOrder = Math.max(
-                                                  1,
-                                                  Math.floor(Number(event.target.value) || 1),
-                                                );
-                                                updateManualAssignment(item.studentCode, (assignment) => ({
-                                                  ...assignment,
-                                                  orderIndex: nextOrder,
-                                                }));
-                                              }}
-                                            />
-                                          </label>
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {!manualReadOnly && (
-                                      <button
-                                        type="button"
-                                        className="committee-danger-btn committee-topic-item-action"
-                                        onClick={() => removeManualTopic(item.studentCode)}
-                                      >
-                                        <X size={12} /> Bỏ liên quan
-                                      </button>
-                                    )}
-                                  </article>
-                                );
-                              })}
-
-                              {manualRelatedStudentView.length === 0 && (
-                                <div className="committee-topic-empty">
-                                  Chưa có đề tài liên quan được chọn.
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="committee-topic-panel">
-                            <div className="committee-topic-panel-head">
-                              <span>Danh sách đề tài đề xuất</span>
-                              <span>{manualAvailableTopicRows.length}</span>
-                            </div>
-                            <div className="committee-topic-panel-list">
-                              {manualAvailableTopicRows.map((item) => (
-                                <article
-                                  key={`available-${item.studentCode}`}
-                                  className="committee-topic-item"
-                                  draggable={!manualReadOnly}
-                                  onDragStart={() => {
-                                    if (!manualReadOnly) {
-                                      setManualTopicDragStudentCode(item.studentCode);
-                                    }
-                                  }}
-                                  onDragEnd={() => {
-                                    setManualTopicDragStudentCode("");
-                                  }}
-                                >
-                                  <div className="committee-topic-item-head">
-                                    <span className="committee-topic-item-code">
-                                      {item.topicCode}
-                                    </span>
-                                    <span className="committee-topic-item-student-code">
-                                      {item.studentCode}
-                                    </span>
-                                  </div>
-                                  <div className="committee-topic-item-title">
-                                    {item.topicTitle}
-                                  </div>
-                                  <div className="committee-topic-item-meta">
-                                    Sinh viên: {item.studentName}
-                                  </div>
-                                  <div className="committee-topic-item-meta">
-                                    GVHD: {item.supervisorName}
-                                  </div>
-                                  <div className="committee-modal-chip-list">
-                                    {item.topicTags.length > 0 ? (
-                                      item.topicTags.map((tag) => (
-                                        <span
-                                          key={`available-${item.studentCode}-${tag}`}
-                                          className="committee-modal-chip"
-                                        >
-                                          {getTagDisplayName(tag)}
-                                        </span>
-                                      ))
-                                    ) : (
-                                      <span className="committee-modal-chip committee-modal-chip--muted">
-                                        -
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {!manualReadOnly && (
-                                    <div className="committee-topic-card-actions">
-                                      <button
-                                        type="button"
-                                        className="committee-primary-btn committee-topic-card-action"
-                                        onClick={() => moveManualTopicToSession(item.studentCode, "MORNING")}
-                                      >
-                                        <span className="committee-inline-icon-label">
-                                          <Plus size={12} />
-                                          <span>Thêm sáng</span>
-                                        </span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="committee-primary-btn committee-topic-card-action"
-                                        onClick={() => moveManualTopicToSession(item.studentCode, "AFTERNOON")}
-                                      >
-                                        <span className="committee-inline-icon-label">
-                                          <Plus size={12} />
-                                          <span>Thêm chiều</span>
-                                        </span>
-                                      </button>
-                                    </div>
-                                  )}
-                                </article>
-                              ))}
-
-                              {manualAvailableTopicRows.length === 0 && (
-                                <div className="committee-topic-empty">
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              ) : (
+                                <div className="committee-topic-empty" style={{ padding: "16px", textAlign: "center", color: "#64748b", fontSize: 12 }}>
                                   Không còn đề tài khả dụng.
                                 </div>
                               )}
@@ -11378,162 +11219,165 @@ const CommitteeManagement: React.FC = () => {
                           </div>
                         </div>
                       ) : (
-                        <div
-                          className="committee-topic-panel"
-                          style={isManualDetailMode ? { minHeight: "auto", padding: 8 } : undefined}
-                        >
-                          <div className="committee-topic-panel-head">
-                            <span>Danh sách đề tài của hội đồng</span>
-                            <span>{manualRelatedStudentView.length}</span>
-                          </div>
-                          <div className="committee-topic-panel-list">
-                            {manualRelatedStudentView.map((item) => {
-                              const currentAssignment =
-                                manualAssignmentByStudentCode.get(item.studentCode);
-                              return (
-                                <article
-                                  key={`related-${item.studentCode}`}
-                                  className="committee-topic-item committee-topic-item--selected"
-                                >
-                                  <div className="committee-topic-item-head">
-                                    <span className="committee-topic-item-code">
-                                      {item.topicCode}
-                                    </span>
-                                    <span className="committee-topic-item-student-code">
-                                      {item.studentCode}
-                                    </span>
-                                  </div>
-                                  <div className="committee-topic-item-title">
-                                    {item.topicTitle}
-                                  </div>
-                                  <div className="committee-topic-item-meta">
-                                    Sinh viên: {item.studentName}
-                                  </div>
-                                  <div className="committee-topic-item-meta">
-                                    GVHD: {item.supervisorName}
-                                  </div>
-                                  <div className="committee-modal-chip-list">
-                                    {item.topicTags.length > 0 ? (
-                                      item.topicTags.map((tag) => (
-                                        <span
-                                          key={`related-only-${item.studentCode}-${tag}`}
-                                          className="committee-modal-chip"
-                                        >
-                                          {getTagDisplayName(tag)}
-                                        </span>
-                                      ))
-                                    ) : (
-                                      <span className="committee-modal-chip committee-modal-chip--muted">
-                                        -
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <div className="committee-member-meta">
-                                    <div>
-                                      Ngày: {formatDateLabel(currentAssignment?.scheduledAt ?? manualDefenseDate)}
-                                    </div>
-                                    <div>
-                                      Khung giờ: {currentAssignment?.startTime ?? manualStartTime} - {currentAssignment?.endTime ?? manualEndTime}
-                                    </div>
-                                    <div>
-                                      Thứ tự: {currentAssignment?.orderIndex ?? 1}
-                                    </div>
-                                  </div>
-
-                                  {!manualReadOnly && (
-                                    <div style={{ display: "grid", gap: 8 }}>
-                                      <label className="committee-member-field">
-                                        <span className="committee-member-field-label">Ngày</span>
-                                        <input
-                                          type="date"
-                                          value={currentAssignment?.scheduledAt ?? manualDefenseDate}
-                                          onChange={(event) => {
-                                            const nextDate =
-                                              normalizeDefenseDateOnly(event.target.value) ||
-                                              manualDefenseDate;
-                                            updateManualAssignment(item.studentCode, (assignment) => ({
-                                              ...assignment,
-                                              scheduledAt: nextDate,
-                                            }));
-                                          }}
-                                        />
-                                      </label>
-                                      <div className="prepare-time-grid">
-                                        <label className="committee-member-field">
-                                          <span className="committee-member-field-label">Giờ bắt đầu</span>
-                                          <input
-                                            type="time"
-                                            value={currentAssignment?.startTime ?? manualStartTime}
-                                            onChange={(event) => {
-                                              const nextTime =
-                                                normalizeTimeOnly(event.target.value) ||
-                                                currentAssignment?.startTime ||
-                                                manualStartTime;
-                                              updateManualAssignment(item.studentCode, (assignment) => ({
-                                                ...assignment,
-                                                startTime: nextTime,
-                                              }));
-                                            }}
-                                          />
-                                        </label>
-                                        <label className="committee-member-field">
-                                          <span className="committee-member-field-label">Giờ kết thúc</span>
-                                          <input
-                                            type="time"
-                                            value={currentAssignment?.endTime ?? manualEndTime}
-                                            onChange={(event) => {
-                                              const nextTime =
-                                                normalizeTimeOnly(event.target.value) ||
-                                                currentAssignment?.endTime ||
-                                                manualEndTime;
-                                              updateManualAssignment(item.studentCode, (assignment) => ({
-                                                ...assignment,
-                                                endTime: nextTime,
-                                              }));
-                                            }}
-                                          />
-                                        </label>
-                                        <label className="committee-member-field">
-                                          <span className="committee-member-field-label">Thứ tự</span>
-                                          <input
-                                            type="number"
-                                            min={1}
-                                            step={1}
-                                            value={currentAssignment?.orderIndex ?? 1}
-                                            onChange={(event) => {
-                                              const nextOrder = Math.max(
-                                                1,
-                                                Math.floor(Number(event.target.value) || 1),
-                                              );
-                                              updateManualAssignment(item.studentCode, (assignment) => ({
-                                                ...assignment,
-                                                orderIndex: nextOrder,
-                                              }));
-                                            }}
-                                          />
-                                        </label>
+                        <div style={{ overflowX: "auto", marginTop: 12 }}>
+                          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 10px" }}>
+                            <thead>
+                              <tr style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>
+                                <th style={{ padding: "0 12px", textAlign: "left", width: 60 }}>STT</th>
+                                <th style={{ padding: "0 12px", textAlign: "left" }}>Sinh viên</th>
+                                <th style={{ padding: "0 12px", textAlign: "left" }}>Đề tài</th>
+                                <th style={{ padding: "0 12px", textAlign: "left" }}>Giảng viên HD</th>
+                                <th style={{ padding: "0 12px", textAlign: "left" }}>Thời gian</th>
+                                {!manualReadOnly && <th style={{ padding: "0 12px", textAlign: "right" }}>Thao tác</th>}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {manualRelatedStudentView.map((item, idx) => {
+                                const currentAssignment = manualAssignmentByStudentCode.get(item.studentCode);
+                                return (
+                                  <tr key={`related-${item.studentCode}`} style={{ background: "#f8fafc" }}>
+                                    <td style={{ padding: "14px 12px", borderRadius: "10px 0 0 10px", fontWeight: 700, color: "#64748b" }}>
+                                      #{currentAssignment?.orderIndex ?? (idx + 1)}
+                                    </td>
+                                    <td style={{ padding: "14px 12px" }}>
+                                      <div style={{ fontWeight: 800, color: "#1e293b" }}>{item.studentName}</div>
+                                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{item.studentCode}</div>
+                                    </td>
+                                    <td style={{ padding: "14px 12px" }}>
+                                      <div style={{ fontWeight: 600, color: "#1e293b", fontSize: 13, lineHeight: 1.4 }}>{item.topicTitle}</div>
+                                      <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Mã: {item.topicCode}</div>
+                                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
+                                        {item.topicTags.map(tag => (
+                                          <span key={tag} style={{
+                                            fontSize: 10,
+                                            padding: "2px 6px",
+                                            borderRadius: 4,
+                                            background: "#e2e8f0",
+                                            color: "#475569",
+                                            fontWeight: 600
+                                          }}>{getTagDisplayName(tag)}</span>
+                                        ))}
                                       </div>
-                                    </div>
-                                  )}
-                                </article>
-                              );
-                            })}
-
-                            {manualRelatedStudentView.length === 0 && (
-                              <div className="committee-topic-empty">
-                                Chưa có đề tài thuộc hội đồng.
-                              </div>
-                            )}
+                                    </td>
+                                    <td style={{ padding: "14px 12px", fontWeight: 600, color: "#334155" }}>
+                                      {item.supervisorName}
+                                    </td>
+                                    <td style={{ padding: "14px 12px" }}>
+                                      <div style={{ fontSize: 12, fontWeight: 700, color: DEEP_BLUE_PRIMARY }}>
+                                        {formatDateLabel(currentAssignment?.scheduledAt ?? manualDefenseDate)}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                                        {currentAssignment?.startTime ?? manualStartTime} - {currentAssignment?.endTime ?? manualEndTime}
+                                      </div>
+                                    </td>
+                                    {!manualReadOnly && (
+                                      <td style={{ padding: "14px 12px", borderRadius: "0 10px 10px 0", textAlign: "right" }}>
+                                        <div style={{ display: "grid", gap: 8, maxWidth: 300, marginLeft: "auto" }}>
+                                          <label style={{ display: "grid", gap: 2, textAlign: "left" }}>
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>Ngày</span>
+                                            <input
+                                              type="date"
+                                              value={currentAssignment?.scheduledAt ?? manualDefenseDate}
+                                              onChange={(event) => {
+                                                const nextDate = normalizeDefenseDateOnly(event.target.value) || manualDefenseDate;
+                                                updateManualAssignment(item.studentCode, (assignment) => ({
+                                                  ...assignment,
+                                                  scheduledAt: nextDate,
+                                                }));
+                                              }}
+                                              style={{ height: 28, fontSize: 12, padding: "2px 6px", borderRadius: 6, border: "1px solid #cbd5e1" }}
+                                            />
+                                          </label>
+                                          <div style={{ display: "flex", gap: 4 }}>
+                                            <label style={{ display: "grid", gap: 2, textAlign: "left", flex: 1 }}>
+                                              <span style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>Bắt đầu</span>
+                                              <input
+                                                type="time"
+                                                value={currentAssignment?.startTime ?? manualStartTime}
+                                                onChange={(event) => {
+                                                  const nextTime = normalizeTimeOnly(event.target.value) || currentAssignment?.startTime || manualStartTime;
+                                                  updateManualAssignment(item.studentCode, (assignment) => ({
+                                                    ...assignment,
+                                                    startTime: nextTime,
+                                                  }));
+                                                }}
+                                                style={{ height: 28, fontSize: 12, padding: "2px 4px", borderRadius: 6, border: "1px solid #cbd5e1" }}
+                                              />
+                                            </label>
+                                            <label style={{ display: "grid", gap: 2, textAlign: "left", flex: 1 }}>
+                                              <span style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>Kết thúc</span>
+                                              <input
+                                                type="time"
+                                                value={currentAssignment?.endTime ?? manualEndTime}
+                                                onChange={(event) => {
+                                                  const nextTime = normalizeTimeOnly(event.target.value) || currentAssignment?.endTime || manualEndTime;
+                                                  updateManualAssignment(item.studentCode, (assignment) => ({
+                                                    ...assignment,
+                                                    endTime: nextTime,
+                                                  }));
+                                                }}
+                                                style={{ height: 28, fontSize: 12, padding: "2px 4px", borderRadius: 6, border: "1px solid #cbd5e1" }}
+                                              />
+                                            </label>
+                                            <label style={{ display: "grid", gap: 2, textAlign: "left", width: 50 }}>
+                                              <span style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>STT</span>
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                step={1}
+                                                value={currentAssignment?.orderIndex ?? 1}
+                                                onChange={(event) => {
+                                                  const nextOrder = Math.max(1, Math.floor(Number(event.target.value) || 1));
+                                                  updateManualAssignment(item.studentCode, (assignment) => ({
+                                                    ...assignment,
+                                                    orderIndex: nextOrder,
+                                                    }));
+                                                  }}
+                                                  style={{ height: 28, fontSize: 12, padding: "2px 4px", borderRadius: 6, border: "1px solid #cbd5e1" }}
+                                                />
+                                              </label>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => removeManualTopic(item.studentCode)}
+                                              style={{
+                                                padding: "4px 8px",
+                                                borderRadius: 6,
+                                                border: "1px solid #fecaca",
+                                                background: "#fee2e2",
+                                                color: "#dc2626",
+                                                cursor: "pointer",
+                                                fontSize: 11,
+                                                fontWeight: 700,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                gap: 4
+                                              }}
+                                            >
+                                              <X size={12} /> Bỏ liên quan
+                                            </button>
+                                          </div>
+                                        </td>
+                                      )}
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
                           </div>
-                        </div>
                       )}
                       {!manualReadOnly && (
                         <div
                           style={{
-                            marginTop: 10,
-                            fontSize: 12,
-                            color: "#0f172a",
+                            marginTop: 16,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: "#475569",
+                            background: "#f1f5f9",
+                            padding: "10px 16px",
+                            borderRadius: 10,
+                            display: "inline-block"
                           }}
                         >
                           {showManualTopicWorkspace

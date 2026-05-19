@@ -514,6 +514,12 @@ namespace ThesisManagement.Api.Controllers
             return StatusCode(200, ApiResponse<object>.SuccessResponse(payload));
         }
 
+        [HttpGet("minutes/committee-detail")]
+        public async Task<ActionResult<ApiResponse<List<LecturerCommitteeMinuteDto>>>> GetCommitteeDetailMinutes(int periodId, [FromQuery] int committeeId)
+        {
+            return await GetMinutes(periodId, committeeId);
+        }
+
         [HttpPost("minutes/upsert")]
         [Authorize(Roles = "Lecturer,Head,Secretary")]
         public async Task<ActionResult<ApiResponse<object>>> UpsertMinutes(int periodId, [FromBody] LecturerMinutesUpsertRequestDto request)

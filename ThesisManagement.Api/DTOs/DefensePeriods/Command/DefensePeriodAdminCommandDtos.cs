@@ -171,7 +171,7 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
     public class RollbackDefensePeriodDto
     {
         [Required]
-        [RegularExpression("^(PUBLISH|FINALIZE|ALL)$", ErrorMessage = "Target chỉ hỗ trợ PUBLISH, FINALIZE hoặc ALL")]
+        [RegularExpression("^(PUBLISH|FINALIZE|ALL|STAGE)$", ErrorMessage = "Target chỉ hỗ trợ PUBLISH, FINALIZE, ALL hoặc STAGE")]
         public string Target { get; set; } = "PUBLISH";
 
         [Required]

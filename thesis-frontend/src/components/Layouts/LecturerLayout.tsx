@@ -9,9 +9,9 @@ import {
   Clock,
   Menu,
   X,
+  Pin,
+  PinOff,
   KeyRound,
-  Sidebar,
-  ShieldCheck,
 } from "lucide-react";
 import { fetchData, getAvatarUrl } from "../../api/fetchData";
 import type { ApiResponse } from "../../types/api";
@@ -55,12 +55,28 @@ const LecturerLayout: React.FC = () => {
     };
   });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarPinned, setIsSidebarPinned] = useState(false);
   const sidebarWidth = isSidebarCollapsed ? 84 : 260;
   const collapseSidebarOnActivity = () => {
-    if (window.innerWidth > 768) {
+    if (window.innerWidth > 768 && !isSidebarPinned) {
       setIsSidebarCollapsed(true);
     }
   };
+
+  const handleNavigation = () => {
+    setIsMobileMenuOpen(false);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const pinned = localStorage.getItem("lecturerSidebarPinned");
+    setIsSidebarPinned(pinned === "true");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("lecturerSidebarPinned", String(isSidebarPinned));
+  }, [isSidebarPinned]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -125,56 +141,56 @@ const LecturerLayout: React.FC = () => {
         }
 
         if (result.ok) {
-          setCanViewDefenseMenus(result.hasCommitteeAccess);
-          setCanViewRevisionMenu(result.isSecretary && result.hasPendingRevisions);
-          const periodName = result.period.name || `Đợt ${result.period.periodId}`;
-          setActiveDefensePeriodId(result.period.periodId);
-          setHeaderPeriod({
-            label: `${periodName} (#${result.period.periodId})`,
-            tone: "normal",
-            tooltip: `Đợt hiện tại: ${periodName} (#${result.period.periodId})`,
-          });
-          return;
-        }
-
-        setCanViewDefenseMenus(false);
-        setCanViewRevisionMenu(false);
-
-        if (result.code === "NOT_MAPPED") {
-          setActiveDefensePeriodId(null);
-          setHeaderPeriod({
-            label: "Chưa có mapping đợt",
-            tone: "warning",
-            tooltip: result.message,
-          });
-          return;
-        }
-
-        if (result.code === "AMBIGUOUS" || result.code === "INVALID_CONTRACT") {
-          setActiveDefensePeriodId(null);
-          setHeaderPeriod({
-            label: result.code === "AMBIGUOUS" ? "Dữ liệu đợt mơ hồ" : "Snapshot đợt không hợp lệ",
-            tone: "error",
-            tooltip: result.message,
-          });
-          return;
-        }
-
-        const cachedPeriodId = getActiveDefensePeriodId();
-        if (cachedPeriodId) {
-          setHeaderPeriod({
-            label: `Đợt #${cachedPeriodId} (cache)`,
-            tone: "warning",
-            tooltip: result.message,
-          });
-          return;
-        }
-
+        setCanViewDefenseMenus(result.hasCommitteeAccess);
+        setCanViewRevisionMenu(result.isSecretary && result.hasPendingRevisions);
+        const periodName = result.period.name || `Đợt ${result.period.periodId}`;
+        setActiveDefensePeriodId(result.period.periodId);
         setHeaderPeriod({
-          label: "Không xác định đợt",
+          label: `${periodName} (#${result.period.periodId})`,
+          tone: "normal",
+          tooltip: `Đợt hiện tại: ${periodName} (#${result.period.periodId})`,
+        });
+        return;
+      }
+
+      setCanViewDefenseMenus(false);
+      setCanViewRevisionMenu(false);
+
+      if (result.code === "NOT_MAPPED") {
+        setActiveDefensePeriodId(null);
+        setHeaderPeriod({
+          label: "Chưa có mapping đợt",
+          tone: "warning",
+          tooltip: result.message,
+        });
+        return;
+      }
+
+      if (result.code === "AMBIGUOUS" || result.code === "INVALID_CONTRACT") {
+        setActiveDefensePeriodId(null);
+        setHeaderPeriod({
+          label: result.code === "AMBIGUOUS" ? "Dữ liệu đợt mơ hồ" : "Snapshot đợt không hợp lệ",
           tone: "error",
           tooltip: result.message,
         });
+        return;
+      }
+
+      const cachedPeriodId = getActiveDefensePeriodId();
+      if (cachedPeriodId) {
+        setHeaderPeriod({
+          label: `Đợt #${cachedPeriodId} (cache)`,
+          tone: "warning",
+          tooltip: result.message,
+        });
+        return;
+      }
+
+      setHeaderPeriod({
+        label: "Không xác định đợt",
+        tone: "error",
+        tooltip: result.message,
+      });
       } catch (error) {
         if (cancelled) return;
 
@@ -197,24 +213,24 @@ const LecturerLayout: React.FC = () => {
   const headerPeriodStyle =
     headerPeriod.tone === "error"
       ? {
-        borderColor: "rgba(248, 113, 113, 0.45)",
-        backgroundColor: "rgba(127, 29, 29, 0.45)",
-        textColor: "#fecaca",
-        dotColor: "#f87171",
-      }
+          borderColor: "rgba(248, 113, 113, 0.45)",
+          backgroundColor: "rgba(127, 29, 29, 0.45)",
+          textColor: "#fecaca",
+          dotColor: "#f87171",
+        }
       : headerPeriod.tone === "warning"
         ? {
-          borderColor: "rgba(251, 191, 36, 0.5)",
-          backgroundColor: "rgba(146, 64, 14, 0.35)",
-          textColor: "#fde68a",
-          dotColor: "#fbbf24",
-        }
+            borderColor: "rgba(251, 191, 36, 0.5)",
+            backgroundColor: "rgba(146, 64, 14, 0.35)",
+            textColor: "#fde68a",
+            dotColor: "#fbbf24",
+          }
         : {
-          borderColor: "rgba(243, 112, 33, 0.5)",
-          backgroundColor: "rgba(243, 112, 33, 0.2)",
-          textColor: "#ffedd5",
-          dotColor: "#fdba74",
-        };
+            borderColor: "rgba(243, 112, 33, 0.5)",
+            backgroundColor: "rgba(243, 112, 33, 0.2)",
+            textColor: "#ffedd5",
+            dotColor: "#fdba74",
+          };
   return (
     <div
       style={{
@@ -447,6 +463,37 @@ const LecturerLayout: React.FC = () => {
             <X size={20} />
           </button>
 
+          {!isSidebarCollapsed && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarPinned((prev) => !prev);
+              }}
+              aria-label={isSidebarPinned ? "Bỏ ghim thanh nav" : "Ghim thanh nav"}
+              title={isSidebarPinned ? "Bỏ ghim thanh nav" : "Ghim thanh nav"}
+              style={{
+                position: "absolute",
+                top: "16px",
+                left: "16px",
+                width: 38,
+                height: 38,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 12,
+                border: "1px solid rgba(255, 255, 255, 0.3)",
+                background: "rgba(255, 255, 255, 0.08)",
+                color: "#FFFFFF",
+                boxShadow: "0 6px 16px rgba(0, 0, 0, 0.18)",
+                cursor: "pointer",
+                flexShrink: 0,
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              {isSidebarPinned ? <Pin size={18} /> : <PinOff size={18} />}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -534,7 +581,7 @@ const LecturerLayout: React.FC = () => {
         >
           <LecturerNav
             collapsed={isSidebarCollapsed}
-            onNavigate={() => setIsMobileMenuOpen(false)}
+            onNavigate={handleNavigation}
             showDefenseMenus={canViewDefenseMenus}
             showRevisionMenu={canViewRevisionMenu}
           />
@@ -904,40 +951,6 @@ const LecturerLayout: React.FC = () => {
                   </div>
 
                   <div style={{ padding: "8px" }}>
-                    {auth.user?.roles?.includes("ADMIN") && (
-                      <button
-                        onClick={() => {
-                          setShowDropdown(false);
-                          auth.switchRole("ADMIN");
-                        }}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "14px",
-                          width: "100%",
-                          padding: "14px 18px",
-                          background: "rgba(59, 130, 246, 0.1)",
-                          border: "none",
-                          borderRadius: "12px",
-                          textAlign: "left",
-                          cursor: "pointer",
-                          fontSize: "14px",
-                          color: "#3b82f6",
-                          fontWeight: 600,
-                          transition: "all 0.3s ease",
-                          marginBottom: "8px"
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = "rgba(59, 130, 246, 0.2)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = "rgba(59, 130, 246, 0.1)";
-                        }}
-                      >
-                        <ShieldCheck size={18} color="#3b82f6" />
-                        Giao diện Quản trị
-                      </button>
-                    )}
                     <button
                       onClick={() => {
                         setShowDropdown(false);
@@ -1059,7 +1072,7 @@ const LecturerLayout: React.FC = () => {
             height: "calc(100vh - 80px)",
             overflowY: "auto",
           }}
-        /* onPointerUpCapture={collapseSidebarOnActivity} */
+          onPointerUpCapture={collapseSidebarOnActivity}
         >
           <Outlet />
         </div>

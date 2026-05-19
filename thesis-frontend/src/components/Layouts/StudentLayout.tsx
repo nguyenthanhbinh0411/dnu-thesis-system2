@@ -9,6 +9,8 @@ import {
   Menu,
   X,
   KeyRound,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import { fetchData, getAvatarUrl } from "../../api/fetchData";
 import type { ApiResponse } from "../../types/api";
@@ -49,12 +51,29 @@ const StudentLayout: React.FC = () => {
     };
   });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarPinned, setIsSidebarPinned] = useState(false);
   const sidebarWidth = isSidebarCollapsed ? 84 : 260;
+  
   const collapseSidebarOnActivity = () => {
-    if (window.innerWidth > 768) {
+    if (window.innerWidth > 768 && !isSidebarPinned) {
       setIsSidebarCollapsed(true);
     }
   };
+
+  const handleNavigation = () => {
+    setIsMobileMenuOpen(false);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const pinned = localStorage.getItem("studentSidebarPinned");
+    setIsSidebarPinned(pinned === "true");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("studentSidebarPinned", String(isSidebarPinned));
+  }, [isSidebarPinned]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -406,6 +425,37 @@ const StudentLayout: React.FC = () => {
             <X size={20} />
           </button>
 
+          {!isSidebarCollapsed && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarPinned((prev) => !prev);
+              }}
+              aria-label={isSidebarPinned ? "Bỏ ghim thanh nav" : "Ghim thanh nav"}
+              title={isSidebarPinned ? "Bỏ ghim thanh nav" : "Ghim thanh nav"}
+              style={{
+                position: "absolute",
+                top: "16px",
+                left: "16px",
+                width: 38,
+                height: 38,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 12,
+                border: "1px solid rgba(0, 0, 0, 0.15)",
+                background: "linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(243, 112, 33, 0.05) 100%)",
+                color: "#002855",
+                boxShadow: "0 6px 16px rgba(0, 0, 0, 0.1)",
+                cursor: "pointer",
+                flexShrink: 0,
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              {isSidebarPinned ? <Pin size={18} /> : <PinOff size={18} />}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -493,7 +543,7 @@ const StudentLayout: React.FC = () => {
         >
           <StudentNav
             collapsed={isSidebarCollapsed}
-            onNavigate={() => setIsMobileMenuOpen(false)}
+            onNavigate={handleNavigation}
           />
         </div>
 
@@ -934,7 +984,7 @@ const StudentLayout: React.FC = () => {
             height: "calc(100vh - 72px)",
             overflowY: "auto",
           }}
-          // onPointerUpCapture={collapseSidebarOnActivity}
+          onPointerUpCapture={collapseSidebarOnActivity}
         >
           <Outlet />
         </div>

@@ -259,6 +259,7 @@ builder.Services.AddScoped<ICommitteeConstraintRule, SupervisorConflictRule>();
 builder.Services.AddScoped<IDefenseCommitteeHeuristicService, DefenseCommitteeHeuristicService>();
 builder.Services.AddSingleton<IDefenseResiliencePolicy, DefenseResiliencePolicy>();
 builder.Services.AddScoped<IDefenseAuditTrailService, DefenseAuditTrailService>();
+builder.Services.AddScoped<ISystemActivityLogger, SystemActivityLogger>();
 builder.Services.AddScoped<IDefenseScoreWorkflowService, DefenseScoreWorkflowService>();
 builder.Services.AddScoped<IDefenseRevisionWorkflowService, DefenseRevisionWorkflowService>();
 builder.Services.AddScoped<ITopicWorkflowCommandSupport, TopicWorkflowCommandSupport>();
@@ -681,8 +682,16 @@ try
                 if (pendingMigrations.Any())
                 {
                     Console.WriteLine($"[Migration] Found {pendingMigrations.Count()} pending migrations. Applying...");
-                    dbContext.Database.Migrate();
-                    Console.WriteLine("[Migration] Migrations applied successfully.");
+                    try
+                    {
+                        dbContext.Database.Migrate();
+                        Console.WriteLine("[Migration] Migrations applied successfully.");
+                    }
+                    catch (Exception migrationEx) when (migrationEx.Message.Contains("ORA-00955") || migrationEx.Message.Contains("name is already used"))
+                    {
+                        // Database tables already exist, skip migration
+                        Console.WriteLine($"[Migration] Database tables already exist, skipping migration: {migrationEx.Message}");
+                    }
                 }
                 else
                 {
@@ -691,7 +700,7 @@ try
 
                 break; // success
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!(ex.Message.Contains("ORA-00955") || ex.Message.Contains("name is already used")))
             {
                 Console.WriteLine($"[Migration] Database not ready (attempt {attempt}/{maxMigrationAttempts}): {ex.Message}");
                 if (attempt == maxMigrationAttempts)
@@ -702,6 +711,12 @@ try
 
                 var delay = baseDelayMs * attempt;
                 await Task.Delay(delay);
+            }
+            catch (Exception ex)
+            {
+                // ORA-00955 error - database already initialized, continue
+                Console.WriteLine($"[Migration] Database already initialized (skipping): {ex.Message}");
+                break;
             }
         }
     }

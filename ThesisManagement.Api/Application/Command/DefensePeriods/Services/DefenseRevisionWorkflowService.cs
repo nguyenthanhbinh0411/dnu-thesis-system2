@@ -5,6 +5,7 @@ using ThesisManagement.Api.Application.Common;
 using ThesisManagement.Api.Data;
 using ThesisManagement.Api.DTOs.DefensePeriods;
 using ThesisManagement.Api.Models;
+using ThesisManagement.Api.Services;
 using ThesisManagement.Api.Services.FileStorage;
 using ThesisManagement.Api.Application.Command.Notifications;
 
@@ -26,6 +27,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
         private readonly DefenseRevisionQuorumOptions _quorumOptions;
         private readonly IFileStorageService _storageService;
         private readonly INotificationEventPublisher _notificationPublisher;
+        private readonly ISystemActivityLogger _systemActivityLogger;
 
         public DefenseRevisionWorkflowService(
             ApplicationDbContext db,
@@ -33,7 +35,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             IDefenseAuditTrailService auditTrail,
             IFileStorageService storageService,
             INotificationEventPublisher notificationPublisher,
-            IOptions<DefenseRevisionQuorumOptions> quorumOptions)
+            IOptions<DefenseRevisionQuorumOptions> quorumOptions,
+            ISystemActivityLogger systemActivityLogger)
         {
             _db = db;
             _uow = uow;
@@ -41,6 +44,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             _storageService = storageService;
             _notificationPublisher = notificationPublisher;
             _quorumOptions = quorumOptions.Value;
+            _systemActivityLogger = systemActivityLogger;
         }
 
         public Task ApproveRevisionAsync(int revisionId, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default)
@@ -125,6 +129,21 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 }
 
                 await _uow.SaveChangesAsync();
+
+                var topic = await _db.Topics.AsNoTracking().FirstOrDefaultAsync(t => t.ProposerStudentCode == studentCode, cancellationToken);
+                string? topicCode = topic?.TopicCode;
+
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "DefenseRevision",
+                    entityId: revision.Id.ToString(),
+                    actionType: "SUBMIT",
+                    actionDescription: $"Sinh viên {studentCode} nộp báo cáo chỉnh sửa hậu bảo vệ cho đề tài {topicCode ?? "không rõ"} (File: {file.FileName})",
+                    actorUserId: actorUserId,
+                    module: "Defense",
+                    status: "SUCCESS",
+                    relatedRecordCode: studentCode,
+                    cancellationToken: cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
 
                 await _auditTrail.WriteAsync(
@@ -244,6 +263,20 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             _uow.DefenseRevisions.Update(revision);
 
             await _uow.SaveChangesAsync();
+
+            await _systemActivityLogger.WriteLogAsync(
+                entityName: "DefenseRevision",
+                entityId: revisionId.ToString(),
+                actionType: approved ? "APPROVE" : "REJECT",
+                actionDescription: approved 
+                    ? $"Giảng viên {lecturerCode} phê duyệt báo cáo chỉnh sửa hậu bảo vệ cho đề tài {topic?.TopicCode} (Sinh viên {topic?.ProposerStudentCode})"
+                    : $"Giảng viên {lecturerCode} từ chối báo cáo chỉnh sửa hậu bảo vệ cho đề tài {topic?.TopicCode} (Sinh viên {topic?.ProposerStudentCode}). Lý do: {reason}",
+                actorUserId: actorUserId,
+                module: "Defense",
+                status: "SUCCESS",
+                relatedRecordCode: topic?.TopicCode,
+                cancellationToken: cancellationToken);
+
             await tx.CommitAsync(cancellationToken);
 
             await _auditTrail.WriteAsync(
@@ -316,6 +349,27 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 new { RevisionId = revisionId, Action = normalizedAction },
                 actorUserId,
                 cancellationToken);
+            await _uow.SaveChangesAsync();
+
+            var studentInfoForLog = await _db.DefenseAssignments
+                .Join(_db.Topics, a => a.TopicCode, t => t.TopicCode, (a, t) => new { a.AssignmentID, t.ProposerStudentCode, t.TopicCode })
+                .Where(x => x.AssignmentID == revision.AssignmentId)
+                .Select(x => new { x.ProposerStudentCode, x.TopicCode })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var isApprove = normalizedAction == "APPROVE";
+            await _systemActivityLogger.WriteLogAsync(
+                entityName: "DefenseRevision",
+                entityId: revisionId.ToString(),
+                actionType: isApprove ? "APPROVE" : "REJECT",
+                actionDescription: isApprove 
+                    ? $"Thư ký hội đồng {secretaryUserCode} phê duyệt hoàn thành hồ sơ hậu bảo vệ cho đề tài {studentInfoForLog?.TopicCode} (Sinh viên {studentInfoForLog?.ProposerStudentCode})"
+                    : $"Thư ký hội đồng {secretaryUserCode} từ chối hồ sơ hậu bảo vệ cho đề tài {studentInfoForLog?.TopicCode} (Sinh viên {studentInfoForLog?.ProposerStudentCode}). Ghi chú: {comment}",
+                actorUserId: actorUserId,
+                module: "Defense",
+                status: "SUCCESS",
+                relatedRecordCode: studentInfoForLog?.TopicCode,
+                cancellationToken: cancellationToken);
 
             await tx.CommitAsync(cancellationToken);
 

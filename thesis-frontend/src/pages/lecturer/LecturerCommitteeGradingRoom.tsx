@@ -41,11 +41,15 @@ import {
     ExternalLink,
     FileText,
     Gavel,
+    Image,
     Info,
     LayoutDashboard,
+    Link,
     Lock,
     MapPin,
     MessageSquareText,
+    Package,
+    Paperclip,
     PencilRuler,
     Plus,
     Save,
@@ -2910,10 +2914,6 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             notifyInfo("Phòng chấm đã bị đóng vĩnh viễn. Liên hệ quản trị viên để mở lại.");
             return;
         }
-        if (committee.status !== "Đang họp") {
-            notifyInfo("Phòng chấm chỉ mở khi hội đồng đang họp.");
-            return;
-        }
         setJoinedCommitteeId(committee.id);
         setSelectedCommitteeId(committee.id);
         setWorkspaceTab("scoring");
@@ -2976,8 +2976,8 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             notifyInfo("Chỉ Chủ tịch hội đồng mới có thể đóng phiên.");
             return;
         }
-        if (committee.status !== "Đang họp") {
-            notifyInfo("Chỉ phiên đang họp mới có thể đóng.");
+        if (committee.status !== "Đã chốt") {
+            notifyInfo("Chỉ phiên đã chốt điểm mới có thể đóng.");
             return;
         }
 
@@ -4090,24 +4090,73 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                     <span className="lec-kicker">Điểm Giảng viên Hướng dẫn</span>
                                                     <div style={{ fontWeight: 700 }}>{formatScore(scoreGvhdDisplay)}</div>
                                                 </div>
-                                                <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end" }}>
-                                                    <div style={{ textAlign: "right" }}>
-                                                        <span className="lec-kicker">Báo cáo đồ án</span>
-                                                        <div style={{ marginTop: 2 }}>
-                                                            {selectedMatrixRow?.defenseDocuments && selectedMatrixRow.defenseDocuments.length > 0 ? (
-                                                                <a
-                                                                    href={selectedMatrixRow.defenseDocuments[0].fileUrl}
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                    className="lec-primary"
-                                                                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, textDecoration: "none", padding: "3px 10px", fontSize: 11, borderRadius: 6, background: "#f37021", color: "#fff", border: "none" }}
-                                                                >
-                                                                    <ExternalLink size={13} /> Xem báo cáo
-                                                                </a>
-                                                            ) : (
-                                                                <span style={{ fontSize: 13, color: "#94a3b8" }}>Chưa nộp báo cáo</span>
-                                                            )}
+                                                <div style={{ gridColumn: "1 / -1", display: "grid", gap: 12 }}>
+                                                    {/* Files & Documents Section */}
+                                                    <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 12, background: "#ffffff", display: "grid", gap: 10 }}>
+                                                        <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                                                            <Paperclip size={16} color="#f37021" /> Tài liệu & Báo cáo ({selectedMatrixRow?.defenseDocuments?.length || 0})
                                                         </div>
+                                                        {selectedMatrixRow?.defenseDocuments && selectedMatrixRow.defenseDocuments.length > 0 ? (
+                                                            <div style={{ display: "grid", gap: 6 }}>
+                                                                {selectedMatrixRow.defenseDocuments.map((doc, idx) => {
+                                                                    const fileExt = doc.fileName?.split('.').pop()?.toLowerCase() || "file";
+                                                                    const isExtLink = doc.mimeType === "text/html";
+                                                                    const getFileIcon = () => {
+                                                                        if (isExtLink) return <Link size={16} />;
+                                                                        if (["pdf"].includes(fileExt)) return <FileText size={16} />;
+                                                                        if (["doc", "docx"].includes(fileExt)) return <FileText size={16} />;
+                                                                        if (["xls", "xlsx", "csv"].includes(fileExt)) return <FileText size={16} />;
+                                                                        if (["zip", "rar", "7z"].includes(fileExt)) return <Package size={16} />;
+                                                                        return <Paperclip size={16} />;
+                                                                    };
+                                                                    return (
+                                                                        <a
+                                                                            key={`doc-${idx}`}
+                                                                            href={doc.fileUrl}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            style={{
+                                                                                display: "flex",
+                                                                                alignItems: "center",
+                                                                                gap: 10,
+                                                                                padding: "10px 12px",
+                                                                                borderRadius: 10,
+                                                                                border: "1px solid #e2e8f0",
+                                                                                textDecoration: "none",
+                                                                                background: "white",
+                                                                                color: "#1e293b",
+                                                                                transition: "all 0.2s",
+                                                                                fontSize: 13,
+                                                                                fontWeight: 600
+                                                                            }}
+                                                                            onMouseEnter={(e) => {
+                                                                                e.currentTarget.style.borderColor = "#f37021";
+                                                                                e.currentTarget.style.background = "#fff8f3";
+                                                                            }}
+                                                                            onMouseLeave={(e) => {
+                                                                                e.currentTarget.style.borderColor = "#e2e8f0";
+                                                                                e.currentTarget.style.background = "white";
+                                                                            }}
+                                                                        >
+                                                                            <div style={{ fontSize: 16, display: "flex", alignItems: "center" }}>{getFileIcon()}</div>
+                                                                            <div style={{ flex: 1, overflow: "hidden" }}>
+                                                                                <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                                                    {doc.fileName}
+                                                                                </div>
+                                                                                <div style={{ fontSize: 11, color: "#64748b" }}>
+                                                                                    {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("vi-VN") : "Chưa xác định"}
+                                                                                </div>
+                                                                            </div>
+                                                                            <ExternalLink size={14} color="#f37021" />
+                                                                        </a>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ) : (
+                                                            <div style={{ fontSize: 13, color: "#94a3b8", textAlign: "center", padding: "16px 0" }}>
+                                                                Chưa nộp báo cáo hoặc tài liệu
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4, borderTop: "1px solid #fed7aa", paddingTop: 10 }}>
@@ -5467,7 +5516,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                         openRoleWorkspace(detailCommittee);
                                         setDetailCommitteeId("");
                                     }}
-                                    disabled={detailCommittee.status !== "Đang họp"}
+                                    disabled={detailCommittee.status === "Đã đóng"}
                                 >
                                     <ArrowRight size={14} /> Tham gia
                                 </button>

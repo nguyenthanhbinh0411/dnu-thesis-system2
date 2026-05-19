@@ -7,7 +7,8 @@ import {
   Bell,
   Menu,
   X,
-
+  Pin,
+  PinOff,
   PanelLeftClose,
   PanelLeftOpen,
   GraduationCap,
@@ -24,13 +25,32 @@ const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarPinned, setIsSidebarPinned] = useState(false);
   const [profile, setProfile] = useState<LecturerProfile | null>(null);
   const [lecturerImage, setLecturerImage] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const sidebarWidth = isSidebarCollapsed ? 84 : 260;
+
   const collapseSidebarOnActivity = () => {
-    setIsSidebarCollapsed(true);
+    if (!isSidebarPinned) {
+      setIsSidebarCollapsed(true);
+    }
   };
+
+  const handleNavigation = () => {
+    setIsMobileMenuOpen(false);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const pinned = localStorage.getItem("adminSidebarPinned");
+    setIsSidebarPinned(pinned === "true");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("adminSidebarPinned", String(isSidebarPinned));
+  }, [isSidebarPinned]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -241,6 +261,37 @@ const AdminLayout: React.FC = () => {
               <X size={20} />
             </button>
 
+            {!isSidebarCollapsed && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSidebarPinned((prev) => !prev);
+                }}
+                aria-label={isSidebarPinned ? "Bỏ ghim thanh nav" : "Ghim thanh nav"}
+                title={isSidebarPinned ? "Bỏ ghim thanh nav" : "Ghim thanh nav"}
+                style={{
+                  position: "absolute",
+                  top: "16px",
+                  left: "16px",
+                  width: 38,
+                  height: 38,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 12,
+                  border: "1px solid rgba(255, 255, 255, 0.3)",
+                  background: "rgba(255, 255, 255, 0.08)",
+                  color: "#FFFFFF",
+                  boxShadow: "0 6px 16px rgba(0, 0, 0, 0.18)",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  backdropFilter: "blur(8px)",
+                }}
+              >
+                {isSidebarPinned ? <Pin size={18} /> : <PinOff size={18} />}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => {
@@ -328,7 +379,7 @@ const AdminLayout: React.FC = () => {
           >
             <AdminNav
               collapsed={isSidebarCollapsed}
-              onNavigate={() => setIsMobileMenuOpen(false)}
+              onNavigate={handleNavigation}
             />
           </div>
 
@@ -694,8 +745,8 @@ const AdminLayout: React.FC = () => {
               height: "calc(100vh - 72px)",
               overflowY: "auto",
             }}
-            /* onPointerDownCapture={collapseSidebarOnActivity}
-            onFocusCapture={collapseSidebarOnActivity} */
+            onPointerDownCapture={collapseSidebarOnActivity}
+            onFocusCapture={collapseSidebarOnActivity}
           >
             <Outlet />
           </div>

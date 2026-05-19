@@ -4,6 +4,7 @@ import {
   FileText,
   Calendar,
   Clock,
+  ClipboardList,
   Download,
   User as UserIcon,
   BookOpen,
@@ -914,7 +915,10 @@ const Reports: React.FC = () => {
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     {/* Left Panel: Report Text Info */}
                     <div className="space-y-4">
-                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">📋 Nội dung báo cáo</span>
+                       <div className="flex items-center gap-2">
+                         <ClipboardList size={14} />
+                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nội dung báo cáo</span>
+                       </div>
                        <div className="space-y-3">
                           <div>
                              <span className="text-[8px] font-black text-slate-400 uppercase">Tiêu đề</span>

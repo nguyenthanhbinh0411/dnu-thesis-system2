@@ -142,12 +142,12 @@ export type ChatContextValue = {
 const ChatContext = createContext<ChatContextValue | undefined>(undefined);
 
 const REACTION_ICON_MAP: Record<string, string> = {
-  "1": "👍",
-  "2": "❤️",
-  "3": "😂",
-  "4": "😮",
-  "5": "😢",
-  "6": "😡",
+  "1": "thumbs-up",
+  "2": "heart",
+  "3": "smile",
+  "4": "eye",
+  "5": "frown",
+  "6": "zap",
 };
 
 function sortMessagesByTime(messages: ChatMessage[]): ChatMessage[] {

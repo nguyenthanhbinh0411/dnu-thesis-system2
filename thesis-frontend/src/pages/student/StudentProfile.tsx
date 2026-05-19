@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
+  AlertTriangle,
   User,
   Mail,
   Phone,
@@ -232,7 +233,7 @@ const StudentProfilePage: React.FC = () => {
             borderRadius: "12px",
           }}
         >
-          <div style={{ color: "#DC2626", fontSize: "20px" }}>⚠️</div>
+          <AlertTriangle size={20} color="#DC2626" style={{ flexShrink: 0 }} />
           <span
             style={{ color: "#DC2626", fontSize: "16px", fontWeight: "500" }}
           >

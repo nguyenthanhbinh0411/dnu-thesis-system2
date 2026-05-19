@@ -21,7 +21,6 @@ import LecturerReports from "../pages/lecturer/LecturerReports";
 import LecturerTopicRenameRequests from "../pages/lecturer/TopicRenameRequests";
 import UsersManagement from "../pages/admin/UsersManagement";
 import SystemConfig from "../pages/admin/SystemConfig";
-import AdminDashboard from "../pages/admin/Dashboard";
 import ProtectedRoute from "../components/ProtectedRoute";
 import ScrollToTop from "../components/ScrollToTop";
 
@@ -122,7 +121,7 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           }
         >
-          <Route index element={<AdminDashboard />} />
+          <Route index element={<DefensePeriodsManagement />} />
           <Route
             path="academic-data"
             element={<AcademicDataManagementPage />}
