@@ -3446,7 +3446,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
             try
             {
-                return JsonSerializer.Deserialize<MinuteExtendedData>(jsonPart) ?? new MinuteExtendedData();
+                return JsonSerializer.Deserialize<MinuteExtendedData>(jsonPart, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new MinuteExtendedData();
             }
             catch
             {

@@ -15,6 +15,10 @@ import {
   Smile,
   X,
   Eye,
+  ThumbsUp,
+  Heart,
+  Frown,
+  Zap,
 } from "lucide-react";
 import "./ChatWidget.css";
 import { getAvatarUrl, normalizeUrl } from "../../api/fetchData";
@@ -29,6 +33,26 @@ import type {
 } from "../../types/chat";
 
 type ChatWidgetTheme = "student" | "lecturer";
+
+// Helper function to get reaction icon component
+const getReactionIconComponent = (iconName: string): React.ReactNode => {
+  switch (iconName) {
+    case "thumbs-up":
+      return <ThumbsUp size={14} />;
+    case "heart":
+      return <Heart size={14} />;
+    case "smile":
+      return <Smile size={14} />;
+    case "eye":
+      return <Eye size={14} />;
+    case "frown":
+      return <Frown size={14} />;
+    case "zap":
+      return <Zap size={14} />;
+    default:
+      return <Smile size={14} />;
+  }
+};
 
 interface ChatWidgetProps {
   theme: ChatWidgetTheme;
@@ -1437,9 +1461,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                             }
                           >
                             {myReaction ? (
-                              String(
+                              getReactionIconComponent(
                                 reactionIconMap[myReaction.reactionType] ||
-                                  "🙂",
+                                  "smile",
                               )
                             ) : (
                               <Smile size={14} />
@@ -1499,7 +1523,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                                         }}
                                         title={`Reaction ${reactionType}`}
                                       >
-                                        {String(icon)}
+                                        {getReactionIconComponent(icon)}
                                       </button>
                                     );
                                   },
@@ -1514,8 +1538,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                           <div className="chat-reaction-group">
                             {reactionGroups.length > 0 &&
                               reactionGroups.map((group) => {
-                                const reactionIcon =
-                                  reactionIconMap[group.reactionType] || "🙂";
+                                const reactionIconName =
+                                  reactionIconMap[group.reactionType] || "smile";
                                 const hoverKey = `${conversation.conversationID}:${message.messageID}:${group.reactionType}`;
                                 const hovered = hoveredReactionKey === hoverKey;
 
@@ -1535,7 +1559,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                                       className="chat-reaction-count-chip"
                                       style={{ color: palette.titleColor }}
                                     >
-                                      <span>{String(reactionIcon)}</span>
+                                      <span>{getReactionIconComponent(reactionIconName)}</span>
                                       <span style={{ fontWeight: 600 }}>
                                         {group.count}
                                       </span>
@@ -1569,7 +1593,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                                             marginBottom: 6,
                                           }}
                                         >
-                                          {String(reactionIcon)} {group.count}{" "}
+                                          {getReactionIconComponent(reactionIconName)} {group.count}{" "}
                                           người
                                         </div>
                                         <div
@@ -1875,7 +1899,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                       color: palette.titleColor,
                     }}
                   >
-                    <span>{isImageFile(file) ? "🖼️" : "📎"}</span>
+                    {isImageFile(file) ? <Image size={14} /> : <Paperclip size={14} />}
                     <span
                       style={{
                         maxWidth: 140,

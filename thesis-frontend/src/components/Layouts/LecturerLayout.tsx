@@ -9,6 +9,8 @@ import {
   Clock,
   Menu,
   X,
+  Pin,
+  PinOff,
   KeyRound,
 } from "lucide-react";
 import { fetchData, getAvatarUrl } from "../../api/fetchData";
@@ -53,12 +55,28 @@ const LecturerLayout: React.FC = () => {
     };
   });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarPinned, setIsSidebarPinned] = useState(false);
   const sidebarWidth = isSidebarCollapsed ? 84 : 260;
   const collapseSidebarOnActivity = () => {
-    if (window.innerWidth > 768) {
+    if (window.innerWidth > 768 && !isSidebarPinned) {
       setIsSidebarCollapsed(true);
     }
   };
+
+  const handleNavigation = () => {
+    setIsMobileMenuOpen(false);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const pinned = localStorage.getItem("lecturerSidebarPinned");
+    setIsSidebarPinned(pinned === "true");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("lecturerSidebarPinned", String(isSidebarPinned));
+  }, [isSidebarPinned]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -445,6 +463,37 @@ const LecturerLayout: React.FC = () => {
             <X size={20} />
           </button>
 
+          {!isSidebarCollapsed && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarPinned((prev) => !prev);
+              }}
+              aria-label={isSidebarPinned ? "Bỏ ghim thanh nav" : "Ghim thanh nav"}
+              title={isSidebarPinned ? "Bỏ ghim thanh nav" : "Ghim thanh nav"}
+              style={{
+                position: "absolute",
+                top: "16px",
+                left: "16px",
+                width: 38,
+                height: 38,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 12,
+                border: "1px solid rgba(255, 255, 255, 0.3)",
+                background: "rgba(255, 255, 255, 0.08)",
+                color: "#FFFFFF",
+                boxShadow: "0 6px 16px rgba(0, 0, 0, 0.18)",
+                cursor: "pointer",
+                flexShrink: 0,
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              {isSidebarPinned ? <Pin size={18} /> : <PinOff size={18} />}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -532,7 +581,7 @@ const LecturerLayout: React.FC = () => {
         >
           <LecturerNav
             collapsed={isSidebarCollapsed}
-            onNavigate={() => setIsMobileMenuOpen(false)}
+            onNavigate={handleNavigation}
             showDefenseMenus={canViewDefenseMenus}
             showRevisionMenu={canViewRevisionMenu}
           />

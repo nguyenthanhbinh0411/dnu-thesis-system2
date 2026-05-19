@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  ClipboardList,
   Download,
   ExternalLink,
   Eye,
@@ -28,6 +29,7 @@ import {
   Grid,
   Hash,
   History,
+  Image,
   Info,
   LayoutDashboard,
   LineChart,
@@ -38,6 +40,7 @@ import {
   MessageSquare,
   Minimize2,
   MoreVertical,
+  Package,
   Paperclip,
   Pencil,
   PieChart,
@@ -292,8 +295,11 @@ type CommitteeSummary = {
   name: string;
   room: string;
   chair: string;
+  chairCode?: string;
   secretary: string;
+  secretaryCode?: string;
   reviewer: string;
+  reviewerCode?: string;
   totalTopics: number;
   scoredTopics: number;
   lockedTopics: number;
@@ -958,7 +964,7 @@ const normalizeCommitteeStatus = (value: string | null | undefined) => {
   if (normalized.includes("PUBLISHED") || normalized === "PUBLISHED") {
     return "PUBLISHED";
   }
-  if (normalized.includes("LOCKED") || normalized === "LOCKED") {
+  if (normalized.includes("LOCKED") || normalized === "LOCKED" || normalized.includes("CHOT")) {
     return "LOCKED";
   }
   if (normalized.includes("READY") || normalized === "READY") {
@@ -2445,9 +2451,12 @@ const CommitteeOperationsManagement: React.FC = () => {
         code: firstRow?.committeeCode ?? committeeCode,
         name: firstRow?.committeeName ?? fallbackName,
         room: firstRow?.room ?? pickText(analyticsRecord, ["room", "Room"], "-"),
-        chair: pickRowText(topicRows, ["chairName", "committeeChairName", "chair", "committeeChair", "committeeChairCode"], "") || pickText(analyticsRecord, ["chair", "chairName", "Chair", "chairman", "committeeChair", "committeeChairName"], "-"),
-        secretary: pickRowText(topicRows, ["secretaryName", "committeeSecretaryName", "secretary", "committeeSecretary", "committeeSecretaryCode"], "") || pickText(analyticsRecord, ["secretary", "secretaryName", "Secretary", "clerk", "committeeSecretary", "committeeSecretaryName"], "-"),
-        reviewer: pickRowText(topicRows, ["reviewerName", "committeeReviewerName", "reviewer", "committeeReviewer", "committeeReviewerCode"], "") || pickText(analyticsRecord, ["reviewer", "reviewerName", "Reviewer", "critic", "committeeReviewer", "committeeReviewerName"], "-"),
+        chair: pickRowText(topicRows, ["chairName", "committeeChairName", "chair", "committeeChair"], "") || pickText(analyticsRecord, ["chair", "chairName", "Chair", "chairman", "committeeChair", "committeeChairName"], "-"),
+        chairCode: pickRowText(topicRows, ["committeeChairCode"], "") || pickText(analyticsRecord, ["committeeChairCode", "chairCode"], ""),
+        secretary: pickRowText(topicRows, ["secretaryName", "committeeSecretaryName", "secretary", "committeeSecretary"], "") || pickText(analyticsRecord, ["secretary", "secretaryName", "Secretary", "clerk", "committeeSecretary", "committeeSecretaryName"], "-"),
+        secretaryCode: pickRowText(topicRows, ["committeeSecretaryCode"], "") || pickText(analyticsRecord, ["committeeSecretaryCode", "secretaryCode"], ""),
+        reviewer: pickRowText(topicRows, ["reviewerName", "committeeReviewerName", "reviewer", "committeeReviewer"], "") || pickText(analyticsRecord, ["reviewer", "reviewerName", "Reviewer", "critic", "committeeReviewer", "committeeReviewerName"], "-"),
+        reviewerCode: pickRowText(topicRows, ["committeeReviewerCode"], "") || pickText(analyticsRecord, ["committeeReviewerCode", "reviewerCode"], ""),
         totalTopics,
         scoredTopics,
         lockedTopics,
@@ -2472,6 +2481,38 @@ const CommitteeOperationsManagement: React.FC = () => {
       .map(([committeeCode, topicRows], index) => buildSummary(committeeCode, topicRows, index))
       .sort((left, right) => left.code.localeCompare(right.code));
   }, [analytics?.byCouncil, committeeStatusOverrides, scoringMatrix, scoresPublished]);
+
+  // 1. Đề tài đã đóng hội đồng không có đủ điểm
+  const topicsClosedNoScoreAlerts = useMemo(() => {
+    return scoringMatrix.filter((row) => {
+      const isClosed = row.isLocked === true || row.status === "LOCKED" || row.status === "FINALIZED" || row.status === "COMPLETED" || scoresPublished;
+      const isMissingScores = row.finalScore == null || Number(row.finalScore) <= 0 || 
+        (row.submittedCount != null && row.requiredCount != null && row.submittedCount < row.requiredCount);
+      return isClosed && isMissingScores;
+    });
+  }, [scoringMatrix, scoresPublished]);
+
+  // 2. Hội đồng quá hạn (hết ngày) chưa chốt điểm và đóng phiên hội đồng
+  const overdueCommitteesAlerts = useMemo(() => {
+    return committeeOperationalRows.filter((row) => {
+      const isNotClosed = row.status !== "LOCKED" && row.status !== "COMPLETED" && row.status !== "FINALIZED" && row.status !== "PUBLISHED" && !scoresPublished;
+      if (!isNotClosed) return false;
+      
+      const dateStr = row.defenseDate;
+      if (!dateStr || dateStr === "-") return false;
+      
+      const parts = dateStr.split("/");
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        const d = new Date(year, month, day);
+        d.setHours(23, 59, 59, 999);
+        return d.getTime() < Date.now();
+      }
+      return false;
+    });
+  }, [committeeOperationalRows, scoresPublished]);
 
   const dashboardMetrics = useMemo(() => {
     const totalTopics = pipeline?.totalTopics ?? scoringMatrix.length;
@@ -2542,10 +2583,14 @@ const CommitteeOperationsManagement: React.FC = () => {
       .sort((left, right) => String(left.topicCode ?? "").localeCompare(String(right.topicCode ?? "")));
   }, [scoringMatrix, selectedCommittee]);
 
-  const selectedCommitteeChair = selectedCommittee?.chair ?? "-";
   const selectedCommitteeSupervisor = useMemo(() => {
     const row = selectedCommitteeRows.find((row) => row.supervisorLecturerName || row.supervisorName);
     return row?.supervisorLecturerName ?? row?.supervisorName ?? "-";
+  }, [selectedCommitteeRows]);
+
+  const selectedCommitteeSupervisorCode = useMemo(() => {
+    const row = selectedCommitteeRows.find((row) => row.supervisorLecturerCode);
+    return row?.supervisorLecturerCode ?? "";
   }, [selectedCommitteeRows]);
 
   const selectedCommitteeFinalized = useMemo(() => {
@@ -2584,7 +2629,7 @@ const CommitteeOperationsManagement: React.FC = () => {
         case "warning":
           return row.delayLabel !== "On time" || row.scoredTopics < row.totalTopics;
         case "completed":
-          return row.progressPercent >= 100 || row.status === "COMPLETED" || row.status === "PUBLISHED";
+          return row.progressPercent >= 100 || ["COMPLETED", "PUBLISHED", "LOCKED", "FINALIZED"].includes(row.status);
         case "all":
         default:
           return true;
@@ -2594,6 +2639,22 @@ const CommitteeOperationsManagement: React.FC = () => {
 
   const keyAlerts = useMemo<DashboardAlert[]>(() => {
     const alertItems: DashboardAlert[] = [
+      ...topicsClosedNoScoreAlerts.map((row) => ({
+        severity: "critical" as DashboardAlertSeverity,
+        title: `Đóng hội đồng thiếu điểm: ${row.topicTitle ?? "-"}`,
+        detail: `Hội đồng ${row.committeeCode} · SV: ${row.studentName} (${row.studentCode}) · Nhập: ${row.submittedCount}/${row.requiredCount} cột điểm`,
+        committeeCode: row.committeeCode ?? "-",
+        focusKey: row.committeeCode ?? "-",
+        priority: 1,
+      })),
+      ...overdueCommitteesAlerts.map((row) => ({
+        severity: "critical" as DashboardAlertSeverity,
+        title: `Hội đồng quá hạn chưa đóng phiên: ${row.code}`,
+        detail: `Ngày bảo vệ: ${row.defenseDate} · Phòng: ${row.room} · Chưa khóa chốt điểm`,
+        committeeCode: row.code,
+        focusKey: row.code,
+        priority: 1,
+      })),
       ...scoringMatrix
         .filter((row) => row.finalScore == null || Number(row.finalScore) <= 0)
         .slice(0, 4)
@@ -2654,7 +2715,7 @@ const CommitteeOperationsManagement: React.FC = () => {
     return alertItems
       .sort((left, right) => left.priority - right.priority)
       .slice(0, 10);
-  }, [committeeOperationalRows, scoringMatrix, committeeStatusOverrides]);
+  }, [committeeOperationalRows, scoringMatrix, committeeStatusOverrides, topicsClosedNoScoreAlerts, overdueCommitteesAlerts]);
 
   const leaderboardEntries = useMemo(() => {
     if (!snapshot) return { highest: null, lowest: null, strictest: null, lenient: null, fastest: null, delayed: null };
@@ -3545,6 +3606,68 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
         </section>
       </div>
 
+      {/* 1.5. Critical Operational Warnings */}
+      {(overdueCommitteesAlerts.length > 0 || topicsClosedNoScoreAlerts.length > 0) && (
+        <div style={{
+          background: "linear-gradient(135deg, #fff1f2 0%, #fff5f5 100%)",
+          border: "1px solid #fecaca",
+          borderRadius: "24px",
+          padding: "24px",
+          boxShadow: "0 10px 25px -5px rgba(239, 68, 68, 0.05)",
+          display: "grid",
+          gap: 16
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <ShieldAlert size={22} color="#ef4444" />
+            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#991b1b" }}>Cảnh Báo Vận Hành Quan Trọng</h4>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
+            {/* Overdue Committees */}
+            {overdueCommitteesAlerts.length > 0 && (
+              <div style={{ background: "white", padding: 16, borderRadius: 18, border: "1px solid #fee2e2", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.02)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <AlertCircle size={16} color="#ef4444" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>Hội đồng quá hạn chưa đóng phiên ({overdueCommitteesAlerts.length})</span>
+                </div>
+                <div style={{ display: "grid", gap: 8, maxHeight: "200px", overflowY: "auto", paddingRight: 4 }}>
+                  {overdueCommitteesAlerts.map((row) => (
+                    <div key={row.key} style={{ fontSize: 13, padding: 12, borderRadius: 12, background: "#fef2f2", color: "#991b1b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <strong>{row.code}</strong> - {row.name}
+                        <div style={{ fontSize: 11, color: "#b91c1c", marginTop: 2 }}>Phòng: {row.room} • Ngày bảo vệ: {row.defenseDate}</div>
+                      </div>
+                      <span style={{ fontSize: 11, background: "#fecaca", padding: "2px 6px", borderRadius: 6, fontWeight: 700 }}>QUÁ HẠN</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Closed topics with missing scores */}
+            {topicsClosedNoScoreAlerts.length > 0 && (
+              <div style={{ background: "white", padding: 16, borderRadius: 18, border: "1px solid #fed7aa", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.02)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <AlertTriangle size={16} color="#ea580c" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#c2410c" }}>Đề tài đóng hội đồng thiếu điểm ({topicsClosedNoScoreAlerts.length})</span>
+                </div>
+                <div style={{ display: "grid", gap: 8, maxHeight: "200px", overflowY: "auto", paddingRight: 4 }}>
+                  {topicsClosedNoScoreAlerts.map((row) => (
+                    <div key={row.assignmentId} style={{ fontSize: 13, padding: 12, borderRadius: 12, background: "#fff7ed", color: "#c2410c" }}>
+                      <strong>{row.studentName}</strong> ({row.studentCode})
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#9a3412", marginTop: 2 }}>{row.topicTitle}</div>
+                      <div style={{ fontSize: 11, color: "#ea580c", marginTop: 2 }}>
+                        Hội đồng: {row.committeeCode} • Nhập: {row.submittedCount}/{row.requiredCount} cột điểm • Tổng: {row.finalScore ?? "Chưa có"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 2. Main Dashboard Layout */}
       <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 24 }}>
         {/* Left Column: Active Committees & Insights */}
@@ -3655,6 +3778,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               })}
             </div>
           </section>
+
         </div>
 
         {/* Right Column: Alerts & Global Progress */}
@@ -4457,16 +4581,19 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               {/* Members Grid */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                 {[
-                  { role: "Chủ tịch", name: selectedCommittee.chair, icon: <User size={16} /> },
-                  { role: "Thư ký", name: selectedCommittee.secretary, icon: <MessageSquare size={16} /> },
-                  { role: "Phản biện", name: selectedCommittee.reviewer, icon: <Activity size={16} /> },
-                  { role: "Hướng dẫn", name: selectedCommitteeSupervisor, icon: <Users size={16} /> },
+                  { role: "Chủ tịch", name: selectedCommittee.chair, code: selectedCommittee.chairCode, icon: <User size={16} /> },
+                  { role: "Thư ký", name: selectedCommittee.secretary, code: selectedCommittee.secretaryCode, icon: <MessageSquare size={16} /> },
+                  { role: "Phản biện", name: selectedCommittee.reviewer, code: selectedCommittee.reviewerCode, icon: <Activity size={16} /> },
+                  { role: "Hướng dẫn", name: selectedCommitteeSupervisor, code: selectedCommitteeSupervisorCode, icon: <Users size={16} /> },
                 ].map((member, i) => (
                   <div key={i} style={{ padding: 20, borderRadius: 20, background: "#f8fafc", border: "1px solid #f1f5f9" }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                       {member.icon} {member.role}
                     </div>
                     <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b" }}>{member.name || "Chưa phân công"}</div>
+                    {member.name && member.name !== "-" && member.code && (
+                      <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{member.code}</div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -4512,17 +4639,96 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                           }}>{row.isPassed ? "ĐẠT" : "TRƯỢT"}</span>
                         </td>
                         <td style={{ padding: "20px 16px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                            <button onClick={() => { 
-                              setSelectedMatrixRow(row); 
-                              hydrateMinutes(row.assignmentId as number, row.committeeId as number);
-                              setPreviewModalType("meeting"); 
-                            }} style={{ padding: "8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: DEEP_BLUE_PRIMARY }} title="Biên bản"><FileText size={18} /></button>
-                            <button onClick={() => { 
-                              setSelectedMatrixRow(row); 
-                              hydrateMinutes(row.assignmentId as number, row.committeeId as number);
-                              setPreviewModalType("reviewer"); 
-                            }} style={{ padding: "8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: "#f37021" }} title="Nhận xét"><Eye size={18} /></button>
+                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
+                            {/* Dropdown for documents */}
+                            <div style={{ position: "relative" }}>
+                              <button 
+                                onClick={(e) => { 
+                                  e.stopPropagation();
+                                  const rowId = `${row.studentCode}-${row.committeeCode}-op`;
+                                  setActiveRowActionId(activeRowActionId === rowId ? null : rowId);
+                                }}
+                                title="Tài liệu liên quan"
+                                style={{ 
+                                  padding: "8px", 
+                                  borderRadius: 10, 
+                                  border: "1px solid #e2e8f0", 
+                                  background: activeRowActionId === `${row.studentCode}-${row.committeeCode}-op` ? "#f1f5f9" : "white", 
+                                  cursor: "pointer", 
+                                  color: DEEP_BLUE_PRIMARY, 
+                                  display: "flex", 
+                                  alignItems: "center", 
+                                  justifyContent: "center",
+                                  transition: "all 0.2s"
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; }}
+                                onMouseLeave={(e) => { if (activeRowActionId !== `${row.studentCode}-${row.committeeCode}-op`) e.currentTarget.style.borderColor = "#e2e8f0"; }}
+                              >
+                                <Files size={18} />
+                              </button>
+
+                              {activeRowActionId === `${row.studentCode}-${row.committeeCode}-op` && (
+                                <div 
+                                  style={{ 
+                                    position: "absolute", 
+                                    right: 0, 
+                                    top: "calc(100% + 8px)", 
+                                    background: "white", 
+                                    borderRadius: 14, 
+                                    boxShadow: "0 10px 25px rgba(0,0,0,0.15)", 
+                                    border: "1px solid #f1f5f9",
+                                    minWidth: 180,
+                                    zIndex: 100,
+                                    padding: "6px",
+                                    animation: "fadeIn 0.2s ease"
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {[
+                                    { label: "Xem biên bản", icon: <FileText size={14} />, type: "meeting" },
+                                    { label: "Xem nhận xét", icon: <MessageSquare size={14} />, type: "reviewer" },
+                                  ].map((item) => (
+                                    <button
+                                      key={item.type}
+                                      onClick={() => {
+                                        setSelectedMatrixRow(row); 
+                                        hydrateMinutes(row.assignmentId as number, row.committeeId as number);
+                                        setPreviewModalType(item.type as any);
+                                        setActiveRowActionId(null);
+                                      }}
+                                      style={{
+                                        width: "100%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 10,
+                                        padding: "10px 12px",
+                                        borderRadius: 8,
+                                        border: "none",
+                                        background: "transparent",
+                                        cursor: "pointer",
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        color: "#334155",
+                                        textAlign: "left",
+                                        transition: "all 0.15s"
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = "#f1f5f9";
+                                        e.currentTarget.style.color = DEEP_BLUE_PRIMARY;
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = "transparent";
+                                        e.currentTarget.style.color = "#334155";
+                                      }}
+                                    >
+                                      {item.icon}
+                                      {item.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
                             <button onClick={() => { setSelectedTopic(row); setTopicDetailModalOpen(true); }} style={{ padding: "8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: "#64748b" }} title="Chi tiết"><Search size={18} /></button>
                           </div>
                         </td>
@@ -5048,101 +5254,128 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
             {/* Section: Documents */}
             <section>
               <h4 style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-                <Paperclip size={16} color={DEEP_BLUE_PRIMARY} /> Tài liệu & Báo cáo
+                <Paperclip size={16} color={DEEP_BLUE_PRIMARY} /> Tài liệu & Báo cáo ({(selectedTopic.defenseDocuments?.length || 0) + (selectedTopic.revisionFileUrl ? 1 : 0)})
               </h4>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                {/* Regular Defense Documents */}
-                {selectedTopic.defenseDocuments && selectedTopic.defenseDocuments.length > 0 && 
-                  selectedTopic.defenseDocuments.map((doc: any, i: number) => (
-                    <a 
-                      key={`def-${i}`}
-                      href={doc.url || doc.path || "#"} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      style={{ 
-                        padding: "16px", 
-                        borderRadius: 16, 
-                        background: "white", 
-                        border: "1px solid #e2e8f0", 
-                        display: "flex", 
-                        alignItems: "center", 
-                        gap: 12, 
-                        color: "#1e293b", 
-                        textDecoration: "none", 
-                        fontSize: 14, 
-                        fontWeight: 700,
-                        transition: "all 0.2s"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY;
-                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "#e2e8f0";
-                        e.currentTarget.style.boxShadow = "none";
-                      }}
-                    >
-                      <div style={{ background: "#f0f9ff", padding: 10, borderRadius: 10 }}>
-                        <FileText size={20} color={DEEP_BLUE_PRIMARY} />
-                      </div>
-                      <div style={{ overflow: "hidden" }}>
-                        <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{doc.name || `Tài liệu ${i + 1}`}</div>
-                        <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Tài liệu bảo vệ</div>
-                      </div>
-                    </a>
-                  ))
-                }
+              <div style={{ display: "grid", gap: 12 }}>
+                {/* Defense Documents */}
+                {selectedTopic.defenseDocuments && selectedTopic.defenseDocuments.length > 0 ? (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Tài liệu nộp</div>
+                    {selectedTopic.defenseDocuments.map((doc: any, i: number) => {
+                      const fileName = doc.fileName || doc.name || `Tài liệu ${i + 1}`;
+                      const fileExt = fileName.split('.').pop()?.toLowerCase() || "file";
+                      const getFileIcon = () => {
+                        if (["pdf"].includes(fileExt)) return <FileText size={16} />;
+                        if (["doc", "docx"].includes(fileExt)) return <FileText size={16} />;
+                        if (["xls", "xlsx", "csv"].includes(fileExt)) return <BarChart3 size={16} />;
+                        if (["zip", "rar", "7z"].includes(fileExt)) return <Package size={16} />;
+                        if (["jpg", "jpeg", "png", "gif"].includes(fileExt)) return <Image size={16} />;
+                        return <Paperclip size={16} />;
+                      };
+                      return (
+                        <a
+                          key={`doc-${i}`}
+                          href={doc.fileUrl || doc.url || doc.path || "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            padding: "12px 14px",
+                            borderRadius: 12,
+                            background: "white",
+                            border: "1px solid #e2e8f0",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            color: "#1e293b",
+                            textDecoration: "none",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            transition: "all 0.2s"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY;
+                            e.currentTarget.style.background = "#f0f9ff";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = "#e2e8f0";
+                            e.currentTarget.style.background = "white";
+                          }}
+                        >
+                          <div style={{ minWidth: 20, display: "flex", alignItems: "center" }}>{getFileIcon()}</div>
+                          <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+                            <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 13, fontWeight: 700 }}>
+                              {fileName}
+                            </div>
+                            {doc.uploadedAt && (
+                              <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>
+                                Nộp: {new Date(doc.uploadedAt).toLocaleDateString("vi-VN")}
+                              </div>
+                            )}
+                          </div>
+                          <ExternalLink size={14} color={DEEP_BLUE_PRIMARY} style={{ flexShrink: 0 }} />
+                        </a>
+                      );
+                    })}
+                  </div>
+                ) : null}
 
                 {/* Post-Defense New Report */}
                 {selectedTopic.revisionFileUrl && (
-                  <a 
-                    href={selectedTopic.revisionFileUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    style={{ 
-                      padding: "16px", 
-                      borderRadius: 16, 
-                      background: "#fffbeb", 
-                      border: "1px solid #fcd34d", 
-                      display: "flex", 
-                      alignItems: "center", 
-                      gap: 12, 
-                      color: "#92400e", 
-                      textDecoration: "none", 
-                      fontSize: 14, 
-                      fontWeight: 800,
-                      transition: "all 0.2s"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "#fef3c7";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(245, 158, 11, 0.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "#fffbeb";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
-                  >
-                    <div style={{ background: "#fef3c7", padding: 10, borderRadius: 10 }}>
-                      <FileSpreadsheet size={20} color="#f59e0b" />
-                    </div>
-                    <div style={{ overflow: "hidden" }}>
-                      <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Báo cáo Hậu bảo vệ mới</div>
-                      <div style={{ fontSize: 11, color: "#b45309", fontWeight: 700 }}>Nhấn để tải về</div>
-                    </div>
-                  </a>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {selectedTopic.defenseDocuments && selectedTopic.defenseDocuments.length > 0 && (
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginTop: 8, paddingTop: 8, borderTop: "1px solid #e2e8f0" }}>
+                        Báo cáo hậu bảo vệ
+                      </div>
+                    )}
+                    <a
+                      href={selectedTopic.revisionFileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: "12px 14px",
+                        borderRadius: 12,
+                        background: "#fffbeb",
+                        border: "1px solid #fcd34d",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        color: "#92400e",
+                        textDecoration: "none",
+                        fontSize: 13,
+                        fontWeight: 800,
+                        transition: "all 0.2s"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "#fef3c7";
+                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(245, 158, 11, 0.1)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "#fffbeb";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    >
+                      <ClipboardList size={16} color="#f59e0b" style={{ flexShrink: 0 }} />
+                      <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+                        <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          Báo cáo Hậu bảo vệ mới
+                        </div>
+                        <div style={{ fontSize: 11, color: "#b45309", fontWeight: 700 }}>Nhấn để tải về</div>
+                      </div>
+                      <ExternalLink size={14} color="#f59e0b" style={{ flexShrink: 0 }} />
+                    </a>
+                  </div>
                 )}
 
                 {(!selectedTopic.defenseDocuments || selectedTopic.defenseDocuments.length === 0) && !selectedTopic.revisionFileUrl && (
-                  <div style={{ gridColumn: "span 2", padding: "40px 20px", borderRadius: 20, background: "#f8fafc", border: "1px dashed #e2e8f0", color: "#94a3b8", textAlign: "center" }}>
-                    <div style={{ marginBottom: 12 }}>
-                      <FileText size={48} style={{ opacity: 0.2, margin: "0 auto" }} />
-                    </div>
+                  <div style={{ padding: "32px 20px", borderRadius: 16, background: "#f8fafc", border: "1px dashed #e2e8f0", color: "#94a3b8", textAlign: "center" }}>
+                    <FileText size={40} style={{ opacity: 0.2, margin: "0 auto 12px" }} />
                     <div style={{ fontSize: 14, fontWeight: 700 }}>Chưa có tài liệu nào được nộp</div>
-                    <div style={{ fontSize: 12, marginTop: 4 }}>Các báo cáo bảo vệ và hậu bảo vệ sẽ xuất hiện tại đây</div>
+                    <div style={{ fontSize: 12, marginTop: 6, color: "#cbd5e1" }}>Các báo cáo bảo vệ và hậu bảo vệ sẽ xuất hiện tại đây</div>
                   </div>
                 )}
               </div>
             </section>
+
           </div>
 
           <aside style={{ display: "grid", gap: 40 }}>

@@ -549,12 +549,6 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
   return (
     <div style={{ position: "relative" }} ref={containerRef}>
       <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>{label}</label>
-      <div 
-        onClick={() => onToggle(!isOpen)}
-        style={{ 
-          display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", 
-          background: "white", border: "1px solid #cbd5e1", borderRadius: "10px", 
-          cursor: "pointer", fontWeight: "600", transition: "all 0.2s" 
       <div
         onClick={() => onToggle(!isOpen)}
         style={{
@@ -568,10 +562,6 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
       </div>
 
       {isOpen && (
-        <div 
-          style={{ 
-            position: "absolute", bottom: "calc(100% + 8px)", left: 0, width: "300px", 
-            background: "white", borderRadius: "16px", boxShadow: "0 10px 25px rgba(0,0,0,0.15)", 
         <div
           style={{
             position: "absolute", bottom: "calc(100% + 8px)", left: 0, width: "300px",
@@ -675,6 +665,11 @@ const DefensePeriodsManagement: React.FC = () => {
 
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; action: string; title: string; message: string; type: "info" | "warning" | "danger" } | null>(null);
   const [periodModal, setPeriodModal] = useState<{ isOpen: boolean; mode: "create" | "edit" | "clone"; row?: DefensePeriod } | null>(null);
+  const [ineligibleModal, setIneligibleModal] = useState<{
+    isOpen: boolean;
+    currentStatus: DefenseTermStatus;
+    errors: { studentName: string; studentCode: string; supervisorName: string; topicTitle: string; reason: string }[];
+  } | null>(null);
   const studentSectionRef = useRef<DefenseTermStudentsSectionHandle>(null);
   const lecturerSectionRef = useRef<DefenseTermLecturersSectionHandle>(null);
 
@@ -785,6 +780,85 @@ const DefensePeriodsManagement: React.FC = () => {
     if (selectedId) loadSnapshots();
   }, [selectedId, loadSnapshots]);
 
+  const validatePhaseTransition = useCallback((currentStatus: DefenseTermStatus): { studentName: string; studentCode: string; supervisorName: string; topicTitle: string; reason: string }[] => {
+    const errors: { studentName: string; studentCode: string; supervisorName: string; topicTitle: string; reason: string }[] = [];
+    const matrix = snapshot?.scoringMatrix ?? [];
+
+    if (currentStatus === "Registration") {
+      matrix.forEach((row: any) => {
+        const tStatus = String(row.status ?? "").toLowerCase();
+        if (tStatus === "draft" || tStatus === "pending" || tStatus === "requested" || tStatus === "reviewing") {
+          errors.push({
+            studentName: row.studentName ?? "Sinh viên chưa rõ",
+            studentCode: row.studentCode ?? "-",
+            supervisorName: row.supervisorLecturerName ?? row.supervisorName ?? "Chưa gán",
+            topicTitle: row.topicTitle ?? "Đề tài chưa được duyệt tên",
+            reason: `Đề tài ở trạng thái "${row.status ?? "Nháp/Chờ duyệt"}" chưa được duyệt.`,
+          });
+        }
+      });
+    } else if (currentStatus === "Assignment") {
+      matrix.forEach((row: any) => {
+        const svName = row.supervisorLecturerName ?? row.supervisorName;
+        if (!svName || svName === "-" || svName.trim() === "") {
+          errors.push({
+            studentName: row.studentName ?? "Sinh viên chưa rõ",
+            studentCode: row.studentCode ?? "-",
+            supervisorName: "Chưa gán",
+            topicTitle: row.topicTitle ?? "Đề tài chưa gán",
+            reason: "Chưa gán Giảng viên hướng dẫn.",
+          });
+        }
+      });
+    } else if (currentStatus === "ProgressTracking") {
+      matrix.forEach((row: any) => {
+        const submitted = Number(row.submittedCount ?? 0);
+        const required = Number(row.requiredCount ?? 0);
+        if (required > 0 && submitted < required) {
+          errors.push({
+            studentName: row.studentName ?? "Sinh viên chưa rõ",
+            studentCode: row.studentCode ?? "-",
+            supervisorName: row.supervisorLecturerName ?? row.supervisorName ?? "Chưa gán",
+            topicTitle: row.topicTitle ?? "Đề tài chưa nộp báo cáo",
+            reason: `Chưa nộp đủ báo cáo tiến độ (${submitted}/${required}).`,
+          });
+        }
+      });
+    } else if (currentStatus === "CommitteePreparation") {
+      matrix.forEach((row: any) => {
+        const commCode = row.committeeCode;
+        if (!commCode || commCode === "-" || commCode.trim() === "") {
+          errors.push({
+            studentName: row.studentName ?? "Sinh viên chưa rõ",
+            studentCode: row.studentCode ?? "-",
+            supervisorName: row.supervisorLecturerName ?? row.supervisorName ?? "Chưa gán",
+            topicTitle: row.topicTitle ?? "Đề tài chưa xếp hội đồng",
+            reason: "Chưa được gán vào Hội đồng bảo vệ.",
+          });
+        }
+      });
+    } else if (currentStatus === "Running") {
+      matrix.forEach((row: any) => {
+        if (!row.isLocked) {
+          errors.push({
+            studentName: row.studentName ?? "Sinh viên chưa rõ",
+            studentCode: row.studentCode ?? "-",
+            supervisorName: row.supervisorLecturerName ?? row.supervisorName ?? "Chưa gán",
+            topicTitle: row.topicTitle ?? "Hội đồng chưa chốt điểm",
+            reason: "Hội đồng chưa khóa điểm bảo vệ.",
+          });
+        }
+      });
+    }
+
+    return errors;
+  }, [snapshot]);
+
+  const currentTransitionErrors = useMemo(() => {
+    const currentStatus = selectedRow?.status || "Draft";
+    return validatePhaseTransition(currentStatus);
+  }, [selectedRow?.status, validatePhaseTransition]);
+
   useEffect(() => {
     if (!loading) {
       setLoadingProgress(100);
@@ -806,7 +880,7 @@ const DefensePeriodsManagement: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [loading]);
 
-  const handleAction = async (action: string) => {
+  const handleAction = async (action: string, bypassValidation = false) => {
     if (!selectedId) return;
 
     const currentStatus = selectedRow?.status || "Draft";
@@ -814,6 +888,19 @@ const DefensePeriodsManagement: React.FC = () => {
 
     // Business Logic Validations
     if (action === "NEXT") {
+      if (!bypassValidation) {
+        const transitionErrors = validatePhaseTransition(currentStatus);
+        if (transitionErrors.length > 0) {
+          setIneligibleModal({
+            isOpen: true,
+            currentStatus,
+            errors: transitionErrors
+          });
+          addToast(`Có ${transitionErrors.length} đề tài chưa đủ điều kiện chuyển giai đoạn. Vui lòng kiểm tra chi tiết trước khi quyết định bỏ qua.`, "warning");
+          return;
+        }
+      }
+
       if (currentStatus === "Draft") {
         // Validation: Ensure at least some milestones have deadlines set
         const hasDeadlines = milestones.some(m => m.deadline);
@@ -1122,6 +1209,53 @@ const DefensePeriodsManagement: React.FC = () => {
     return (
       <div style={{ display: "grid", gap: "24px" }}>
         {renderTimeline()}
+
+        {currentTransitionErrors.length > 0 && (
+          <div style={{
+            background: "linear-gradient(135deg, #fff7ed 0%, #fffbeb 100%)",
+            border: "1px solid #fed7aa",
+            borderRadius: "16px",
+            padding: "16px 20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "16px",
+            boxShadow: "0 4px 6px -1px rgba(245, 158, 11, 0.05)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div style={{ background: "#fef3c7", padding: "8px", borderRadius: "10px", color: "#d97706", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "800", color: "#b45309" }}>Cảnh báo điều kiện chuyển giai đoạn</div>
+                <div style={{ fontSize: "12px", color: "#d97706", marginTop: "2px" }}>
+                  Đợt hiện tại có <strong>{currentTransitionErrors.length} đề tài</strong> chưa đủ điều kiện chuyển sang giai đoạn tiếp theo ({getNextActionLabel(selectedRow?.status)}).
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setIneligibleModal({
+                isOpen: true,
+                currentStatus: selectedRow?.status || "Draft",
+                errors: currentTransitionErrors
+              })}
+              style={{
+                background: "#d97706",
+                color: "white",
+                border: "none",
+                borderRadius: "10px",
+                padding: "8px 16px",
+                fontWeight: "700",
+                fontSize: "12px",
+                cursor: "pointer",
+                boxShadow: "0 2px 4px rgba(217, 119, 6, 0.2)",
+                transition: "all 0.2s"
+              }}
+            >
+              Xem chi tiết đề tài
+            </button>
+          </div>
+        )}
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "16px" }}>
           {[
@@ -1459,138 +1593,6 @@ const DefensePeriodsManagement: React.FC = () => {
                       label="Hạn nộp bài cuối cùng"
                       value={m.deadline}
                       onChange={(val) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? { ...x, deadline: val } : x))}
-                      isOpen={activeMilestonePickerId === m.milestoneTemplateID}
-                      onToggle={(open) => setActiveMilestonePickerId(open ? m.milestoneTemplateID : null)}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderMilestones = () => {
-    if (milestonesLoading) {
-      return (
-        <div style={{ display: "flex", justifyContent: "center", padding: "100px" }}>
-          <div style={{ width: "40px", height: "40px", border: `4px solid ${LIGHT_BLUE_SOFTEN}`, borderTop: `4px solid ${DEEP_BLUE_PRIMARY}`, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-        </div>
-      );
-    }
-
-    return (
-      <div style={{ display: "grid", gap: "24px" }}>
-        <div style={{ 
-          background: "linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)", 
-          padding: "24px", borderRadius: "20px", border: "1px solid #e2e8f0",
-          display: "flex", justifyContent: "space-between", alignItems: "center"
-        }}>
-          <div>
-            <div style={{ fontSize: "12px", fontWeight: "800", color: DEEP_BLUE_PRIMARY, textTransform: "uppercase", letterSpacing: "0.05em" }}>Cấu hình tiến độ</div>
-            <h3 style={{ margin: "4px 0 0 0", fontSize: "20px", fontWeight: "900", color: "#0f172a" }}>Thiết lập lộ trình nộp bài</h3>
-            <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "14px" }}>Xác định các mốc thời gian quan trọng sinh viên cần hoàn thành trong đợt.</p>
-          </div>
-          <button 
-            onClick={handleSaveMilestones}
-            disabled={milestonesSaving}
-            style={{ 
-              background: DEEP_BLUE_PRIMARY, color: "white", border: "none", padding: "12px 24px", 
-              borderRadius: "12px", fontWeight: "700", cursor: "pointer", display: "flex", 
-              alignItems: "center", gap: "10px", boxShadow: "0 4px 12px rgba(30, 58, 95, 0.2)" 
-            }}
-          >
-            {milestonesSaving ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
-            <span>Lưu thay đổi lộ trình</span>
-          </button>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "24px", alignItems: "start" }}>
-          {/* Summary Sidebar */}
-          <div style={{ background: "#fff", padding: "24px", borderRadius: "20px", border: "1px solid #e2e8f0", position: "sticky", top: "100px" }}>
-            <h4 style={{ margin: "0 0 20px 0", fontSize: "16px", fontWeight: "800", color: DEEP_BLUE_PRIMARY }}>Tóm tắt lộ trình</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-              {milestones.map((m, idx) => (
-                <React.Fragment key={m.milestoneTemplateID}>
-                  <div style={{ display: "flex", gap: "16px", alignItems: "center", padding: "12px 0" }}>
-                    <div style={{ 
-                      width: "32px", height: "32px", background: m.ordinal === 4 ? "#fff7ed" : "#f1f5f9", 
-                      color: m.ordinal === 4 ? "#f97316" : DEEP_BLUE_PRIMARY, 
-                      borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", 
-                      fontWeight: "800", fontSize: "14px", flexShrink: 0, border: `1px solid ${m.ordinal === 4 ? "#ffedd5" : "#e2e8f0"}`
-                    }}>
-                      {m.ordinal}
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: "14px", fontWeight: "700", color: "#334155", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
-                      <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>{m.deadline ? new Date(m.deadline).toLocaleDateString('vi-VN') : '---'}</div>
-                    </div>
-                  </div>
-                  {idx < milestones.length - 1 && (
-                    <div style={{ width: "2px", height: "20px", background: "#e2e8f0", marginLeft: "15px" }}></div>
-                  )}
-                </React.Fragment>
-              ))}
-            </div>
-            <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: "8px", color: "#94a3b8", fontSize: "12px", fontWeight: "600" }}>
-              <Info size={14} />
-              <span>Quy trình gồm 4 giai đoạn</span>
-            </div>
-          </div>
-
-          {/* Main Content: Timeline Editor */}
-          <div style={{ display: "grid", gap: "32px" }}>
-            {milestones.map((m, idx) => (
-              <div key={m.milestoneTemplateID} style={{ display: "flex", gap: "24px" }}>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "48px" }}>
-                  <div style={{ 
-                    width: "48px", height: "48px", background: "white", 
-                    border: `3px solid ${m.ordinal === 4 ? "#F37021" : DEEP_BLUE_PRIMARY}`, 
-                    color: m.ordinal === 4 ? "#F37021" : DEEP_BLUE_PRIMARY, 
-                    borderRadius: "50%", display: "flex", alignItems: "center", 
-                    justifyContent: "center", zIndex: 2, boxShadow: `0 0 0 6px ${m.ordinal === 4 ? "#fff7ed" : "#f0f7ff"}`
-                  }}>
-                    {m.ordinal === 1 ? <Target size={20}/> : m.ordinal === 4 ? <Flag size={20}/> : <BookOpen size={20}/>}
-                  </div>
-                  {idx < milestones.length - 1 && (
-                    <div style={{ width: "3px", flex: 1, background: "#e2e8f0", margin: "10px 0", borderRadius: "10px" }}></div>
-                  )}
-                </div>
-                
-                <div style={{ 
-                  flex: 1, background: "white", borderRadius: "24px", padding: "24px", 
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.02)", border: "1px solid #e2e8f0" 
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                    <span style={{ fontSize: "12px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1px" }}>Giai đoạn {m.ordinal}</span>
-                    <div style={{ fontFamily: "monospace", fontSize: "11px", color: "#94a3b8", background: "#f8fafc", padding: "4px 10px", borderRadius: "8px", border: "1px solid #f1f5f9" }}>{m.milestoneTemplateCode}</div>
-                  </div>
-                  
-                  <div style={{ display: "grid", gap: "20px" }}>
-                    <div>
-                      <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>Tên giai đoạn</label>
-                      <input 
-                        type="text" 
-                        value={m.name} 
-                        onChange={(e) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? {...x, name: e.target.value} : x))} 
-                        style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: "10px", fontSize: "14px", color: "#1e293b", outline: "none" }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>Mô tả yêu cầu</label>
-                      <textarea 
-                        rows={2} 
-                        value={m.description || ""} 
-                        onChange={(e) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? {...x, description: e.target.value} : x))} 
-                        style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: "10px", fontSize: "14px", color: "#1e293b", outline: "none", resize: "none" }}
-                      />
-                    </div>
-                    <CustomDatePicker 
-                      label="Hạn nộp bài cuối cùng" 
-                      value={m.deadline} 
-                      onChange={(val) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? {...x, deadline: val} : x))} 
                       isOpen={activeMilestonePickerId === m.milestoneTemplateID}
                       onToggle={(open) => setActiveMilestonePickerId(open ? m.milestoneTemplateID : null)}
                     />
@@ -1943,12 +1945,115 @@ const DefensePeriodsManagement: React.FC = () => {
 
   if (rows.length === 0) {
     return (
-      <div style={{ padding: "32px", background: "#f8fafc", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-        <div style={{ marginBottom: "32px" }}>
-          <h1 style={{ margin: 0, fontSize: "28px", fontWeight: "900", color: "#0f172a", letterSpacing: "-0.02em" }}>Quản lý đợt đồ án tốt nghiệp</h1>
-          <p style={{ margin: "8px 0 0 0", color: "#64748b", fontSize: "14px" }}>Điều hành vòng đời, theo dõi tiến độ và quản lý thành viên đợt đồ án tốt nghiệp.</p>
+      <div style={{
+        minHeight: "100vh",
+        background: "#f8fafc",
+        color: "#1e293b",
+        fontFamily: "'Be Vietnam Pro', sans-serif",
+        padding: "0 0 40px 0"
+      }}>
+        <div style={{
+          background: DEEP_BLUE_PRIMARY,
+          padding: "40px 32px 80px 32px",
+          position: "relative",
+          overflow: "hidden"
+        }}>
+          {/* Background Accents */}
+          <div style={{
+            position: "absolute",
+            top: "-50%",
+            right: "-10%",
+            width: "600px",
+            height: "600px",
+            background: "radial-gradient(circle, rgba(243, 112, 33, 0.1) 0%, transparent 70%)",
+            filter: "blur(60px)"
+          }} />
+
+          <div style={{
+            maxWidth: 1600,
+            margin: "0 auto",
+            position: "relative",
+            zIndex: 2,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            gap: 24,
+            flexWrap: "wrap"
+          }}>
+            <div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 16,
+                animation: "fadeIn 0.5s ease"
+              }}>
+                <div style={{
+                  background: "rgba(255, 255, 255, 0.15)",
+                  backdropFilter: "blur(8px)",
+                  padding: "8px 16px",
+                  borderRadius: 99,
+                  color: "white",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  border: "1px solid rgba(255, 255, 255, 0.2)"
+                }}>
+                  FIT DNU
+                </div>
+                <div style={{
+                  height: 4,
+                  width: 4,
+                  borderRadius: "50%",
+                  background: "rgba(255, 255, 255, 0.3)"
+                }} />
+                <div style={{
+                  color: "rgba(255, 255, 255, 0.7)",
+                  fontSize: 12,
+                  fontWeight: 500
+                }}>
+                  Quản trị đợt đồ án
+                </div>
+              </div>
+
+              <h1 style={{
+                fontSize: 42,
+                fontWeight: 900,
+                color: "white",
+                margin: 0,
+                letterSpacing: "-0.03em",
+                lineHeight: 1.1,
+                animation: "slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1)"
+              }}>
+                Quản lý <span style={{ color: "#f37021" }}>Đợt đồ án tốt nghiệp</span>
+              </h1>
+              
+              <p style={{
+                fontSize: 16,
+                color: "rgba(255, 255, 255, 0.7)",
+                marginTop: 12,
+                maxWidth: 700,
+                fontWeight: 500,
+                animation: "fadeIn 0.8s ease",
+                lineHeight: 1.5
+              }}>
+                Điều hành vòng đời, cấu hình lộ trình thời gian và quản lý thành viên đợt đồ án tốt nghiệp.
+              </p>
+            </div>
+          </div>
         </div>
-        {renderEmptyState()}
+
+        <div style={{
+          maxWidth: 1600,
+          margin: "-48px auto 0 auto",
+          padding: "0 32px",
+          position: "relative",
+          zIndex: 10
+        }}>
+          {renderEmptyState()}
+        </div>
+
         <DefensePeriodModal
           isOpen={!!periodModal}
           onClose={() => setPeriodModal(null)}
@@ -1961,124 +2066,268 @@ const DefensePeriodsManagement: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: "32px", background: "#f8fafc", minHeight: "100vh" }}>
+    <div style={{
+      minHeight: "100vh",
+      background: "#f8fafc",
+      color: "#1e293b",
+      fontFamily: "'Be Vietnam Pro', sans-serif",
+      padding: "0 0 40px 0"
+    }}>
       {/* Header Section */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "32px" }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <h1 style={{ margin: 0, fontSize: "28px", fontWeight: "900", color: "#0f172a", letterSpacing: "-0.02em" }}>Quản lý đợt đồ án tốt nghiệp</h1>
-            {selectedRow && (
+      <div style={{
+        background: DEEP_BLUE_PRIMARY,
+        padding: "40px 32px 80px 32px",
+        position: "relative",
+        overflow: "hidden"
+      }}>
+        {/* Background Accents */}
+        <div style={{
+          position: "absolute",
+          top: "-50%",
+          right: "-10%",
+          width: "600px",
+          height: "600px",
+          background: "radial-gradient(circle, rgba(243, 112, 33, 0.1) 0%, transparent 70%)",
+          filter: "blur(60px)"
+        }} />
+
+        <div style={{
+          maxWidth: 1600,
+          margin: "0 auto",
+          position: "relative",
+          zIndex: 2,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          gap: 24,
+          flexWrap: "wrap"
+        }}>
+          <div>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginBottom: 16,
+              animation: "fadeIn 0.5s ease"
+            }}>
               <div style={{
-                padding: "4px 12px", borderRadius: "20px", background: "#fff", border: "1px solid #cbd5e1",
-                fontSize: "13px", fontWeight: "700", color: "#1e293b", display: "flex", alignItems: "center", gap: "6px"
+                background: "rgba(255, 255, 255, 0.15)",
+                backdropFilter: "blur(8px)",
+                padding: "8px 16px",
+                borderRadius: 99,
+                color: "white",
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: "0.05em",
+                textTransform: "uppercase",
+                border: "1px solid rgba(255, 255, 255, 0.2)"
               }}>
-                <CalendarIcon size={14} color={DEEP_BLUE_PRIMARY} /> {selectedRow.academicYear || "--"} - {selectedRow.semester || "--"}
+                FIT DNU
               </div>
-            )}
+              <div style={{
+                height: 4,
+                width: 4,
+                borderRadius: "50%",
+                background: "rgba(255, 255, 255, 0.3)"
+              }} />
+              <div style={{
+                color: "rgba(255, 255, 255, 0.7)",
+                fontSize: 12,
+                fontWeight: 500
+              }}>
+                Quản trị đợt đồ án
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+              <h1 style={{
+                fontSize: 42,
+                fontWeight: 900,
+                color: "white",
+                margin: 0,
+                letterSpacing: "-0.03em",
+                lineHeight: 1.1,
+                animation: "slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1)"
+              }}>
+                Quản lý <span style={{ color: "#f37021" }}>Đợt đồ án tốt nghiệp</span>
+              </h1>
+              {selectedRow && (
+                <div style={{
+                  padding: "6px 16px",
+                  borderRadius: "99px",
+                  background: "rgba(255, 255, 255, 0.1)",
+                  backdropFilter: "blur(4px)",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                  fontSize: "13px",
+                  fontWeight: "700",
+                  color: "white",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  marginTop: 4,
+                  animation: "fadeIn 0.7s ease"
+                }}>
+                  <CalendarIcon size={14} color="#f37021" /> {selectedRow.academicYear || "--"} - {selectedRow.semester || "--"}
+                </div>
+              )}
+            </div>
+            
+            <p style={{
+              fontSize: 16,
+              color: "rgba(255, 255, 255, 0.7)",
+              marginTop: 12,
+              maxWidth: 700,
+              fontWeight: 500,
+              animation: "fadeIn 0.8s ease",
+              lineHeight: 1.5
+            }}>
+              {selectedRow ? `Điều hành: ${selectedRow.name}` : "Điều hành vòng đời, theo dõi tiến độ và quản lý thành viên đợt đồ án tốt nghiệp."}
+            </p>
           </div>
-          <p style={{ margin: "8px 0 0 0", color: "#64748b", fontSize: "14px" }}>
-            {selectedRow ? `Điều hành: ${selectedRow.name}` : "Điều hành vòng đời, theo dõi tiến độ và quản lý thành viên đợt đồ án tốt nghiệp."}
-          </p>
-        </div>
 
-        <div style={{ display: "flex", gap: "12px" }}>
-
-          <select
-            value={selectedId || ""}
-            onChange={(e) => setSelectedId(Number(e.target.value))}
-            style={{
-              padding: "10px 16px", borderRadius: "12px", border: "1px solid #cbd5e1", background: "#fff",
-              fontWeight: "700", fontSize: "14px", color: DEEP_BLUE_PRIMARY, boxShadow: "0 1px 2px rgba(0,0,0,0.05)", outline: "none"
-            }}
-          >
-            {rows.map(r => (
-              <option key={r.defenseTermId} value={r.defenseTermId}>
-                {r.name} ({getStatusPresentation(r.status).label})
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => setPeriodModal({ isOpen: true, mode: "create" })}
-            style={{
-              padding: "10px 20px", borderRadius: "12px", background: DEEP_BLUE_PRIMARY, color: "#fff",
-              border: "none", fontWeight: "700", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
-              boxShadow: "0 4px 12px rgba(30, 58, 95, 0.25)"
-            }}
-          >
-            <Plus size={18} /> Tạo đợt mới
-          </button>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", animation: "fadeIn 0.8s ease" }}>
+            <select
+              value={selectedId || ""}
+              onChange={(e) => setSelectedId(Number(e.target.value))}
+              style={{
+                padding: "12px 20px",
+                borderRadius: "14px",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                background: "rgba(255, 255, 255, 0.1)",
+                backdropFilter: "blur(8px)",
+                fontWeight: "700",
+                fontSize: "14px",
+                color: "white",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                outline: "none",
+                cursor: "pointer",
+                transition: "all 0.2s"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)";
+                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)";
+                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)";
+              }}
+            >
+              {rows.map(r => (
+                <option key={r.defenseTermId} value={r.defenseTermId} style={{ color: "#0f172a" }}>
+                  {r.name} ({getStatusPresentation(r.status).label})
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => setPeriodModal({ isOpen: true, mode: "create" })}
+              style={{
+                padding: "12px 24px",
+                borderRadius: "14px",
+                background: "#f37021",
+                color: "#fff",
+                border: "none",
+                fontWeight: "700",
+                fontSize: "14px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                boxShadow: "0 4px 12px rgba(243, 112, 33, 0.3)",
+                transition: "all 0.2s"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow = "0 6px 16px rgba(243, 112, 33, 0.4)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 4px 12px rgba(243, 112, 33, 0.3)";
+              }}
+            >
+              <Plus size={18} /> Tạo đợt mới
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main Tabs Container */}
-      <div style={{ background: "#fff", borderRadius: "24px", border: "1px solid #e2e8f0", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" }}>
-        {/* Sticky Tab Bar */}
-        <div style={{ display: "flex", background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "0 24px", position: "sticky", top: 0, zIndex: 20, borderTopLeftRadius: "24px", borderTopRightRadius: "24px" }}>
-          {[
-            { id: "overview", label: "Tổng quan", icon: <LayoutDashboard size={18} /> },
-            { id: "management", label: "Cấu hình đợt", icon: <Settings size={18} /> },
-            { id: "milestones", label: "Lộ trình", icon: <Flag size={18} /> },
-            { id: "students", label: "Sinh viên", icon: <Users size={18} /> },
-            { id: "lecturers", label: "Giảng viên", icon: <UserCheck size={18} /> },
-            { id: "operations", label: "Điều hành", icon: <Zap size={18} /> },
-            { id: "statistics", label: "Thống kê", icon: <Activity size={18} /> },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as MainTab)}
-              style={{
-                padding: "20px 24px", background: "none", border: "none", borderBottom: `3px solid ${activeTab === tab.id ? DEEP_BLUE_PRIMARY : "transparent"}`,
-                color: activeTab === tab.id ? DEEP_BLUE_PRIMARY : "#64748b", fontWeight: activeTab === tab.id ? "800" : "600", fontSize: "14px",
-                cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", transition: "all 0.2s ease"
-              }}
-            >
-              {tab.icon} {tab.label}
-            </button>
-          ))}
-          <div style={{ flex: 1 }} />
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            {refreshing && <RefreshCw size={16} className="animate-spin" color="#94a3b8" />}
-            <button onClick={loadSnapshots} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: "8px" }}>
-              <RefreshCw size={18} />
-            </button>
+      {/* Main Content Card Wrapper */}
+      <div style={{
+        maxWidth: 1600,
+        margin: "-48px auto 0 auto",
+        padding: "0 32px",
+        position: "relative",
+        zIndex: 10
+      }}>
+        {/* Main Tabs Container */}
+        <div style={{ background: "#fff", borderRadius: "24px", border: "1px solid #e2e8f0", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" }}>
+          {/* Sticky Tab Bar */}
+          <div style={{ display: "flex", background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "0 24px", position: "sticky", top: 0, zIndex: 20, borderTopLeftRadius: "24px", borderTopRightRadius: "24px" }}>
+            {[
+              { id: "overview", label: "Tổng quan", icon: <LayoutDashboard size={18} /> },
+              { id: "management", label: "Cấu hình đợt", icon: <Settings size={18} /> },
+              { id: "milestones", label: "Lộ trình", icon: <Flag size={18} /> },
+              { id: "students", label: "Sinh viên", icon: <Users size={18} /> },
+              { id: "lecturers", label: "Giảng viên", icon: <UserCheck size={18} /> },
+              { id: "operations", label: "Điều hành", icon: <Zap size={18} /> },
+              { id: "statistics", label: "Thống kê", icon: <Activity size={18} /> },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as MainTab)}
+                style={{
+                  padding: "20px 24px", background: "none", border: "none", borderBottom: `3px solid ${activeTab === tab.id ? DEEP_BLUE_PRIMARY : "transparent"}`,
+                  color: activeTab === tab.id ? DEEP_BLUE_PRIMARY : "#64748b", fontWeight: activeTab === tab.id ? "800" : "600", fontSize: "14px",
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", transition: "all 0.2s ease"
+                }}
+              >
+                {tab.icon} {tab.label}
+              </button>
+            ))}
+            <div style={{ flex: 1 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              {refreshing && <RefreshCw size={16} className="animate-spin" color="#94a3b8" />}
+              <button onClick={loadSnapshots} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: "8px" }}>
+                <RefreshCw size={18} />
+              </button>
+            </div>
           </div>
-        </div>
-
-        {/* Tab Content Area */}
-        <div style={{ padding: "32px", background: "#fff" }}>
-          {activeTab === "overview" && renderOverview()}
-          {activeTab === "management" && renderManagement()}
-          {activeTab === "milestones" && renderMilestones()}
-          {activeTab === "students" && (
-            <div style={{ display: "grid", gap: "24px" }}>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-                <ImportExportActions moduleName="students" moduleLabel="Sinh viên tham gia" onImportSuccess={() => studentSectionRef.current?.openAdd()} />
-                <button onClick={() => studentSectionRef.current?.openAdd()} style={{ background: DEEP_BLUE_PRIMARY, color: "#fff", border: "none", borderRadius: "10px", padding: "8px 16px", fontWeight: "700", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Plus size={16} /> Thêm sinh viên
-                </button>
+  
+          {/* Tab Content Area */}
+          <div style={{ padding: "32px", background: "#fff" }}>
+            {activeTab === "overview" && renderOverview()}
+            {activeTab === "management" && renderManagement()}
+            {activeTab === "milestones" && renderMilestones()}
+            {activeTab === "students" && (
+              <div style={{ display: "grid", gap: "24px" }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                  <ImportExportActions moduleName="students" moduleLabel="Sinh viên tham gia" onImportSuccess={() => studentSectionRef.current?.openAdd()} />
+                  <button onClick={() => studentSectionRef.current?.openAdd()} style={{ background: DEEP_BLUE_PRIMARY, color: "#fff", border: "none", borderRadius: "10px", padding: "8px 16px", fontWeight: "700", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Plus size={16} /> Thêm sinh viên
+                  </button>
+                </div>
+                <DefenseTermStudentsSection ref={studentSectionRef} defenseTermId={selectedId} />
               </div>
-              <DefenseTermStudentsSection ref={studentSectionRef} defenseTermId={selectedId} />
-            </div>
-          )}
-          {activeTab === "lecturers" && (
-            <div style={{ display: "grid", gap: "24px" }}>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-                <ImportExportActions moduleName="lecturers" moduleLabel="Giảng viên tham gia" onImportSuccess={() => lecturerSectionRef.current?.openAdd()} />
-                <button onClick={() => lecturerSectionRef.current?.openAdd()} style={{ background: DEEP_BLUE_PRIMARY, color: "#fff", border: "none", borderRadius: "10px", padding: "8px 16px", fontWeight: "700", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Plus size={16} /> Thêm giảng viên
-                </button>
+            )}
+            {activeTab === "lecturers" && (
+              <div style={{ display: "grid", gap: "24px" }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                  <ImportExportActions moduleName="lecturers" moduleLabel="Giảng viên tham gia" onImportSuccess={() => lecturerSectionRef.current?.openAdd()} />
+                  <button onClick={() => lecturerSectionRef.current?.openAdd()} style={{ background: DEEP_BLUE_PRIMARY, color: "#fff", border: "none", borderRadius: "10px", padding: "8px 16px", fontWeight: "700", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Plus size={16} /> Thêm giảng viên
+                  </button>
+                </div>
+                <DefenseTermLecturersSection ref={lecturerSectionRef} defenseTermId={selectedId} />
               </div>
-              <DefenseTermLecturersSection ref={lecturerSectionRef} defenseTermId={selectedId} />
-            </div>
-          )}
-          {activeTab === "operations" && renderOperations()}
-          {activeTab === "statistics" && (
-            <StatisticsSection
-              selectedId={selectedId}
-              refreshing={refreshing}
-              onDownload={handleDownloadReport}
-            />
-          )}
+            )}
+            {activeTab === "operations" && renderOperations()}
+            {activeTab === "statistics" && (
+              <StatisticsSection
+                selectedId={selectedId}
+                refreshing={refreshing}
+                onDownload={handleDownloadReport}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -2106,6 +2355,99 @@ const DefensePeriodsManagement: React.FC = () => {
         isLoading={refreshing}
         onSave={(data) => handleManagementCRUD(periodModal?.mode === "edit" ? "update" : periodModal?.mode as any, data)}
       />
+
+      {/* Ineligible Topics Warning Modal */}
+      {ineligibleModal && ineligibleModal.isOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)" }}>
+          <div style={{ background: "white", width: "90%", maxWidth: "800px", borderRadius: "24px", padding: "32px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+              <div style={{ background: "#fee2e2", color: "#dc2626", padding: "10px", borderRadius: "12px" }}>
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "20px", fontWeight: "900", color: "#1e293b" }}>Yêu Cầu Đủ Điều Kiện Giai Đoạn</h3>
+                <p style={{ margin: "2px 0 0 0", fontSize: "13px", color: "#64748b" }}>
+                  Danh sách đề tài chưa đạt điều kiện chuyển giai đoạn cho trạng thái: <strong>{getStatusPresentation(ineligibleModal.currentStatus).label}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", border: "1px solid #cbd5e1", borderRadius: "16px", marginBottom: "24px" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc", borderBottom: "1px solid #cbd5e1" }}>
+                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "800", color: "#334155", textTransform: "uppercase" }}>Sinh viên</th>
+                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "800", color: "#334155", textTransform: "uppercase" }}>Giảng viên HD</th>
+                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "800", color: "#334155", textTransform: "uppercase" }}>Đề tài</th>
+                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "800", color: "#dc2626", textTransform: "uppercase" }}>Lỗi / Thiếu điều kiện</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ineligibleModal.errors.map((err, idx) => (
+                    <tr key={idx} style={{ borderBottom: idx < ineligibleModal.errors.length - 1 ? "1px solid #f1f5f9" : "none" }}>
+                      <td style={{ padding: "12px 16px", fontSize: "13px" }}>
+                        <div style={{ fontWeight: "700", color: "#0f172a" }}>{err.studentName}</div>
+                        <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>MSSV: {err.studentCode}</div>
+                      </td>
+                      <td style={{ padding: "12px 16px", fontSize: "13px", fontWeight: "600", color: "#334155" }}>
+                        {err.supervisorName}
+                      </td>
+                      <td style={{ padding: "12px 16px", fontSize: "13px", color: "#475569", maxWidth: "250px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {err.topicTitle}
+                      </td>
+                      <td style={{ padding: "12px 16px", fontSize: "13px" }}>
+                        <span style={{ background: "#fef2f2", color: "#991b1b", padding: "4px 8px", borderRadius: "6px", fontWeight: "700", fontSize: "11px", border: "1px solid #fecaca" }}>
+                          {err.reason}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+              <button
+                onClick={() => setIneligibleModal(null)}
+                style={{
+                  background: "#e2e8f0",
+                  color: "#475569",
+                  border: "none",
+                  borderRadius: "12px",
+                  padding: "12px 24px",
+                  fontWeight: "700",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={() => {
+                  setIneligibleModal(null);
+                  void handleAction("NEXT", true);
+                }}
+                style={{
+                  background: "#dc2626",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "12px",
+                  padding: "12px 24px",
+                  fontWeight: "700",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 6px rgba(220, 38, 38, 0.2)",
+                  transition: "all 0.2s"
+                }}
+              >
+                Bỏ qua cảnh báo & Tiếp tục
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-10px); }

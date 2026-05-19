@@ -1278,7 +1278,7 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
 
             try
             {
-                var extended = JsonSerializer.Deserialize<MinuteExtendedPayload>(json);
+                var extended = JsonSerializer.Deserialize<MinuteExtendedPayload>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 if (extended == null)
                 {
                     return payload;
