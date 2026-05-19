@@ -65,11 +65,7 @@ const AdminNav: React.FC<AdminNavProps> = ({
       label: "Quản lý đề tài",
       icon: <ClipboardList size={18} />,
     },
-    {
-      path: `${basePath}/defense-periods`,
-      label: "Quản lý đợt",
-      icon: <CalendarDays size={18} />,
-    },
+    // `Quản lý đợt` removed: home page now manages defense periods (điều hành đợt is the dashboard)
     {
       path: `${basePath}/rooms`,
       label: "Quản lý phòng",

@@ -712,7 +712,7 @@ const LoginPage: React.FC = () => {
               fontWeight: 400,
             }}
           >
-            © 2025 Đại học Đại Nam - Khoa Công nghệ Thông tin
+            © 2025 Đại học Đại Nam - Khoa Công nghệ thông tin
           </p>
         </div>
       </div>

@@ -259,6 +259,7 @@ builder.Services.AddScoped<ICommitteeConstraintRule, SupervisorConflictRule>();
 builder.Services.AddScoped<IDefenseCommitteeHeuristicService, DefenseCommitteeHeuristicService>();
 builder.Services.AddSingleton<IDefenseResiliencePolicy, DefenseResiliencePolicy>();
 builder.Services.AddScoped<IDefenseAuditTrailService, DefenseAuditTrailService>();
+builder.Services.AddScoped<ISystemActivityLogger, SystemActivityLogger>();
 builder.Services.AddScoped<IDefenseScoreWorkflowService, DefenseScoreWorkflowService>();
 builder.Services.AddScoped<IDefenseRevisionWorkflowService, DefenseRevisionWorkflowService>();
 builder.Services.AddScoped<ITopicWorkflowCommandSupport, TopicWorkflowCommandSupport>();

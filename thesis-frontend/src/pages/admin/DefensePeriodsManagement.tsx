@@ -32,6 +32,9 @@ import {
   Flag,
   Target,
   BookOpen,
+  Sparkles,
+  Shield,
+  History,
 } from "lucide-react";
 import { fetchData, normalizeUrl } from "../../api/fetchData";
 import { useToast } from "../../context/useToast";
@@ -60,6 +63,7 @@ interface DefensePeriod {
   description?: string;
   createdAt: string;
   lastUpdated: string;
+  configJson?: string;
 }
 
 type MainTab = "overview" | "management" | "milestones" | "students" | "lecturers" | "operations" | "statistics";
@@ -105,6 +109,17 @@ const defensePeriodApi = {
       method: "POST",
       headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
       body: JSON.stringify({ action, idempotencyKey })
+    }),
+  rollbackStage: (id: number, reason: string, idempotencyKey?: string) =>
+    fetchData<ApiResponse<boolean>>(`/defense-periods/${id}/lifecycle`, {
+      method: "POST",
+      headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
+      body: JSON.stringify({
+        action: "ROLLBACK",
+        rollbackTarget: "STAGE",
+        rollbackReason: reason,
+        idempotencyKey
+      })
     }),
   snapshot: (id: number) => fetchData<ApiResponse<any>>(`/defense-periods/${id}/management/snapshot`, { method: "GET" }),
   monitoring: (id: number) => fetchData<ApiResponse<any>>(`/defense-periods/${id}/monitoring/snapshot`, { method: "GET" }),
@@ -383,6 +398,15 @@ const ConfirmModal: React.FC<{
   );
 };
 
+const generateRandomTermCode = () => {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "";
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `DT-${result}`;
+};
+
 const DefensePeriodModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
@@ -413,7 +437,7 @@ const DefensePeriodModal: React.FC<{
       });
     } else {
       setFormData({
-        termCode: "",
+        termCode: generateRandomTermCode(),
         termName: "",
         startDate: "",
         endDate: "",
@@ -437,15 +461,17 @@ const DefensePeriodModal: React.FC<{
               <input
                 value={formData.termCode}
                 onChange={e => setFormData({ ...formData, termCode: e.target.value })}
-                disabled={!!initialData}
-                placeholder="VD: DT-2024-01"
+                disabled={true}
+                placeholder="Tự động sinh mã đợt"
                 style={{
                   width: "100%",
                   padding: "10px 12px",
                   borderRadius: "10px",
                   border: "1px solid #cbd5e1",
-                  background: initialData ? "#f1f5f9" : "white",
-                  cursor: initialData ? "not-allowed" : "text"
+                  background: "#f1f5f9",
+                  cursor: "not-allowed",
+                  color: DEEP_BLUE_PRIMARY,
+                  fontWeight: "700"
                 }}
               />
             </div>
@@ -677,6 +703,17 @@ const DefensePeriodsManagement: React.FC = () => {
   const canManage = userRole === "ADMIN" || userRole === "STUDENTSERVICE" || userRole === "HEAD";
 
   const selectedRow = useMemo(() => rows.find(r => r.defenseTermId === selectedId), [rows, selectedId]);
+
+  const parsedConfig = useMemo(() => {
+    if (!selectedRow?.configJson) return null;
+    try {
+      return JSON.parse(selectedRow.configJson);
+    } catch (e) {
+      return null;
+    }
+  }, [selectedRow?.configJson]);
+
+  const canRollbackStage = parsedConfig?.canRollbackStage === true || parsedConfig?.CanRollbackStage === true;
 
   const loadData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -932,6 +969,17 @@ const DefensePeriodsManagement: React.FC = () => {
       }
     }
 
+    if (action === "ROLLBACK_STAGE") {
+      setConfirmState({
+        isOpen: true,
+        action,
+        title: "Xác nhận quay lại bước trước",
+        message: `Bạn có chắc chắn muốn quay lại trạng thái trước của đợt "${selectedRow?.name}"? Hệ thống chỉ hỗ trợ quay lại tối đa 1 lần từ bước hiện tại.`,
+        type: "warning"
+      });
+      return;
+    }
+
     setConfirmState({
       isOpen: true,
       action,
@@ -948,9 +996,15 @@ const DefensePeriodsManagement: React.FC = () => {
     setRefreshing(true);
     try {
       const idempotencyKey = safeRandomUUID();
-      const res = await defensePeriodApi.lifecycle(selectedId, action, idempotencyKey);
+      let res;
+      if (action === "ROLLBACK_STAGE") {
+        const reason = window.prompt("Vui lòng nhập lý do quay lại bước trước:", "Thao tác nhầm") || "Thao tác nhầm";
+        res = await defensePeriodApi.rollbackStage(selectedId, reason, idempotencyKey);
+      } else {
+        res = await defensePeriodApi.lifecycle(selectedId, action, idempotencyKey);
+      }
       if (readEnvelopeSuccess(res)) {
-        addToast(`Thực hiện ${action} thành công.`, "success");
+        addToast(action === "ROLLBACK_STAGE" ? "Quay lại bước trước thành công." : `Thực hiện ${action} thành công.`, "success");
         await loadData(true);
         await loadSnapshots();
       } else {
@@ -1048,7 +1102,7 @@ const DefensePeriodsManagement: React.FC = () => {
         semester: data.semester,
         academicYear: data.academicYear,
         description: data.description,
-        termCode: data.termCode || `DT-${new Date().getFullYear()}${Math.floor(Math.random() * 1000)}`
+        termCode: data.termCode ? data.termCode.trim() : ""
       };
 
       if (mode === "create" || mode === "clone") {
@@ -1122,23 +1176,32 @@ const DefensePeriodsManagement: React.FC = () => {
 
   const renderTimeline = () => {
     const steps = [
-      { key: "Draft", label: "Soạn thảo", desc: "Khởi tạo đợt" },
+      { key: "Draft", label: "Soạn thảo", desc: "Khởi tạo đợt đồ án" },
       { key: "Registration", label: "Đăng ký", desc: "Mở đăng ký đề tài" },
-      { key: "Assignment", label: "Phân công", desc: "Gán GV & Hội đồng" },
-      { key: "ProgressTracking", label: "Tiến độ", desc: "Theo dõi nộp bài" },
-      { key: "CommitteePreparation", label: "Chuẩn bị", desc: "Lịch bảo vệ" },
-      { key: "Running", label: "Bảo vệ", desc: "Đang diễn ra" },
-      { key: "ScoringLocked", label: "Hậu bảo vệ", desc: "Duyệt kết quả" },
-      { key: "Finalization", label: "Tổng kết", desc: "Hoàn tất điểm" },
-      { key: "Closed", label: "Kết thúc", desc: "Đóng & Lưu trữ" },
+      { key: "Assignment", label: "Phân công", desc: "Gán giảng viên hướng dẫn" },
+      { key: "ProgressTracking", label: "Tiến độ", desc: "Theo dõi thực hiện" },
+      { key: "EligibilityCheck", label: "Chốt bảo vệ", desc: "Xác nhận đủ điều kiện" },
+      { key: "CommitteePreparation", label: "Hội đồng", desc: "Sinh HĐ & xếp lịch" },
+      { key: "Running", label: "Bảo vệ", desc: "Chấm điểm & biên bản" },
+      { key: "Finalization", label: "Hậu bảo vệ", desc: "Nộp lại & duyệt sửa" },
+      { key: "Closed", label: "Kết thúc", desc: "Khóa hồ sơ & lưu trữ" },
     ];
 
     const currentStatus = selectedRow?.status || "Draft";
     const statusOrder: Record<string, number> = {
-      draft: 0, registration: 1, assignment: 2, progresstracking: 3,
-      committeepreparation: 4, running: 5, paused: 5,
-      scoringlocked: 6, finalization: 7, finalized: 7,
-      published: 8, closed: 8, archived: 8
+      draft: 0,
+      registration: 1,
+      assignment: 2,
+      progresstracking: 3,
+      committeepreparation: 5,
+      running: 6,
+      paused: 6,
+      scoringlocked: 7,
+      finalization: 7,
+      finalized: 7,
+      published: 7,
+      closed: 8,
+      archived: 8
     };
 
     const normalizedKey = String(currentStatus).toLowerCase().trim();
@@ -1325,6 +1388,74 @@ const DefensePeriodsManagement: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Lịch sử các đợt đồ án tốt nghiệp */}
+        <div style={{ background: "white", padding: "24px", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: DEEP_BLUE_PRIMARY, display: "flex", alignItems: "center", gap: "8px" }}>
+              <History size={18} /> Lịch sử các đợt đồ án tốt nghiệp
+            </h3>
+            <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "700" }}>Tổng số: {rows.length} đợt</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
+            {rows.map((row) => (
+              <div
+                key={row.defenseTermId}
+                onClick={() => setSelectedId(row.defenseTermId)}
+                style={{
+                  padding: "16px",
+                  borderRadius: "12px",
+                  border: `1px solid ${selectedId === row.defenseTermId ? "#f37021" : "#e2e8f0"}`,
+                  background: selectedId === row.defenseTermId ? "#fffaf5" : "#f8fafc",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  gap: "12px"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.05)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              >
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "700", color: DEEP_BLUE_PRIMARY, background: "#eff6ff", padding: "4px 8px", borderRadius: "6px" }}>
+                      {row.termCode || `DT-${row.defenseTermId}`}
+                    </span>
+                    <span style={{
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      padding: "4px 8px",
+                      borderRadius: "6px",
+                      background: getStatusPresentation(row.status).bg,
+                      color: getStatusPresentation(row.status).color
+                    }}>
+                      {getStatusPresentation(row.status).label}
+                    </span>
+                  </div>
+                  <h4 style={{ fontSize: "14px", fontWeight: "800", color: "#1e293b", margin: "10px 0 4px 0", lineHeight: "1.4" }}>
+                    {row.name}
+                  </h4>
+                  <p style={{ fontSize: "12px", color: "#64748b", margin: 0 }}>
+                    {row.academicYear || "--"} • {row.semester || "--"}
+                  </p>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px dashed #e2e8f0", paddingTop: "8px", fontSize: "11px", color: "#64748b" }}>
+                  <span>Bắt đầu: {row.startDate ? new Date(row.startDate).toLocaleDateString() : "--"}</span>
+                  <span style={{ fontWeight: "700", color: selectedId === row.defenseTermId ? "#f37021" : DEEP_BLUE_PRIMARY }}>
+                    {selectedId === row.defenseTermId ? "Đang xem" : "Click để xem"} →
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   };
@@ -1430,6 +1561,7 @@ const DefensePeriodsManagement: React.FC = () => {
                   { action: "PAUSE", label: "Tạm dừng đợt", icon: <Pause size={18} />, color: "#f59e0b", disabled: currentStatus !== "Running" },
                   { action: "RESUME", label: "Tiếp tục đợt", icon: <Play size={18} />, color: "#10b981", disabled: currentStatus !== "Paused" },
                   { action: "LOCK_SCORING", label: "Khóa chấm điểm", icon: <Lock size={18} />, color: "#ef4444", disabled: currentStatus !== "Running" },
+                  { action: "ROLLBACK_STAGE", label: "Quay lại bước trước (Rollback)", icon: <History size={18} />, color: "#64748b", disabled: !canRollbackStage },
                 ].map(op => (
                   <button
                     key={op.action}
@@ -1609,32 +1741,135 @@ const DefensePeriodsManagement: React.FC = () => {
   const renderEmptyState = () => {
     return (
       <div style={{
-        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        padding: "80px 40px", textAlign: "center", background: "#fff", borderRadius: "24px",
-        border: "1px dashed #cbd5e1", margin: "40px 0"
+        background: "white",
+        borderRadius: "24px",
+        padding: "48px 32px",
+        boxShadow: "0 20px 40px rgba(15, 23, 42, 0.06)",
+        border: "1px solid #e2e8f0",
+        maxWidth: 1000,
+        margin: "40px auto",
+        textAlign: "center"
       }}>
+        {/* Welcome Icon Circle wrapper */}
         <div style={{
-          width: "100px", height: "100px", borderRadius: "50%", background: "#f1f5f9",
-          display: "flex", alignItems: "center", justifyContent: "center", color: DEEP_BLUE_PRIMARY,
-          marginBottom: "32px"
+          width: 80,
+          height: 80,
+          borderRadius: 24,
+          background: "#fff7ed",
+          color: "#f37021",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          margin: "0 auto 24px auto",
+          boxShadow: "0 8px 16px rgba(243, 112, 33, 0.12)"
         }}>
-          <CalendarIcon size={48} />
+          <Sparkles size={40} />
         </div>
-        <h2 style={{ fontSize: "28px", fontWeight: "900", color: "#1e293b", margin: "0 0 12px 0", letterSpacing: "-0.02em" }}>Sẵn sàng khởi tạo đợt đồ án tốt nghiệp?</h2>
-        <p style={{ maxWidth: "520px", color: "#64748b", fontSize: "16px", lineHeight: "1.7", margin: "0 0 40px 0" }}>
-          Hệ thống hiện chưa ghi nhận đợt đồ án tốt nghiệp nào. Hãy khởi tạo đợt đầu tiên để thiết lập lộ trình, quản lý danh sách sinh viên, giảng viên và bắt đầu điều hành hội đồng.
+
+        <h2 style={{
+          fontSize: "22px",
+          fontWeight: 800,
+          color: DEEP_BLUE_PRIMARY,
+          margin: "0 0 10px 0",
+          letterSpacing: "-0.01em"
+        }}>
+          Hệ thống Quản lý Đồ án Tốt nghiệp FIT DNU
+        </h2>
+
+        <p style={{
+          color: "#475569",
+          fontSize: "14px",
+          lineHeight: "1.5",
+          maxWidth: 640,
+          margin: "0 auto 32px auto",
+          fontWeight: 500
+        }}>
+          Nền tảng hỗ trợ tự động hóa vòng đời đợt bảo vệ đồ án tốt nghiệp của sinh viên Khoa Công nghệ Thông tin — tối ưu lập hội đồng, theo dõi tiến độ và đánh giá kết quả minh bạch.
         </p>
-        <div style={{ display: "flex", gap: "16px" }}>
+
+        {/* Feature Highlights Grid */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "20px",
+          marginBottom: "48px",
+          textAlign: "left"
+        }}>
+          <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#eff6ff", color: "#3b82f6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
+              <Settings size={18} />
+            </div>
+            <h4 style={{ fontWeight: 800, color: "#1e293b", margin: "0 0 6px 0", fontSize: "14px" }}>Khởi tạo đợt đồ án</h4>
+            <p style={{ color: "#64748b", fontSize: "12px", margin: 0, lineHeight: 1.5 }}>Cấu hình lộ trình mốc thời gian, áp dụng biểu mẫu tiến trình chuẩn hóa.</p>
+          </div>
+
+          <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#ecfdf5", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
+              <Users size={18} />
+            </div>
+            <h4 style={{ fontWeight: 800, color: "#1e293b", margin: "0 0 6px 0", fontSize: "14px" }}>Thành viên & Định mức</h4>
+            <p style={{ color: "#64748b", fontSize: "12px", margin: 0, lineHeight: 1.5 }}>Nhập xuất sinh viên, giảng viên hướng dẫn và kiểm soát hạn ngạch phụ trách.</p>
+          </div>
+
+          <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#fffbeb", color: "#f59e0b", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
+              <Shield size={18} />
+            </div>
+            <h4 style={{ fontWeight: 800, color: "#1e293b", margin: "0 0 6px 0", fontSize: "14px" }}>Phân bổ Hội đồng</h4>
+            <p style={{ color: "#64748b", fontSize: "12px", margin: 0, lineHeight: 1.5 }}>Lập danh sách hội đồng, chia nhóm đề tài chuyên môn và xếp lịch bảo vệ.</p>
+          </div>
+
+          <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#fdf2f8", color: "#ec4899", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
+              <Zap size={18} />
+            </div>
+            <h4 style={{ fontWeight: 800, color: "#1e293b", margin: "0 0 6px 0", fontSize: "14px" }}>Điều hành & Chấm điểm</h4>
+            <p style={{ color: "#64748b", fontSize: "12px", margin: 0, lineHeight: 1.5 }}>Hỗ trợ nhập điểm thi bảo vệ trực tiếp, khóa điểm và xuất báo cáo kết quả.</p>
+          </div>
+        </div>
+
+        {/* CTA Section */}
+        <div style={{
+          background: "#fff8f3",
+          border: "1px solid #ffedd5",
+          padding: "24px",
+          borderRadius: "16px",
+          display: "inline-block",
+          width: "100%",
+          maxWidth: 640
+        }}>
+          <div style={{ fontSize: "14px", color: "#64748b", fontWeight: 700, marginBottom: "16px" }}>
+            Hiện chưa có đợt đồ án tốt nghiệp nào được khởi tạo trong hệ thống.
+          </div>
           <button
             onClick={() => setPeriodModal({ isOpen: true, mode: "create" })}
             style={{
-              display: "flex", alignItems: "center", gap: "12px", padding: "16px 36px",
-              borderRadius: "16px", border: "none", background: `linear-gradient(135deg, ${DEEP_BLUE_PRIMARY}, #2c5282)`,
-              color: "white", fontSize: "16px", fontWeight: "800", cursor: "pointer",
-              boxShadow: "0 10px 25px -5px rgba(30, 58, 95, 0.4)", transform: "translateY(0)", transition: "all 0.2s ease"
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "14px 28px",
+              borderRadius: "12px",
+              border: "none",
+              background: "#f37021",
+              color: "white",
+              fontSize: "14px",
+              fontWeight: "800",
+              cursor: "pointer",
+              boxShadow: "0 10px 20px -5px rgba(243, 112, 33, 0.4)",
+              transition: "all 0.2s ease"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#e05e10";
+              e.currentTarget.style.transform = "translateY(-1px)";
+              e.currentTarget.style.boxShadow = "0 12px 24px -3px rgba(243, 112, 33, 0.5)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#f37021";
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "0 10px 20px -5px rgba(243, 112, 33, 0.4)";
             }}
           >
-            <PlusCircle size={22} /> Khởi tạo ngay
+            <Plus size={18} /> Khởi tạo đợt đồ án tốt nghiệp
           </button>
         </div>
       </div>
@@ -1746,7 +1981,7 @@ const DefensePeriodsManagement: React.FC = () => {
         alignItems: "center",
         justifyContent: "center",
         padding: "32px",
-        background: "#0f172a",
+        background: "#ffffff",
         position: "relative",
         overflow: "hidden",
         fontFamily: "'Inter', sans-serif"
@@ -1758,8 +1993,8 @@ const DefensePeriodsManagement: React.FC = () => {
           left: "-5%",
           width: "40%",
           height: "40%",
-          background: "radial-gradient(circle, rgba(30, 58, 95, 0.4) 0%, transparent 70%)",
-          filter: "blur(60px)",
+          background: "radial-gradient(circle, rgba(30, 58, 95, 0.06) 0%, transparent 70%)",
+          filter: "blur(40px)",
           animation: "float 15s infinite ease-in-out"
         }} />
         <div style={{
@@ -1768,8 +2003,8 @@ const DefensePeriodsManagement: React.FC = () => {
           right: "-5%",
           width: "50%",
           height: "50%",
-          background: "radial-gradient(circle, rgba(243, 112, 33, 0.15) 0%, transparent 70%)",
-          filter: "blur(80px)",
+          background: "radial-gradient(circle, rgba(243, 112, 33, 0.06) 0%, transparent 70%)",
+          filter: "blur(60px)",
           animation: "float 20s infinite ease-in-out reverse"
         }} />
 
@@ -1782,13 +2017,13 @@ const DefensePeriodsManagement: React.FC = () => {
           {/* Glass Card */}
           <div style={{
             position: "relative",
-            background: "rgba(255, 255, 255, 0.85)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            border: "1px solid rgba(255, 255, 255, 0.4)",
+            background: "#ffffff",
+            backdropFilter: "none",
+            WebkitBackdropFilter: "none",
+            border: "1px solid #f1f5f9",
             borderRadius: 32,
             padding: "48px 40px",
-            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+            boxShadow: "0 8px 20px rgba(16,24,40,0.06)",
             textAlign: "center"
           }}>
             {/* Logo Section */}
@@ -1806,23 +2041,23 @@ const DefensePeriodsManagement: React.FC = () => {
 
             <div style={{ marginBottom: 32 }}>
               <div style={{
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 700,
                 color: "#f37021",
                 textTransform: "uppercase",
-                letterSpacing: "0.2em",
-                marginBottom: 8
+                letterSpacing: "0.16em",
+                marginBottom: 6
               }}>
                 Đang khởi tạo hệ thống
               </div>
               <h2 style={{
-                fontSize: 28,
+                fontSize: 22,
                 fontWeight: 800,
-                color: "#1e293b",
+                color: "#0f172a",
                 margin: 0,
-                letterSpacing: "-0.02em"
+                letterSpacing: "-0.01em"
               }}>
-                Defense Management
+                Quản lý đợt bảo vệ
               </h2>
             </div>
 

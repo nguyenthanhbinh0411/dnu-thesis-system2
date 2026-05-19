@@ -2252,27 +2252,25 @@ namespace ThesisManagement.Api.Controllers
 
         private async Task<string> GenerateUniqueTermCodeAsync(DateTime startDate)
         {
-            var year = startDate.Year;
-            var prefix = $"DT-{year}-";
-            
-            var lastCode = await _uow.DefenseTerms.Query()
-                .AsNoTracking()
-                .Where(x => x.TermCode != null && x.TermCode.StartsWith(prefix))
-                .OrderByDescending(x => x.TermCode)
-                .Select(x => x.TermCode)
-                .FirstOrDefaultAsync();
-                
-            int nextSeq = 1;
-            if (lastCode != null && lastCode.Length > prefix.Length)
+            var random = new Random();
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            string code;
+            bool exists;
+            do
             {
-                var seqPart = lastCode.Substring(prefix.Length);
-                if (int.TryParse(seqPart, out int currentSeq))
+                var builder = new System.Text.StringBuilder(6);
+                for (int i = 0; i < 6; i++)
                 {
-                    nextSeq = currentSeq + 1;
+                    builder.Append(chars[random.Next(chars.Length)]);
                 }
-            }
+                code = $"DT-{builder.ToString()}";
+
+                exists = await _uow.DefenseTerms.Query()
+                    .AsNoTracking()
+                    .AnyAsync(x => x.TermCode == code);
+            } while (exists);
             
-            return $"{prefix}{nextSeq:D3}";
+            return code;
         }
 
         private async Task<ActionResult<ApiResponse<DefensePeriodDetailDto>>> UpdatePeriod(int periodId, [FromBody] DefensePeriodUpdateDto request)

@@ -208,6 +208,8 @@ public class DefensePeriodEndToEndFlowTests
                 CircuitBreakSeconds = 5
             }));
 
+        var logger = new Mock<ISystemActivityLogger>();
+
         var processor = new DefensePeriodCommandProcessor(
             db,
             uow,
@@ -218,7 +220,8 @@ public class DefensePeriodEndToEndFlowTests
             revisionWorkflow.Object,
             auditTrail.Object,
             resiliencePolicy,
-            notificationPublisher.Object);
+            notificationPublisher.Object,
+            logger.Object);
 
         return (processor, notificationPublisher);
     }
@@ -270,10 +273,10 @@ public class DefensePeriodEndToEndFlowTests
             new DefenseTermStudent { DefenseTermStudentID = 9, DefenseTermId = 1, StudentProfileID = 9, StudentCode = "S009", UserCode = "S009", CreatedAt = now, LastUpdated = now });
 
         db.LecturerProfiles.AddRange(
-            new LecturerProfile { LecturerProfileID = 1, LecturerCode = "L001", FullName = "Lec 1" },
-            new LecturerProfile { LecturerProfileID = 2, LecturerCode = "L002", FullName = "Lec 2" },
-            new LecturerProfile { LecturerProfileID = 3, LecturerCode = "L003", FullName = "Lec 3" },
-            new LecturerProfile { LecturerProfileID = 4, LecturerCode = "L004", FullName = "Lec 4" },
+            new LecturerProfile { LecturerProfileID = 1, LecturerCode = "L001", FullName = "Lec 1", Degree = "TS" },
+            new LecturerProfile { LecturerProfileID = 2, LecturerCode = "L002", FullName = "Lec 2", Degree = "TS" },
+            new LecturerProfile { LecturerProfileID = 3, LecturerCode = "L003", FullName = "Lec 3", Degree = "TS" },
+            new LecturerProfile { LecturerProfileID = 4, LecturerCode = "L004", FullName = "Lec 4", Degree = "TS" },
             new LecturerProfile { LecturerProfileID = 5, LecturerCode = "SUP001", FullName = "Supervisor 1", UserCode = "SUP001" });
 
         db.DefenseTermLecturers.AddRange(

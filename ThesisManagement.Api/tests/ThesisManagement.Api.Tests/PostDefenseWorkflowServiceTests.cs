@@ -328,7 +328,9 @@ public class PostDefenseWorkflowServiceTests
                 CircuitBreakSeconds = 5
             }));
 
-        return new DefenseScoreWorkflowService(db, uow, hub.Object, audit.Object, resilience);
+        var logger = new Mock<ISystemActivityLogger>();
+
+        return new DefenseScoreWorkflowService(db, uow, hub.Object, audit.Object, resilience, logger.Object);
     }
 
     private static DefenseRevisionWorkflowService BuildRevisionService(ApplicationDbContext db)
@@ -357,12 +359,15 @@ public class PostDefenseWorkflowServiceTests
         notification.Setup(x => x.PublishAsync(It.IsAny<NotificationEventRequest>()))
             .Returns(Task.CompletedTask);
 
+        var logger = new Mock<ISystemActivityLogger>();
+
         return new DefenseRevisionWorkflowService(
             db,
             uow,
             audit.Object,
             storage.Object,
             notification.Object,
-            Options.Create(new DefenseRevisionQuorumOptions()));
+            Options.Create(new DefenseRevisionQuorumOptions()),
+            logger.Object);
     }
 }
