@@ -694,8 +694,8 @@ const AdminLayout: React.FC = () => {
               height: "calc(100vh - 72px)",
               overflowY: "auto",
             }}
-            /* onPointerDownCapture={collapseSidebarOnActivity}
-            onFocusCapture={collapseSidebarOnActivity} */
+            onPointerDownCapture={collapseSidebarOnActivity}
+            onFocusCapture={collapseSidebarOnActivity}
           >
             <Outlet />
           </div>
