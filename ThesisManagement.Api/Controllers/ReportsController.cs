@@ -273,6 +273,22 @@ namespace ThesisManagement.Api.Controllers
                 return string.Empty;
             }
 
+            var externalLinksJson = Get("externalLinks");
+            List<ExternalLinkDto>? externalLinks = null;
+            if (!string.IsNullOrWhiteSpace(externalLinksJson))
+            {
+                try
+                {
+                    externalLinks = System.Text.Json.JsonSerializer.Deserialize<List<ExternalLinkDto>>(
+                        externalLinksJson,
+                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
+                catch
+                {
+                    // Ignore or handle parsing error
+                }
+            }
+
             var payload = new StudentProgressSubmitFormDto(
                 TopicCode: Get("topicCode"),
                 MilestoneCode: Get("milestoneCode"),
@@ -281,7 +297,8 @@ namespace ThesisManagement.Api.Controllers
                 LecturerCode: string.IsNullOrWhiteSpace(Get("lecturerCode")) ? null : Get("lecturerCode"),
                 ReportTitle: string.IsNullOrWhiteSpace(Get("reportTitle")) ? null : Get("reportTitle"),
                 ReportDescription: string.IsNullOrWhiteSpace(Get("reportDescription")) ? null : Get("reportDescription"),
-                AttemptNumber: int.TryParse(Get("attemptNumber"), out var attemptNumber) ? attemptNumber : null);
+                AttemptNumber: int.TryParse(Get("attemptNumber"), out var attemptNumber) ? attemptNumber : null,
+                ExternalLinks: externalLinks);
 
             var result = await _submitStudentProgressReportCommand.ExecuteAsync(payload, form.Files);
             if (!result.Success)

@@ -248,7 +248,17 @@ const LecturerReports: React.FC = () => {
       const mName = getMilestoneDisplayName(sub.milestoneCode, sub.ordinal);
 
       const subFiles = submissionFiles[sub.submissionCode] || [];
-      const firstFileUrl = subFiles.length > 0 ? normalizeUrl(subFiles[0].fileURL) : null;
+      
+      // Phân loại tài nguyên thành tệp đính kèm và liên kết ngoài
+      const fileUrls = subFiles
+        .filter(f => f.mimeType !== "text/html")
+        .map(f => normalizeUrl(f.fileURL));
+      
+      const externalLinks = subFiles
+        .filter(f => f.mimeType === "text/html")
+        .map(f => ({ name: f.fileName || "Liên kết ngoài", url: f.fileURL }));
+
+      const firstFileUrl = fileUrls.length > 0 ? fileUrls[0] : null;
 
       const response = await fetchData<{ data: any }>("/thesis-ai/analyze-progress", {
         method: "POST",
@@ -257,7 +267,9 @@ const LecturerReports: React.FC = () => {
           milestoneName: mName,
           reportTitle: sub.reportTitle,
           reportDescription: sub.reportDescription,
-          fileUrl: firstFileUrl
+          fileUrl: firstFileUrl,
+          fileUrls: fileUrls,
+          externalLinks: externalLinks
         })
       });
 
@@ -1785,129 +1797,266 @@ const LecturerReports: React.FC = () => {
                           </div>
                         )}
 
-                      {/* Files Section */}
+                      {/* Files & Links Section */}
                       <div style={{ marginBottom: "32px" }}>
-                        <h3
-                          style={{
-                            fontSize: "11px",
-                            fontWeight: "900",
-                            color: "#94a3b8",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.2em",
-                            marginBottom: "16px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
-                          }}
-                        >
-                          <Download size={14} /> Tệp đính kèm
-                        </h3>
-                        <div style={{ display: "grid", gap: "12px" }}>
-                          {submissionFiles[selectedReport.submissionCode]
-                            ?.length > 0 ? (
-                            submissionFiles[selectedReport.submissionCode].map(
-                              (file) => (
-                                <div
-                                  key={file.fileID}
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    background: "white",
-                                    border: "1px solid #f1f5f9",
-                                    borderRadius: "16px",
-                                    padding: "16px",
-                                    transition: "all 0.2s ease",
-                                  }}
-                                >
+                        {/* Documents Part */}
+                        {submissionFiles[selectedReport.submissionCode]?.filter(
+                          (f) => f.mimeType !== "text/html"
+                        ).length > 0 && (
+                          <div style={{ marginBottom: "24px" }}>
+                            <h3
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: "900",
+                                color: "#94a3b8",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.2em",
+                                marginBottom: "16px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
+                              <Download size={14} /> Tệp tài liệu đính kèm ({submissionFiles[selectedReport.submissionCode]?.filter(f => f.mimeType !== "text/html").length})
+                            </h3>
+                            <div style={{ display: "grid", gap: "12px" }}>
+                              {submissionFiles[selectedReport.submissionCode]
+                                .filter((f) => f.mimeType !== "text/html")
+                                .map((file) => (
                                   <div
+                                    key={file.fileID}
                                     style={{
                                       display: "flex",
                                       alignItems: "center",
-                                      gap: "12px",
+                                      justifyContent: "space-between",
+                                      background: "white",
+                                      border: "1px solid #f1f5f9",
+                                      borderRadius: "16px",
+                                      padding: "16px",
+                                      transition: "all 0.2s ease",
                                     }}
                                   >
                                     <div
                                       style={{
-                                        width: "40px",
-                                        height: "40px",
-                                        backgroundColor: "#eff6ff",
-                                        borderRadius: "12px",
                                         display: "flex",
                                         alignItems: "center",
-                                        justifyContent: "center",
-                                        color: "#3b82f6",
+                                        gap: "12px",
                                       }}
                                     >
-                                      <FileText size={20} />
-                                    </div>
-                                    <div>
-                                      <p
+                                      <div
                                         style={{
-                                          fontSize: "14px",
-                                          fontWeight: "700",
-                                          color: "#1e293b",
-                                          margin: "0 0 2px 0",
+                                          width: "40px",
+                                          height: "40px",
+                                          backgroundColor: "#eff6ff",
+                                          borderRadius: "12px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          color: "#3b82f6",
                                         }}
                                       >
-                                        {file.fileName}
-                                      </p>
-                                      <p
-                                        style={{
-                                          fontSize: "11px",
-                                          fontWeight: "600",
-                                          color: "#94a3b8",
-                                          margin: 0,
-                                        }}
-                                      >
-                                        {formatBytes(file.fileSizeBytes)}
-                                      </p>
+                                        <FileText size={20} />
+                                      </div>
+                                      <div>
+                                        <p
+                                          style={{
+                                            fontSize: "14px",
+                                            fontWeight: "700",
+                                            color: "#1e293b",
+                                            margin: "0 0 2px 0",
+                                          }}
+                                        >
+                                          {file.fileName}
+                                        </p>
+                                        <p
+                                          style={{
+                                            fontSize: "11px",
+                                            fontWeight: "600",
+                                            color: "#94a3b8",
+                                            margin: 0,
+                                          }}
+                                        >
+                                          {formatBytes(file.fileSizeBytes || 0)}
+                                        </p>
+                                      </div>
                                     </div>
+                                    <button
+                                      onClick={() =>
+                                        handleDownloadFile(
+                                          file.fileID,
+                                          file.fileName,
+                                        )
+                                      }
+                                      style={{
+                                        padding: "8px 16px",
+                                        backgroundColor: "#f8fafc",
+                                        color: "#64748b",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: "10px",
+                                        fontSize: "12px",
+                                        fontWeight: "800",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                      }}
+                                    >
+                                      <Download size={14} /> Tải về
+                                    </button>
                                   </div>
-                                  <button
-                                    onClick={() =>
-                                      handleDownloadFile(
-                                        file.fileID,
-                                        file.fileName,
-                                      )
-                                    }
-                                    style={{
-                                      padding: "8px 16px",
-                                      backgroundColor: "#f8fafc",
-                                      color: "#64748b",
-                                      border: "1px solid #e2e8f0",
-                                      borderRadius: "10px",
-                                      fontSize: "12px",
-                                      fontWeight: "800",
-                                      cursor: "pointer",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "6px",
-                                    }}
-                                  >
-                                    <Download size={14} /> Tải về
-                                  </button>
-                                </div>
-                              ),
-                            )
-                          ) : (
-                            <div
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Links Part */}
+                        {submissionFiles[selectedReport.submissionCode]?.filter(
+                          (f) => f.mimeType === "text/html"
+                        ).length > 0 && (
+                          <div>
+                            <h3
                               style={{
-                                padding: "24px",
-                                textAlign: "center",
-                                background: "#f8fafc",
-                                borderRadius: "16px",
-                                color: "#94a3b8",
-                                border: "1px dashed #e2e8f0",
+                                fontSize: "11px",
+                                fontWeight: "900",
+                                color: "#f37021",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.2em",
+                                marginBottom: "16px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
                               }}
                             >
-                              <Info size={24} style={{ marginBottom: "8px" }} />
-                              <p style={{ margin: 0, fontSize: "13px" }}>
-                                Không có tệp đính kèm nào
-                              </p>
+                              <ExternalLink size={14} /> Liên kết sản phẩm & Tài nguyên ngoài ({submissionFiles[selectedReport.submissionCode]?.filter(f => f.mimeType === "text/html").length})
+                            </h3>
+                            <div style={{ display: "grid", gap: "12px" }}>
+                              {submissionFiles[selectedReport.submissionCode]
+                                .filter((f) => f.mimeType === "text/html")
+                                .map((file) => {
+                                  const isGithub = file.fileName?.toLowerCase().includes("github") || file.fileURL?.toLowerCase().includes("github");
+                                  const isDrive = file.fileName?.toLowerCase().includes("drive") || file.fileURL?.toLowerCase().includes("drive") || file.fileName?.toLowerCase().includes("video");
+                                  const isSlide = file.fileName?.toLowerCase().includes("slide");
+                                  
+                                  let iconColor = "#3b82f6";
+                                  let bgColor = "#eff6ff";
+                                  if (isGithub) { iconColor = "#0f172a"; bgColor = "#f1f5f9"; }
+                                  else if (isDrive) { iconColor = "#f59e0b"; bgColor = "#fef3c7"; }
+                                  else if (isSlide) { iconColor = "#f37021"; bgColor = "#fff7ed"; }
+
+                                  return (
+                                    <div
+                                      key={file.fileID}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        background: "white",
+                                        border: "1px solid #f1f5f9",
+                                        borderRadius: "16px",
+                                        padding: "16px",
+                                        transition: "all 0.2s ease",
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "12px",
+                                          minWidth: 0,
+                                          flex: 1
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            width: "40px",
+                                            height: "40px",
+                                            backgroundColor: bgColor,
+                                            borderRadius: "12px",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            color: iconColor,
+                                            flexShrink: 0
+                                          }}
+                                        >
+                                          <ExternalLink size={20} />
+                                        </div>
+                                        <div style={{ minWidth: 0, flex: 1, paddingRight: "12px" }}>
+                                          <p
+                                            style={{
+                                              fontSize: "14px",
+                                              fontWeight: "700",
+                                              color: "#1e293b",
+                                              margin: "0 0 2px 0",
+                                              textOverflow: "ellipsis",
+                                              overflow: "hidden",
+                                              whiteSpace: "nowrap"
+                                            }}
+                                          >
+                                            {file.fileName}
+                                          </p>
+                                          <p
+                                            style={{
+                                              fontSize: "11px",
+                                              fontWeight: "600",
+                                              color: "#94a3b8",
+                                              margin: 0,
+                                              textOverflow: "ellipsis",
+                                              overflow: "hidden",
+                                              whiteSpace: "nowrap"
+                                            }}
+                                          >
+                                            {file.fileURL}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <a
+                                        href={file.fileURL}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                          padding: "8px 16px",
+                                          backgroundColor: "#fff7ed",
+                                          color: "#f37021",
+                                          border: "1px solid #ffedd5",
+                                          borderRadius: "10px",
+                                          fontSize: "12px",
+                                          fontWeight: "800",
+                                          cursor: "pointer",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "6px",
+                                          textDecoration: "none",
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        <ExternalLink size={14} /> Đi tới liên kết
+                                      </a>
+                                    </div>
+                                  );
+                                })}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
+
+                        {(!submissionFiles[selectedReport.submissionCode] ||
+                          submissionFiles[selectedReport.submissionCode].length === 0) && (
+                          <div
+                            style={{
+                              padding: "24px",
+                              textAlign: "center",
+                              background: "#f8fafc",
+                              borderRadius: "16px",
+                              color: "#94a3b8",
+                              border: "1px dashed #e2e8f0",
+                            }}
+                          >
+                            <Info size={24} style={{ marginBottom: "8px" }} />
+                            <p style={{ margin: 0, fontSize: "13px" }}>
+                              Không có tài liệu hoặc liên kết đính kèm nào
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       {/* Feedback Section */}

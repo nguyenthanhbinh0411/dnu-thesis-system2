@@ -157,6 +157,27 @@ namespace ThesisManagement.Api.Application.Command.Reports
                     });
                 }
 
+                if (payload.ExternalLinks != null && payload.ExternalLinks.Count > 0)
+                {
+                    foreach (var link in payload.ExternalLinks)
+                    {
+                        if (string.IsNullOrWhiteSpace(link.Url)) continue;
+
+                        attachedFiles.Add(new SubmissionFile
+                        {
+                            SubmissionID = submission.SubmissionID,
+                            SubmissionCode = submission.SubmissionCode,
+                            FileURL = link.Url.Trim(),
+                            FileName = string.IsNullOrWhiteSpace(link.Name) ? "Liên kết ngoài" : link.Name.Trim(),
+                            FileSizeBytes = null,
+                            MimeType = "text/html",
+                            UploadedAt = DateTime.UtcNow,
+                            UploadedByUserCode = payload.StudentUserCode,
+                            UploadedByUserID = null
+                        });
+                    }
+                }
+
                 if (attachedFiles.Count > 0)
                 {
                     await _db.SubmissionFiles.AddRangeAsync(attachedFiles);

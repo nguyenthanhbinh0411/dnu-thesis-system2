@@ -19,6 +19,9 @@ import {
   LayoutGrid,
   AlertCircle,
   XCircle,
+  Link as LinkIcon,
+  ExternalLink,
+  Send,
 } from "lucide-react";
 import { useToast } from "../../context/useToast";
 import { fetchData, normalizeUrl } from "../../api/fetchData";
@@ -121,7 +124,10 @@ const mapHistorySubmissionToReport = (
 const Reports: React.FC = () => {
   const auth = useAuth();
   const { addToast } = useToast();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [links, setLinks] = useState<{ name: string; url: string }[]>([]);
+  const [newLinkUrl, setNewLinkUrl] = useState("");
+  const [newLinkName, setNewLinkName] = useState("");
   const [reportTitle, setReportTitle] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -135,6 +141,7 @@ const Reports: React.FC = () => {
   const [milestoneTemplates, setMilestoneTemplates] = useState<MilestoneTemplate[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showReportDetailModal, setShowReportDetailModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({});
   const navigate = useNavigate();
@@ -202,8 +209,93 @@ const Reports: React.FC = () => {
     });
   }, [milestoneTemplates, currentMilestone]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) validateAndSetFile(e.target.files[0]);
+  const formatBytes = (bytes: number, decimals = 2) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+  };
+
+  const handleMultipleFilesSelection = (files: FileList) => {
+    const currentTotal = selectedFiles.length + links.length;
+    if (currentTotal >= 4) {
+      addToast("Bạn chỉ được nộp tối đa 4 tài nguyên báo cáo (bao gồm tệp tin và liên kết ngoài).", "warning");
+      return;
+    }
+
+    const validFiles: File[] = [];
+    const allowed = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.size > 10 * 1024 * 1024) {
+        addToast(`File ${file.name} vượt quá 10MB và bị bỏ qua.`, "warning");
+        continue;
+      }
+      if (!allowed.includes(file.type)) {
+        addToast(`File ${file.name} sai định dạng và bị bỏ qua.`, "warning");
+        continue;
+      }
+      if (selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (validFiles.length > 0) {
+      const remainingSlots = 4 - currentTotal;
+      if (validFiles.length > remainingSlots) {
+        const filesToAdd = validFiles.slice(0, remainingSlots);
+        setSelectedFiles(prev => [...prev, ...filesToAdd]);
+        addToast(`Chỉ đính kèm thêm ${filesToAdd.length} tệp tài liệu do đạt giới hạn tối đa 4 tài nguyên báo cáo.`, "warning");
+      } else {
+        setSelectedFiles(prev => [...prev, ...validFiles]);
+        addToast(`Đã thêm ${validFiles.length} file tài liệu.`, "success");
+      }
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const isValidUrl = (url: string) => {
+    const trimmed = url.trim().toLowerCase();
+    return trimmed.startsWith("http://") || trimmed.startsWith("https://");
+  };
+
+  const addLink = () => {
+    const currentTotal = selectedFiles.length + links.length;
+    if (currentTotal >= 4) {
+      addToast("Bạn chỉ được nộp tối đa 4 tài nguyên báo cáo (bao gồm tệp tin và liên kết ngoài).", "warning");
+      return;
+    }
+
+    const urlTrimmed = newLinkUrl.trim();
+    const nameTrimmed = newLinkName.trim();
+    if (!urlTrimmed || !nameTrimmed || !isValidUrl(urlTrimmed)) return;
+
+    if (links.some(l => l.url.trim().toLowerCase() === urlTrimmed.toLowerCase())) {
+      addToast("Đường dẫn liên kết này đã có trong danh sách đính kèm.", "warning");
+      return;
+    }
+
+    setLinks(prev => [...prev, { name: nameTrimmed, url: urlTrimmed }]);
+    setNewLinkUrl("");
+    setNewLinkName("");
+  };
+
+  const handleLinkKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addLink();
+    }
+  };
+
+  const removeLink = (index: number) => {
+    setLinks(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleDownloadFile = async (file: SubmissionFile, e?: React.MouseEvent) => {
@@ -221,36 +313,41 @@ const Reports: React.FC = () => {
     } catch (err) { addToast("Không thể tải file.", "error"); }
   };
 
-  const validateAndSetFile = (file: File) => {
-    const errors: { [key: string]: string } = {};
-    if (file.size > 10 * 1024 * 1024) errors.file = "File quá lớn (Tối đa 10MB)";
-    const allowed = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-    if (!allowed.includes(file.type)) {
-      errors.file = "Định dạng không hỗ trợ (Chỉ PDF, DOC, DOCX)";
+  const handleOpenConfirm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth.user?.userCode) {
+      addToast("Vui lòng đăng nhập.", "warning"); return;
     }
-    setValidationErrors(errors);
-    setSelectedFile(Object.keys(errors).length === 0 ? file : null);
+    if (selectedFiles.length === 0 && links.length === 0) {
+      addToast("Vui lòng chọn ít nhất một file báo cáo hoặc thêm một liên kết tài liệu.", "warning"); return;
+    }
+    setShowConfirmModal(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedFile || !auth.user?.userCode) {
-      addToast("Vui lòng chọn file và đăng nhập.", "warning"); return;
-    }
+  const performSubmit = async () => {
     setSubmitting(true);
     try {
       const formData = new FormData();
       formData.append("topicCode", topic?.topicCode || "");
       formData.append("milestoneCode", currentMilestone?.milestoneCode || "");
-      formData.append("studentUserCode", auth.user.userCode);
+      formData.append("studentUserCode", auth.user?.userCode || "");
       formData.append("lecturerCode", lecturerProfile?.lecturerCode || "");
       formData.append("reportTitle", reportTitle.trim());
       formData.append("reportDescription", reportDescription.trim());
-      formData.append("files", selectedFile);
+      
+      if (selectedFiles.length > 0) {
+        selectedFiles.forEach((file) => {
+          formData.append("files", file);
+        });
+      }
+      if (links.length > 0) {
+        formData.append("externalLinks", JSON.stringify(links));
+      }
       const res = (await fetchData("/reports/student/progress-submit", { method: "POST", body: formData })) as ApiResponse<any>;
       if (res.success) {
         addToast("Nộp báo cáo thành công", "success");
-        setReportTitle(""); setReportDescription(""); setSelectedFile(null);
+        setReportTitle(""); setReportDescription(""); setSelectedFiles([]); setLinks([]);
+        setShowConfirmModal(false);
         if (auth.user?.userCode) await loadProgressHistory(auth.user.userCode);
       }
     } catch (err) { addToast("Lỗi khi nộp báo cáo", "error"); } finally { setSubmitting(false); }
@@ -407,63 +504,204 @@ const Reports: React.FC = () => {
                </p>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="flex-1 flex flex-col gap-8">
+            <form onSubmit={handleOpenConfirm} className="flex-1 flex flex-col gap-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 flex-1">
-                 <div className="space-y-6">
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Tiêu đề báo cáo</label>
-                      <input type="text" value={reportTitle} onChange={(e) => setReportTitle(e.target.value)}
-                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:border-[#003D82] focus:ring-4 focus:ring-blue-50 transition-all"
-                        placeholder="Nhập tiêu đề..." required />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Mô tả</label>
-                      <textarea value={reportDescription} onChange={(e) => setReportDescription(e.target.value)}
-                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:border-[#003D82] focus:ring-4 focus:ring-blue-50 transition-all resize-none flex-1"
-                        placeholder="Mô tả nội dung..." rows={5} />
-                    </div>
-                 </div>
-                 <div className="flex flex-col h-full">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Tài liệu</label>
-                    <div className={`flex-1 border-2 border-dashed rounded-[24px] p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all relative
-                        ${isDragOver ? "border-[#003D82] bg-blue-50" : "border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300"}`}
-                      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }} onDragLeave={() => setIsDragOver(false)}
-                      onDrop={(e) => { e.preventDefault(); setIsDragOver(false); if(e.dataTransfer.files?.[0]) validateAndSetFile(e.dataTransfer.files[0]); }}
-                      onClick={() => document.getElementById("file-input")?.click()}>
-                      
-                      <input type="file" id="file-input" className="hidden" onChange={handleFileChange} />
-                      
-                      {!selectedFile ? (
-                        <div className="flex flex-col items-center gap-4"><div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-400"><Upload size={24} /></div><p className="text-xs font-black text-slate-600 uppercase tracking-widest">Kéo thả file</p></div>
-                      ) : (
-                        <div className="flex flex-col items-center gap-3 animate-in fade-in zoom-in duration-300">
-                           <button 
-                             onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }}
-                             className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur-sm rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm border border-slate-100"
-                           >
-                             <X size={16} />
-                           </button>
-                           <div className="w-14 h-14 bg-[#003D82] rounded-2xl shadow-lg flex items-center justify-center text-white"><FileText size={24} /></div>
-                           <p className="text-xs font-black text-slate-800 truncate max-w-[200px]">{selectedFile.name}</p>
+                 <div className="flex flex-col gap-6 h-full">
+                     <div>
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Tiêu đề báo cáo</label>
+                       <input type="text" value={reportTitle} onChange={(e) => setReportTitle(e.target.value)}
+                         className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:border-[#003D82] focus:ring-4 focus:ring-blue-50 transition-all"
+                         placeholder="Nhập tiêu đề..." required />
+                     </div>
+                     <div className="flex-1 flex flex-col">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Mô tả</label>
+                       <textarea value={reportDescription} onChange={(e) => setReportDescription(e.target.value)}
+                         className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:border-[#003D82] focus:ring-4 focus:ring-blue-50 transition-all resize-none flex-1 min-h-[160px]"
+                         placeholder="Mô tả nội dung..." />
+                     </div>
+                  </div>
+                  <div className="flex flex-col gap-5 h-full">
+                      {/* Section: Upload File & Add Link Actions Row */}
+                      <div className="space-y-3">
+                        <div>
+                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Đính kèm tài nguyên</label>
+                           <div className="flex items-center gap-2">
+                              {/* Left: Drag-Drop area */}
+                              <div className={`flex-1 border-2 border-dashed rounded-xl px-3 py-2 flex items-center justify-center text-center cursor-pointer transition-all relative h-[42px] min-h-[42px]
+                                  ${selectedFiles.length + links.length >= 4 
+                                    ? "border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed" 
+                                    : isDragOver ? "border-[#003D82] bg-blue-50" : "border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300"}`}
+                                onDragOver={(e) => { 
+                                  if (selectedFiles.length + links.length >= 4) return;
+                                  e.preventDefault(); 
+                                  setIsDragOver(true); 
+                                }} 
+                                onDragLeave={() => setIsDragOver(false)}
+                                onDrop={(e) => { 
+                                  e.preventDefault(); 
+                                  setIsDragOver(false); 
+                                  if (selectedFiles.length + links.length >= 4) {
+                                    addToast("Bạn đã đạt giới hạn tối đa 4 tài nguyên báo cáo.", "warning");
+                                    return;
+                                  }
+                                  if (e.dataTransfer.files) handleMultipleFilesSelection(e.dataTransfer.files); 
+                                }}
+                                onClick={() => {
+                                  if (selectedFiles.length + links.length >= 4) {
+                                    addToast("Bạn đã đạt giới hạn tối đa 4 tài nguyên báo cáo.", "warning");
+                                    return;
+                                  }
+                                  document.getElementById("file-input")?.click();
+                                }}>
+                                 
+                                 <input 
+                                   type="file" 
+                                   id="file-input" 
+                                   className="hidden" 
+                                   multiple 
+                                   disabled={selectedFiles.length + links.length >= 4}
+                                   onChange={(e) => { if (e.target.files) handleMultipleFilesSelection(e.target.files); }} 
+                                 />
+                                 
+                                 <div className="flex items-center gap-2">
+                                    <Upload size={12} className="text-slate-400" />
+                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Chọn file</span>
+                                 </div>
+                              </div>
+
+                              {/* Right: Add Link button */}
+                              <button 
+                                type="button" 
+                                onClick={addLink}
+                                disabled={selectedFiles.length + links.length >= 4 || !newLinkUrl.trim() || !newLinkName.trim() || !isValidUrl(newLinkUrl)}
+                                className={`px-4 h-[42px] font-black text-[10px] uppercase rounded-xl transition-all shadow-sm flex-shrink-0 flex items-center justify-center gap-1.5
+                                  ${(selectedFiles.length + links.length >= 4 || !newLinkUrl.trim() || !newLinkName.trim() || !isValidUrl(newLinkUrl)) 
+                                    ? "bg-slate-50 text-slate-300 border border-slate-200 cursor-not-allowed" 
+                                    : "bg-[#003D82] text-white hover:bg-blue-800"}`}
+                              >
+                                 <ExternalLink size={12} />
+                                 Thêm Link
+                              </button>
+                           </div>
                         </div>
-                      )}
-                    </div>
-                 </div>
-              </div>
-              <div className="pt-8 border-t border-slate-100 flex items-center justify-between">
-                 <div className="flex flex-col gap-1">
-                    {validationErrors.file ? (
-                       <p className="text-[10px] font-black text-red-500 uppercase flex items-center gap-1.5 animate-pulse"><AlertCircle size={14} /> {validationErrors.file}</p>
-                    ) : (
-                       <p className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-1.5"><AlertCircle size={14} /> Định dạng: PDF, DOC, DOCX (Tối đa 10MB)</p>
-                    )}
-                 </div>
-                 <button type="submit" disabled={submitting || !selectedFile}
-                   className={`px-12 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] transition-all
-                     ${submitting || !selectedFile ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-[#F37021] text-white shadow-xl shadow-orange-100 hover:bg-orange-600"}`}>
-                   {submitting ? "Đang xử lý..." : "Gửi báo cáo ngay"}
-                 </button>
-              </div>
+
+                        {/* Row 2: Two inputs for Link below the first row */}
+                        <div className="space-y-1">
+                           <div className="flex items-center gap-2">
+                              <input 
+                                type="text" 
+                                value={newLinkUrl} 
+                                onChange={(e) => setNewLinkUrl(e.target.value)}
+                                onKeyDown={handleLinkKeyDown}
+                                disabled={selectedFiles.length + links.length >= 4}
+                                placeholder={selectedFiles.length + links.length >= 4 ? "Đã đạt giới hạn tối đa 4 tài nguyên..." : "Nhập đường dẫn liên kết ngoài (URL)..."}
+                                className={`flex-[1.8] min-w-0 px-3.5 py-2 border rounded-xl font-bold text-[11px] outline-none transition-all
+                                  ${selectedFiles.length + links.length >= 4 
+                                    ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed placeholder-slate-400" 
+                                    : "bg-slate-50 border-slate-200 focus:border-[#003D82]"}`}
+                              />
+                              <input 
+                                type="text" 
+                                value={newLinkName} 
+                                onChange={(e) => setNewLinkName(e.target.value)}
+                                onKeyDown={handleLinkKeyDown}
+                                disabled={selectedFiles.length + links.length >= 4}
+                                placeholder={selectedFiles.length + links.length >= 4 ? "Đã đạt giới hạn..." : "Nhãn liên kết (ví dụ: GitHub, Drive, Slide...)"}
+                                className={`flex-[1.2] min-w-0 px-3.5 py-2 border rounded-xl font-bold text-[11px] outline-none transition-all
+                                  ${selectedFiles.length + links.length >= 4 
+                                    ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed placeholder-slate-400" 
+                                    : "bg-slate-50 border-slate-200 focus:border-[#003D82]"}`}
+                              />
+                           </div>
+                        </div>
+                     </div>
+                     <div className="flex-1 flex flex-col min-h-[160px]">
+                        <div className="flex justify-between items-center mb-2">
+                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Danh sách tài nguyên nộp</span>
+                           {(selectedFiles.length > 0 || links.length > 0) && (
+                              <span className="text-[8px] font-black text-[#003D82] uppercase bg-blue-50/80 px-2 py-0.5 rounded-md tracking-wider">
+                                 📂 {selectedFiles.length} file • 🔗 {links.length} link
+                              </span>
+                           )}
+                        </div>
+                        
+                        {selectedFiles.length === 0 && links.length === 0 ? (
+                           <div className="h-[175px] flex flex-col items-center justify-center border border-slate-100 rounded-[20px] bg-slate-50/50 p-6 text-center">
+                              <span className="text-slate-300 mb-1"><FileText size={20} /></span>
+                              <p className="text-[9px] font-bold text-slate-400">Chưa có tài liệu hoặc liên kết nào được đính kèm</p>
+                           </div>
+                        ) : (
+                           <div className="space-y-1.5 max-h-[175px] overflow-y-auto pr-1">
+                              {/* selectedFiles List Cards */}
+                              {selectedFiles.map((file, idx) => (
+                                 <div key={`file-${idx}`} className="flex items-center justify-between p-2.5 bg-emerald-50/40 border border-emerald-100/50 rounded-xl animate-in fade-in slide-in-from-bottom-1 duration-200">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                       <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                                          <FileText size={14} />
+                                       </div>
+                                       <div className="min-w-0">
+                                          <p className="text-[10px] font-black text-slate-800 truncate leading-tight" title={file.name}>{file.name}</p>
+                                          <p className="text-[8px] font-bold text-slate-400 leading-none">{formatBytes(file.size)}</p>
+                                       </div>
+                                    </div>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => removeFile(idx)}
+                                      className="p-1 hover:bg-emerald-100/60 rounded-md text-emerald-600/50 hover:text-red-500 transition-all border border-transparent shadow-sm"
+                                    >
+                                       <X size={10} />
+                                    </button>
+                                 </div>
+                              ))}
+
+                              {/* links List Cards */}
+                              {links.map((link, idx) => {
+                                 const isGithub = link.name?.toLowerCase().includes("github") || link.url?.toLowerCase().includes("github");
+                                 const isDrive = link.name?.toLowerCase().includes("drive") || link.url?.toLowerCase().includes("drive") || link.name?.toLowerCase().includes("video");
+                                 const isSlide = link.name?.toLowerCase().includes("slide");
+                                 
+                                 let cardBg = "bg-blue-50/40 border-blue-100/50 text-blue-600";
+                                 let iconBg = "bg-blue-50 text-blue-600";
+                                 if (isGithub) { cardBg = "bg-slate-50 border-slate-200/60 text-slate-800"; iconBg = "bg-slate-100 text-slate-800"; }
+                                 else if (isDrive) { cardBg = "bg-amber-50/40 border-amber-100/50 text-amber-600"; iconBg = "bg-amber-50 text-amber-600"; }
+                                 else if (isSlide) { cardBg = "bg-orange-50/40 border-orange-100/50 text-orange-600"; iconBg = "bg-orange-50 text-orange-600"; }
+
+                                 return (
+                                    <div key={`link-${idx}`} className={`flex items-center justify-between p-2.5 ${cardBg} border rounded-xl animate-in fade-in slide-in-from-bottom-1 duration-200`}>
+                                       <div className="flex items-center gap-2.5 min-w-0">
+                                          <div className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0`}>
+                                             <ExternalLink size={12} />
+                                          </div>
+                                          <div className="min-w-0">
+                                             <p className="text-[10px] font-black text-slate-800 truncate leading-tight" title={link.name}>{link.name}</p>
+                                             <p className="text-[8px] font-bold text-slate-400 truncate leading-none" title={link.url}>{link.url}</p>
+                                          </div>
+                                       </div>
+                                       <button 
+                                         type="button" 
+                                         onClick={() => removeLink(idx)}
+                                         className="p-1 hover:bg-white rounded-md text-slate-400 hover:text-red-500 transition-all border border-transparent shadow-sm"
+                                       >
+                                          <X size={10} />
+                                       </button>
+                                    </div>
+                                 );
+                              })}
+                           </div>
+                        )}
+                     </div>
+                  </div>
+               </div>
+               <div className="pt-8 border-t border-slate-100 flex items-center justify-between">
+                  <div className="flex flex-col gap-1">
+                     <p className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-1.5"><AlertCircle size={14} /> Định dạng: PDF, DOC, DOCX (Tối đa 10MB / tệp)</p>
+                  </div>
+                  <button type="submit" disabled={submitting || (selectedFiles.length === 0 && links.length === 0)}
+                    className={`px-12 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] transition-all
+                      ${submitting || (selectedFiles.length === 0 && links.length === 0) ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-[#F37021] text-white shadow-xl shadow-orange-100 hover:bg-orange-600"}`}>
+                    {submitting ? "Đang xử lý..." : "Gửi báo cáo ngay"}
+                  </button>
+               </div>
             </form>
           )}
         </div>
@@ -510,9 +748,9 @@ const Reports: React.FC = () => {
                         <td onClick={(e) => e.stopPropagation()}>
                            <div className="flex items-center justify-center gap-1">
                               <button onClick={() => { setSelectedReport(report); setShowReportDetailModal(true); }} className="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-[#003D82] shadow-sm border border-transparent hover:border-slate-100 transition-all" title="Xem chi tiết"><Eye size={14} /></button>
-                              {report.files?.[0] && (
-                                <button onClick={(e) => handleDownloadFile(report.files![0], e)} className="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-emerald-500 shadow-sm border border-transparent hover:border-slate-100 transition-all" title="Tải tài liệu"><Download size={14} /></button>
-                              )}
+                              {report.files?.find(f => f.mimeType !== "text/html") && (
+                                 <button onClick={(e) => handleDownloadFile(report.files.find(f => f.mimeType !== "text/html")!, e)} className="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-emerald-500 shadow-sm border border-transparent hover:border-slate-100 transition-all" title="Tải tài liệu"><Download size={14} /></button>
+                               )}
                            </div>
                         </td>
                       </tr>
@@ -565,24 +803,69 @@ const Reports: React.FC = () => {
                     </div>
 
                     <div className="space-y-6">
-                       {selectedReport.files && selectedReport.files.length > 0 && (
-                          <div className="space-y-2">
-                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tài liệu đính kèm</span>
-                             <div className="space-y-2">
-                                {selectedReport.files.map((file) => (
-                                   <div key={file.fileID} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:border-[#003D82] transition-all group">
-                                      <div className="flex items-center gap-3">
-                                         <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#003D82] flex items-center justify-center group-hover:bg-[#003D82] group-hover:text-white transition-all"><FileText size={16} /></div>
-                                         <div className="max-w-[200px]">
-                                            <p className="text-[11px] font-black text-slate-900 truncate" title={file.fileName}>{file.fileName}</p>
-                                         </div>
-                                      </div>
-                                      <button onClick={(e) => handleDownloadFile(file, e)} className="p-2 text-slate-400 hover:text-emerald-500 transition-all" title="Tải xuống"><Download size={16} /></button>
-                                   </div>
-                                ))}
-                             </div>
-                          </div>
-                       )}
+                       {selectedReport.files && selectedReport.files.filter(f => f.mimeType !== "text/html").length > 0 && (
+                           <div className="space-y-2">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tài liệu đính kèm (Files)</span>
+                              <div className="space-y-2">
+                                 {selectedReport.files.filter(f => f.mimeType !== "text/html").map((file) => (
+                                    <div key={file.fileID} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:border-[#003D82] transition-all group">
+                                       <div className="flex items-center gap-3">
+                                          <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#003D82] flex items-center justify-center group-hover:bg-[#003D82] group-hover:text-white transition-all"><FileText size={16} /></div>
+                                          <div className="max-w-[200px]">
+                                             <p className="text-[11px] font-black text-slate-900 truncate" title={file.fileName}>{file.fileName}</p>
+                                          </div>
+                                       </div>
+                                       <button onClick={(e) => handleDownloadFile(file, e)} className="p-2 text-slate-400 hover:text-emerald-500 transition-all" title="Tải xuống"><Download size={16} /></button>
+                                    </div>
+                                 ))}
+                              </div>
+                           </div>
+                        )}
+
+                        {selectedReport.files && selectedReport.files.filter(f => f.mimeType === "text/html").length > 0 && (
+                           <div className="space-y-2">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Liên kết ngoài & Sản phẩm</span>
+                              <div className="space-y-2">
+                                 {selectedReport.files.filter(f => f.mimeType === "text/html").map((file) => {
+                                    const isGithub = file.fileName?.toLowerCase().includes("github") || file.fileURL?.toLowerCase().includes("github");
+                                    const isDrive = file.fileName?.toLowerCase().includes("drive") || file.fileURL?.toLowerCase().includes("drive") || file.fileName?.toLowerCase().includes("video");
+                                    const isSlide = file.fileName?.toLowerCase().includes("slide");
+                                    
+                                    let iconColor = "#3b82f6";
+                                    let bgColor = "#eff6ff";
+                                    if (isGithub) { iconColor = "#0f172a"; bgColor = "#f1f5f9"; }
+                                    else if (isDrive) { iconColor = "#f59e0b"; bgColor = "#fef3c7"; }
+                                    else if (isSlide) { iconColor = "#f37021"; bgColor = "#fff7ed"; }
+
+                                    return (
+                                       <a 
+                                         key={file.fileID} 
+                                         href={file.fileURL} 
+                                         target="_blank" 
+                                         rel="noopener noreferrer" 
+                                         className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:border-[#003D82] transition-all group hover:shadow-sm"
+                                       >
+                                          <div className="flex items-center gap-3">
+                                             <div 
+                                               className="w-8 h-8 rounded-lg flex items-center justify-center transition-all group-hover:scale-105"
+                                               style={{ color: iconColor, backgroundColor: bgColor }}
+                                             >
+                                                <ExternalLink size={16} />
+                                             </div>
+                                             <div className="max-w-[200px]">
+                                                <p className="text-[11px] font-black text-slate-900 truncate" title={file.fileName}>{file.fileName}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 truncate max-w-[180px]">{file.fileURL}</p>
+                                             </div>
+                                          </div>
+                                          <div className="p-2 text-slate-400 group-hover:text-[#003D82] transition-all">
+                                             <ExternalLink size={14} />
+                                          </div>
+                                       </a>
+                                    );
+                                 })}
+                              </div>
+                           </div>
+                        )}
 
                        {selectedReport.lecturerComment && (
                           <div className="p-5 rounded-[20px] bg-orange-50 border border-orange-100 space-y-2">
@@ -604,6 +887,124 @@ const Reports: React.FC = () => {
               </div>
               <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
                  <button onClick={() => setShowReportDetailModal(false)} className="px-6 py-3 bg-white border border-slate-200 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-slate-100 transition-all">Đóng</button>
+              </div>
+           </div>
+        </div>
+       )}
+
+      {/* Premium Confirm Submission Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+           {/* Glass Backdrop */}
+           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" onClick={() => setShowConfirmModal(false)} />
+           
+           {/* Modal Box */}
+           <div className="bg-white rounded-[32px] overflow-hidden shadow-2xl border border-slate-100 w-full max-w-2xl relative z-10 animate-in zoom-in-95 duration-200 flex flex-col">
+              {/* Header */}
+              <div className="p-8 pb-4 text-center">
+                 <div className="w-14 h-14 bg-orange-50 text-[#F37021] rounded-2xl flex items-center justify-center mx-auto mb-4 animate-bounce">
+                    <Send size={24} />
+                 </div>
+                 <h3 className="text-lg font-black text-slate-800 tracking-tight uppercase">Xác nhận gửi báo cáo</h3>
+                 <p className="text-[11px] font-bold text-slate-400 mt-1">Vui lòng rà soát lại thông tin báo cáo dưới đây thật kỹ trước khi gửi tới Giảng viên hướng dẫn.</p>
+              </div>
+
+              {/* Content Review Area */}
+              <div className="px-8 py-2 space-y-5 flex-1 overflow-y-auto max-h-[360px]">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {/* Left Panel: Report Text Info */}
+                    <div className="space-y-4">
+                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">📋 Nội dung báo cáo</span>
+                       <div className="space-y-3">
+                          <div>
+                             <span className="text-[8px] font-black text-slate-400 uppercase">Tiêu đề</span>
+                             <p className="text-xs font-black text-slate-800 leading-tight truncate">{reportTitle || "Chưa nhập tiêu đề"}</p>
+                          </div>
+                          <div>
+                             <span className="text-[8px] font-black text-slate-400 uppercase">Nội dung chi tiết</span>
+                             <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-[11px] text-slate-600 font-bold leading-relaxed max-h-[140px] overflow-y-auto mt-1 whitespace-pre-wrap">
+                                {reportDescription || "Không có mô tả chi tiết."}
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+
+                    {/* Right Panel: Resources Info */}
+                    <div className="space-y-4">
+                       <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">🔗 Tài nguyên đính kèm</span>
+                          <span className="text-[8px] font-black text-[#003D82] uppercase bg-blue-50/80 px-2 py-0.5 rounded-md tracking-wider">
+                             📂 {selectedFiles.length} file • 🔗 {links.length} link
+                          </span>
+                       </div>
+                       
+                       <div className="space-y-1.5 max-h-[190px] overflow-y-auto pr-1">
+                          {selectedFiles.map((file, idx) => (
+                             <div key={`confirm-file-${idx}`} className="flex items-center gap-2.5 p-2 bg-emerald-50/40 border border-emerald-100/50 rounded-xl">
+                                <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                                   <FileText size={12} />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                   <p className="text-[9px] font-black text-slate-800 truncate leading-tight" title={file.name}>{file.name}</p>
+                                   <p className="text-[7px] font-bold text-slate-400 leading-none">{formatBytes(file.size)}</p>
+                                </div>
+                             </div>
+                          ))}
+
+                          {links.map((link, idx) => {
+                             const isGithub = link.name?.toLowerCase().includes("github") || link.url?.toLowerCase().includes("github");
+                             const isDrive = link.name?.toLowerCase().includes("drive") || link.url?.toLowerCase().includes("drive");
+                             const isSlide = link.name?.toLowerCase().includes("slide");
+                             
+                             let cardBg = "bg-blue-50/40 border-blue-100/50 text-blue-600";
+                             let iconBg = "bg-blue-50 text-blue-600";
+                             if (isGithub) { cardBg = "bg-slate-50 border-slate-200/60 text-slate-800"; iconBg = "bg-slate-100 text-slate-800"; }
+                             else if (isDrive) { cardBg = "bg-amber-50/40 border-amber-100/50 text-amber-600"; iconBg = "bg-amber-50 text-amber-600"; }
+                             else if (isSlide) { cardBg = "bg-orange-50/40 border-orange-100/50 text-orange-600"; iconBg = "bg-orange-50 text-orange-600"; }
+
+                             return (
+                                <div key={`confirm-link-${idx}`} className={`flex items-center gap-2.5 p-2 ${cardBg} border rounded-xl`}>
+                                   <div className={`w-6 h-6 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0`}>
+                                      <ExternalLink size={10} />
+                                   </div>
+                                   <div className="min-w-0 flex-1">
+                                      <p className="text-[9px] font-black text-slate-800 truncate leading-tight" title={link.name}>{link.name}</p>
+                                      <p className="text-[7px] font-bold text-slate-400 truncate leading-none" title={link.url}>{link.url}</p>
+                                   </div>
+                                </div>
+                             );
+                          })}
+                       </div>
+                    </div>
+                 </div>
+
+                 {/* Warning Banner */}
+                 <div className="flex items-start gap-2.5 p-3.5 bg-amber-50/70 border border-amber-100/50 rounded-2xl">
+                    <AlertCircle size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-[10px] font-bold text-amber-700 leading-normal">
+                       <strong>Lưu ý quan trọng:</strong> Sau khi gửi, bạn sẽ không thể tự ý sửa đổi hoặc xóa tài nguyên của mốc này trừ khi Giảng viên hướng dẫn đánh giá "Cần sửa" và mở quyền nộp lại.
+                    </p>
+                 </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                 <button 
+                   type="button"
+                   onClick={() => setShowConfirmModal(false)}
+                   disabled={submitting}
+                   className="px-6 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[11px] uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all disabled:opacity-50"
+                 >
+                    Quay lại kiểm tra
+                 </button>
+                 <button 
+                   type="button"
+                   onClick={performSubmit}
+                   disabled={submitting}
+                   className="px-10 py-4 bg-[#F37021] text-white shadow-xl shadow-orange-100 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-orange-600 transition-all flex items-center gap-2 disabled:bg-slate-300 disabled:shadow-none"
+                 >
+                    {submitting ? "Đang gửi báo cáo..." : "Xác nhận & Gửi ngay"}
+                 </button>
               </div>
            </div>
         </div>
