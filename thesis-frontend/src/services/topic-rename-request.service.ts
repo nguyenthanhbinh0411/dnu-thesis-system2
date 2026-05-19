@@ -1,5 +1,6 @@
 import { fetchData } from "../api/fetchData";
 import { getAccessToken } from "./auth-session.service";
+import { apiPath } from "../utils/apiConfig";
 import type { ApiResponse } from "../types/api";
 import type { LecturerProfile } from "../types/lecturer-profile";
 import type { StudentProfile } from "../types/studentProfile";
@@ -16,28 +17,8 @@ import type {
 
 const WORKFLOW_BASE = "/workflows/topic-rename-requests";
 
-const envBaseRaw = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5180"
-).toString();
-
-const ensureScheme = (value: string) => {
-  if (/^https?:\/\//i.test(value)) {
-    return value;
-  }
-  return `http://${value}`;
-};
-
-const envBase = ensureScheme(envBaseRaw.trim());
-const normalizedBase = envBase.endsWith("/") ? envBase.slice(0, -1) : envBase;
-const apiBase = `${normalizedBase}/api`;
-
 function resolveApiUrl(path: string): string {
-  if (/^https?:\/\//i.test(path)) {
-    return path;
-  }
-
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${apiBase}${normalizedPath}`;
+  return apiPath(path);
 }
 
 function appendQuery(

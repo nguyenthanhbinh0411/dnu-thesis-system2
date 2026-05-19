@@ -9,6 +9,7 @@ import {
   getAccessToken,
   markSessionExpiredMessage,
 } from "../services/auth-session.service";
+import { API_BASE_PATH } from "../utils/apiConfig";
 import type {
   ChatConversation,
   ChatConversationFilter,
@@ -33,24 +34,8 @@ import type {
   UpdateMessageReadReceiptPayload,
 } from "../types/chat";
 
-const envBaseRaw = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5180"
-).toString();
-
-const ensureScheme = (value: string) =>
-  /^https?:\/\//i.test(value) ? value : `http://${value}`;
-
-const normalizedBase = (() => {
-  const base = ensureScheme(envBaseRaw.trim());
-  return base.endsWith("/") ? base.slice(0, -1) : base;
-})();
-
-const apiBase = normalizedBase.endsWith("/api")
-  ? normalizedBase
-  : `${normalizedBase}/api`;
-
 const chatClient: AxiosInstance = axios.create({
-  baseURL: apiBase,
+  baseURL: API_BASE_PATH,
   timeout: 20000,
 });
 

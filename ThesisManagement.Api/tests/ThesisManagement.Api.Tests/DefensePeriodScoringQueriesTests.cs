@@ -21,9 +21,10 @@ public class DefensePeriodScoringQueriesTests
 
         result.Success.Should().BeTrue();
         result.Data.Should().NotBeNull();
-        result.Data!.Should().HaveCount(2);
+        var matrixRows = result.Data ?? throw new InvalidOperationException("Expected scoring matrix data.");
+        matrixRows.Should().HaveCount(2);
 
-        var completed = result.Data.Single(x => x.AssignmentCode == "ASG-001");
+        var completed = matrixRows.Single(x => x.AssignmentCode == "ASG-001");
         completed.CommitteeId.Should().Be(11);
         completed.RequiredCount.Should().Be(2);
         completed.SubmittedCount.Should().Be(2);
@@ -120,9 +121,10 @@ public class DefensePeriodScoringQueriesTests
 
         result.Success.Should().BeTrue();
         result.Data.Should().NotBeNull();
-        result.Data!.Should().ContainSingle();
+        var progressRows = result.Data ?? throw new InvalidOperationException("Expected scoring progress data.");
+        progressRows.Should().ContainSingle();
 
-        var row = result.Data.Single();
+        var row = progressRows.Single();
         row.CommitteeId.Should().Be(11);
         row.TotalAssignments.Should().Be(2);
         row.CompletedAssignments.Should().Be(1);

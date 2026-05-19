@@ -27,6 +27,7 @@ namespace ThesisManagement.Api.Controllers
         private readonly ISubmitLecturerIndependentScoreCommand _submitScoreCommand;
         private readonly IOpenLecturerSessionCommand _openSessionCommand;
         private readonly ILockLecturerSessionCommand _lockSessionCommand;
+        private readonly ICloseLecturerSessionCommand _closeSessionCommand;
         private readonly IGetLecturerRevisionQueueQuery _revisionQueueQuery;
         private readonly IApproveRevisionByLecturerCommand _approveRevisionCommand;
         private readonly IRejectRevisionByLecturerCommand _rejectRevisionCommand;
@@ -39,6 +40,7 @@ namespace ThesisManagement.Api.Controllers
         private readonly IUpdateDefenseTermLecturerCommand _updateDefenseTermLecturerCommand;
         private readonly IDeleteDefenseTermLecturerCommand _deleteDefenseTermLecturerCommand;
         private readonly IDefenseTemplateExportService _defenseTemplateExportService;
+        private readonly ThesisManagement.Api.Application.Command.DefensePeriods.Services.IDefenseScoreWorkflowService _scoreWorkflowService;
 
         public LecturerDefenseController(
             Services.IUnitOfWork uow,
@@ -50,6 +52,7 @@ namespace ThesisManagement.Api.Controllers
             ISubmitLecturerIndependentScoreCommand submitScoreCommand,
             IOpenLecturerSessionCommand openSessionCommand,
             ILockLecturerSessionCommand lockSessionCommand,
+            ICloseLecturerSessionCommand closeSessionCommand,
             IGetLecturerRevisionQueueQuery revisionQueueQuery,
             IApproveRevisionByLecturerCommand approveRevisionCommand,
             IRejectRevisionByLecturerCommand rejectRevisionCommand,
@@ -58,6 +61,7 @@ namespace ThesisManagement.Api.Controllers
             IGetTopicFinalScoreProgressQuery topicFinalScoreProgressQuery,
             IGetScoringAlertsQuery scoringAlertsQuery,
             IBuildDefenseReportQuery buildDefenseReportQuery,
+            ThesisManagement.Api.Application.Command.DefensePeriods.Services.IDefenseScoreWorkflowService scoreWorkflowService,
             ICreateDefenseTermLecturerCommand createDefenseTermLecturerCommand,
             IUpdateDefenseTermLecturerCommand updateDefenseTermLecturerCommand,
             IDeleteDefenseTermLecturerCommand deleteDefenseTermLecturerCommand,
@@ -69,6 +73,7 @@ namespace ThesisManagement.Api.Controllers
             _submitScoreCommand = submitScoreCommand;
             _openSessionCommand = openSessionCommand;
             _lockSessionCommand = lockSessionCommand;
+            _closeSessionCommand = closeSessionCommand;
             _revisionQueueQuery = revisionQueueQuery;
             _approveRevisionCommand = approveRevisionCommand;
             _rejectRevisionCommand = rejectRevisionCommand;
@@ -77,6 +82,7 @@ namespace ThesisManagement.Api.Controllers
             _topicFinalScoreProgressQuery = topicFinalScoreProgressQuery;
             _scoringAlertsQuery = scoringAlertsQuery;
             _buildDefenseReportQuery = buildDefenseReportQuery;
+            _scoreWorkflowService = scoreWorkflowService;
             _createDefenseTermLecturerCommand = createDefenseTermLecturerCommand;
             _updateDefenseTermLecturerCommand = updateDefenseTermLecturerCommand;
             _deleteDefenseTermLecturerCommand = deleteDefenseTermLecturerCommand;
@@ -664,7 +670,14 @@ namespace ThesisManagement.Api.Controllers
                     action);
             }
 
-            return BadRequest(ApiResponse<object>.Fail("Action không hợp lệ. Hỗ trợ: SUBMIT, OPEN_SESSION, LOCK_SESSION.", 400));
+            if (action == "CLOSE_SESSION" || action == "CLOSE")
+            {
+                return WrapAsObject(
+                    await CloseSession(periodId, request.CommitteeId, request.IdempotencyKey),
+                    action);
+            }
+
+            return BadRequest(ApiResponse<object>.Fail("Action không hợp lệ. Hỗ trợ: SUBMIT, OPEN_SESSION, LOCK_SESSION, CLOSE_SESSION.", 400));
         }
 
         [HttpPost("revisions/actions")]
@@ -687,6 +700,27 @@ namespace ThesisManagement.Api.Controllers
                     action),
                 _ => BadRequest(ApiResponse<object>.Fail("Action không hợp lệ. Hỗ trợ: APPROVE, REJECT.", 400))
             };
+        }
+
+        [HttpPost("/api/LecturerDefense/admin/reopen-session")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<ApiResponse<object>>> AdminReopenSession([FromQuery] int committeeId)
+        {
+            if (committeeId <= 0)
+            {
+                return BadRequest(ApiResponse<object>.Fail("Thiếu committeeId hợp lệ.", 400));
+            }
+
+            var actorUserId = CurrentUserId;
+            try
+            {
+                await _scoreWorkflowService.ReopenFinalizedSessionAsync(committeeId, actorUserId, HttpContext.RequestAborted);
+                return Ok(ApiResponse<object>.SuccessResponse(new { CommitteeId = committeeId, Reopened = true }));
+            }
+            catch (BusinessRuleException ex)
+            {
+                return StatusCode(400, ApiResponse<object>.Fail(ex.Message ?? "Không thể mở lại hội đồng.", 400, code: ex.Code));
+            }
         }
 
         [HttpGet("/api/LecturerDefense/get-list")]
@@ -1299,6 +1333,19 @@ namespace ThesisManagement.Api.Controllers
 
             var lecturerCode = GetRequestUserCode() ?? string.Empty;
             var result = await _lockSessionCommand.ExecuteAsync(id, lecturerCode, CurrentUserId, idempotencyKey);
+            return FromResult(result);
+        }
+
+        private async Task<ActionResult<ApiResponse<bool>>> CloseSession(int periodId, int id, [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey = null)
+        {
+            var guard = await _getMinutesQuery.ExecuteAsync(id, periodId);
+            if (!guard.Success)
+            {
+                return StatusCode(guard.HttpStatusCode == 0 ? 400 : guard.HttpStatusCode, ApiResponse<bool>.Fail(guard.Message ?? "Không thể truy vấn biên bản hội đồng.", guard.HttpStatusCode == 0 ? 400 : guard.HttpStatusCode, guard.Errors, guard.Code));
+            }
+
+            var lecturerCode = GetRequestUserCode() ?? string.Empty;
+            var result = await _closeSessionCommand.ExecuteAsync(id, lecturerCode, CurrentUserId, idempotencyKey);
             return FromResult(result);
         }
 

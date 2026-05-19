@@ -341,15 +341,14 @@ const StudentLayout: React.FC = () => {
           boxShadow: "2px 0 8px rgba(0, 0, 0, 0.05)",
           position: "fixed",
           top: 0,
-          left: 0,
           height: "100vh",
-          zIndex: 30,
+          zIndex: 9999,
         }}
       >
         <div
           style={{
             textAlign: "center",
-            padding: "24px 18px",
+            padding: "44px 20px 28px",
             background:
               "linear-gradient(180deg, rgba(243, 112, 33, 0.05) 0%, #FFFFFF 100%)",
             borderBottom: "1px solid #E5E7EB",
@@ -373,11 +372,11 @@ const StudentLayout: React.FC = () => {
                 alignItems: "center",
                 justifyContent: "center",
                 borderRadius: 12,
-                border: "1px solid rgba(255, 255, 255, 0.3)",
+                border: "1px solid rgba(0, 0, 0, 0.15)",
                 background:
-                  "linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255,255,255,0.06) 100%)",
-                color: "#FFFFFF",
-                boxShadow: "0 6px 16px rgba(0, 0, 0, 0.18)",
+                  "linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(243, 112, 33, 0.05) 100%)",
+                color: "#000000",
+                boxShadow: "0 6px 16px rgba(0, 0, 0, 0.1)",
                 cursor: "pointer",
                 flexShrink: 0,
                 backdropFilter: "blur(8px)",
@@ -489,6 +488,7 @@ const StudentLayout: React.FC = () => {
         </div>
 
         <div
+          className="sidebar-nav-container"
           style={{ flex: 1, padding: "12px 16px", overflowY: "auto" }}
         >
           <StudentNav
@@ -934,7 +934,7 @@ const StudentLayout: React.FC = () => {
             height: "calc(100vh - 72px)",
             overflowY: "auto",
           }}
-          // onPointerUpCapture={collapseSidebarOnActivity}
+          onPointerUpCapture={collapseSidebarOnActivity}
         >
           <Outlet />
         </div>

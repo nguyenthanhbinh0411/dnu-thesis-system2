@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Security.Cryptography;
 using System.Globalization;
 using System.Data;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -664,6 +665,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                             x.dt.LecturerProfileID,
                             x.dt.LecturerCode,
                             Name = x.lp.FullName,
+                            Degree = x.lp.Degree,
                             x.dt.UserCode,
                             UserID = users.Select(u => (int?)u.UserID).FirstOrDefault()
                         })
@@ -672,6 +674,17 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 if (lecturers.Count == 0)
                 {
                     throw new BusinessRuleException("Không tìm thấy giảng viên phù hợp trong danh sách đã chọn.", "UC2.2.LECTURER_SELECTION_INVALID");
+                }
+
+                var doctorateLecturers = lecturers
+                    .Where(x => IsDoctorateDegree(x.Degree))
+                    .ToList();
+
+                if (doctorateLecturers.Count == 0)
+                {
+                    throw new BusinessRuleException(
+                        "Chủ tịch hội đồng bắt buộc phải có học vị Tiến sĩ.",
+                        "UC2.2.CHAIR_DOCTORATE_REQUIRED");
                 }
 
                 var lecturerCodes = lecturers.Select(x => x.LecturerCode).ToList();
@@ -820,10 +833,38 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                         ? preferredTags.ToHashSet(StringComparer.OrdinalIgnoreCase)
                         : topicDerivedCouncilTags;
 
-                    var rankedLecturerCodes = _heuristicService
+                    var rankedChairLecturerCodes = _heuristicService
+                        .RankLecturers(
+                            doctorateLecturers
+                                .Where(l => !allCodes.Contains(l.LecturerCode))
+                                .Select(l => new LecturerHeuristicCandidate
+                                {
+                                    LecturerCode = l.LecturerCode,
+                                    Tags = lecturerTagMap.TryGetValue(l.LecturerCode, out var tags)
+                                        ? tags
+                                        : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                                    Workload = runtimeWorkloadMap.TryGetValue(l.LecturerCode, out var chairLoad) ? chairLoad : 0,
+                                    ConsecutiveCommitteeAssignments = runtimeConsecutiveCommitteeMap.TryGetValue(l.LecturerCode, out var chairStreak) ? chairStreak : 0
+                                })
+                                .ToList(),
+                            heuristicTargetTags,
+                            request.Strategy?.HeuristicWeights)
+                        .Select(x => x.LecturerCode)
+                        .ToList();
+
+                    var chairLecturerCode = rankedChairLecturerCodes.FirstOrDefault();
+                    if (string.IsNullOrWhiteSpace(chairLecturerCode))
+                    {
+                        throw new BusinessRuleException(
+                            "Không thể xác định giảng viên đủ học vị Tiến sĩ để làm chủ tịch hội đồng.",
+                            "UC2.2.CHAIR_DOCTORATE_REQUIRED");
+                    }
+
+                    var remainingLecturerCodes = _heuristicService
                         .RankLecturers(
                             lecturers
-                                .Where(l => !allCodes.Contains(l.LecturerCode))
+                                .Where(l => !allCodes.Contains(l.LecturerCode)
+                                    && !string.Equals(l.LecturerCode, chairLecturerCode, StringComparison.OrdinalIgnoreCase))
                                 .Select(l => new LecturerHeuristicCandidate
                                 {
                                     LecturerCode = l.LecturerCode,
@@ -836,9 +877,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                                 .ToList(),
                             heuristicTargetTags,
                             request.Strategy?.HeuristicWeights)
-                        .Take(membersPerCouncil)
                         .Select(x => x.LecturerCode)
                         .ToList();
+
+                    var rankedLecturerCodes = new List<string> { chairLecturerCode };
+                    rankedLecturerCodes.AddRange(remainingLecturerCodes.Take(Math.Max(0, membersPerCouncil - 1)));
 
                     var availableLecturers = lecturers
                         .Where(x => rankedLecturerCodes.Contains(x.LecturerCode, StringComparer.OrdinalIgnoreCase))
@@ -2811,6 +2854,12 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 await tx.CommitAsync(cancellationToken);
 
                 await AddAuditSnapshotAsync("START", "SUCCESS", new { period.Status }, new { Status = "Running" }, new { PeriodId = periodId }, actorUserId, cancellationToken);
+                
+                await NotifyParticipantsAsync(periodId, 
+                    $"Đợt đồ án đang chạy: {period.Name}", 
+                    "Hệ thống đã kích hoạt trạng thái Đang bảo vệ cho đợt đồ án này. Sinh viên và giảng viên có thể theo dõi lịch và kết quả.",
+                    "LIFECYCLE", cancellationToken);
+
                 return ApiResponse<bool>.SuccessResponse(true);
             }
             catch (BusinessRuleException ex)
@@ -2856,6 +2905,12 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     }
                 }
 
+                // If moving to Registration, deploy the roadmap
+                if (nextStatus == DefenseTermStatus.Registration)
+                {
+                    await DeployRoadmapAsync(periodId, cancellationToken);
+                }
+
                 period.Status = DefenseWorkflowStateMachine.ToValue(nextStatus);
                 period.LastUpdated = DateTime.UtcNow;
                 _uow.DefenseTerms.Update(period);
@@ -2863,12 +2918,100 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 await tx.CommitAsync(cancellationToken);
 
                 await AddAuditSnapshotAsync("MOVE_NEXT", "SUCCESS", new { Before = currentStatus.ToString() }, new { After = nextStatus.ToString() }, new { PeriodId = periodId }, actorUserId, cancellationToken);
+                
+                // Send notifications
+                var statusLabel = DefenseWorkflowStateMachine.GetStatusLabel(nextStatus);
+                var title = $"Cập nhật trạng thái đợt đồ án: {period.Name}";
+                var body = $"Đợt đồ án đã chuyển sang giai đoạn: {statusLabel}.";
+                
+                if (nextStatus == DefenseTermStatus.Registration)
+                {
+                    body = $"Đợt đồ án đã mở đăng ký đề tài. Lộ trình thời gian (Roadmap) đã được triển khai và áp dụng cho toàn bộ sinh viên/giảng viên tham gia.";
+                }
+
+                await NotifyParticipantsAsync(periodId, title, body, "LIFECYCLE", cancellationToken);
+
                 return ApiResponse<bool>.SuccessResponse(true);
             }
             catch (BusinessRuleException ex)
             {
                 await tx.RollbackAsync(cancellationToken);
                 return Fail<bool>(ex.Message, 400, ResolveUcCode(ex.Code, "UC2.NEXT"), ex.Details);
+            }
+        }
+
+        private async Task DeployRoadmapAsync(int periodId, CancellationToken cancellationToken)
+        {
+            var templates = await _db.MilestoneTemplates.AsNoTracking().OrderBy(x => x.Ordinal).ToListAsync(cancellationToken);
+            if (templates.Count == 0) return;
+
+            var topics = await _db.Topics.Where(x => x.DefenseTermId == periodId).ToListAsync(cancellationToken);
+            if (topics.Count == 0) return;
+
+            var now = DateTime.UtcNow;
+            foreach (var topic in topics)
+            {
+                var existingMilestones = await _db.ProgressMilestones.Where(x => x.TopicID == topic.TopicID).ToListAsync(cancellationToken);
+                
+                foreach (var template in templates)
+                {
+                    var milestone = existingMilestones.FirstOrDefault(x => x.MilestoneTemplateCode == template.MilestoneTemplateCode);
+                    if (milestone == null)
+                    {
+                        milestone = new ProgressMilestone
+                        {
+                            MilestoneCode = $"{topic.TopicCode}-{template.MilestoneTemplateCode}",
+                            TopicID = topic.TopicID,
+                            TopicCode = topic.TopicCode,
+                            MilestoneTemplateCode = template.MilestoneTemplateCode,
+                            Ordinal = template.Ordinal,
+                            Deadline = template.Deadline,
+                            State = "Pending",
+                            CreatedAt = now,
+                            LastUpdated = now
+                        };
+                        await _db.ProgressMilestones.AddAsync(milestone, cancellationToken);
+                    }
+                    else
+                    {
+                        milestone.Deadline = template.Deadline;
+                        milestone.LastUpdated = now;
+                        _db.ProgressMilestones.Update(milestone);
+                    }
+                }
+            }
+            await _uow.SaveChangesAsync();
+        }
+
+        private async Task NotifyParticipantsAsync(int periodId, string title, string body, string category = "SYSTEM", CancellationToken cancellationToken = default)
+        {
+            var studentUserCodes = await _db.DefenseTermStudents
+                .Where(x => x.DefenseTermId == periodId && !string.IsNullOrWhiteSpace(x.UserCode))
+                .Select(x => x.UserCode!)
+                .ToListAsync(cancellationToken);
+
+            var lecturerUserCodes = await _db.DefenseTermLecturers
+                .Where(x => x.DefenseTermId == periodId && !string.IsNullOrWhiteSpace(x.UserCode))
+                .Select(x => x.UserCode!)
+                .ToListAsync(cancellationToken);
+
+            var allTargetCodes = studentUserCodes.Concat(lecturerUserCodes).Distinct().ToList();
+
+            if (allTargetCodes.Count > 0)
+            {
+                await _notificationEventPublisher.PublishAsync(new NotificationEventRequest(
+                    category,
+                    title,
+                    body,
+                    "HIGH",
+                    "NAVIGATE",
+                    "/defense-periods",
+                    "DefenseTerm",
+                    periodId.ToString(),
+                    periodId,
+                    false,
+                    allTargetCodes
+                ));
             }
         }
 
@@ -5659,6 +5802,26 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             }
 
             return roles;
+        }
+
+        private static bool IsDoctorateDegree(string? degree)
+        {
+            var normalized = NormalizeDegree(degree);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return false;
+            }
+
+            return normalized.Contains("tiến sĩ", StringComparison.OrdinalIgnoreCase)
+                || normalized.Contains("phd", StringComparison.OrdinalIgnoreCase)
+                || Regex.IsMatch(normalized, @"(^|[\s\.\-])ts(\.|$|[\s\.\-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
+
+        private static string NormalizeDegree(string? degree)
+        {
+            return string.IsNullOrWhiteSpace(degree)
+                ? string.Empty
+                : degree.Trim().Replace("\u00A0", " ");
         }
 
         private static void ValidateRolePlan(List<string> roles, int expectedCount, string errorCode)

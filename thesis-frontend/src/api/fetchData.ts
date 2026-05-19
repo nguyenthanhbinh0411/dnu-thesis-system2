@@ -5,18 +5,19 @@ import {
 } from "../services/auth-session.service";
 
 const envBaseRaw = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5180"
+  import.meta.env.VITE_API_BASE_URL || "/api"
 ).toString();
-const ensureScheme = (value: string) => {
-  if (/^https?:\/\//i.test(value)) {
-    return value;
-  }
-  return `http://${value}`;
-};
 
-const envBase = ensureScheme(envBaseRaw.trim());
-const normalizedBase = envBase.endsWith("/") ? envBase.slice(0, -1) : envBase;
-const apiBase = `${normalizedBase}/api`;
+// Strip protocol prefix so /api stays /api and http://localhost:5180 becomes localhost:5180
+const stripProtocol = (value: string) =>
+  value.replace(/^https?:\/\//i, "");
+
+// VITE_API_BASE_URL is a PATH PREFIX for production (e.g. /api).
+// Never use http://api, http://backend, or Docker service names in browser requests.
+const envBase = stripProtocol(envBaseRaw.trim()).split("/").filter(Boolean)[0] ?? "";
+const apiBase = envBase.startsWith("/")
+  ? envBase                                        // /api → /api
+  : `/${envBase}`;                                // localhost:5180 → /localhost:5180
 const seenApiVersions = new Set<string>();
 const seenDeprecationWarnings = new Set<string>();
 
@@ -30,6 +31,20 @@ function isMegaProxyUrl(value: string): boolean {
   return /^\/api\/storage\/mega(?:[/?#]|$)/i.test(value);
 }
 
+function prependApiBase(path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (!apiBase) {
+    return normalizedPath;
+  }
+
+  if (normalizedPath === apiBase || normalizedPath.startsWith(`${apiBase}/`)) {
+    return normalizedPath;
+  }
+
+  return `${apiBase}${normalizedPath}`;
+}
+
 export function normalizeUrl(path: string | null | undefined): string {
   if (!path) return "";
 
@@ -40,8 +55,7 @@ export function normalizeUrl(path: string | null | undefined): string {
     return value;
   }
 
-  const normalizedPath = value.startsWith("/") ? value : `/${value}`;
-  return `${normalizedBase}${normalizedPath}`;
+  return prependApiBase(value);
 }
 
 // Helper function to get full avatar URL
@@ -83,8 +97,7 @@ function resolveUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) {
     return path;
   }
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${apiBase}${normalizedPath}`;
+  return prependApiBase(path);
 }
 
 function resolveBody(body: BodyInitCompatible): BodyInit | undefined {

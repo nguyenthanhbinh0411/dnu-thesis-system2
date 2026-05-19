@@ -8,6 +8,8 @@
   --active-bg: #f37021;
   --active-text: #ffffff;
   --active-shadow: 0 6px 16px rgba(243, 112, 33, 0.28);
+  --tooltip-bg: #ffffff;
+  --tooltip-text: #f37021;
 }
 
 .sidenav.student-theme a {

@@ -164,7 +164,6 @@ const AdminNav: React.FC<AdminNavProps> = ({
               end
               className={({ isActive }) => (isActive ? "active" : undefined)}
               onClick={onNavigate}
-              title={item.label}
               aria-label={item.label}
               data-tooltip={item.label}
             >

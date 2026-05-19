@@ -5,6 +5,7 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   Download,
   Eye,
@@ -232,12 +233,15 @@ const MIN_MANUAL_TOPIC_COUNT = 3;
 const MAX_MANUAL_TOPIC_COUNT = 7;
 const COUNCIL_CONFIG_OPTIONS = [3, 4, 5, 6, 7];
 
+const DEEP_BLUE_PRIMARY = "#1e3a5f";
+const LIGHT_BLUE_SOFTEN = "#f0f4f8";
+
 const baseCard: React.CSSProperties = {
   background: "#ffffff",
-  border: "1px solid #cbd5e1",
-  borderRadius: 10,
-  padding: 18,
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  border: "1px solid #e2e8f0",
+  borderRadius: 24,
+  padding: 24,
+  boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
 };
 
 const menuItemStyle: React.CSSProperties = {
@@ -1168,6 +1172,7 @@ const CommitteeManagement: React.FC = () => {
   const [drafts, setDrafts] = useState<CouncilDraft[]>([]);
   const [showAutoGenerateModal, setShowAutoGenerateModal] = useState(false);
   const [showEligibleTopicsModal, setShowEligibleTopicsModal] = useState(false);
+  const [eligibleTopicsPage, setEligibleTopicsPage] = useState(1);
   const [autoGenerateStep, setAutoGenerateStep] = useState<1 | 2>(1);
   const [loadingAutoGenerateConfig, setLoadingAutoGenerateConfig] =
     useState(false);
@@ -4233,16 +4238,6 @@ const CommitteeManagement: React.FC = () => {
       ),
     );
 
-    const normalizedSelectedLecturerProfileIds = Array.from(
-      new Set(
-        selectedLecturerRows
-          .map((lecturer) =>
-            Number(lecturer.lecturerProfileId ?? lecturer.lecturerId ?? 0),
-          )
-          .filter((id) => Number.isFinite(id) && id > 0),
-      ),
-    );
-
     if (normalizedSelectedLecturerCodes.length === 0) {
       showAutoGenerateModalError(
         "Không ánh xạ được mã giảng viên từ danh sách đã chọn. Vui lòng đồng bộ lại dữ liệu.",
@@ -4250,9 +4245,9 @@ const CommitteeManagement: React.FC = () => {
       return;
     }
 
-    if (normalizedSelectedLecturerProfileIds.length === 0 || !defensePeriodId) {
+    if (!defensePeriodId) {
       showAutoGenerateModalError(
-        "Không ánh xạ được LecturerProfileID hợp lệ từ danh sách giảng viên đã chọn.",
+        "Không xác định được đợt đồ án tốt nghiệp hiện tại.",
       );
       return;
     }
@@ -4339,22 +4334,6 @@ const CommitteeManagement: React.FC = () => {
     setAssignmentLoading(true);
     setActionInFlight("Mô phỏng và tạo hội đồng tự động");
     try {
-      const createSelectedResponse = await adminApi.createSelectedLecturers({
-        defenseTermId: defensePeriodId,
-        lecturerProfileIds: normalizedSelectedLecturerProfileIds,
-      });
-      const createSelectedParsed = parseApiEnvelope(createSelectedResponse);
-      if (!createSelectedParsed.ok) {
-        setAutoGenerateModalAlert({
-          type: "error",
-          message: extractApiErrorMessage(
-            createSelectedResponse,
-            "Không thể cập nhật danh sách giảng viên vào đợt.",
-          ),
-        });
-        return;
-      }
-
       const simulateResponse = await adminApi.simulateAutoGenerateCouncils(
         payload,
         makeIdempotencyKey("AUTOGEN-SIM"),
@@ -7125,6 +7104,14 @@ const CommitteeManagement: React.FC = () => {
     showAutoGenerateModal,
   ]);
 
+  const ELIGIBLE_TOPICS_PAGE_SIZE = 10;
+  const paginatedEligibleTopics = useMemo(() => {
+    const start = (eligibleTopicsPage - 1) * ELIGIBLE_TOPICS_PAGE_SIZE;
+    return eligibleTopicRows.slice(start, start + ELIGIBLE_TOPICS_PAGE_SIZE);
+  }, [eligibleTopicRows, eligibleTopicsPage]);
+  
+  const totalEligiblePages = Math.ceil(eligibleTopicRows.length / ELIGIBLE_TOPICS_PAGE_SIZE);
+
   return (
     <div
       style={{
@@ -8634,96 +8621,183 @@ const CommitteeManagement: React.FC = () => {
           }
         `}
       </style>
-      <div className="committee-content">
+      <div className="committee-content" style={{
+        minHeight: "100vh",
+        background: "#f8fafc",
+        color: "#1e293b",
+        fontFamily: "'Be Vietnam Pro', sans-serif",
+        padding: "0 0 40px 0"
+      }}>
+        <div style={{
+          background: DEEP_BLUE_PRIMARY,
+          padding: "40px 32px 80px 32px",
+          position: "relative",
+          overflow: "hidden"
+        }}>
+          {/* Background Accents */}
+          <div style={{
+            position: "absolute",
+            top: "-50%",
+            right: "-10%",
+            width: "600px",
+            height: "600px",
+            background: "radial-gradient(circle, rgba(243, 112, 33, 0.1) 0%, transparent 70%)",
+            filter: "blur(60px)"
+          }} />
 
-        <section className="committee-hero">
-          <div className="committee-hero-grid">
+          <div style={{
+            maxWidth: 1600,
+            margin: "0 auto",
+            position: "relative",
+            zIndex: 2,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            gap: 24,
+            flexWrap: "wrap"
+          }}>
             <div>
-              <div className="committee-kicker">FIT DNU · Quản trị hội đồng</div>
-              <h1 className="committee-hero-title">
-                <GraduationCap size={24} color="#f37021" /> Quản lý hội đồng bảo
-                vệ
-              </h1>
-              <div className="committee-hero-sub">
-                Điều phối quản trị hội đồng theo chuẩn vận hành FIT DNU: đồng bộ
-                dữ liệu, cấu hình đợt, phân công và chốt danh sách trước điều hành.
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 16,
+                animation: "fadeIn 0.5s ease"
+              }}>
+                <div style={{
+                  background: "rgba(255, 255, 255, 0.15)",
+                  backdropFilter: "blur(8px)",
+                  padding: "8px 16px",
+                  borderRadius: 99,
+                  color: "white",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  border: "1px solid rgba(255, 255, 255, 0.2)"
+                }}>
+                  FIT DNU
+                </div>
+                <div style={{
+                  height: 4,
+                  width: 4,
+                  borderRadius: "50%",
+                  background: "rgba(255, 255, 255, 0.3)"
+                }} />
+                <div style={{
+                  color: "rgba(255, 255, 255, 0.7)",
+                  fontSize: 12,
+                  fontWeight: 500
+                }}>
+                  Quản trị hội đồng
+                </div>
               </div>
+
+              <h1 style={{
+                fontSize: 42,
+                fontWeight: 900,
+                color: "white",
+                margin: 0,
+                letterSpacing: "-0.03em",
+                lineHeight: 1,
+                animation: "slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1)"
+              }}>
+                Quản lý <span style={{ color: "#f37021" }}>Hội đồng bảo vệ</span>
+              </h1>
+              
+              <p style={{
+                fontSize: 16,
+                color: "rgba(255, 255, 255, 0.7)",
+                marginTop: 12,
+                maxWidth: 600,
+                fontWeight: 500,
+                animation: "fadeIn 0.8s ease"
+              }}>
+                Điều phối quản trị hội đồng theo chuẩn vận hành FIT DNU: đồng bộ dữ liệu, cấu hình đợt, phân công và chốt danh sách trước điều hành.
+              </p>
             </div>
           </div>
-        </section>
+        </div>
 
-        <section className="committee-overview-grid">
-          <article className="committee-overview-card">
-            <div className="committee-overview-icon">
-              <Users size={18} color="#1d3f91" />
-            </div>
-            <div className="committee-overview-label">Tổng số hội đồng</div>
-            <div className="committee-overview-value">{drafts.length}</div>
-            <div className="committee-overview-meta">
+        <div style={{
+          maxWidth: 1600,
+          margin: "-48px auto 0 auto",
+          padding: "0 32px",
+          position: "relative",
+          zIndex: 10
+        }}>
+          <section style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 20
+        }}>
+          <article style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tổng số hội đồng</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: "#1e3a5f" }}>{drafts.length}</div>
+            <div style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>
               Hội đồng đã được thành lập trong hệ thống
             </div>
           </article>
 
-          <article className="committee-overview-card">
-            <div className="committee-overview-icon">
-              <Layers3 size={18} color="#1d3f91" />
+          <article style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>Đề tài đủ điều kiện</span>
+              <button
+                type="button"
+                onClick={() => setShowEligibleTopicsModal(true)}
+                style={{
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  padding: "4px 12px",
+                  borderRadius: 10,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#1e3a5f",
+                  cursor: "pointer"
+                }}
+              >
+                Xem danh sách
+              </button>
             </div>
-            <div className="committee-overview-label">Đề tài đủ điều kiện</div>
-            <div className="committee-overview-value">{validRows.length}</div>
-            <div className="committee-overview-meta">
+            <div style={{ fontSize: 32, fontWeight: 900, color: "#f37021" }}>{validRows.length}</div>
+            <div style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>
               Đề tài sẵn sàng phân công hội đồng
             </div>
-            <button
-              type="button"
-              className="committee-overview-link"
-              onClick={() => setShowEligibleTopicsModal(true)}
-            >
-              Xem danh sách
-            </button>
           </article>
 
-          <article className="committee-overview-card">
-            <div className="committee-overview-icon committee-overview-icon-accent">
-              <CheckCircle2 size={18} color="#06b6d4" />
-            </div>
-            <div className="committee-overview-label">Đề tài đã phân hội đồng</div>
-            <div className="committee-overview-value">{assignedTopicsCount}</div>
-            <div className="committee-overview-meta">
+          <article style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Đề tài đã phân hội đồng</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: "#16a34a" }}>{assignedTopicsCount}</div>
+            <div style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>
               Tỷ lệ hoàn thành {councilCompletionPercent}%
             </div>
           </article>
 
-          <article className="committee-overview-card committee-overview-card-primary">
-            <div className="committee-overview-icon committee-overview-icon-primary">
-              <CalendarDays size={18} color="#ffffff" />
-            </div>
-            <div className="committee-overview-label">Phiên bảo vệ gần nhất</div>
-            <div className="committee-overview-value">
+          <article style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Phiên bảo vệ gần nhất</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: "#1e3a5f" }}>
               {latestCouncilOverview
-                ? new Date(latestCouncilOverview.defenseDate).toLocaleDateString("vi-VN")
+                ? new Date(latestCouncilOverview.defenseDate).toLocaleDateString("vi-VN").slice(0, 5) // Display day/month
                 : "-"}
             </div>
-            <div className="committee-overview-meta">
+            <div style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b", display: "grid", gap: 2 }}>
               <div>Phòng: {latestCouncilOverview?.room ?? "-"}</div>
               <div>
                 Khung giờ: {latestCouncilOverview?.startTime ?? morningStart} - {latestCouncilOverview?.endTime ?? afternoonEnd}
-              </div>
-              <div>
-                Đề tài: {latestCouncilOverview
-                  ? latestCouncilOverview.morningStudents.length + latestCouncilOverview.afternoonStudents.length
-                  : 0}
               </div>
             </div>
           </article>
         </section>
 
-        <div ref={councilCenterRef} style={{ marginTop: 16, display: "grid", gap: 16 }}>
-          <section style={baseCard} className="section-card-sm">
-            <h2 className="section-title-sm">
-              <Gavel size={18} color="#0f172a" /> Trung tâm quản lý hội đồng
-            </h2>
-            <div style={{ color: "#0f172a", fontSize: 13, marginBottom: 10 }}>
-              Quản lý danh sách hội đồng theo phòng, tags và trạng thái.
+        <div ref={councilCenterRef} style={{ marginTop: 24, display: "grid", gap: 24 }}>
+          <section style={baseCard}>
+            <div style={{ marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: 8 }}>
+                <Gavel size={20} color={DEEP_BLUE_PRIMARY} /> Trung tâm quản lý hội đồng
+              </h3>
+              <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>
+                Quản lý danh sách hội đồng theo phòng, tags và trạng thái.
+              </p>
             </div>
 
             <div
@@ -8744,16 +8818,16 @@ const CommitteeManagement: React.FC = () => {
               }}
             >
               <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "#0f172a" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>
                   Danh sách hội đồng: {councilListLocked ? "Đã chốt" : "Đang mở chỉnh sửa"}
                 </div>
                 {!councilListLocked && (
-                  <div style={{ fontSize: 12, color: "#b45309" }}>
+                  <div style={{ fontSize: 12, color: "#f59e0b" }}>
                     Cần chốt danh sách hội đồng trước khi CT mở phiên chấm.
                   </div>
                 )}
                 {councilListLocked && !isAdminRole && (
-                  <div style={{ fontSize: 12, color: "#1d4ed8" }}>
+                  <div style={{ fontSize: 12, color: DEEP_BLUE_PRIMARY }}>
                     Danh sách đã chốt: chỉ tài khoản Admin mới có quyền mở lại.
                   </div>
                 )}
@@ -8784,8 +8858,21 @@ const CommitteeManagement: React.FC = () => {
                       Boolean(actionInFlight)
                     }
                     className="committee-ghost-btn"
+                    style={{
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      padding: "8px 16px",
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: DEEP_BLUE_PRIMARY,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      cursor: "pointer"
+                    }}
                   >
-                    <RefreshCw size={14} /> Mở lại chốt hội đồng
+                    <RefreshCw size={16} /> Mở lại chốt hội đồng
                   </button>
                 )}
               </div>
@@ -8795,8 +8882,8 @@ const CommitteeManagement: React.FC = () => {
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                gap: 10,
-                marginBottom: 12,
+                gap: 16,
+                marginBottom: 20,
               }}
             >
               <label style={{ display: "grid", gap: 6 }}>
@@ -9269,212 +9356,352 @@ const CommitteeManagement: React.FC = () => {
             <div
               className="committee-modal-overlay"
               onClick={() => setShowEligibleTopicsModal(false)}
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(15, 23, 42, 0.7)",
+                backdropFilter: "blur(8px)",
+                zIndex: 999999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "24px"
+              }}
             >
-              <div
-                className="committee-modal"
-                style={{
-                  width: "min(1120px, calc(100vw - 32px))",
-                  maxHeight: "calc(100vh - 48px)",
-                  padding: 18,
-                }}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="committee-modal-head">
-                  <div>
-                    <div className="committee-modal-title">
-                      Danh sách đề tài đủ điều kiện
-                    </div>
-                    <div className="committee-modal-sub">
-                      Tổng cộng {eligibleTopicRows.length} đề tài sẵn sàng phân công hội đồng trong đợt hiện tại.
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="committee-ghost-btn committee-icon-btn"
-                    onClick={() => setShowEligibleTopicsModal(false)}
-                    title="Đóng"
-                    aria-label="Đóng"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                <div className="committee-modal-summary">
-                  <div className="committee-modal-summary-row">
-                    <span className="committee-modal-summary-label">Trạng thái</span>
-                    <div className="committee-modal-chip-list">
-                      {eligibleTopicModalSummary.statuses.length > 0 ? (
-                        eligibleTopicModalSummary.statuses.map((status) => (
-                          <span
-                            key={`status-${status}`}
-                            className={getModalStatusChipClassName(status)}
-                          >
-                            {status}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="committee-modal-chip committee-modal-chip--muted">
-                          -
-                        </span>
-                      )}
-                    </div>
-                    <span className="committee-modal-summary-meta">
-                      {eligibleTopicRows.length} đề tài
-                    </span>
-                  </div>
-
-                  <div className="committee-modal-summary-row">
-                    <span className="committee-modal-summary-label">Tags đề tài</span>
-                    <div className="committee-modal-chip-list">
-                      {eligibleTopicModalSummary.topicTags.length > 0 ? (
-                        eligibleTopicModalSummary.topicTags.map((tag) => (
-                          <span
-                            key={`topic-tag-${tag}`}
-                            className="committee-modal-chip"
-                          >
-                            {getTagDisplayName(tag)}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="committee-modal-chip committee-modal-chip--muted">
-                          -
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="committee-modal-summary-row">
-                    <span className="committee-modal-summary-label">Tags giảng viên</span>
-                    <div className="committee-modal-chip-list">
-                      {eligibleTopicModalSummary.lecturerTags.length > 0 ? (
-                        eligibleTopicModalSummary.lecturerTags.map((tag) => (
-                          <span
-                            key={`lecturer-tag-${tag}`}
-                            className="committee-modal-chip"
-                          >
-                            {getTagDisplayName(tag)}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="committee-modal-chip committee-modal-chip--muted">
-                          -
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
                 <div
                   style={{
-                    border: "1px solid #cbd5e1",
-                    borderRadius: 12,
-                    overflowX: "auto",
-                    overflowY: "hidden",
+                    background: "white",
+                    width: "100%",
+                    maxWidth: "1280px",
+                    borderRadius: "32px",
+                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+                    position: "relative",
+                    display: "flex",
+                    flexDirection: "column",
+                    maxHeight: "90vh",
+                    overflow: "hidden"
                   }}
+                  onClick={(event) => event.stopPropagation()}
                 >
-                  <table className="committee-data-table">
-                    <colgroup>
-                      <col style={{ width: "14%" }} />
-                      <col style={{ width: "32%" }} />
-                      <col style={{ width: "18%" }} />
-                      <col style={{ width: "24%" }} />
-                      <col style={{ width: "12%" }} />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th>TopicCode</th>
-                        <th>Tên đề tài</th>
-                        <th>Tên sinh viên</th>
-                        <th>Tên giảng viên</th>
-                        <th>Trạng thái</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {eligibleTopicRows.map((item, index) => {
-                        const isWarningStatus = /warning|cảnh báo|chưa|thiếu/i.test(
-                          item.status,
-                        );
-                        return (
-                          <tr key={`${item.topicCode}-${item.studentName}-${index}`}>
-                            <td style={{ fontWeight: 700 }}>{item.topicCode}</td>
-                            <td>
-                              <div className="committee-modal-cell-stack">
-                                <div className="committee-modal-cell-title">
-                                  {item.topicTitle}
-                                </div>
-                                <div className="committee-modal-chip-list">
-                                  {item.topicTags.length > 0 ? (
-                                    item.topicTags.map((tag) => (
-                                      <span
-                                        key={`${item.topicCode}-topic-tag-${tag}`}
-                                        className="committee-modal-chip"
-                                      >
-                                        {getTagDisplayName(tag)}
-                                      </span>
-                                    ))
-                                  ) : (
-                                    <span className="committee-modal-chip committee-modal-chip--muted">
-                                      -
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            <td>{item.studentName}</td>
-                            <td>
-                              <div className="committee-modal-cell-stack">
-                                <div className="committee-modal-cell-title">
-                                  {item.lecturerName}
-                                </div>
-                                <div className="committee-modal-chip-list">
-                                  {item.lecturerTags.length > 0 ? (
-                                    item.lecturerTags.map((tag) => (
-                                      <span
-                                        key={`${item.topicCode}-lecturer-tag-${tag}`}
-                                        className="committee-modal-chip"
-                                      >
-                                        {getTagDisplayName(tag)}
-                                      </span>
-                                    ))
-                                  ) : (
-                                    <span className="committee-modal-chip committee-modal-chip--muted">
-                                      -
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            <td>
-                              <span
-                                className={
-                                  isWarningStatus
-                                    ? "committee-modal-chip committee-modal-chip--warning"
-                                    : "committee-modal-chip committee-modal-chip--status"
-                                }
-                              >
-                                {item.status}
-                              </span>
-                            </td>
+                  {/* Header with gradient */}
+                  <div style={{ padding: "32px 40px 24px", background: "linear-gradient(to bottom, #f8fafc, white)", borderBottom: "1px solid #f1f5f9" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20 }}>
+                      <div style={{ flex: 1 }}>
+                        <h2 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.02em", marginBottom: 8 }}>
+                          Danh sách đề tài đủ điều kiện
+                        </h2>
+                        <p style={{ margin: 0, fontSize: 14, color: "#64748b", fontWeight: 600 }}>
+                          Tổng cộng <span style={{ fontWeight: 800, color: "#1e3a5f" }}>{eligibleTopicRows.length}</span> đề tài sẵn sàng phân công hội đồng trong đợt hiện tại
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowEligibleTopicsModal(false)}
+                        style={{
+                          border: "none",
+                          background: "#f1f5f9",
+                          padding: 10,
+                          borderRadius: 14,
+                          cursor: "pointer",
+                          color: "#64748b",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition: "all 0.2s",
+                          flexShrink: 0
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = "#e2e8f0"}
+                        onMouseLeave={(e) => e.currentTarget.style.background = "#f1f5f9"}
+                      >
+                        <X size={24} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Table Container */}
+                  <div
+                    style={{
+                      flex: 1,
+                      overflowY: "auto",
+                      padding: "0 40px"
+                    }}
+                  >
+                    <div style={{ borderRadius: "20px", border: "1px solid #e2e8f0", overflow: "hidden", background: "#ffffff", marginTop: 24 }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <colgroup>
+                          <col style={{ width: "12%" }} />
+                          <col style={{ width: "30%" }} />
+                          <col style={{ width: "16%" }} />
+                          <col style={{ width: "26%" }} />
+                          <col style={{ width: "16%" }} />
+                        </colgroup>
+                        <thead>
+                          <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                            <th style={{ padding: "16px 20px", textAlign: "left", fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Mã đề tài</th>
+                            <th style={{ padding: "16px 20px", textAlign: "left", fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tên đề tài</th>
+                            <th style={{ padding: "16px 20px", textAlign: "left", fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sinh viên</th>
+                            <th style={{ padding: "16px 20px", textAlign: "left", fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Giảng viên</th>
+                            <th style={{ padding: "16px 20px", textAlign: "left", fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Trạng thái</th>
                           </tr>
-                        );
-                      })}
-                      {eligibleTopicRows.length === 0 && (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            style={{
-                              padding: 14,
-                              textAlign: "center",
-                              color: "#0f172a",
-                            }}
-                          >
-                            Chưa có dữ liệu để hiển thị.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                        </thead>
+                        <tbody>
+                          {paginatedEligibleTopics.length > 0 ? (
+                            paginatedEligibleTopics.map((item, index) => {
+                              const isWarningStatus = /warning|cảnh báo|chưa|thiếu/i.test(item.status);
+                              return (
+                                <tr
+                                  key={`${item.topicCode}-${item.studentName}-${index}`}
+                                  style={{
+                                    borderBottom: "1px solid #f1f5f9",
+                                    background: index % 2 === 0 ? "white" : "#fcfdfe",
+                                    transition: "background 0.2s ease",
+                                    cursor: "default"
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.background = "#f0f4f8"}
+                                  onMouseLeave={(e) => e.currentTarget.style.background = index % 2 === 0 ? "white" : "#fcfdfe"}
+                                >
+                                  <td style={{ padding: "16px 20px", fontSize: 13, fontWeight: 700, color: "#1e3a5f" }}>
+                                    <span style={{ background: "#f0f4f8", padding: "4px 8px", borderRadius: 6, display: "inline-block" }}>
+                                      {item.topicCode}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: "16px 20px" }}>
+                                    <div style={{ display: "grid", gap: 6 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", lineHeight: 1.4 }}>
+                                        {item.topicTitle}
+                                      </div>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                        {item.topicTags.length > 0 ? (
+                                          item.topicTags.slice(0, 2).map((tag) => (
+                                            <span
+                                              key={`${item.topicCode}-topic-tag-${tag}`}
+                                              style={{
+                                                padding: "3px 8px",
+                                                background: "#f1f5f9",
+                                                borderRadius: 6,
+                                                fontSize: 11,
+                                                color: "#475569",
+                                                fontWeight: 600
+                                              }}
+                                            >
+                                              {getTagDisplayName(tag)}
+                                            </span>
+                                          ))
+                                        ) : (
+                                          <span style={{ color: "#94a3b8", fontSize: 11, fontStyle: "italic" }}>-</span>
+                                        )}
+                                        {item.topicTags.length > 2 && (
+                                          <span style={{ padding: "3px 8px", fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>
+                                            +{item.topicTags.length - 2}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: "16px 20px", fontSize: 13, color: "#334155", fontWeight: 600 }}>
+                                    {item.studentName}
+                                  </td>
+                                  <td style={{ padding: "16px 20px" }}>
+                                    <div style={{ display: "grid", gap: 6 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>
+                                        {item.lecturerName}
+                                      </div>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                        {item.lecturerTags.length > 0 ? (
+                                          item.lecturerTags.slice(0, 2).map((tag) => (
+                                            <span
+                                              key={`${item.topicCode}-lecturer-tag-${tag}`}
+                                              style={{
+                                                padding: "3px 8px",
+                                                background: "#f0fdfa",
+                                                borderRadius: 6,
+                                                fontSize: 11,
+                                                color: "#0f766e",
+                                                fontWeight: 600
+                                              }}
+                                            >
+                                              {getTagDisplayName(tag)}
+                                            </span>
+                                          ))
+                                        ) : (
+                                          <span style={{ color: "#94a3b8", fontSize: 11, fontStyle: "italic" }}>-</span>
+                                        )}
+                                        {item.lecturerTags.length > 2 && (
+                                          <span style={{ padding: "3px 8px", fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>
+                                            +{item.lecturerTags.length - 2}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: "16px 20px" }}>
+                                    <span
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        padding: "6px 12px",
+                                        borderRadius: 8,
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        ...(isWarningStatus
+                                          ? { background: "#fffbeb", color: "#b45309" }
+                                          : { background: "#ecfdf5", color: "#047857" })
+                                      }}
+                                    >
+                                      {item.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          ) : (
+                            <tr>
+                              <td
+                                colSpan={5}
+                                style={{
+                                  padding: 60,
+                                  textAlign: "center",
+                                  color: "#94a3b8",
+                                  fontSize: 14,
+                                  fontWeight: 600
+                                }}
+                              >
+                                <div style={{ display: "grid", gap: 12, alignItems: "center", justifyContent: "center" }}>
+                                  <div style={{ fontSize: 48, opacity: 0.2 }}>📋</div>
+                                  <div>Chưa có dữ liệu để hiển thị</div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Footer with Pagination */}
+                  {totalEligiblePages > 1 && (
+                    <div
+                      style={{
+                        padding: "24px 40px",
+                        background: "white",
+                        borderTop: "1px solid #f1f5f9",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 16
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>
+                        Hiển thị <span style={{ fontWeight: 800, color: "#1e293b" }}>{(eligibleTopicsPage - 1) * 10 + 1}</span> -{" "}
+                        <span style={{ fontWeight: 800, color: "#1e293b" }}>
+                          {Math.min(eligibleTopicsPage * 10, eligibleTopicRows.length)}
+                        </span>{" "}
+                        trong <span style={{ fontWeight: 800, color: "#1e293b" }}>{eligibleTopicRows.length}</span> đề tài
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <button
+                          onClick={() => setEligibleTopicsPage((p) => Math.max(1, p - 1))}
+                          disabled={eligibleTopicsPage === 1}
+                          style={{
+                            padding: "8px 16px",
+                            borderRadius: 12,
+                            border: "1px solid #e2e8f0",
+                            background: eligibleTopicsPage === 1 ? "#f8fafc" : "white",
+                            color: eligibleTopicsPage === 1 ? "#94a3b8" : "#1e3a5f",
+                            cursor: eligibleTopicsPage === 1 ? "not-allowed" : "pointer",
+                            fontWeight: 600,
+                            fontSize: 13,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            transition: "all 0.2s"
+                          }}
+                          onMouseEnter={(e) => {
+                            if (eligibleTopicsPage > 1) {
+                              e.currentTarget.style.borderColor = "#1e3a5f";
+                              e.currentTarget.style.background = "#f0f4f8";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = "#e2e8f0";
+                            e.currentTarget.style.background = eligibleTopicsPage === 1 ? "#f8fafc" : "white";
+                          }}
+                        >
+                          <ChevronLeft size={16} />
+                          Trước
+                        </button>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 12px" }}>
+                          {Array.from({ length: Math.min(5, totalEligiblePages) }).map((_, i) => {
+                            const pageNum = Math.max(1, Math.min(eligibleTopicsPage - 2, totalEligiblePages - 4)) + i;
+                            return (
+                              <button
+                                key={pageNum}
+                                onClick={() => setEligibleTopicsPage(pageNum)}
+                                style={{
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: 8,
+                                  border: "1px solid #e2e8f0",
+                                  background: pageNum === eligibleTopicsPage ? "#1e3a5f" : "white",
+                                  color: pageNum === eligibleTopicsPage ? "white" : "#1e293b",
+                                  cursor: "pointer",
+                                  fontWeight: pageNum === eligibleTopicsPage ? 700 : 600,
+                                  fontSize: 12,
+                                  transition: "all 0.2s"
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (pageNum !== eligibleTopicsPage) {
+                                    e.currentTarget.style.borderColor = "#1e3a5f";
+                                    e.currentTarget.style.background = "#f0f4f8";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (pageNum !== eligibleTopicsPage) {
+                                    e.currentTarget.style.borderColor = "#e2e8f0";
+                                    e.currentTarget.style.background = "white";
+                                  }
+                                }}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <button
+                          onClick={() => setEligibleTopicsPage((p) => Math.min(totalEligiblePages, p + 1))}
+                          disabled={eligibleTopicsPage === totalEligiblePages}
+                          style={{
+                            padding: "8px 16px",
+                            borderRadius: 12,
+                            border: "1px solid #e2e8f0",
+                            background: eligibleTopicsPage === totalEligiblePages ? "#f8fafc" : "white",
+                            color: eligibleTopicsPage === totalEligiblePages ? "#94a3b8" : "#1e3a5f",
+                            cursor: eligibleTopicsPage === totalEligiblePages ? "not-allowed" : "pointer",
+                            fontWeight: 600,
+                            fontSize: 13,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            transition: "all 0.2s"
+                          }}
+                          onMouseEnter={(e) => {
+                            if (eligibleTopicsPage < totalEligiblePages) {
+                              e.currentTarget.style.borderColor = "#1e3a5f";
+                              e.currentTarget.style.background = "#f0f4f8";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = "#e2e8f0";
+                            e.currentTarget.style.background =
+                              eligibleTopicsPage === totalEligiblePages ? "#f8fafc" : "white";
+                          }}
+                        >
+                          Sau
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
               </div>
             </div>,
             document.body,
@@ -9489,11 +9716,11 @@ const CommitteeManagement: React.FC = () => {
             >
               <div
                 className="committee-modal"
-                style={{ 
-                  width: "min(1200px, calc(100vw - 32px))", 
-                  maxHeight: "calc(100vh - 48px)", 
+                style={{
+                  width: "min(1200px, calc(100vw - 32px))",
+                  maxHeight: "calc(100vh - 48px)",
                   padding: 24,
-                  position: "relative" 
+                  position: "relative"
                 }}
                 onClick={(event) => event.stopPropagation()}
               >
@@ -9523,8 +9750,8 @@ const CommitteeManagement: React.FC = () => {
                       Tạo hội đồng bảo vệ tự động
                     </div>
                     <div className="committee-modal-sub">
-                      {autoGenerateStep === 1 
-                        ? "Bước 1: Chọn danh sách đề tài và giảng viên tham gia." 
+                      {autoGenerateStep === 1
+                        ? "Bước 1: Chọn danh sách đề tài và giảng viên tham gia."
                         : "Bước 2: Thiết lập các tham số vận hành và thuật toán phân bổ."}
                     </div>
                   </div>
@@ -9540,17 +9767,17 @@ const CommitteeManagement: React.FC = () => {
 
                 {/* Step Indicators */}
                 <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-                  <div style={{ 
-                    flex: 1, 
-                    height: 4, 
-                    borderRadius: 2, 
-                    background: autoGenerateStep >= 1 ? "#2563eb" : "#e2e8f0" 
+                  <div style={{
+                    flex: 1,
+                    height: 4,
+                    borderRadius: 2,
+                    background: autoGenerateStep >= 1 ? "#2563eb" : "#e2e8f0"
                   }} />
-                  <div style={{ 
-                    flex: 1, 
-                    height: 4, 
-                    borderRadius: 2, 
-                    background: autoGenerateStep >= 2 ? "#2563eb" : "#e2e8f0" 
+                  <div style={{
+                    flex: 1,
+                    height: 4,
+                    borderRadius: 2,
+                    background: autoGenerateStep >= 2 ? "#2563eb" : "#e2e8f0"
                   }} />
                 </div>
 
@@ -9610,11 +9837,11 @@ const CommitteeManagement: React.FC = () => {
                           placeholder="Tìm mã/tên đề tài..."
                           style={{ height: 36, fontSize: 13 }}
                         />
-                        <div style={{ 
-                          maxHeight: 350, 
-                          overflow: "auto", 
-                          border: "1px solid #e2e8f0", 
-                          borderRadius: 12, 
+                        <div style={{
+                          maxHeight: 350,
+                          overflow: "auto",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 12,
                           padding: 8,
                           display: "grid",
                           gap: 6
@@ -9623,12 +9850,12 @@ const CommitteeManagement: React.FC = () => {
                             const id = topic.topicId ?? topic.topicCode ?? "";
                             const checked = selectedAutoTopicIds.includes(id);
                             return (
-                              <label key={`topic-${id}`} style={{ 
-                                display: "grid", 
-                                gridTemplateColumns: "auto 1fr", 
-                                gap: 10, 
-                                padding: 10, 
-                                border: "1px solid #f1f5f9", 
+                              <label key={`topic-${id}`} style={{
+                                display: "grid",
+                                gridTemplateColumns: "auto 1fr",
+                                gap: 10,
+                                padding: 10,
+                                border: "1px solid #f1f5f9",
                                 borderRadius: 10,
                                 background: checked ? "#eff6ff" : "#fff",
                                 cursor: "pointer"
@@ -9676,8 +9903,8 @@ const CommitteeManagement: React.FC = () => {
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 8 }}>
-                          <select 
-                            value={lecturerSourceFilter} 
+                          <select
+                            value={lecturerSourceFilter}
                             onChange={(e) => setLecturerSourceFilter(e.target.value as any)}
                             style={{ height: 36, fontSize: 13, flex: 1 }}
                           >
@@ -9693,11 +9920,11 @@ const CommitteeManagement: React.FC = () => {
                             style={{ height: 36, fontSize: 13, flex: 1 }}
                           />
                         </div>
-                        <div style={{ 
-                          maxHeight: 350, 
-                          overflow: "auto", 
-                          border: "1px solid #e2e8f0", 
-                          borderRadius: 12, 
+                        <div style={{
+                          maxHeight: 350,
+                          overflow: "auto",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 12,
                           padding: 8,
                           display: "grid",
                           gap: 6
@@ -9705,21 +9932,34 @@ const CommitteeManagement: React.FC = () => {
                           {availableAutoLecturers.map(lecturer => {
                             const id = lecturer.lecturerProfileId ?? lecturer.lecturerId ?? lecturer.lecturerCode ?? "";
                             const checked = selectedAutoLecturerIds.includes(id);
+                            const lecturerLabel = getLecturerDisplayNameByCode(
+                              String(lecturer.lecturerCode ?? "").trim(),
+                              String(lecturer.lecturerName ?? "").trim(),
+                              lecturer.degree,
+                            );
+                            const lecturerDegree =
+                              String(lecturer.degree ?? "").trim() ||
+                              getLecturerDegreeByCode(String(lecturer.lecturerCode ?? "").trim()) ||
+                              "Chưa cập nhật học vị";
                             return (
-                              <label key={`lecturer-${id}`} style={{ 
-                                display: "grid", 
-                                gridTemplateColumns: "auto 1fr", 
-                                gap: 10, 
-                                padding: 10, 
-                                border: "1px solid #f1f5f9", 
+                              <label key={`lecturer-${id}`} style={{
+                                display: "grid",
+                                gridTemplateColumns: "auto 1fr",
+                                gap: 10,
+                                padding: 10,
+                                border: "1px solid #f1f5f9",
                                 borderRadius: 10,
                                 background: checked ? "#fdfaf1" : "#fff",
                                 cursor: "pointer"
                               }}>
                                 <input type="checkbox" checked={checked} onChange={() => toggleAutoLecturer(id)} />
                                 <div style={{ fontSize: 12 }}>
-                                  <div style={{ fontWeight: 700 }}>{lecturer.lecturerName}</div>
-                                  <div style={{ color: "#64748b", marginTop: 2 }}>Mã: {lecturer.lecturerCode} | {lecturer.degree}</div>
+                                  <div style={{ fontWeight: 700 }} title={lecturerLabel}>
+                                    {lecturer.lecturerCode ? `${lecturer.lecturerCode} - ${lecturerLabel}` : lecturerLabel}
+                                  </div>
+                                  <div style={{ color: "#64748b", marginTop: 2 }} title={lecturerDegree}>
+                                    Học vị: {lecturerDegree}
+                                  </div>
                                   {lecturer.tagCodes && lecturer.tagCodes.length > 0 && (
                                     <div style={{ fontSize: 10, color: "#f59e0b", marginTop: 4 }}>
                                       Tags: {lecturer.tagCodes.join(", ")}
@@ -9748,12 +9988,12 @@ const CommitteeManagement: React.FC = () => {
 
                         <div style={{ display: "grid", gap: 8 }}>
                           <div style={{ fontSize: 13, fontWeight: 600 }}>Phòng bảo vệ khả dụng</div>
-                          <div style={{ 
-                            display: "flex", 
-                            gap: 8, 
-                            flexWrap: "wrap", 
-                            padding: 12, 
-                            border: "1px solid #e2e8f0", 
+                          <div style={{
+                            display: "flex",
+                            gap: 8,
+                            flexWrap: "wrap",
+                            padding: 12,
+                            border: "1px solid #e2e8f0",
                             borderRadius: 12,
                             background: "#f8fafc",
                             minHeight: 80
@@ -9786,7 +10026,7 @@ const CommitteeManagement: React.FC = () => {
                           <div style={{ display: "grid", gap: 4 }}>
                             <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>Ca làm việc mặc định</span>
                             <div style={{ fontSize: 12, padding: "8px 12px", background: "#f1f5f9", borderRadius: 8 }}>
-                              Sáng: {morningStart} - {morningEnd}<br/>
+                              Sáng: {morningStart} - {morningEnd}<br />
                               Chiều: {afternoonStart} - {afternoonEnd}
                             </div>
                           </div>
@@ -9891,16 +10131,16 @@ const CommitteeManagement: React.FC = () => {
                         Đã chọn {selectedAutoTopicIds.length} đề tài và {selectedAutoLecturerIds.length} giảng viên.
                       </span>
                     ) : (
-                      <span style={{ 
-                        color: canCreateCouncils ? "#059669" : "#dc2626", 
+                      <span style={{
+                        color: canCreateCouncils ? "#059669" : "#dc2626",
                         fontWeight: 600,
                         display: "flex",
                         alignItems: "center",
                         gap: 6
                       }}>
-                        {canCreateCouncils 
-                          ? <><CheckCircle2 size={16}/> Sẵn sàng tạo hội đồng</> 
-                          : <><X size={16}/> Thiếu thông tin cấu hình</>}
+                        {canCreateCouncils
+                          ? <><CheckCircle2 size={16} /> Sẵn sàng tạo hội đồng</>
+                          : <><X size={16} /> Thiếu thông tin cấu hình</>}
                       </span>
                     )}
                   </div>
@@ -9916,7 +10156,7 @@ const CommitteeManagement: React.FC = () => {
                       Quay lại
                     </button>
                   )}
-                  
+
                   <button
                     type="button"
                     className="committee-ghost-btn"
@@ -11342,6 +11582,7 @@ const CommitteeManagement: React.FC = () => {
             document.body,
           )}
 
+        </div>
       </div>
     </div>
   );

@@ -95,7 +95,6 @@ const LecturerNav: React.FC<LecturerNavProps> = ({
               end
               className={({ isActive }) => (isActive ? "active" : undefined)}
               onClick={onNavigate}
-              title={item.label}
               aria-label={item.label}
               data-tooltip={item.label}
             >

@@ -250,6 +250,7 @@ builder.Services.AddScoped<IDefenseTemplateExportService, DefenseTemplateExportS
 builder.Services.AddScoped<IDocumentExportService, DocumentExportService>();
 builder.Services.AddScoped<IDefenseOperationsExportService, DefenseOperationsExportService>();
 builder.Services.AddScoped<ICommitteeRosterExportService, CommitteeRosterExportService>();
+builder.Services.AddScoped<IDefenseModularExportService, DefenseModularExportService>();
 builder.Services.AddScoped<ICommitteeConstraintService, CommitteeConstraintService>();
 builder.Services.AddScoped<ICommitteeConstraintRule, RoleRequirementRule>();
 builder.Services.AddScoped<ICommitteeConstraintRule, LecturerOverlapRule>();
@@ -522,6 +523,7 @@ builder.Services.AddScoped<ISaveLecturerMinuteCommand, SaveLecturerMinuteCommand
 builder.Services.AddScoped<ISubmitLecturerIndependentScoreCommand, SubmitLecturerIndependentScoreCommand>();
 builder.Services.AddScoped<IOpenLecturerSessionCommand, OpenLecturerSessionCommand>();
 builder.Services.AddScoped<ILockLecturerSessionCommand, LockLecturerSessionCommand>();
+builder.Services.AddScoped<ICloseLecturerSessionCommand, CloseLecturerSessionCommand>();
 builder.Services.AddScoped<IApproveRevisionByLecturerCommand, ApproveRevisionByLecturerCommand>();
 builder.Services.AddScoped<IRejectRevisionByLecturerCommand, RejectRevisionByLecturerCommand>();
 builder.Services.AddScoped<ISubmitStudentRevisionCommand, SubmitStudentRevisionCommand>();
@@ -660,6 +662,58 @@ app.UseStaticFiles(new Microsoft.AspNetCore.Builder.StaticFileOptions
 });
 
 app.UseAuthorization();
+
+// Auto-apply migrations on startup & seed admin user
+try
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        // Log migration status with retry/backoff so app doesn't crash if DB is not yet ready
+        const int maxMigrationAttempts = 10;
+        const int baseDelayMs = 2000; // 2s
+        for (int attempt = 1; attempt <= maxMigrationAttempts; attempt++)
+        {
+            try
+            {
+                var pendingMigrations = dbContext.Database.GetPendingMigrations();
+                if (pendingMigrations.Any())
+                {
+                    Console.WriteLine($"[Migration] Found {pendingMigrations.Count()} pending migrations. Applying...");
+                    dbContext.Database.Migrate();
+                    Console.WriteLine("[Migration] Migrations applied successfully.");
+                }
+                else
+                {
+                    Console.WriteLine("[Migration] Database is up to date.");
+                }
+
+                break; // success
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Migration] Database not ready (attempt {attempt}/{maxMigrationAttempts}): {ex.Message}");
+                if (attempt == maxMigrationAttempts)
+                {
+                    Console.WriteLine("[Startup Error] Failed to initialize database after retries.");
+                    throw;
+                }
+
+                var delay = baseDelayMs * attempt;
+                await Task.Delay(delay);
+            }
+        }
+    }
+    
+    // Seed admin user after migrations
+    await ThesisManagement.Api.Helpers.DbSeeder.SeedAdminAsync(app.Services);
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[Startup Error] Failed to initialize database: {ex.Message}");
+    throw;
+}
 
 app.MapControllers();
 app.MapHealthChecks("/healthz");
