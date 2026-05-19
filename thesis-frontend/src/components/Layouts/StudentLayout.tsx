@@ -934,7 +934,7 @@ const StudentLayout: React.FC = () => {
             height: "calc(100vh - 72px)",
             overflowY: "auto",
           }}
-          onPointerUpCapture={collapseSidebarOnActivity}
+          // onPointerUpCapture={collapseSidebarOnActivity}
         >
           <Outlet />
         </div>

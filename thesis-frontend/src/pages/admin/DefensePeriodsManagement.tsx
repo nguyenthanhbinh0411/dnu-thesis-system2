@@ -128,6 +128,7 @@ const defensePeriodApi = {
   },
 };
 
+
 const STUDENT_FIELDS = [
   { key: "StudentCode", label: "Mã sinh viên", category: "Thông tin cơ bản" },
   { key: "UserCode", label: "Mã user", category: "Thông tin cơ bản" },
@@ -548,13 +549,18 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
   return (
     <div style={{ position: "relative" }} ref={containerRef}>
       <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>{label}</label>
+      <div 
+        onClick={() => onToggle(!isOpen)}
+        style={{ 
+          display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", 
+          background: "white", border: "1px solid #cbd5e1", borderRadius: "10px", 
+          cursor: "pointer", fontWeight: "600", transition: "all 0.2s" 
       <div
         onClick={() => onToggle(!isOpen)}
         style={{
           display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px",
           background: "white", border: "1px solid #cbd5e1", borderRadius: "10px",
-          cursor: "pointer", fontWeight: "600", transition: "all 0.2s"
-        }}
+          cursor: "pointer", fontWeight: "600", transition: "all 0.2s"        }}
       >
         <CalendarIcon size={16} color="#64748b" />
         <span style={{ flex: 1, color: "#1e293b", fontSize: "14px" }}>{formatDisplay(value)}</span>
@@ -562,6 +568,10 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
       </div>
 
       {isOpen && (
+        <div 
+          style={{ 
+            position: "absolute", bottom: "calc(100% + 8px)", left: 0, width: "300px", 
+            background: "white", borderRadius: "16px", boxShadow: "0 10px 25px rgba(0,0,0,0.15)", 
         <div
           style={{
             position: "absolute", bottom: "calc(100% + 8px)", left: 0, width: "300px",
@@ -577,7 +587,7 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
             >
               <CalendarIcon size={12} /> Ngày
             </button>
-            <button
+            <button 
               onClick={(e) => { e.stopPropagation(); setIsTimeMode(true); }}
               style={{ flex: 1, border: "none", background: isTimeMode ? "white" : "none", padding: "6px", fontSize: "12px", fontWeight: "700", borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", color: isTimeMode ? "#1e3a5f" : "#64748b", boxShadow: isTimeMode ? "0 2px 4px rgba(0,0,0,0.05)" : "none" }}
             >
@@ -588,9 +598,9 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
           {!isTimeMode ? (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <button style={{ border: "none", background: "none", cursor: "pointer", padding: "4px" }} onClick={(e) => { e.stopPropagation(); setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1)); }}><ChevronLeft size={16} /></button>
+                <button style={{ border: "none", background: "none", cursor: "pointer", padding: "4px" }} onClick={(e) => { e.stopPropagation(); setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1)); }}><ChevronLeft size={16}/></button>
                 <div style={{ fontWeight: "800", color: "#0f172a", fontSize: "14px" }}>Tháng {viewDate.getMonth() + 1}, {viewDate.getFullYear()}</div>
-                <button style={{ border: "none", background: "none", cursor: "pointer", padding: "4px" }} onClick={(e) => { e.stopPropagation(); setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1)); }}><ChevronRight size={16} /></button>
+                <button style={{ border: "none", background: "none", cursor: "pointer", padding: "4px" }} onClick={(e) => { e.stopPropagation(); setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1)); }}><ChevronRight size={16}/></button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", fontSize: "10px", fontWeight: "800", color: "#94a3b8", textAlign: "center", marginBottom: "8px" }}>
                 {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map(d => <span key={d}>{d}</span>)}
@@ -601,8 +611,8 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
                   const d = i + 1;
                   const isSelected = selectedDate.getDate() === d && selectedDate.getMonth() === viewDate.getMonth() && selectedDate.getFullYear() === viewDate.getFullYear();
                   return (
-                    <div
-                      key={d}
+                    <div 
+                      key={d} 
                       onClick={(e) => { e.stopPropagation(); handleSelectDay(d); }}
                       style={{ aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: "600", cursor: "pointer", borderRadius: "8px", background: isSelected ? "#1e3a5f" : "none", color: isSelected ? "white" : "#475569" }}
                     >
@@ -632,7 +642,7 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
               </div>
             </div>
           )}
-          <button
+          <button 
             onClick={(e) => { e.stopPropagation(); onToggle(false); }}
             style={{ width: "100%", marginTop: "12px", background: "#1e3a5f", color: "white", border: "none", padding: "8px", borderRadius: "10px", fontWeight: "700", cursor: "pointer", fontSize: "13px" }}
           >
@@ -737,19 +747,19 @@ const DefensePeriodsManagement: React.FC = () => {
     try {
       for (let i = 0; i < milestones.length - 1; i++) {
         const current = new Date(milestones[i].deadline!);
-        const next = new Date(milestones[i + 1].deadline!);
+        const next = new Date(milestones[i+1].deadline!);
         if (current >= next) {
           addToast(`Hạn nộp mốc ${i + 1} phải trước mốc ${i + 2}.`, "warning");
-          setMilestonesSaving(false);
+          setMilestonesSaving(false); 
           return;
         }
       }
-      const promises = milestones.map(m =>
-        milestoneApi.update(m.milestoneTemplateID, {
-          name: m.name,
-          description: m.description,
-          deadline: m.deadline,
-          ordinal: m.ordinal
+      const promises = milestones.map(m => 
+        milestoneApi.update(m.milestoneTemplateID, { 
+          name: m.name, 
+          description: m.description, 
+          deadline: m.deadline, 
+          ordinal: m.ordinal 
         })
       );
       const results = await Promise.all(promises);
@@ -759,10 +769,10 @@ const DefensePeriodsManagement: React.FC = () => {
       } else {
         addToast("Cập nhật thất bại.", "error");
       }
-    } catch (err) {
-      addToast("Lỗi hệ thống khi cập nhật lộ trình.", "error");
-    } finally {
-      setMilestonesSaving(false);
+    } catch (err) { 
+      addToast("Lỗi hệ thống khi cập nhật lộ trình.", "error"); 
+    } finally { 
+      setMilestonesSaving(false); 
     }
   };
 
@@ -1449,6 +1459,138 @@ const DefensePeriodsManagement: React.FC = () => {
                       label="Hạn nộp bài cuối cùng"
                       value={m.deadline}
                       onChange={(val) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? { ...x, deadline: val } : x))}
+                      isOpen={activeMilestonePickerId === m.milestoneTemplateID}
+                      onToggle={(open) => setActiveMilestonePickerId(open ? m.milestoneTemplateID : null)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderMilestones = () => {
+    if (milestonesLoading) {
+      return (
+        <div style={{ display: "flex", justifyContent: "center", padding: "100px" }}>
+          <div style={{ width: "40px", height: "40px", border: `4px solid ${LIGHT_BLUE_SOFTEN}`, borderTop: `4px solid ${DEEP_BLUE_PRIMARY}`, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ display: "grid", gap: "24px" }}>
+        <div style={{ 
+          background: "linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)", 
+          padding: "24px", borderRadius: "20px", border: "1px solid #e2e8f0",
+          display: "flex", justifyContent: "space-between", alignItems: "center"
+        }}>
+          <div>
+            <div style={{ fontSize: "12px", fontWeight: "800", color: DEEP_BLUE_PRIMARY, textTransform: "uppercase", letterSpacing: "0.05em" }}>Cấu hình tiến độ</div>
+            <h3 style={{ margin: "4px 0 0 0", fontSize: "20px", fontWeight: "900", color: "#0f172a" }}>Thiết lập lộ trình nộp bài</h3>
+            <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "14px" }}>Xác định các mốc thời gian quan trọng sinh viên cần hoàn thành trong đợt.</p>
+          </div>
+          <button 
+            onClick={handleSaveMilestones}
+            disabled={milestonesSaving}
+            style={{ 
+              background: DEEP_BLUE_PRIMARY, color: "white", border: "none", padding: "12px 24px", 
+              borderRadius: "12px", fontWeight: "700", cursor: "pointer", display: "flex", 
+              alignItems: "center", gap: "10px", boxShadow: "0 4px 12px rgba(30, 58, 95, 0.2)" 
+            }}
+          >
+            {milestonesSaving ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
+            <span>Lưu thay đổi lộ trình</span>
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "24px", alignItems: "start" }}>
+          {/* Summary Sidebar */}
+          <div style={{ background: "#fff", padding: "24px", borderRadius: "20px", border: "1px solid #e2e8f0", position: "sticky", top: "100px" }}>
+            <h4 style={{ margin: "0 0 20px 0", fontSize: "16px", fontWeight: "800", color: DEEP_BLUE_PRIMARY }}>Tóm tắt lộ trình</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+              {milestones.map((m, idx) => (
+                <React.Fragment key={m.milestoneTemplateID}>
+                  <div style={{ display: "flex", gap: "16px", alignItems: "center", padding: "12px 0" }}>
+                    <div style={{ 
+                      width: "32px", height: "32px", background: m.ordinal === 4 ? "#fff7ed" : "#f1f5f9", 
+                      color: m.ordinal === 4 ? "#f97316" : DEEP_BLUE_PRIMARY, 
+                      borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", 
+                      fontWeight: "800", fontSize: "14px", flexShrink: 0, border: `1px solid ${m.ordinal === 4 ? "#ffedd5" : "#e2e8f0"}`
+                    }}>
+                      {m.ordinal}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: "14px", fontWeight: "700", color: "#334155", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
+                      <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>{m.deadline ? new Date(m.deadline).toLocaleDateString('vi-VN') : '---'}</div>
+                    </div>
+                  </div>
+                  {idx < milestones.length - 1 && (
+                    <div style={{ width: "2px", height: "20px", background: "#e2e8f0", marginLeft: "15px" }}></div>
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+            <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: "8px", color: "#94a3b8", fontSize: "12px", fontWeight: "600" }}>
+              <Info size={14} />
+              <span>Quy trình gồm 4 giai đoạn</span>
+            </div>
+          </div>
+
+          {/* Main Content: Timeline Editor */}
+          <div style={{ display: "grid", gap: "32px" }}>
+            {milestones.map((m, idx) => (
+              <div key={m.milestoneTemplateID} style={{ display: "flex", gap: "24px" }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "48px" }}>
+                  <div style={{ 
+                    width: "48px", height: "48px", background: "white", 
+                    border: `3px solid ${m.ordinal === 4 ? "#F37021" : DEEP_BLUE_PRIMARY}`, 
+                    color: m.ordinal === 4 ? "#F37021" : DEEP_BLUE_PRIMARY, 
+                    borderRadius: "50%", display: "flex", alignItems: "center", 
+                    justifyContent: "center", zIndex: 2, boxShadow: `0 0 0 6px ${m.ordinal === 4 ? "#fff7ed" : "#f0f7ff"}`
+                  }}>
+                    {m.ordinal === 1 ? <Target size={20}/> : m.ordinal === 4 ? <Flag size={20}/> : <BookOpen size={20}/>}
+                  </div>
+                  {idx < milestones.length - 1 && (
+                    <div style={{ width: "3px", flex: 1, background: "#e2e8f0", margin: "10px 0", borderRadius: "10px" }}></div>
+                  )}
+                </div>
+                
+                <div style={{ 
+                  flex: 1, background: "white", borderRadius: "24px", padding: "24px", 
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.02)", border: "1px solid #e2e8f0" 
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1px" }}>Giai đoạn {m.ordinal}</span>
+                    <div style={{ fontFamily: "monospace", fontSize: "11px", color: "#94a3b8", background: "#f8fafc", padding: "4px 10px", borderRadius: "8px", border: "1px solid #f1f5f9" }}>{m.milestoneTemplateCode}</div>
+                  </div>
+                  
+                  <div style={{ display: "grid", gap: "20px" }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>Tên giai đoạn</label>
+                      <input 
+                        type="text" 
+                        value={m.name} 
+                        onChange={(e) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? {...x, name: e.target.value} : x))} 
+                        style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: "10px", fontSize: "14px", color: "#1e293b", outline: "none" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>Mô tả yêu cầu</label>
+                      <textarea 
+                        rows={2} 
+                        value={m.description || ""} 
+                        onChange={(e) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? {...x, description: e.target.value} : x))} 
+                        style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: "10px", fontSize: "14px", color: "#1e293b", outline: "none", resize: "none" }}
+                      />
+                    </div>
+                    <CustomDatePicker 
+                      label="Hạn nộp bài cuối cùng" 
+                      value={m.deadline} 
+                      onChange={(val) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? {...x, deadline: val} : x))} 
                       isOpen={activeMilestonePickerId === m.milestoneTemplateID}
                       onToggle={(open) => setActiveMilestonePickerId(open ? m.milestoneTemplateID : null)}
                     />

@@ -60,6 +60,7 @@ namespace ThesisManagement.Api.Controllers
                 request.FileUrl,
                 request.FileUrls,
                 request.ExternalLinks);
+                request.FileUrl);
 
             return Ok(ApiResponse<ProgressReportAiAnalysisResult>.SuccessResponse(result));
         }

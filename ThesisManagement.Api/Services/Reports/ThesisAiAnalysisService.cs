@@ -55,6 +55,7 @@ namespace ThesisManagement.Api.Services.Reports
             string milestoneName, 
             string reportTitle, 
             string reportDescription,
+
             string? fileUrl = null,
             List<string>? fileUrls = null,
             List<ExternalLinkDto>? externalLinks = null)
@@ -116,6 +117,18 @@ namespace ThesisManagement.Api.Services.Reports
                 sbLinks.AppendLine("----------------------------------\n");
             }
             string linksContent = sbLinks.ToString();
+            string? fileUrl = null)
+        {
+            string extractedContent = "Không có tệp đính kèm hoặc không thể trích xuất nội dung.";
+            
+            if (!string.IsNullOrEmpty(fileUrl))
+            {
+                extractedContent = await _extractor.ExtractTextAsync(fileUrl, reportDescription);
+                if (string.IsNullOrWhiteSpace(extractedContent))
+                {
+                    extractedContent = "Không thể trích xuất nội dung từ tệp (có thể file bị lỗi hoặc không có chữ).";
+                }
+            }
 
             var userMessage = $@"
 [MỐC TIẾN ĐỘ]: {milestoneCode} - {milestoneName}
@@ -123,6 +136,9 @@ namespace ThesisManagement.Api.Services.Reports
 [MÔ TẢ CỦA SINH VIÊN]: {reportDescription}
 {linksContent}
 [NỘI DUNG THỰC TẾ TRÍCH XUẤT TỪ CÁC FILE]: 
+
+[NỘI DUNG THỰC TẾ TRÍCH XUẤT TỪ FILE]: 
+
 --- BẮT ĐẦU NỘI DUNG FILE ---
 {extractedContent}
 --- KẾT THÚC NỘI DUNG FILE ---
