@@ -1015,7 +1015,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             fetchData<ApiResponse<boolean>>(`${lecturerBase}/scoring/actions`, {
                 method: "POST",
                 body: {
-                    action: "CLOSE",
+                    action: "CLOSE_SESSION",
                     committeeId: Number(id),
                     ...(idempotencyKey ? { idempotencyKey } : {}),
                 },
@@ -3853,32 +3853,9 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                     type="button"
                                                     className="lec-primary"
                                                     style={{ background: "#1e293b", borderColor: "#1e293b" }}
-                                                    onClick={async () => {
-                                                        if (!window.confirm("Bạn có chắc chắn muốn đóng phiên bảo vệ? Sau khi đóng, hội đồng sẽ kết thúc hoàn toàn.")) {
-                                                            return;
-                                                        }
-                                                        try {
-                                                            const idempotencyKey = createIdempotencyKey(periodIdText || "NA", "lecturer-session-close");
-                                                            const response = await lecturerApi.closeSessionByCommittee(selectedCommitteeNumericId, idempotencyKey);
-                                                            if (notifyApiFailure(response as ApiResponse<unknown>, "Đóng phiên thất bại.")) {
-                                                                return;
-                                                            }
-                                                            setCommittees((prev) =>
-                                                                prev.map((item) =>
-                                                                    item.id === selectedCommitteeId ? { ...item, status: "Đã đóng" } : item,
-                                                                ),
-                                                            );
-                                                            setSessionLocked(true);
-                                                            pushTrace("close-session", "[UC3.5] Đã đóng phiên hội đồng.");
-                                                            await refreshScoringData(selectedCommitteeNumericId);
-                                                            await refreshAllScoringRows();
-                                                            notifySuccess("Đã đóng phiên bảo vệ thành công.");
-                                                        } catch {
-                                                            notifyError("Đóng phiên thất bại.");
-                                                        }
-                                                    }}
+                                                    onClick={() => { void handleChairCloseSession(selectedCommittee); }}
                                                 >
-                                                    <CheckCircle2 size={14} /> Đóng phiên
+                                                    <CheckCircle2 size={14} /> Đóng phiên vĩnh viễn
                                                 </button>
                                             </>
                                         )}
@@ -5200,98 +5177,98 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                     </div>
                                 </div>
                             ) : (
-                                <div style={{ display: "grid", gap: 10, fontSize: 13, lineHeight: 1.5 }}>
-                                    <div style={{ textAlign: "center" }}>
-                                        <div style={{ fontSize: 12, fontWeight: "bold" }}>BỘ GIÁO DỤC VÀ ĐÀO TẠO</div>
-                                        <div style={{ fontSize: 13, fontWeight: "bold" }}>TRƯỜNG ĐẠI HỌC ĐẠI NAM</div>
-                                        <div style={{ fontSize: 14, fontWeight: "bold", marginTop: 6 }}>BẢNG ĐIỂM GHI KẾT QUẢ BẢO VỆ ĐỒ ÁN</div>
-                                        <div style={{ fontSize: 12, marginTop: 4 }}>NGÀNH: Công nghệ thông tin</div>
-                                        <div style={{ fontSize: 12, fontWeight: "bold", marginTop: 4 }}>HỘI ĐỒNG SỐ: {selectedMatrixRow?.committeeCode ?? selectedCommittee?.name ?? "-"}   NGÀY BẢO VỆ: {formatDate(selectedCommittee?.date ?? null)}</div>
-                                    </div>
+                                            <div style={{ display: "grid", gap: 10, fontSize: 13, lineHeight: 1.5 }}>
+                                                <div style={{ textAlign: "center" }}>
+                                                    <div style={{ fontSize: 12, fontWeight: "bold" }}>BỘ GIÁO DỤC VÀ ĐÀO TẠO</div>
+                                                    <div style={{ fontSize: 13, fontWeight: "bold" }}>TRƯỜNG ĐẠI HỌC ĐẠI NAM</div>
+                                                    <div style={{ fontSize: 14, fontWeight: "bold", marginTop: 6 }}>BẢNG ĐIỂM GHI KẾT QUẢ BẢO VỆ ĐỒ ÁN</div>
+                                                    <div style={{ fontSize: 12, marginTop: 4 }}>NGÀNH: Công nghệ thông tin</div>
+                                                    <div style={{ fontSize: 12, fontWeight: "bold", marginTop: 4 }}>HỘI ĐỒNG SỐ: {selectedMatrixRow?.committeeCode ?? selectedCommittee?.name ?? "-"}   NGÀY BẢO VỆ: {formatDate(selectedCommittee?.date ?? null)}</div>
+                                                </div>
 
-                                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginTop: 8 }}>
-                                        <tbody>
-                                            <tr>
-                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>STT</td>
-                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>MSSV</td>
-                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Họ và tên sinh viên</td>
-                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Khoá</td>
-                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Họ và tên giảng viên hướng dẫn</td>
-                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Điểm GVHD</td>
-                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold", minWidth: 50 }}>CT</td>
-                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold", minWidth: 50 }}>UVTK</td>
-                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold", minWidth: 50 }}>UVPB</td>
-                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold", minWidth: 60 }}>ĐIỂM TỔNG KẾT</td>
-                                            </tr>
-                                            {selectedCommitteeScoreRows.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={10} style={{ border: "1px solid #000", padding: 8, textAlign: "center", color: "#64748b" }}>Chưa có dữ liệu bảng điểm cho hội đồng này.</td>
-                                                </tr>
-                                            ) : (
-                                                selectedCommitteeScoreRows.map((row, idx) => (
-                                                    <tr key={`preview-score-sheet-${row.assignmentId}`}>
-                                                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{idx + 1}</td>
-                                                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{row.studentCode}</td>
-                                                        <td style={{ border: "1px solid #000", padding: 4 }}>{row.studentName}</td>
-                                                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{row.cohortCode ?? "-"}</td>
-                                                        <td style={{ border: "1px solid #000", padding: 4 }}>{row.supervisorLecturerName ?? "-"}</td>
-                                                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{formatScore(row.scoreGvhd)}</td>
-                                                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{formatScore(row.scoreCt)}</td>
-                                                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{formatScore(row.scoreTk)}</td>
-                                                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{formatScore(row.scorePb)}</td>
-                                                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>{formatScore(row.finalScore)}</td>
-                                                    </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
+                                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginTop: 8 }}>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>STT</td>
+                                                            <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>MSSV</td>
+                                                            <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Họ và tên sinh viên</td>
+                                                            <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Khoá</td>
+                                                            <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Họ và tên giảng viên hướng dẫn</td>
+                                                            <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Điểm GVHD</td>
+                                                            <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold", minWidth: 50 }}>CT</td>
+                                                            <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold", minWidth: 50 }}>UVTK</td>
+                                                            <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold", minWidth: 50 }}>UVPB</td>
+                                                            <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold", minWidth: 60 }}>ĐIỂM TỔNG KẾT</td>
+                                                        </tr>
+                                                        {selectedCommitteeScoreRows.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan={10} style={{ border: "1px solid #000", padding: 8, textAlign: "center", color: "#64748b" }}>Chưa có dữ liệu bảng điểm cho hội đồng này.</td>
+                                                            </tr>
+                                                        ) : (
+                                                            selectedCommitteeScoreRows.map((row, idx) => (
+                                                                <tr key={`preview-score-sheet-${row.assignmentId}`}>
+                                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{idx + 1}</td>
+                                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{row.studentCode}</td>
+                                                                    <td style={{ border: "1px solid #000", padding: 4 }}>{row.studentName}</td>
+                                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{row.cohortCode ?? "-"}</td>
+                                                                    <td style={{ border: "1px solid #000", padding: 4 }}>{row.supervisorLecturerName ?? "-"}</td>
+                                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{formatScore(row.scoreGvhd)}</td>
+                                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{formatScore(row.scoreCt)}</td>
+                                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{formatScore(row.scoreTk)}</td>
+                                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{formatScore(row.scorePb)}</td>
+                                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>{formatScore(row.finalScore)}</td>
+                                                                </tr>
+                                                            ))
+                                                        )}
+                                                    </tbody>
+                                                </table>
 
-                                    <div style={{ marginTop: 12 }}>
-                                        <div style={{ fontWeight: "bold", marginBottom: 8 }}>CÁC THÀNH VIÊN HỘI ĐỒNG</div>
-                                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                                            <tbody>
-                                                <tr>
-                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>STT</td>
-                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Chức danh</td>
-                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Họ và tên</td>
-                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Ký tên</td>
-                                                </tr>
-                                                <tr>
-                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>1</td>
-                                                    <td style={{ border: "1px solid #000", padding: 4 }}>CHỦ TỊCH</td>
-                                                    <td style={{ border: "1px solid #000", padding: 4 }}>{(selectedCommittee?.members ?? []).find(m => m.roleCode === "CT")?.lecturerName ?? "-"}</td>
-                                                    <td style={{ border: "1px solid #000", padding: 4 }}></td>
-                                                </tr>
-                                                <tr>
-                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>2</td>
-                                                    <td style={{ border: "1px solid #000", padding: 4 }}>ỦY VIÊN THƯ KÝ</td>
-                                                    <td style={{ border: "1px solid #000", padding: 4 }}>{(selectedCommittee?.members ?? []).find(m => m.roleCode === "UVTK")?.lecturerName ?? "-"}</td>
-                                                    <td style={{ border: "1px solid #000", padding: 4 }}></td>
-                                                </tr>
-                                                <tr>
-                                                    <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>3</td>
-                                                    <td style={{ border: "1px solid #000", padding: 4 }}>ỦY VIÊN PHẢN BIỆN</td>
-                                                    <td style={{ border: "1px solid #000", padding: 4 }}>{(selectedCommittee?.members ?? []).find(m => m.roleCode === "UVPB")?.lecturerName ?? "-"}</td>
-                                                    <td style={{ border: "1px solid #000", padding: 4 }}></td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                                <div style={{ marginTop: 12 }}>
+                                                    <div style={{ fontWeight: "bold", marginBottom: 8 }}>CÁC THÀNH VIÊN HỘI ĐỒNG</div>
+                                                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                                                        <tbody>
+                                                            <tr>
+                                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>STT</td>
+                                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Chức danh</td>
+                                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Họ và tên</td>
+                                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Ký tên</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>1</td>
+                                                                <td style={{ border: "1px solid #000", padding: 4 }}>CHỦ TỊCH</td>
+                                                                <td style={{ border: "1px solid #000", padding: 4 }}>{(selectedCommittee?.members ?? []).find(m => m.roleCode === "CT")?.lecturerName ?? "-"}</td>
+                                                                <td style={{ border: "1px solid #000", padding: 4 }}></td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>2</td>
+                                                                <td style={{ border: "1px solid #000", padding: 4 }}>ỦY VIÊN THƯ KÝ</td>
+                                                                <td style={{ border: "1px solid #000", padding: 4 }}>{(selectedCommittee?.members ?? []).find(m => m.roleCode === "UVTK")?.lecturerName ?? "-"}</td>
+                                                                <td style={{ border: "1px solid #000", padding: 4 }}></td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>3</td>
+                                                                <td style={{ border: "1px solid #000", padding: 4 }}>ỦY VIÊN PHẢN BIỆN</td>
+                                                                <td style={{ border: "1px solid #000", padding: 4 }}>{(selectedCommittee?.members ?? []).find(m => m.roleCode === "UVPB")?.lecturerName ?? "-"}</td>
+                                                                <td style={{ border: "1px solid #000", padding: 4 }}></td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
 
-                                    <div style={{ marginTop: 16, textAlign: "center", fontSize: 12 }}>
-                                        <div>
-                                            {(() => {
-                                                const defenseDate = new Date(selectedCommittee?.date || selectedMatrixRow?.scheduledAt || new Date());
-                                                const day = defenseDate.getDate();
-                                                const month = defenseDate.getMonth() + 1;
-                                                const year = defenseDate.getFullYear();
-                                                return `Hà Nội, ngày ${day} tháng ${month} năm ${year}`;
-                                            })()}
-                                        </div>
-                                        <div style={{ marginTop: 12, fontWeight: "bold" }}>Chủ tịch Hội đồng</div>
-                                        <div style={{ fontSize: 11, fontStyle: "italic", marginTop: 2 }}>(Ký và ghi rõ họ tên)</div>
-                                    </div>
-                                </div>
+                                                <div style={{ marginTop: 16, textAlign: "center", fontSize: 12 }}>
+                                                    <div>
+                                                        {(() => {
+                                                            const defenseDate = new Date(selectedCommittee?.date || selectedMatrixRow?.scheduledAt || new Date());
+                                                            const day = defenseDate.getDate();
+                                                            const month = defenseDate.getMonth() + 1;
+                                                            const year = defenseDate.getFullYear();
+                                                            return `Hà Nội, ngày ${day} tháng ${month} năm ${year}`;
+                                                        })()}
+                                                    </div>
+                                                    <div style={{ marginTop: 12, fontWeight: "bold" }}>Chủ tịch Hội đồng</div>
+                                                    <div style={{ fontSize: 11, fontStyle: "italic", marginTop: 2 }}>(Ký và ghi rõ họ tên)</div>
+                                                </div>
+                                            </div>
                             )}
                         </div>                </div>
                 )}

@@ -1,0 +1,33 @@
+services:
+  oracle:
+    image: gvenzl/oracle-xe:21-slim
+    container_name: thesis-oracle
+    restart: unless-stopped
+    environment:
+      ORACLE_PASSWORD: Oracle123!
+      APP_USER: thesis
+      APP_USER_PASSWORD: Thesis123!
+    ports:
+      - "1521:1521"
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: thesis-api
+    restart: unless-stopped
+    depends_on:
+      - oracle
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      DB_HOST: oracle
+      DB_PORT: 1521
+      ConnectionStrings__DefaultConnection: User Id=thesis;Password=Thesis123!;Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=oracle)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=XEPDB1)))
+    ports:
+      - "8080:8080"
+
+volumes:
+  oracle-data:

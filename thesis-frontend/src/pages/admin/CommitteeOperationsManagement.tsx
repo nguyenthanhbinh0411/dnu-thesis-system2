@@ -1,31 +1,56 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ReactDOM from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import {
   Activity,
+  AlertCircle,
+  AlertTriangle,
   Archive,
   Award,
   BarChart3,
+  Book,
+  BookOpen,
+  CheckCircle2,
+  CheckSquare,
   ChevronDown,
+  ChevronUp,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
   Clock,
   Download,
+  ExternalLink,
   Eye,
   FileSpreadsheet,
   FileText,
+  Files,
+  Filter,
   Gavel,
+  Grid,
   Hash,
+  History,
+  Info,
+  LayoutDashboard,
+  LineChart,
+  List,
   Lock,
+  MapPin,
   Maximize2,
   MessageSquare,
+  Minimize2,
+  MoreVertical,
   Paperclip,
   Pencil,
   PieChart,
+  Plus,
+  Printer,
   RefreshCw,
   RotateCcw,
   Search,
+  Send,
   Settings,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
   Star,
   Table,
   Trash2,
@@ -34,6 +59,7 @@ import {
   User,
   Users,
   X,
+  Loader2,
 } from "lucide-react";
 // `useNavigate` removed (not needed after module button removal)
 import { useToast } from "../../context/useToast";
@@ -80,8 +106,10 @@ type PipelineOverview = {
 
 type AnalyticsOverview = {
   totalStudents?: number;
+  totalRecords?: number;
   average?: number;
   passRate?: number;
+  maxVariance?: number;
 };
 
 type DistributionOverview = {
@@ -89,6 +117,7 @@ type DistributionOverview = {
   good?: number;
   fair?: number;
   weak?: number;
+  series?: Array<{ label: string; count: number }>;
 };
 
 type DistributionViewMode = "grade" | "score";
@@ -175,6 +204,7 @@ type ScoringMatrixRow = {
   supervisorOrganization?: string;
   sessionCode?: string;
   isPassed?: boolean;
+  revisionFileUrl?: string;
 };
 
 type PostDefenseItem = {
@@ -229,6 +259,8 @@ type NavigatorFilter = "all" | "active" | "delayed" | "warning" | "completed";
 type ProgressFilter = "all" | "under-50" | "50-80" | "80-100";
 type AuditActionFilter = "all" | "open" | "submit" | "reopen" | "lock" | "publish" | "sync";
 type CommitteeExportType = "scoreboard" | "minutes" | "review";
+// PreviewModalType is already defined above at line 94.
+
 type ExportScopeMode = "per-period" | "per-council" | "per-topic" | "free-config";
 type ExportTemplateMode = "dashboard" | "scoring" | "post-defense" | "councils" | "topics" | "official-transcript" | "council-minutes" | "statistics" | "custom";
 
@@ -287,6 +319,7 @@ type OperationsSnapshotData = {
   defenseTermId?: number;
   state?: Record<string, unknown>;
   monitoring?: MonitoringSnapshot;
+  committees?: CommitteeSummary[];
   councils?: {
     items?: Array<Record<string, unknown>>;
     totalCount?: number;
@@ -300,59 +333,64 @@ type OperationsSnapshotData = {
   reporting?: ReportingOverview;
 };
 
+
 const cardStyle: React.CSSProperties = {
   background: "#ffffff",
-  border: "1px solid #cbd5e1",
-  borderRadius: 10,
-  padding: 18,
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  border: "1px solid #e2e8f0",
+  borderRadius: "16px",
+  padding: "24px",
+  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+  transition: "transform 0.2s ease, box-shadow 0.2s ease",
 };
 
 const selectControlStyle: React.CSSProperties = {
-  minHeight: 40,
+  minHeight: 42,
   border: "1px solid #cbd5e1",
-  borderRadius: 8,
-  padding: "0 34px 0 12px",
+  borderRadius: 12,
+  padding: "0 36px 0 16px",
   backgroundColor: "#ffffff",
-  color: "#0f172a",
-  fontSize: 13,
-  fontWeight: 500,
+  color: "#1e293b",
+  fontSize: 14,
+  fontWeight: 600,
   appearance: "none",
   WebkitAppearance: "none",
   MozAppearance: "none",
   backgroundImage:
-    "linear-gradient(45deg, transparent 50%, #94a3b8 50%), linear-gradient(135deg, #94a3b8 50%, transparent 50%)",
+    "linear-gradient(45deg, transparent 50%, #64748b 50%), linear-gradient(135deg, #64748b 50%, transparent 50%)",
   backgroundPosition:
-    "calc(100% - 18px) calc(50% - 2px), calc(100% - 13px) calc(50% - 2px)",
+    "calc(100% - 20px) calc(50% - 2px), calc(100% - 15px) calc(50% - 2px)",
   backgroundSize: "5px 5px, 5px 5px",
   backgroundRepeat: "no-repeat",
+  outline: "none",
+  transition: "border-color 0.2s",
 };
 
 const tableHeadCellStyle: React.CSSProperties = {
   textAlign: "left",
-  padding: "10px 12px",
+  padding: "16px",
   borderBottom: "1px solid #e2e8f0",
-  color: "#0f172a",
+  color: "#64748b",
   fontSize: 12,
   fontWeight: 700,
   textTransform: "uppercase",
-  letterSpacing: "0.02em",
-  background: "#ffffff",
+  letterSpacing: "0.05em",
+  background: "#f8fafc",
 };
 
 const tableCellStyle: React.CSSProperties = {
-  padding: "10px 12px",
-  borderTop: "1px solid #e2e8f0",
-  color: "#0f172a",
+  padding: "16px",
+  borderBottom: "1px solid #f1f5f9",
+  color: "#1e293b",
+  fontSize: 14,
 };
 
 const actionIconButtonStyle: React.CSSProperties = {
-  width: 34,
-  height: 34,
+  width: 36,
+  height: 36,
   borderRadius: 10,
-  border: "1px solid #cbd5e1",
+  border: "1px solid #e2e8f0",
   background: "#ffffff",
-  color: "#0f172a",
+  color: "#64748b",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -362,19 +400,21 @@ const actionIconButtonStyle: React.CSSProperties = {
 
 const dangerActionIconButtonStyle: React.CSSProperties = {
   ...actionIconButtonStyle,
-  border: "1px solid #fecaca",
+  border: "1px solid #fee2e2",
   color: "#ef4444",
 };
 
 const emptyStateCardStyle: React.CSSProperties = {
   ...cardStyle,
   borderStyle: "dashed",
-  display: "grid",
-  placeItems: "center",
-  minHeight: 130,
-  color: "#64748b",
-  fontSize: 14,
-  fontWeight: 600,
+  borderWidth: "2px",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 200,
+  color: "#94a3b8",
+  gap: "16px",
 };
 
 const panelTabs: Array<{
@@ -420,32 +460,32 @@ const LIGHT_BLUE_SOFTEN = "#f0f4f8";
 
 const statusToneMap: Record<string, ToneStyle> = {
   // Semantic Success states - Green
-  APPROVED: { bg: "#f0fdf4", border: "none", text: "#166534" },
-  SUBMITTED: { bg: "#f0f9ff", border: "1px solid #bae6fd", text: "#0369a1" },
-  REOPENED: { bg: "#fef2f2", border: "1px solid #fecaca", text: "#991b1b" },
-  COMPLETED: { bg: "#f0fdf4", border: "none", text: "#166534" },
-  PUBLISHED: { bg: "#f0fdf4", border: "none", text: "#166534" },
+  APPROVED: { bg: "#f0fdf4", border: "none", text: "#15803d" },
+  SUBMITTED: { bg: "#f0f9ff", border: "none", text: "#0369a1" },
+  REOPENED: { bg: "#fef2f2", border: "none", text: "#991b1b" },
+  COMPLETED: { bg: "#f0fdf4", border: "none", text: "#15803d" },
+  PUBLISHED: { bg: "#f0fdf4", border: "none", text: "#15803d" },
   // Semantic Alert/Warning states - Red
   REJECTED: { bg: "#fef2f2", border: "none", text: "#991b1b" },
   DELAYED: { bg: "#fef2f2", border: "none", text: "#991b1b" },
   // Operations states - Deep Blue harmony
-  PENDING: { bg: LIGHT_BLUE_BG, border: "none", text: "#0c4a6e" },
-  LOCKED: { bg: LIGHT_BLUE_BG, border: "none", text: DEEP_BLUE_PRIMARY },
-  IN_PROGRESS: { bg: LIGHT_BLUE_BG, border: "none", text: DEEP_BLUE_PRIMARY },
-  ONGOING: { bg: LIGHT_BLUE_BG, border: "none", text: DEEP_BLUE_PRIMARY },
-  FINALIZED: { bg: LIGHT_BLUE_BG, border: "none", text: DEEP_BLUE_PRIMARY },
+  PENDING: { bg: "#f1f5f9", border: "none", text: "#475569" },
+  LOCKED: { bg: "#fee2e2", border: "none", text: "#991b1b" },
+  IN_PROGRESS: { bg: "#eff6ff", border: "none", text: "#1d4ed8" },
+  ONGOING: { bg: "#eff6ff", border: "none", text: "#1d4ed8" },
+  FINALIZED: { bg: "#f5f3ff", border: "none", text: "#6d28d9" },
   // Active primary state
   READY: { bg: DEEP_BLUE_PRIMARY, border: "none", text: "#ffffff" },
   // Neutral states
-  DRAFT: { bg: "#f8fafc", border: "none", text: "#475569" },
-  ARCHIVED: { bg: "#f8fafc", border: "none", text: "#475569" },
-  WARNING: { bg: LIGHT_BLUE_BG, border: "none", text: "#0c4a6e" },
-  WAITING_PUBLIC: { bg: "#fffbeb", border: "1px solid #fde68a", text: "#b45309" },
-  STUDENT_SUBMITTED: { bg: "#f0f9ff", border: "1px solid #bae6fd", text: "#0369a1" },
-  WAITING_STUDENT: { bg: "#fff7ed", border: "1px solid #ffedd5", text: "#ea580c" },
-  EXPIRED: { bg: "#f1f5f9", border: "1px solid #e2e8f0", text: "#64748b" },
-  "2": { bg: "#f0f9ff", border: "1px solid #bae6fd", text: "#0369a1" },
-  "1": { bg: "#fff7ed", border: "1px solid #ffedd5", text: "#ea580c" },
+  DRAFT: { bg: "#f8fafc", border: "none", text: "#64748b" },
+  ARCHIVED: { bg: "#f8fafc", border: "none", text: "#64748b" },
+  WARNING: { bg: "#fffbeb", border: "none", text: "#b45309" },
+  WAITING_PUBLIC: { bg: "#fffbeb", border: "none", text: "#b45309" },
+  STUDENT_SUBMITTED: { bg: "#f0f9ff", border: "none", text: "#0369a1" },
+  WAITING_STUDENT: { bg: "#fff7ed", border: "none", text: "#ea580c" },
+  EXPIRED: { bg: "#f1f5f9", border: "none", text: "#64748b" },
+  "2": { bg: "#f0f9ff", border: "none", text: "#0369a1" },
+  "1": { bg: "#fff7ed", border: "none", text: "#ea580c" },
 };
 
 const statusLabelMap: Record<string, string> = {
@@ -940,23 +980,19 @@ const getCommitteeCompletionLabel = (scoredTopics: number, totalTopics: number) 
 
 const distributionPalette: Record<string, string> = {
   "A+": "#16a34a",
-  A: "#16a34a",
-  "B+": "#22c55e",
-  B: "#0ea5e9",
+  "A": "#22c55e",
+  "B+": "#84cc16",
+  "B": "#0ea5e9",
   "C+": "#f59e0b",
-  C: "#f97316",
+  "C": "#f97316",
   "D+": "#ef4444",
-  D: "#dc2626",
-  F: "#991b1b",
+  "D": "#dc2626",
+  "F": "#991b1b",
   "9.0 - 10": "#16a34a",
-  "8.5 - < 9.0": "#22c55e",
-  "8.0 - < 8.5": "#84cc16",
-  "7.0 - < 8.0": "#0ea5e9",
-  "6.5 - < 7.0": "#f59e0b",
-  "5.5 - < 6.5": "#f97316",
-  "5.0 - < 5.5": "#ef4444",
-  "4.0 - < 5.0": "#dc2626",
-  "< 4.0": "#991b1b",
+  "8.0 - < 9.0": "#0ea5e9",
+  "7.0 - < 8.0": "#f59e0b",
+  "5.0 - < 7.0": "#f97316",
+  "< 5.0": "#ef4444",
 };
 
 const GRADE_BANDS = [
@@ -968,33 +1004,29 @@ const GRADE_BANDS = [
   { label: "C", min: 5.5, max: 6.5 },
   { label: "D+", min: 5.0, max: 5.5 },
   { label: "D", min: 4.0, max: 5.0 },
-  { label: "F", min: Number.NEGATIVE_INFINITY, max: 4.0 },
+  { label: "F", min: 0.0, max: 4.0 },
 ] as const;
 
 const SCORE_BANDS = [
   { label: "9.0 - 10", min: 9.0, max: 10.0, inclusiveMax: true },
-  { label: "8.5 - < 9.0", min: 8.5, max: 9.0 },
-  { label: "8.0 - < 8.5", min: 8.0, max: 8.5 },
+  { label: "8.0 - < 9.0", min: 8.0, max: 9.0 },
   { label: "7.0 - < 8.0", min: 7.0, max: 8.0 },
-  { label: "6.5 - < 7.0", min: 6.5, max: 7.0 },
-  { label: "5.5 - < 6.5", min: 5.5, max: 6.5 },
-  { label: "5.0 - < 5.5", min: 5.0, max: 5.5 },
-  { label: "4.0 - < 5.0", min: 4.0, max: 5.0 },
-  { label: "< 4.0", min: Number.NEGATIVE_INFINITY, max: 4.0 },
+  { label: "5.0 - < 7.0", min: 5.0, max: 7.0 },
+  { label: "< 5.0", min: 0.0, max: 5.0 },
 ] as const;
 
 const getGradeFromScore = (score: number) => {
   if (!Number.isFinite(score)) {
     return "-";
   }
-  if (score >= 9) return "A+";
+  if (score >= 9.0) return "A+";
   if (score >= 8.5) return "A";
-  if (score >= 8) return "B+";
-  if (score >= 7) return "B";
+  if (score >= 8.0) return "B+";
+  if (score >= 7.0) return "B";
   if (score >= 6.5) return "C+";
   if (score >= 5.5) return "C";
-  if (score >= 5) return "D+";
-  if (score >= 4) return "D";
+  if (score >= 5.0) return "D+";
+  if (score >= 4.0) return "D";
   return "F";
 };
 
@@ -1004,14 +1036,10 @@ const getScoreBandLabel = (score: number): string => {
   }
 
   if (score >= 9) return "9.0 - 10";
-  if (score >= 8.5) return "8.5 - < 9.0";
-  if (score >= 8) return "8.0 - < 8.5";
+  if (score >= 8) return "8.0 - < 9.0";
   if (score >= 7) return "7.0 - < 8.0";
-  if (score >= 6.5) return "6.5 - < 7.0";
-  if (score >= 5.5) return "5.5 - < 6.5";
-  if (score >= 5) return "5.0 - < 5.5";
-  if (score >= 4) return "4.0 - < 5.0";
-  return "< 4.0";
+  if (score >= 5) return "5.0 - < 7.0";
+  return "< 5.0";
 };
 
 const sortStudentRows = (
@@ -1075,6 +1103,42 @@ const toApiExportFormat = (format: ReportFormat | "word" | "pdf") => {
   return format;
 };
 
+// --- GLOBAL UTILITY COMPONENTS ---
+
+const ModalOverlay: React.FC<{ onClose: () => void; children: React.ReactNode; width?: number | string }> = ({ onClose, children, width = 800 }) => {
+  return ReactDOM.createPortal(
+    <div style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(15, 23, 42, 0.7)",
+      backdropFilter: "blur(8px)",
+      zIndex: 999999,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+      animation: "fadeIn 0.3s ease"
+    }} onClick={onClose}>
+      <div style={{
+        background: "white",
+        width: "100%",
+        maxWidth: width,
+        maxHeight: "90vh",
+        borderRadius: 32,
+        boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+        position: "relative",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        animation: "modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)"
+      }} onClick={e => e.stopPropagation()}>
+        {children}
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 const CommitteeOperationsManagement: React.FC = () => {
   const { addToast } = useToast();
   const [searchParams] = useSearchParams();
@@ -1084,6 +1148,9 @@ const CommitteeOperationsManagement: React.FC = () => {
   );
   const defensePeriodBase = periodId ? `/defense-periods/${periodId}` : "";
   const missingPeriodWarningRef = useRef(false);
+  const commandBarRef = useRef<HTMLDivElement | null>(null);
+  const committeeSearchInputRef = useRef<HTMLInputElement | null>(null);
+
 
   const [snapshot, setSnapshot] = useState<OperationsSnapshotData | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
@@ -1102,6 +1169,30 @@ const CommitteeOperationsManagement: React.FC = () => {
   const [revisionKeyword, setRevisionKeyword] = useState("");
   const [revisionPage, setRevisionPage] = useState(1);
   const [revisionSize, setRevisionSize] = useState(20);
+
+  // Preview Modal States
+  const [previewModalType, setPreviewModalType] = useState<PreviewModalType | null>(null);
+  const [selectedMatrixRow, setSelectedMatrixRow] = useState<ScoringMatrixRow | null>(null);
+  const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
+  const [isDownloadingPreviewFile, setIsDownloadingPreviewFile] = useState(false);
+
+  const [review, setReview] = useState("");
+  const [questions, setQuestions] = useState("");
+  const [answers, setAnswers] = useState("");
+  const [questionAnswers, setQuestionAnswers] = useState<any[]>([]);
+  const [strengths, setStrengths] = useState("");
+  const [weaknesses, setWeaknesses] = useState("");
+  const [recommendations, setRecommendations] = useState("");
+  const [chapterContents, setChapterContents] = useState<any[]>([]);
+  const [reviewerSections, setReviewerSections] = useState<any>({
+    necessity: "",
+    novelty: "",
+    methodologyReliability: "",
+    resultsContent: "",
+    limitations: "",
+    suggestions: "",
+    overallConclusion: "",
+  });
   const [auditSize, setAuditSize] = useState(50);
   const [auditKeyword, setAuditKeyword] = useState("");
   const [auditActionFilter, setAuditActionFilter] = useState<AuditActionFilter>("all");
@@ -1128,37 +1219,291 @@ const CommitteeOperationsManagement: React.FC = () => {
   const [selectedCouncilRow, setSelectedCouncilRow] = useState<Record<string, unknown> | null>(null);
   const [topicDetailModalOpen, setTopicDetailModalOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<ScoringMatrixRow | null>(null);
-
+  const [studentTablePage, setStudentTablePage] = useState(1);
+  const studentTablePageSize = 10;
+  const [studentTableIsPassedFilter, setStudentTableIsPassedFilter] = useState<boolean | "all">("all");
+  const [studentTableStatusFilter, setStudentTableStatusFilter] = useState<"all" | "post-defense" | "locked" | "scoring">("all");
+  const [studentTableSortField, setStudentTableSortField] = useState<"studentCode" | "studentName" | "topicTitle" | "finalScore" | "committeeCode">("finalScore");
+  const [studentTableSortDir, setStudentTableSortDir] = useState<"asc" | "desc">("desc");
+  const [hoveredDistributionLabel, setHoveredDistributionLabel] = useState<string | null>(null);
   const [reportType, setReportType] = useState<ReportType>("council-summary");
+  const [committeeExportType, setCommitteeExportType] = useState<CommitteeExportType>("scoreboard");
+
   const [reportFormat, setReportFormat] = useState<ReportFormat>("csv");
   const [reportCouncilId, setReportCouncilId] = useState("");
   const [exportScopeMode, setExportScopeMode] = useState<ExportScopeMode>("per-period");
   const [exportTemplateMode, setExportTemplateMode] = useState<ExportTemplateMode>("dashboard");
   const [exportFieldSearch, setExportFieldSearch] = useState("");
+  const [exportIsPassed, setExportIsPassed] = useState<boolean | null>(null);
   const [exportTopicKeyword, setExportTopicKeyword] = useState("");
+  const [exportOnlyLocked, setExportOnlyLocked] = useState(true);
+  const [exportOnlyPublished, setExportOnlyPublished] = useState(true);
   const [exportSelectedFields, setExportSelectedFields] = useState<string[]>(() => exportTemplateFieldPresets["dashboard"]);
+  const [exportExpandedGroups, setExportExpandedGroups] = useState<string[]>(() => exportFieldGroups.map((group) => group.key));
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportIncludeLogo, setExportIncludeLogo] = useState(true);
   const [exportIncludeSignature, setExportIncludeSignature] = useState(true);
   const [exportPasswordProtect, setExportPasswordProtect] = useState(false);
   const [exportDownloadMenuOpen, setExportDownloadMenuOpen] = useState(false);
-  const [exportOnlyLocked, setExportOnlyLocked] = useState(true);
-  const [exportOnlyPublished, setExportOnlyPublished] = useState(true);
-  const [exportIsPassed, setExportIsPassed] = useState<boolean | null>(null);
-  const [exportExpandedGroups, setExportExpandedGroups] = useState<string[]>(() => exportFieldGroups.map((group) => group.key));
-  const [committeeExportType, setCommitteeExportType] = useState<CommitteeExportType>("scoreboard");
-  const [exportModalOpen, setExportModalOpen] = useState(false);
-  const [previewModalType, setPreviewModalType] = useState<PreviewModalType | null>(null);
-  const [isDownloadingPreviewFile, setIsDownloadingPreviewFile] = useState(false);
-  const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportPreviewModalOpen, setExportPreviewModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "committee" | "post-defense" | "audit">("overview");
-  const [studentTableSortField, setStudentTableSortField] = useState<"studentCode" | "studentName" | "topicTitle" | "finalScore" | "committeeCode">("studentCode");
-  const [studentTableSortDir, setStudentTableSortDir] = useState<"asc" | "desc">("asc");
-  const [studentTableIsPassedFilter, setStudentTableIsPassedFilter] = useState<boolean | "all">("all");
-  const [studentTablePage, setStudentTablePage] = useState(1);
-  const studentTablePageSize = 10;
-  const [hoveredDistributionLabel, setHoveredDistributionLabel] = useState<string | null>(null);
-  const commandBarRef = useRef<HTMLDivElement | null>(null);
-  const committeeSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [activeRowActionId, setActiveRowActionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleClick = () => setActiveRowActionId(null);
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportDownloadMenuRef.current && !exportDownloadMenuRef.current.contains(event.target as Node)) {
+        setExportDownloadMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if ((loadingSnapshot || analyticsLoading) && !snapshot) {
+      setLoadingProgress(0);
+      const interval = setInterval(() => {
+        setLoadingProgress((prev) => {
+          if (prev >= 95) return prev;
+          const remaining = 100 - prev;
+          return prev + remaining * 0.1;
+        });
+      }, 200);
+      return () => clearInterval(interval);
+    } else {
+      setLoadingProgress(0);
+    }
+  }, [loadingSnapshot, analyticsLoading, snapshot]);
+
+  const renderLoading = () => {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "32px",
+        background: "#0f172a",
+        position: "relative",
+        overflow: "hidden",
+        fontFamily: "'Be Vietnam Pro', sans-serif"
+      }}>
+        {/* Animated Background Elements */}
+        <div style={{
+          position: "absolute",
+          top: "-10%",
+          left: "-5%",
+          width: "40%",
+          height: "40%",
+          background: "radial-gradient(circle, rgba(30, 58, 95, 0.4) 0%, transparent 70%)",
+          filter: "blur(60px)",
+          animation: "float 15s infinite ease-in-out"
+        }} />
+        <div style={{
+          position: "absolute",
+          bottom: "-10%",
+          right: "-5%",
+          width: "50%",
+          height: "50%",
+          background: "radial-gradient(circle, rgba(243, 112, 33, 0.15) 0%, transparent 70%)",
+          filter: "blur(80px)",
+          animation: "float 20s infinite ease-in-out reverse"
+        }} />
+
+        <div style={{
+          position: "relative",
+          width: "100%",
+          maxWidth: 480,
+          animation: "slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1)"
+        }}>
+          {/* Glass Card */}
+          <div style={{
+            position: "relative",
+            background: "rgba(255, 255, 255, 0.85)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.4)",
+            borderRadius: 32,
+            padding: "48px 40px",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+            textAlign: "center"
+          }}>
+            {/* Logo Section */}
+            <div style={{
+              display: "inline-flex",
+              padding: 20,
+              background: "white",
+              borderRadius: 24,
+              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
+              marginBottom: 32,
+              animation: "pulse 3s infinite ease-in-out"
+            }}>
+              <img src="/dnu_logo.png" alt="DNU" style={{ width: 64, height: 64, objectFit: "contain" }} />
+            </div>
+
+            <div style={{ marginBottom: 32 }}>
+              <div style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#f37021",
+                textTransform: "uppercase",
+                letterSpacing: "0.2em",
+                marginBottom: 8
+              }}>
+                Đang kết nối dữ liệu
+              </div>
+              <h2 style={{
+                fontSize: 28,
+                fontWeight: 800,
+                color: "#1e293b",
+                margin: 0,
+                letterSpacing: "-0.02em"
+              }}>
+                Committee Operations
+              </h2>
+            </div>
+
+            <div style={{
+              fontSize: 15,
+              color: "#64748b",
+              lineHeight: 1.6,
+              marginBottom: 40,
+              padding: "0 10px"
+            }}>
+              Vui lòng đợi trong giây lát, chúng tôi đang chuẩn bị dữ liệu hội đồng và kết quả bảo vệ.
+            </div>
+
+            {/* Premium Progress Bar */}
+            <div style={{ position: "relative", marginBottom: 20 }}>
+              <div style={{
+                width: "100%",
+                height: 10,
+                background: "rgba(0, 0, 0, 0.05)",
+                borderRadius: 99,
+                overflow: "hidden"
+              }}>
+                <div style={{
+                  width: `${loadingProgress}%`,
+                  height: "100%",
+                  borderRadius: 99,
+                  background: "linear-gradient(90deg, #1e3a5f 0%, #3b82f6 50%, #f37021 100%)",
+                  backgroundSize: "200% 100%",
+                  transition: "width 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                  position: "relative"
+                }}>
+                  {/* Shimmer Effect */}
+                  <div style={{
+                    position: "absolute",
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
+                    animation: "shimmer 2s infinite"
+                  }} />
+                </div>
+              </div>
+
+              {/* Floating Percentage */}
+              <div style={{
+                position: "absolute",
+                top: -28,
+                left: `${loadingProgress}%`,
+                transform: "translateX(-50%)",
+                background: "#1e293b",
+                color: "white",
+                padding: "4px 8px",
+                borderRadius: 8,
+                fontSize: 11,
+                fontWeight: 700,
+                transition: "left 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+              }}>
+                {Math.round(loadingProgress)}%
+                <div style={{
+                  position: "absolute",
+                  bottom: -4,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: 0, height: 0,
+                  borderLeft: "4px solid transparent",
+                  borderRight: "4px solid transparent",
+                  borderTop: "4px solid #1e293b"
+                }} />
+              </div>
+            </div>
+
+            <div style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: "#475569",
+              minHeight: 20
+            }}>
+              {loadingProgress < 30
+                ? "Đang kết nối API..."
+                : loadingProgress < 60
+                  ? "Tải cấu hình hội đồng..."
+                  : loadingProgress < 85
+                    ? "Đồng bộ hóa kết quả..."
+                    : "Sắp hoàn tất..."}
+            </div>
+
+            <div style={{
+              marginTop: 48,
+              fontSize: 11,
+              color: "#94a3b8",
+              fontWeight: 500,
+              letterSpacing: "0.05em",
+              textTransform: "uppercase"
+            }}>
+              Powered by DNU FIT • 2025
+            </div>
+          </div>
+        </div>
+
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+
+          :host, :root, .committee-ops-root {
+            font-family: 'Be Vietnam Pro', sans-serif !important;
+          }
+
+          @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+          @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+          }
+          @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(20px, 20px); }
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          .animate-spin {
+            animation: spin 1s linear infinite;
+          }
+        `}</style>
+      </div>
+    );
+  };
 
   const isNoDataMessage = (message: string) => {
     const normalized = message
@@ -1434,7 +1779,8 @@ const CommitteeOperationsManagement: React.FC = () => {
         setLastLoadedAt(new Date().toLocaleString("vi-VN"));
         return;
       }
-      notifyError("Không tải được dữ liệu vận hành từ API.");
+      console.error("Snapshot error:", error);
+      notifyError("Lỗi đồng bộ dữ liệu điều hành.");
     } finally {
       setLoadingSnapshot(false);
     }
@@ -1451,8 +1797,95 @@ const CommitteeOperationsManagement: React.FC = () => {
     revisionKeyword,
     revisionPage,
     revisionSize,
-    revisionStatus,
   ]);
+  const hydrateMinutes = useCallback(async (assignmentId: number, committeeId?: number) => {
+    let target = null;
+    if (snapshot) {
+      const rawSnapshot = (snapshot as any)._raw || snapshot;
+      const minutesRows = rawSnapshot.minutes || (snapshot as any).Minutes || [];
+      target = (Array.isArray(minutesRows) ? minutesRows : []).find(
+        (item: any) => Number(item.assignmentId ?? item.AssignmentId ?? 0) === assignmentId
+      );
+    }
+
+    if (!target && committeeId && periodId) {
+      try {
+        const res = await fetchData<ApiResponse<any[]>>(
+          `${defensePeriodBase}/lecturer/minutes/committee-detail?committeeId=${committeeId}`,
+          { method: "GET" }
+        );
+        if (res && res.data && Array.isArray(res.data)) {
+          target = res.data.find(
+            (item: any) => Number(item.assignmentId ?? item.AssignmentId ?? 0) === assignmentId
+          );
+        }
+      } catch (err) {
+        console.error("Fetch minutes error:", err);
+      }
+    }
+
+    if (!target) {
+      setReview(""); setQuestions(""); setAnswers(""); setQuestionAnswers([]);
+      setStrengths(""); setWeaknesses(""); setRecommendations(""); setChapterContents([]);
+      setReviewerSections({ necessity: "", novelty: "", methodologyReliability: "", resultsContent: "", limitations: "", suggestions: "", overallConclusion: "" });
+      return;
+    }
+
+    const toText = (v: any) => String(v ?? "");
+    setReview(toText(target.reviewerComments));
+    setQuestions(toText(target.committeeMemberComments));
+    setAnswers(toText(target.qnaDetails));
+    setStrengths(toText(target.strengths));
+    setWeaknesses(toText(target.weaknesses));
+    setRecommendations(toText(target.recommendations));
+    setChapterContents(Array.isArray(target.chapterContents) ? target.chapterContents : []);
+    setQuestionAnswers(Array.isArray(target.questionAnswers) ? target.questionAnswers : []);
+    const rs = target.reviewerSections || {};
+    setReviewerSections({
+      necessity: toText(rs.necessity),
+      novelty: toText(rs.novelty),
+      methodologyReliability: toText(rs.methodologyReliability),
+      resultsContent: toText(rs.resultsContent),
+      limitations: toText(rs.limitations),
+      suggestions: toText(rs.suggestions),
+      overallConclusion: toText(rs.overallConclusion),
+    });
+  }, [snapshot, periodId, defensePeriodBase]);
+
+  const downloadPreviewDocument = async (template: PreviewModalType, format: "word" | "pdf") => {
+    if (!selectedMatrixRow || !periodId) return;
+    try {
+      setIsDownloadingPreviewFile(true);
+      const assignmentId = selectedMatrixRow.assignmentId;
+      const committeeId = selectedMatrixRow.committeeId;
+      const endpoint = template === "scoreSheet"
+        ? `/api/defense-periods/${periodId}/lecturer/reports/export-form-1?committeeId=${committeeId}&format=${format}`
+        : `/api/defense-periods/${periodId}/lecturer/minutes/export-document?committeeId=${committeeId}&assignmentId=${assignmentId}&template=${template}&format=${format}`;
+      const { getAccessToken } = await import("../../services/auth-session.service");
+      const { normalizeUrl } = await import("../../api/fetchData");
+      const token = getAccessToken();
+      const url = normalizeUrl(endpoint);
+      const rawResponse = await fetch(url, { method: "GET", headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+      if (!rawResponse.ok) throw new Error("Không thể tải tài liệu.");
+      const blob = await rawResponse.blob();
+      const contentDisposition = rawResponse.headers.get("content-disposition") || "";
+      const fileNameMatch = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(contentDisposition);
+      const serverFileName = decodeURIComponent((fileNameMatch?.[1] || fileNameMatch?.[2] || "").trim());
+      const fileName = serverFileName || `document.${format === "pdf" ? "pdf" : "docx"}`;
+      const blobUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = blobUrl; anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click(); anchor.remove();
+      URL.revokeObjectURL(blobUrl);
+      notifySuccess("Đã tải tài liệu thành công.");
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : "Không thể tải tài liệu.");
+    } finally {
+      setIsDownloadingPreviewFile(false);
+      setShowDownloadDropdown(false);
+    }
+  };
 
   useEffect(() => {
     void loadOperationsSnapshot();
@@ -1630,6 +2063,7 @@ const CommitteeOperationsManagement: React.FC = () => {
               : "text/csv;charset=utf-8";
 
     void (async () => {
+      setIsExporting(true);
       try {
         let data: ArrayBuffer;
         let fileName: string;
@@ -1664,6 +2098,7 @@ const CommitteeOperationsManagement: React.FC = () => {
           // Use legacy report endpoint for Docx or specific forms
           if (["form-1", "scoreboard", "minutes", "review", "council-summary"].includes(effectiveReportType) && !effectiveCouncilId) {
             notifyError("Báo cáo hội đồng bắt buộc có councilId.");
+            setIsExporting(false);
             return;
           }
 
@@ -1698,11 +2133,14 @@ const CommitteeOperationsManagement: React.FC = () => {
         notifySuccess("Tải file báo cáo thành công.");
         setExportModalOpen(false);
       } catch (error) {
+        console.error("Export Error:", error);
         if (error instanceof FetchDataError && error.status === 401) {
-          notifyError("Bạn chưa có quyền tải báo cáo hoặc phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại hoặc kiểm tra phân quyền.");
-          return;
+          notifyError("Bạn chưa có quyền tải báo cáo hoặc phiên đăng nhập đã hết hạn.");
+        } else {
+          notifyError("Không thể tải file báo cáo. Vui lòng thử lại sau.");
         }
-        notifyError("Không thể tải file báo cáo. Vui lòng kiểm tra quyền truy cập hoặc đăng nhập lại.");
+      } finally {
+        setIsExporting(false);
       }
     })();
   };
@@ -1763,106 +2201,64 @@ const CommitteeOperationsManagement: React.FC = () => {
     }
   };
 
-  const downloadPreviewDocument = async (template: PreviewModalType, format: "word" | "pdf") => {
-    if (!selectedCommittee || !periodId) return;
-    if ((template === "meeting" || template === "reviewer") && !selectedTopic) {
-      notifyError("Vui lòng chọn đề tài trước khi xem/tải file.");
-      return;
-    }
-
-    setIsDownloadingPreviewFile(true);
-    try {
-      const councilId = selectedCommitteeRows.find((row) => row.committeeId != null)?.committeeId;
-      if (councilId == null) {
-        notifyError("Không tìm thấy councilId.");
-        return;
-      }
-
-      const reportType = template === "meeting" ? "minutes" : template === "reviewer" ? "review" : "scoreboard";
-      const apiFormat = toApiExportFormat(format);
-      const params = new URLSearchParams({
-        reportType,
-        format: apiFormat,
-        councilId: String(councilId),
-        ...(selectedTopic?.assignmentId ? { assignmentId: String(selectedTopic.assignmentId) } : {}),
-        ...(selectedTopic?.studentCode ? { studentCode: selectedTopic.studentCode } : {}),
-      });
-
-      const endpoint = `${defensePeriodBase}/reports/export?${params.toString()}`;
-      const data = await fetchData<ArrayBuffer>(endpoint, { method: "GET", skipAuthRedirect: true });
-      
-      if (!data || data.byteLength < 100) {
-          throw new Error("Dữ liệu file không hợp lệ hoặc quá nhỏ.");
-      }
-
-      const blob = new Blob([data], { 
-        type: format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
-      });
-      
-      const fileName = `${reportType}_${selectedTopic?.studentCode || "export"}_${Date.now()}.${format === "pdf" ? "pdf" : "docx"}`;
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', fileName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      notifySuccess("Tải tài liệu thành công.");
-    } catch (error) {
-      console.error("Download error:", error);
-      if (error instanceof FetchDataError && error.status === 401) {
-        notifyError("Bạn chưa có quyền tải tài liệu hoặc phiên đăng nhập đã hết hạn. Vui lòng kiểm tra phân quyền.");
-        return;
-      }
-      notifyError("Không thể tải tài liệu. Vui lòng kiểm tra lại quyền truy cập hoặc kết nối mạng.");
-    } finally {
-      setIsDownloadingPreviewFile(false);
-    }
-  };
-
   const submitCommitteeAction = useCallback(
-    async (action: "OPEN" | "LOCK" | "REOPEN", committee: CommitteeSummary | null) => {
+    async (action: "OPEN_SESSION" | "CLOSE_SESSION" | "LOCK_SESSION" | "ADMIN_REOPEN", committee: CommitteeSummary | null) => {
       if (!periodId) {
-        notifyWarning("Chua chon dot bao ve. Vui long chon dot tai module Quan ly dot.");
+        notifyWarning("Chưa chọn đợt bảo vệ. Vui lòng chọn đợt tại module Quản lý đợt.");
         return;
       }
       if (!committee) {
-        notifyWarning("Chua chon hoi dong de thao tac.");
+        notifyWarning("Chưa chọn hội đồng để thao tác.");
         return;
       }
 
       const actionKey = `COMMITTEE-${committee.code}-${action}`;
-      const optimisticStatus = action === "LOCK" ? "LOCKED" : action === "REOPEN" ? "READY" : "ONGOING";
       setActionInFlight(actionKey);
-      setCommitteeStatusOverrides((prev) => ({ ...prev, [committee.code]: optimisticStatus }));
 
       try {
-        const response = await fetchData<ApiResponse<Record<string, unknown>>>(
-          `${defensePeriodBase}/scoring/actions`,
-          {
-            method: "POST",
-            body: {
-              committeeCode: committee.code,
-              committeeId: committee.key,
-              action,
-            },
-          },
-        );
-        const parsed = parseEnvelope(response, "Khong the cap nhat trang thai hoi dong.");
+        let response: ApiResponse<Record<string, unknown>>;
+
+        if (action === "ADMIN_REOPEN") {
+          // Admin reopen endpoint
+          const committeeId = committee.key ? Number(committee.key) : null;
+          if (!committeeId) {
+            notifyError("Không thể lấy ID hội đồng.");
+            return;
+          }
+          response = await fetchData<ApiResponse<Record<string, unknown>>>(
+            `/api/LecturerDefense/admin/reopen-session?committeeId=${committeeId}`,
+            { method: "POST" }
+          );
+        } else {
+          // Standard lecturer scoring actions (OPEN_SESSION, CLOSE_SESSION, LOCK_SESSION)
+          response = await fetchData<ApiResponse<Record<string, unknown>>>(
+            `/api/defense-periods/${periodId}/lecturer/scoring/actions`,
+            {
+              method: "POST",
+              body: {
+                action,
+                committeeId: committee.key ? Number(committee.key) : null,
+              },
+            }
+          );
+        }
+
+        const parsed = parseEnvelope(response, `Không thể thực hiện ${action}.`);
         if (!parsed.ok) {
           throw new Error("Committee action failed");
         }
-        notifySuccess(`Da gui lenh ${action} cho ${committee.code}.`);
+
+        const actionLabel = 
+          action === "OPEN_SESSION" ? "Mở phiên" :
+          action === "CLOSE_SESSION" ? "Đóng phiên" :
+          action === "LOCK_SESSION" ? "Khóa phiên" :
+          "Mở lại phiên";
+        
+        notifySuccess(`${actionLabel} hội đồng ${committee.code} thành công.`);
         await loadOperationsSnapshot();
-      } catch {
-        setCommitteeStatusOverrides((prev) => {
-          const next = { ...prev };
-          delete next[committee.code];
-          return next;
-        });
-        notifyError("Khong the cap nhat trang thai hoi dong. Vui long thu lai.");
+      } catch (error) {
+        const errorMessage = error instanceof FetchDataError ? error.message : "Không thể cập nhật trạng thái hội đồng.";
+        notifyError(errorMessage);
       } finally {
         setActionInFlight(null);
       }
@@ -1881,13 +2277,38 @@ const CommitteeOperationsManagement: React.FC = () => {
   };
 
   const pipeline = snapshot?.monitoring?.pipeline;
-  const analytics = snapshot?.monitoring?.analytics;
+  const rawAnalytics = snapshot?.monitoring?.analytics;
   const scoringMatrix = snapshot?.scoringMatrix ?? [];
   const postDefense = snapshot?.postDefense;
   const audit = snapshot?.audit;
   const periodState = toRecord(snapshot?.state ?? null);
   const scoresPublished = Boolean(getRecordValue(periodState, "ScoresPublished") ?? getRecordValue(periodState, "scoresPublished"));
   const councilSourceRecords = snapshot?.councils?.items ?? [];
+
+  const analytics = useMemo(() => {
+    if ((rawAnalytics?.overview?.totalRecords ?? 0) > 0) return rawAnalytics;
+
+    // Calculate fallback analytics from scoringMatrix
+    const scores = scoringMatrix
+      .map(r => Number(r.finalScore ?? r.currentScore ?? NaN))
+      .filter(s => !isNaN(s));
+    
+    const variances = scoringMatrix
+      .map(r => Number(r.variance ?? 0))
+      .filter(v => !isNaN(v));
+
+    const passCount = scores.filter(s => s >= 4.0).length; // Traditional 4.0 threshold
+
+    return {
+      ...rawAnalytics,
+      overview: {
+        average: scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0,
+        passRate: scores.length > 0 ? (passCount / scores.length) * 100 : 0,
+        maxVariance: variances.length > 0 ? Math.max(...variances) : 0,
+        totalRecords: scores.length
+      }
+    };
+  }, [rawAnalytics, scoringMatrix]);
 
   const scoredRowsForDistribution = useMemo(
     () => scoringMatrix.filter((row) => Number.isFinite(Number(row.finalScore ?? row.currentScore ?? NaN))),
@@ -1899,23 +2320,51 @@ const CommitteeOperationsManagement: React.FC = () => {
     [distributionViewMode, scoredRowsForDistribution],
   );
 
+  const postDefenseStudentCodes = useMemo(() => 
+    new Set((postDefense?.items ?? []).map(i => i.studentCode)), 
+    [postDefense?.items]
+  );
+
   const distributionTotal = useMemo(
     () => distributionRows.reduce((sum, item) => sum + item.value, 0),
     [distributionRows],
   );
 
+  const handleStudentTableSort = (field: typeof studentTableSortField) => {
+    if (studentTableSortField === field) {
+      setStudentTableSortDir(studentTableSortDir === "asc" ? "desc" : "asc");
+    } else {
+      setStudentTableSortField(field);
+      setStudentTableSortDir("asc");
+    }
+  };
+
   const studentTableSortedData = useMemo(
     () => {
       let filtered = scoredRowsForDistribution;
+
+      // 1. Filter by Result (Đạt/Trượt)
       if (studentTableIsPassedFilter !== "all") {
         filtered = filtered.filter(row => {
           const effectivePassed = row.isPassed ?? (row.finalScore != null && Number(row.finalScore) >= 5.0);
           return effectivePassed === studentTableIsPassedFilter;
         });
       }
+
+      // 2. Filter by Topic Status
+      if (studentTableStatusFilter !== "all") {
+        filtered = filtered.filter(row => {
+          const isPostDefense = postDefenseStudentCodes.has(row.studentCode);
+          if (studentTableStatusFilter === "post-defense") return isPostDefense;
+          if (studentTableStatusFilter === "locked") return !isPostDefense && row.isLocked;
+          if (studentTableStatusFilter === "scoring") return !isPostDefense && !row.isLocked;
+          return true;
+        });
+      }
+
       return sortStudentRows(filtered, studentTableSortField, studentTableSortDir);
     },
-    [scoredRowsForDistribution, studentTableIsPassedFilter, studentTableSortField, studentTableSortDir],
+    [scoredRowsForDistribution, studentTableIsPassedFilter, studentTableStatusFilter, postDefenseStudentCodes, studentTableSortField, studentTableSortDir],
   );
 
   const distributionStops = useMemo(() => {
@@ -2208,12 +2657,14 @@ const CommitteeOperationsManagement: React.FC = () => {
   }, [committeeOperationalRows, scoringMatrix, committeeStatusOverrides]);
 
   const leaderboardEntries = useMemo(() => {
+    if (!snapshot) return { highest: null, lowest: null, strictest: null, lenient: null, fastest: null, delayed: null };
     const completionSorted = [...committeeOperationalRows].sort((left, right) => right.progressPercent - left.progressPercent);
     const delaySorted = [...committeeOperationalRows].sort((left, right) => {
       const leftValue = Number(left.delayLabel.replace(/[^\d.]/g, "")) || 0;
       const rightValue = Number(right.delayLabel.replace(/[^\d.]/g, "")) || 0;
       return rightValue - leftValue;
     });
+
     return {
       highest: topTopic
         ? { label: "Điểm cao nhất", title: topTopic.studentName ?? "-", score: String(topTopic.finalScore ?? "-"), committee: `${topTopic.committeeCode ?? "-"} · Phòng ${topTopic.room ?? "-"}`, detail: `${topTopic.scheduledAt ? new Date(topTopic.scheduledAt).toLocaleDateString("vi-VN") : "-"} · ${topTopic.topicTitle ?? "-"}` }
@@ -2234,7 +2685,7 @@ const CommitteeOperationsManagement: React.FC = () => {
         ? { label: "Hội đồng trễ nhất", title: delaySorted[0].code, score: delaySorted[0].delayLabel, committee: delaySorted[0].room, detail: delaySorted[0].currentTopic }
         : null,
     };
-  }, [committeeOperationalRows, lowTopic, scoresPublished, topTopic]);
+  }, [committeeOperationalRows, lowTopic, scoresPublished, topTopic, snapshot]);
 
   const committeeScoreStats = useMemo(() => {
     if (scoringMatrix.length === 0) {
@@ -2479,7 +2930,35 @@ const CommitteeOperationsManagement: React.FC = () => {
       .slice(0, Math.max(1, auditSize));
   }, [audit, auditActionFilter, auditKeyword, auditSize]);
 
+  const revisionRows = useMemo(() => {
+    const items = postDefense?.items ?? [];
+    const keyword = revisionKeyword.trim().toLowerCase();
+    const status = revisionStatus;
+
+    return items
+      .filter((item) => {
+        if (status === "all") return true;
+        return String(item.status ?? "").toLowerCase() === status;
+      })
+      .filter((item) => {
+        if (!keyword) return true;
+        const haystack = `${item.studentCode} ${item.studentName} ${item.topicTitle}`.toLowerCase();
+        return haystack.includes(keyword);
+      })
+      .map((item) => {
+        const matrixRow = scoringMatrix.find(m => m.studentCode === item.studentCode);
+        return {
+          ...item,
+          committeeCode: item.committeeCode || matrixRow?.committeeCode,
+          committeeSecretaryName: matrixRow?.committeeSecretaryName,
+          statusLabel: item.status === "APPROVED" ? "Đã duyệt" : item.status === "PENDING" ? "Chờ duyệt" : "Yêu cầu sửa",
+          deadlineDate: item.submissionDeadline ? new Date(item.submissionDeadline).toLocaleDateString("vi-VN") : "-",
+        };
+      });
+  }, [postDefense?.items, revisionKeyword, revisionStatus]);
+
   const recentExports = useMemo(
+
     () => snapshot?.reporting?.recentExports ?? [],
     [snapshot?.reporting?.recentExports],
   );
@@ -2977,14 +3456,14 @@ const CommitteeOperationsManagement: React.FC = () => {
       case "warning":
         return { border: "#f59e0b", bg: "#fffbeb", text: "#b45309" };
       default:
-        return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
+return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
     }
   };
 
   const getMatrixLabel = (status: string) => {
     switch (status) {
       case "published":
-        return "Công bố";
+        return "Công bộ";
       case "locked":
         return "Đã khóa";
       case "submitted":
@@ -3033,6 +3512,1451 @@ const CommitteeOperationsManagement: React.FC = () => {
     </section>
   );
 
+  const renderOverviewTab = () => (
+    <section style={{ display: "grid", gap: 24 }}>
+      {/* 1. Statistics Grid */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+        gap: 20
+      }}>
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tổng số Đề tài</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: "#f37021" }}>{dashboardMetrics.totalTopics ?? 0}</div>
+          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Đã chấm: {dashboardMetrics.scoredTopics ?? 0} / Đã chốt: {dashboardMetrics.lockedTopics ?? 0}</p>
+        </section>
+
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tổng số Hội đồng</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{dashboardMetrics.totalCouncils ?? 0}</div>
+          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>{dashboardMetrics.activeCouncils ?? 0} hội đồng đang hoạt động</p>
+        </section>
+
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tỷ lệ Hoàn thành</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: "#16a34a" }}>{dashboardMetrics.completionRate}%</div>
+          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Tiến độ tổng thể của đợt bảo vệ</p>
+        </section>
+
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Cảnh báo Hệ thống</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: keyAlerts.length > 0 ? "#ef4444" : "#16a34a" }}>{keyAlerts.length}</div>
+          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>{keyAlerts.length > 0 ? "Cần kiểm tra các hội đồng bị trễ" : "Hệ thống hoạt động ổn định"}</p>
+        </section>
+      </div>
+
+      {/* 2. Main Dashboard Layout */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 24 }}>
+        {/* Left Column: Active Committees & Insights */}
+        <div style={{ display: "grid", gap: 24 }}>
+          {/* Active Committees Card */}
+          <section style={{
+            background: "white",
+            borderRadius: 28,
+            padding: 28,
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.05)"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1e293b" }}>Hội đồng Đang Hoạt động</h3>
+                <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Theo dõi tiến độ chấm điểm thời gian thực</p>
+              </div>
+              <button 
+                onClick={() => setActiveTab("committee")}
+                style={{
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  padding: "8px 16px",
+                  borderRadius: 10,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: DEEP_BLUE_PRIMARY,
+                  cursor: "pointer"
+                }}
+              >
+                Xem tất cả
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+              {committeeOperationalRows.filter(r => ["ONGOING", "READY"].includes(r.status)).slice(0, 4).map((row) => {
+                const statusTone = getStatusTone(row.status);
+                return (
+                  <div key={row.key} style={{
+                    padding: 20,
+                    borderRadius: 20,
+                    border: "1px solid #f1f5f9",
+                    background: "#f8fafc",
+                    position: "relative",
+                    transition: "transform 0.2s ease"
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                      <span style={{ fontWeight: 800, color: "#1e293b", fontSize: 15 }}>{row.code}</span>
+                      <span style={{
+                        padding: "4px 10px",
+                        borderRadius: 8,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: statusTone.bg,
+                        color: statusTone.text,
+                        border: `1px solid ${statusTone.border}`
+                      }}>
+                        {getStatusLabel(row.status)}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+                      Phòng {row.room} • {row.chair}
+                    </div>
+                    <div style={{ marginBottom: 8, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                      <span style={{ fontWeight: 600, color: "#475569" }}>{row.scoredTopics}/{row.totalTopics} Hoàn thành</span>
+                      <span style={{ fontWeight: 700, color: DEEP_BLUE_PRIMARY }}>{row.progressPercent}%</span>
+                    </div>
+                    <div style={{ height: 6, borderRadius: 99, background: "#e2e8f0", overflow: "hidden" }}>
+                      <div style={{
+                        width: `${row.progressPercent}%`,
+                        height: "100%",
+                        background: DEEP_BLUE_PRIMARY,
+                        borderRadius: 99,
+                        transition: "width 0.6s ease"
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Highlights Section */}
+          <section style={{
+            background: "white",
+            borderRadius: 28,
+            padding: 28,
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.05)"
+          }}>
+            <h3 style={{ margin: "0 0 20px 0", fontSize: 18, fontWeight: 800, color: "#1e293b" }}>Điểm nổi bật & Kỷ lục</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
+              {[leaderboardEntries.highest, leaderboardEntries.lowest, leaderboardEntries.fastest, leaderboardEntries.delayed].map((entry, i) => {
+                if (!entry) return null;
+                return (
+                  <div key={i} style={{
+                    padding: 16,
+                    borderRadius: 16,
+                    background: "#f8fafc",
+                    border: "1px solid #f1f5f9"
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 8 }}>{entry.label}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: DEEP_BLUE_PRIMARY, marginBottom: 4 }}>{entry.score}</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: "#1e293b" }}>{entry.title}</div>
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>{entry.committee}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+
+        {/* Right Column: Alerts & Global Progress */}
+        <div style={{ display: "grid", gap: 24, alignContent: "start" }}>
+          {/* Global Progress Card */}
+          <section style={{
+            background: "linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)",
+            borderRadius: 28,
+            padding: 28,
+            color: "white",
+            position: "relative",
+            overflow: "hidden"
+          }}>
+            <div style={{ position: "relative", zIndex: 2 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, opacity: 0.8 }}>Tiến độ Toàn đợt</h3>
+              <div style={{ fontSize: 48, fontWeight: 900, margin: "16px 0", letterSpacing: "-0.02em" }}>
+                {dashboardMetrics.completionRate}<span style={{ fontSize: 24, opacity: 0.6 }}>%</span>
+              </div>
+              <div style={{ height: 10, borderRadius: 99, background: "rgba(255, 255, 255, 0.1)", marginBottom: 16, overflow: "hidden" }}>
+                <div style={{
+                  width: `${dashboardMetrics.completionRate}%`,
+                  height: "100%",
+                  background: "#f37021",
+                  borderRadius: 99,
+                  boxShadow: "0 0 20px rgba(243, 112, 33, 0.4)"
+                }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 600 }}>
+                <span>{dashboardMetrics.scoredTopics} Đề tài hoàn tất</span>
+                <span>{dashboardMetrics.totalTopics} Tổng</span>
+              </div>
+            </div>
+            {/* Decorative background shape */}
+            <div style={{
+              position: "absolute",
+              bottom: -20,
+              right: -20,
+              width: 120,
+              height: 120,
+              background: "rgba(243, 112, 33, 0.1)",
+              borderRadius: "50%",
+              filter: "blur(40px)"
+            }} />
+          </section>
+
+          {/* Critical Alerts Card */}
+          <section style={{
+            background: "white",
+            borderRadius: 28,
+            padding: 28,
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.05)"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1e293b" }}>Cảnh báo Cần xử lý</h3>
+              <div style={{
+                background: keyAlerts.length > 0 ? "#fee2e2" : "#dcfce7",
+                color: keyAlerts.length > 0 ? "#ef4444" : "#16a34a",
+                padding: "4px 12px",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 800
+              }}>
+                {keyAlerts.length}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              {keyAlerts.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "20px 0", color: "#64748b", fontSize: 14 }}>
+                  <CheckCircle2 size={32} style={{ color: "#16a34a", marginBottom: 8, opacity: 0.5 }} />
+                  <div>Không có cảnh báo hoạt động</div>
+                </div>
+              ) : (
+                keyAlerts.slice(0, 5).map((alert, i) => (
+                  <div key={i} style={{
+                    padding: 16,
+                    borderRadius: 16,
+                    background: alert.severity === "critical" ? "#fff1f2" : "#f8fafc",
+                    border: `1px solid ${alert.severity === "critical" ? "#fecaca" : "#f1f5f9"}`,
+                    display: "flex",
+                    gap: 12
+                  }}>
+                    <div style={{ color: alert.severity === "critical" ? "#ef4444" : "#f59e0b", marginTop: 2 }}>
+                      <AlertTriangle size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b" }}>{alert.title}</div>
+                      <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{alert.committeeCode} • {alert.detail}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+  );
+
+  const renderAnalyticsTab = () => (
+    <section style={{ display: "grid", gap: 24 }}>
+      {/* 1. Analytics Header Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Điểm trung bình</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            <div style={{ fontSize: 42, fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{formatNumber(analytics?.overview?.average)}</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#16a34a" }}>/ 10.0</div>
+          </div>
+          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Dựa trên {analytics?.overview?.totalRecords} bản ghi điểm</p>
+        </section>
+
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tỷ lệ Đạt/Trượt</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
+                <span style={{ color: "#16a34a" }}>Đạt: {formatNumber(analytics?.overview?.passRate)}%</span>
+                <span style={{ color: "#ef4444" }}>{formatNumber(100 - (analytics?.overview?.passRate ?? 0))}%</span>
+              </div>
+              <div style={{ height: 12, borderRadius: 99, background: "#fee2e2", overflow: "hidden", display: "flex" }}>
+                <div style={{ width: `${analytics?.overview?.passRate}%`, height: "100%", background: "#16a34a" }} />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Độ lệch điểm (Variance)</div>
+          <div style={{ fontSize: 42, fontWeight: 900, color: (analytics?.overview?.maxVariance ?? 0) > 2 ? "#ef4444" : "#1e293b" }}>
+            {formatNumber(analytics?.overview?.maxVariance)}
+          </div>
+          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Mức chênh lệch lớn nhất giữa các thành viên</p>
+        </section>
+      </div>
+
+      {/* 2. Charts Section */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 24 }}>
+        <section style={{ background: "white", borderRadius: 28, padding: 28, border: "1px solid #e2e8f0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Phân bổ Xếp loại</h3>
+            <div style={{ display: "flex", gap: 16 }}>
+              {/* Chart Type Selector */}
+              <div style={{ display: "flex", gap: 4, background: "#f1f5f9", padding: 4, borderRadius: 12 }}>
+                {[
+                  { key: "bar", icon: <BarChart3 size={14} /> },
+                  { key: "pie", icon: <PieChart size={14} /> },
+                  { key: "line", icon: <TrendingUp size={14} /> },
+                ].map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setDistributionChartType(t.key as any)}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 8,
+                      border: "none",
+                      background: distributionChartType === t.key ? "white" : "transparent",
+                      color: distributionChartType === t.key ? DEEP_BLUE_PRIMARY : "#64748b",
+                      boxShadow: distributionChartType === t.key ? "0 2px 4px rgba(0,0,0,0.1)" : "none",
+                      cursor: "pointer"
+                    }}
+                  >
+                    {t.icon}
+                  </button>
+                ))}
+              </div>
+
+              {/* Data Mode Selector */}
+              <div style={{ display: "flex", gap: 4, background: "#f1f5f9", padding: 4, borderRadius: 12 }}>
+                {["grade", "score"].map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setDistributionViewMode(mode as any)}
+                    style={{
+                      padding: "6px 16px",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      border: "none",
+                      background: distributionViewMode === mode ? "white" : "transparent",
+                      color: distributionViewMode === mode ? DEEP_BLUE_PRIMARY : "#64748b",
+                      boxShadow: distributionViewMode === mode ? "0 2px 4px rgba(0,0,0,0.1)" : "none",
+                      cursor: "pointer"
+                    }}
+                  >
+                    {mode === "grade" ? "Điểm chữ" : "Điểm số"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          <div style={{ height: 400, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+            {distributionChartType === "bar" && (
+              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "flex-end", gap: 16, paddingBottom: 40 }}>
+                {distributionRows.map((item, i) => {
+                  const percentage = (item.value / Math.max(1, distributionTotal)) * 100;
+                  return (
+                    <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>{item.value}</div>
+                      <div style={{
+                        width: "100%",
+                        height: `${Math.max(5, percentage * 3)}px`,
+                        background: distributionPalette[item.label] || DEEP_BLUE_PRIMARY,
+                        borderRadius: "8px 8px 4px 4px",
+                        transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                        position: "relative",
+                        cursor: "pointer",
+                        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)"
+                      }} onMouseEnter={() => setHoveredDistributionLabel(item.label)} onMouseLeave={() => setHoveredDistributionLabel(null)}>
+                        {hoveredDistributionLabel === item.label && (
+                          <div style={{
+                            position: "absolute",
+                            top: -40,
+                            left: "50%",
+                            transform: "translateX(-50%)",
+                            background: "#1e293b",
+                            color: "white",
+                            padding: "6px 10px",
+                            borderRadius: 8,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
+                            zIndex: 10,
+                            boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)"
+                          }}>
+                            {item.label}: {percentage.toFixed(1)}%
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#1e293b", textAlign: "center" }}>{item.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {distributionChartType === "pie" && (
+              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 40 }}>
+                <svg width="280" height="280" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
+                  {(() => {
+                    let cumulativePercent = 0;
+                    return distributionRows.map((item, i) => {
+                      const percentage = (item.value / Math.max(1, distributionTotal)) * 100;
+                      if (percentage === 0) return null;
+                      
+                      const startX = Math.cos(2 * Math.PI * (cumulativePercent / 100));
+                      const startY = Math.sin(2 * Math.PI * (cumulativePercent / 100));
+                      cumulativePercent += percentage;
+                      const endX = Math.cos(2 * Math.PI * (cumulativePercent / 100));
+                      const endY = Math.sin(2 * Math.PI * (cumulativePercent / 100));
+                      
+                      const largeArcFlag = percentage > 50 ? 1 : 0;
+                      const pathData = `M 50 50 L ${50 + 40 * startX} ${50 + 40 * startY} A 40 40 0 ${largeArcFlag} 1 ${50 + 40 * endX} ${50 + 40 * endY} Z`;
+                      
+                      return (
+                        <path
+                          key={i}
+                          d={pathData}
+                          fill={distributionPalette[item.label] || DEEP_BLUE_PRIMARY}
+                          stroke="white"
+                          strokeWidth="0.5"
+                          onMouseEnter={() => setHoveredDistributionLabel(item.label)}
+                          onMouseLeave={() => setHoveredDistributionLabel(null)}
+                          style={{ transition: "all 0.3s ease", cursor: "pointer", opacity: hoveredDistributionLabel && hoveredDistributionLabel !== item.label ? 0.4 : 1 }}
+                        />
+                      );
+                    });
+                  })()}
+                </svg>
+                <div style={{ display: "grid", gap: 12 }}>
+                  {distributionRows.map((item, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, opacity: hoveredDistributionLabel && hoveredDistributionLabel !== item.label ? 0.4 : 1 }}>
+                      <div style={{ width: 12, height: 12, borderRadius: 4, background: distributionPalette[item.label] || DEEP_BLUE_PRIMARY }} />
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>{item.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#1e293b" }}>{((item.value / Math.max(1, distributionTotal)) * 100).toFixed(1)}%</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {distributionChartType === "line" && (
+              <div style={{ width: "100%", height: "100%", padding: "40px 20px 60px 20px", display: "flex", flexDirection: "column" }}>
+                <svg width="100%" height="100%" viewBox="0 0 1000 400" preserveAspectRatio="none">
+                  {/* Grid Lines */}
+                  {[0, 25, 50, 75, 100].map((v) => (
+                    <line key={v} x1="0" y1={400 - v * 4} x2="1000" y2={400 - v * 4} stroke="#f1f5f9" strokeWidth="1" />
+                  ))}
+                  
+                  {/* Line Path */}
+                  {(() => {
+                    const maxVal = Math.max(1, ...distributionRows.map(d => d.value));
+                    const points = distributionRows.map((item, i) => {
+                      const x = (i / Math.max(1, distributionRows.length - 1)) * 1000;
+                      const y = 400 - (item.value / maxVal) * 350;
+                      return `${x},${y}`;
+                    }).join(" ");
+                    
+                    return (
+                      <>
+                        <path
+                          d={`M ${points}`}
+                          fill="none"
+                          stroke={DEEP_BLUE_PRIMARY}
+                          strokeWidth="4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        {distributionRows.map((item, i) => {
+                          const x = (i / Math.max(1, distributionRows.length - 1)) * 1000;
+                          const y = 400 - (item.value / maxVal) * 350;
+                          return (
+                            <circle
+                              key={i}
+                              cx={x}
+                              cy={y}
+                              r="6"
+                              fill="white"
+                              stroke={DEEP_BLUE_PRIMARY}
+                              strokeWidth="3"
+                              onMouseEnter={() => setHoveredDistributionLabel(item.label)}
+                              onMouseLeave={() => setHoveredDistributionLabel(null)}
+                              style={{ cursor: "pointer" }}
+                            />
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
+                </svg>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 16 }}>
+                  {distributionRows.map((item, i) => (
+                    <div key={i} style={{ fontSize: 12, fontWeight: 800, color: "#64748b", textAlign: "center", width: `${100 / distributionRows.length}%` }}>
+                      {item.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section style={{ background: "white", borderRadius: 28, padding: 28, border: "1px solid #e2e8f0" }}>
+          <h3 style={{ margin: "0 0 24px 0", fontSize: 18, fontWeight: 800 }}>Thống kê Trạng thái</h3>
+          <div style={{ display: "grid", gap: 20 }}>
+             {[
+               { label: "Đã công bố", count: dashboardMetrics.waitingPublicTopics, total: dashboardMetrics.totalTopics, color: "#16a34a" },
+               { label: "Đã khóa điểm", count: dashboardMetrics.lockedTopics, total: dashboardMetrics.totalTopics, color: "#0ea5e9" },
+               { label: "Đang chấm", count: dashboardMetrics.liveTopics, total: dashboardMetrics.totalTopics, color: "#f59e0b" },
+               { label: "Chưa bắt đầu", count: dashboardMetrics.waitingTopics, total: dashboardMetrics.totalTopics, color: "#64748b" },
+             ].map((stat, i) => (
+               <div key={i}>
+                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+                   <span style={{ color: "#475569" }}>{stat.label}</span>
+                   <span style={{ color: stat.color }}>{stat.count} <span style={{ fontSize: 11, opacity: 0.6 }}>/ {stat.total}</span></span>
+                 </div>
+                 <div style={{ height: 8, borderRadius: 99, background: "#f1f5f9", overflow: "hidden" }}>
+                   <div style={{
+                     width: `${(stat.count / Math.max(1, stat.total)) * 100}%`,
+                     height: "100%",
+                     background: stat.color,
+                     borderRadius: 99
+                   }} />
+                 </div>
+               </div>
+             ))}
+          </div>
+        </section>
+      </div>
+
+      {/* 3. Students List Section */}
+      <section style={{ background: "white", borderRadius: 28, padding: 28, border: "1px solid #e2e8f0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Bảng điểm chi tiết</h3>
+          <div style={{ display: "flex", gap: 12 }}>
+            <input 
+              placeholder="Tìm theo tên, mã SV, đề tài..."
+              style={{ padding: "10px 16px", borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 14, width: 300 }}
+            />
+            <select 
+               style={{ 
+                 padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
+                 backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
+                 backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", transition: "all 0.2s", outline: "none"
+               }}
+               value={String(studentTableIsPassedFilter)}
+               onChange={(e) => {
+                 const val = e.target.value;
+                 setStudentTableIsPassedFilter(val === "all" ? "all" : val === "true");
+               }}
+               onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)"; }}
+               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              <option value="all">Tất cả kết quả</option>
+              <option value="true">Đạt</option>
+              <option value="false">Trượt</option>
+            </select>
+            <select 
+               style={{ 
+                 padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
+                 backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
+                 backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", transition: "all 0.2s", outline: "none"
+               }}
+               value={studentTableStatusFilter}
+               onChange={(e) => setStudentTableStatusFilter(e.target.value as any)}
+               onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)"; }}
+               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="post-defense">Hậu bảo vệ</option>
+              <option value="locked">Đã khóa điểm</option>
+              <option value="scoring">Đang chấm</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
+            <thead>
+              <tr style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <th 
+                  onClick={() => handleStudentTableSort("studentName")}
+                  style={{ padding: "12px 20px", textAlign: "left", cursor: "pointer", userSelect: "none" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    Sinh viên
+                    {studentTableSortField === "studentName" && (studentTableSortDir === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleStudentTableSort("topicTitle")}
+                  style={{ padding: "12px 20px", textAlign: "left", cursor: "pointer", userSelect: "none" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    Đề tài
+                    {studentTableSortField === "topicTitle" && (studentTableSortDir === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleStudentTableSort("committeeCode")}
+                  style={{ padding: "12px 20px", textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    Hội đồng
+                    {studentTableSortField === "committeeCode" && (studentTableSortDir === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleStudentTableSort("finalScore")}
+                  style={{ padding: "12px 20px", textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    Điểm
+                    {studentTableSortField === "finalScore" && (studentTableSortDir === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
+                  </div>
+                </th>
+                <th style={{ padding: "12px 20px", textAlign: "center" }}>Xếp loại</th>
+                <th style={{ padding: "12px 20px", textAlign: "center" }}>Kết quả</th>
+                <th style={{ padding: "12px 20px", textAlign: "center" }}>Trạng thái</th>
+                <th style={{ padding: "12px 20px", textAlign: "right" }}>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {studentTableSortedData.slice((studentTablePage - 1) * studentTablePageSize, studentTablePage * studentTablePageSize).map((row, i) => {
+                const score = Number(row.finalScore ?? row.currentScore ?? 0);
+                const grade = getGradeFromScore(score);
+                const isPassed = row.isPassed ?? (score >= 5.0);
+                const isPostDefense = postDefenseStudentCodes.has(row.studentCode);
+                const statusLabel = isPostDefense ? "Hậu bảo vệ" : (row.isLocked ? "Đã khóa điểm" : "Đang chấm");
+
+                return (
+                  <tr key={i} style={{ 
+                    background: isPostDefense ? "#fffcf0" : "#f8fafc", 
+                    transition: "transform 0.2s ease",
+                    borderLeft: isPostDefense ? "4px solid #f59e0b" : "none"
+                  }}>
+                    <td style={{ padding: "16px 20px", borderRadius: isPostDefense ? "0" : "16px 0 0 16px", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
+                      <div style={{ fontWeight: 800, color: "#1e293b" }}>{row.studentName}</div>
+                      <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{row.studentCode}</div>
+                    </td>
+                    <td style={{ padding: "16px 20px", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9", maxWidth: 300 }}>
+                      <div style={{ fontSize: 14, color: "#1e293b", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.topicTitle}</div>
+                    </td>
+                    <td style={{ padding: "16px 20px", textAlign: "center", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
+                      <span style={{ fontWeight: 700, color: DEEP_BLUE_PRIMARY }}>{row.committeeCode}</span>
+                    </td>
+                    <td style={{ padding: "16px 20px", textAlign: "center", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{score > 0 ? score.toFixed(1) : "-"}</div>
+                    </td>
+                    <td style={{ padding: "16px 20px", textAlign: "center", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
+                      <span style={{
+                        padding: "4px 10px",
+                        borderRadius: 8,
+                        fontSize: 13,
+                        fontWeight: 900,
+                        color: distributionPalette[grade] || DEEP_BLUE_PRIMARY,
+                        background: `${distributionPalette[grade]}15` || "#f1f5f9"
+                      }}>{grade}</span>
+                    </td>
+                    <td style={{ padding: "16px 20px", textAlign: "center", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
+                      <span style={{
+                        padding: "6px 12px",
+                        borderRadius: 99,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        background: isPassed ? "#dcfce7" : "#fee2e2",
+                        color: isPassed ? "#16a34a" : "#ef4444"
+                      }}>{isPassed ? "ĐẠT" : "TRƯỢT"}</span>
+                    </td>
+                    <td style={{ padding: "16px 20px", textAlign: "center", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
+                      <span style={{
+                        padding: "6px 12px",
+                        borderRadius: 8,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        background: isPostDefense ? "#fef3c7" : (row.isLocked ? "#f0f9ff" : "#f1f5f9"),
+                        color: isPostDefense ? "#b45309" : (row.isLocked ? "#0369a1" : "#475569"),
+                        border: isPostDefense ? "1px solid #fbbf24" : "none"
+                      }}>{statusLabel}</span>
+                    </td>
+                    <td style={{ padding: "16px 20px", textAlign: "right", borderRadius: "0 16px 16px 0", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
+                      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center" }}>
+                        {/* Dropdown for documents */}
+                        <div style={{ position: "relative" }}>
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation();
+                              const rowId = `${row.studentCode}-${row.committeeCode}`;
+                              setActiveRowActionId(activeRowActionId === rowId ? null : rowId);
+                            }}
+                            title="Tài liệu liên quan"
+                            style={{ 
+                              padding: "8px", 
+                              borderRadius: 10, 
+                              border: "1px solid #e2e8f0", 
+                              background: activeRowActionId === `${row.studentCode}-${row.committeeCode}` ? "#f1f5f9" : "white", 
+                              cursor: "pointer", 
+                              color: DEEP_BLUE_PRIMARY, 
+                              display: "flex", 
+                              alignItems: "center", 
+                              justifyContent: "center",
+                              transition: "all 0.2s"
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; }}
+                            onMouseLeave={(e) => { if (activeRowActionId !== `${row.studentCode}-${row.committeeCode}`) e.currentTarget.style.borderColor = "#e2e8f0"; }}
+                          >
+                            <Files size={18} />
+                          </button>
+
+                          {activeRowActionId === `${row.studentCode}-${row.committeeCode}` && (
+                            <div 
+                              style={{ 
+                                position: "absolute", 
+                                right: 0, 
+                                top: "calc(100% + 8px)", 
+                                background: "white", 
+                                borderRadius: 14, 
+                                boxShadow: "0 10px 25px rgba(0,0,0,0.15)", 
+                                border: "1px solid #f1f5f9",
+                                minWidth: 180,
+                                zIndex: 100,
+                                padding: "6px",
+                                animation: "fadeIn 0.2s ease"
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {[
+                                { label: "Xem biên bản", icon: <FileText size={14} />, type: "meeting" },
+                                { label: "Xem nhận xét", icon: <MessageSquare size={14} />, type: "reviewer" },
+                              ].map((item) => (
+                                <button
+                                  key={item.type}
+                                  onClick={() => {
+                                    setSelectedMatrixRow(row); 
+                                    hydrateMinutes(row.assignmentId as number, row.committeeId as number);
+                                    setPreviewModalType(item.type as any);
+                                    setActiveRowActionId(null);
+                                  }}
+                                  style={{
+                                    width: "100%",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 10,
+                                    padding: "10px 12px",
+                                    borderRadius: 8,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: "#475569",
+                                    textAlign: "left",
+                                    transition: "all 0.2s"
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = DEEP_BLUE_PRIMARY; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#475569"; }}
+                                >
+                                  {item.icon}
+                                  {item.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Detail Button */}
+                        <button 
+                          onClick={() => { setSelectedTopic(row); setTopicDetailModalOpen(true); }}
+                          title="Xem chi tiết"
+                          style={{ padding: "8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = DEEP_BLUE_PRIMARY; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "white"; e.currentTarget.style.color = "#64748b"; }}
+                        >
+                          <Search size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, padding: "0 8px" }}>
+           <div style={{ fontSize: 14, color: "#64748b" }}>Hiển thị {studentTableSortedData.length} kết quả</div>
+           <div style={{ display: "flex", gap: 8 }}>
+             <button 
+               onClick={() => setStudentTablePage(p => Math.max(1, p - 1))}
+               style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", fontWeight: 700, cursor: "pointer" }}
+             >Trước</button>
+             <button 
+               onClick={() => setStudentTablePage(p => p + 1)}
+               style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", fontWeight: 700, cursor: "pointer" }}
+             >Tiếp theo</button>
+           </div>
+        </div>
+      </section>
+    </section>
+  );
+
+  const renderCommitteeTab = () => (
+    <section style={{ display: "grid", gridTemplateColumns: "350px 1fr", gap: 24 }}>
+      {/* 1. Left Sidebar: Committee List */}
+      <aside style={{
+        background: "white",
+        borderRadius: 28,
+        padding: 24,
+        border: "1px solid #e2e8f0",
+        display: "flex",
+        flexDirection: "column",
+        gap: 20,
+        height: "calc(100vh - 180px)",
+        position: "sticky",
+        top: 96
+      }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Danh sách Hội đồng</h3>
+          <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>{committeeOperationalRows.length} hội đồng đang quản lý</p>
+        </div>
+
+        <div style={{ position: "relative" }}>
+          <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+          <input 
+            value={committeeIdFilter}
+            onChange={(e) => setCommitteeIdFilter(e.target.value)}
+            placeholder="Tìm mã HĐ, phòng, chủ tịch..."
+            style={{ width: "100%", padding: "12px 12px 12px 40px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14 }}
+          />
+        </div>
+
+        <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 8, paddingRight: 4 }}>
+          {visibleCommitteeRows.map((row) => {
+            const isActive = selectedCommittee?.code === row.code;
+            const statusTone = getStatusTone(row.status);
+            return (
+              <button
+                key={row.key}
+                onClick={() => focusCommittee(row.code)}
+                style={{
+                  textAlign: "left",
+                  padding: 16,
+                  borderRadius: 16,
+                  border: `2px solid ${isActive ? DEEP_BLUE_PRIMARY : "#f1f5f9"}`,
+                  background: isActive ? `${DEEP_BLUE_PRIMARY}05` : "white",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  display: "grid",
+                  gap: 8
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 800, color: "#1e293b" }}>{row.code}</span>
+                  <span style={{
+                    padding: "2px 8px",
+                    borderRadius: 6,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    background: statusTone.bg,
+                    color: statusTone.text
+                  }}>{getStatusLabel(row.status)}</span>
+                </div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>
+                  Phòng: {row.room} • {row.chair}
+                </div>
+                <div style={{ height: 4, borderRadius: 99, background: "#e2e8f0", marginTop: 4 }}>
+                  <div style={{ width: `${row.progressPercent}%`, height: "100%", background: DEEP_BLUE_PRIMARY, borderRadius: 99 }} />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+
+      {/* 2. Main Area: Committee Details */}
+      <main style={{ display: "grid", gap: 24 }}>
+        {!selectedCommittee ? (
+          <div style={{
+            background: "white",
+            borderRadius: 28,
+            padding: 80,
+            border: "1px solid #e2e8f0",
+            textAlign: "center",
+            color: "#64748b"
+          }}>
+            <Users size={64} style={{ opacity: 0.1, marginBottom: 20 }} />
+            <h3 style={{ fontSize: 20, fontWeight: 800, color: "#1e293b", margin: "0 0 8px 0" }}>Chọn một hội đồng</h3>
+            <p>Vui lòng chọn hội đồng từ danh sách bên trái để xem chi tiết và quản lý điểm số.</p>
+          </div>
+        ) : (
+          <>
+            {/* Committee Info Header */}
+            <section style={{ background: "white", borderRadius: 28, padding: 32, border: "1px solid #e2e8f0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                    <h2 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: "#1e293b" }}>{selectedCommittee.code}</h2>
+                    <span style={{
+                       padding: "6px 16px",
+                       borderRadius: 99,
+                       fontSize: 12,
+                       fontWeight: 800,
+                       background: getStatusTone(selectedCommittee.status).bg,
+                       color: getStatusTone(selectedCommittee.status).text,
+                       border: `1px solid ${getStatusTone(selectedCommittee.status).border}`
+                    }}>{getStatusLabel(selectedCommittee.status)}</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: 16, color: "#64748b", fontWeight: 500 }}>
+                    Phòng {selectedCommittee.room} • Ngày bảo vệ: {selectedCommittee.defenseDate}
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <button 
+                    onClick={() => {
+                      setPreviewModalType("scoreSheet");
+                    }}
+                    style={{
+                      background: "white",
+                      border: "1px solid #cbd5e1",
+                      padding: "12px 24px",
+                      borderRadius: 14,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: DEEP_BLUE_PRIMARY,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      transition: "all 0.2s"
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = "#cbd5e1"}
+                  >
+                    <Download size={18} /> Xem bảng điểm HĐ
+                  </button>
+                  <button 
+                    onClick={() => void submitCommitteeAction("OPEN_SESSION", selectedCommittee)}
+                    style={{
+                      background: DEEP_BLUE_PRIMARY,
+                      color: "white",
+                      border: "none",
+                      padding: "12px 24px",
+                      borderRadius: 14,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      boxShadow: "0 10px 15px -3px rgba(30, 58, 95, 0.2)"
+                    }}
+                  >Mở phiên làm việc</button>
+                </div>
+              </div>
+
+              {/* Members Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
+                {[
+                  { role: "Chủ tịch", name: selectedCommittee.chair, icon: <User size={16} /> },
+                  { role: "Thư ký", name: selectedCommittee.secretary, icon: <MessageSquare size={16} /> },
+                  { role: "Phản biện", name: selectedCommittee.reviewer, icon: <Activity size={16} /> },
+                  { role: "Hướng dẫn", name: selectedCommitteeSupervisor, icon: <Users size={16} /> },
+                ].map((member, i) => (
+                  <div key={i} style={{ padding: 20, borderRadius: 20, background: "#f8fafc", border: "1px solid #f1f5f9" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                      {member.icon} {member.role}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b" }}>{member.name || "Chưa phân công"}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Topics List Table */}
+            <section style={{ background: "white", borderRadius: 28, padding: 32, border: "1px solid #e2e8f0" }}>
+              <h3 style={{ margin: "0 0 24px 0", fontSize: 20, fontWeight: 800 }}>Danh sách Đề tài</h3>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 12px" }}>
+                  <thead>
+                    <tr style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>
+                      <th style={{ padding: "0 16px", textAlign: "left" }}>Sinh viên</th>
+                      <th style={{ padding: "0 16px", textAlign: "left" }}>Đề tài</th>
+                      <th style={{ padding: "0 16px", textAlign: "center" }}>Điểm tổng</th>
+                      <th style={{ padding: "0 16px", textAlign: "center" }}>Kết quả</th>
+                      <th style={{ padding: "0 16px", textAlign: "right" }}>Tài liệu</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedCommitteeRows.map((row, i) => (
+                      <tr key={i} style={{ background: "#f8fafc" }}>
+                        <td style={{ padding: "20px 16px", borderRadius: "16px 0 0 16px" }}>
+                          <div style={{ fontWeight: 800, color: "#1e293b" }}>{row.studentName}</div>
+                          <div style={{ fontSize: 12, color: "#64748b" }}>{row.studentCode}</div>
+                        </td>
+                        <td style={{ padding: "20px 16px" }}>
+                          <div style={{ fontWeight: 600, color: "#1e293b" }}>{row.topicTitle}</div>
+                          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{row.topicCode}</div>
+                        </td>
+                        <td style={{ padding: "20px 16px", textAlign: "center" }}>
+                          <div style={{ fontSize: 20, fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{getTopicScoreDisplay(row)}</div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>{getTopicGradeDisplay(row)}</div>
+                        </td>
+                        <td style={{ padding: "20px 16px", textAlign: "center" }}>
+                          <span style={{
+                            padding: "6px 16px",
+                            borderRadius: 99,
+                            fontSize: 11,
+                            fontWeight: 800,
+                            background: row.isPassed ? "#dcfce7" : "#fee2e2",
+                            color: row.isPassed ? "#16a34a" : "#ef4444"
+                          }}>{row.isPassed ? "ĐẠT" : "TRƯỢT"}</span>
+                        </td>
+                        <td style={{ padding: "20px 16px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
+                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                            <button onClick={() => { 
+                              setSelectedMatrixRow(row); 
+                              hydrateMinutes(row.assignmentId as number, row.committeeId as number);
+                              setPreviewModalType("meeting"); 
+                            }} style={{ padding: "8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: DEEP_BLUE_PRIMARY }} title="Biên bản"><FileText size={18} /></button>
+                            <button onClick={() => { 
+                              setSelectedMatrixRow(row); 
+                              hydrateMinutes(row.assignmentId as number, row.committeeId as number);
+                              setPreviewModalType("reviewer"); 
+                            }} style={{ padding: "8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: "#f37021" }} title="Nhận xét"><Eye size={18} /></button>
+                            <button onClick={() => { setSelectedTopic(row); setTopicDetailModalOpen(true); }} style={{ padding: "8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: "#64748b" }} title="Chi tiết"><Search size={18} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </>
+        )}
+      </main>
+    </section>
+  );
+
+  const renderPostDefenseTab = () => (
+    <section style={{ display: "grid", gap: 24 }}>
+      {/* 1. Header Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Đã duyệt sửa đổi</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: "#16a34a" }}>{postDefense?.approvedRevisions ?? 0}</div>
+          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Trên tổng số {postDefense?.totalRevisions ?? 0} đề tài</p>
+        </section>
+
+        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Chờ xác nhận</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: "#f59e0b" }}>{postDefense?.pendingRevisions ?? 0}</div>
+          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Cần giảng viên & thư ký kiểm tra</p>
+        </section>
+      </div>
+
+      {/* 2. Revisions Table */}
+      <section style={{ background: "white", borderRadius: 28, padding: 32, border: "1px solid #e2e8f0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Dữ liệu Sửa đổi Đồ án</h3>
+          <div style={{ display: "flex", gap: 12 }}>
+             <input 
+              placeholder="Mã SV, mã đề tài..."
+              style={{ padding: "10px 16px", borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 14, width: 250 }}
+              value={revisionKeyword}
+              onChange={(e) => setRevisionKeyword(e.target.value)}
+            />
+            <select 
+               style={{ 
+                 padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
+                 backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
+                 backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", transition: "all 0.2s", outline: "none"
+               }}
+               value={revisionStatus}
+               onChange={(e) => setRevisionStatus(e.target.value as any)}
+               onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)"; }}
+               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="approved">Đã duyệt</option>
+              <option value="pending">Chờ duyệt</option>
+              <option value="rejected">Yêu cầu sửa lại</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
+            <thead>
+              <tr style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>
+                <th style={{ padding: "12px 20px", textAlign: "left" }}>Sinh viên</th>
+                <th style={{ padding: "12px 20px", textAlign: "left" }}>Đề tài</th>
+                <th style={{ padding: "12px 20px", textAlign: "center" }}>Hội đồng</th>
+                <th style={{ padding: "12px 20px", textAlign: "center" }}>Người phụ trách</th>
+                <th style={{ padding: "12px 20px", textAlign: "center" }}>Hạn chốt</th>
+                <th style={{ padding: "12px 20px", textAlign: "center" }}>Trạng thái</th>
+                <th style={{ padding: "12px 20px", textAlign: "right" }}>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {revisionRows.map((row, i) => (
+                <tr key={i} style={{ background: "#f8fafc" }}>
+                  <td style={{ padding: "16px 20px", borderRadius: "16px 0 0 16px" }}>
+                    <div style={{ fontWeight: 800, color: "#1e293b" }}>{row.studentName}</div>
+                    <div style={{ fontSize: 12, color: "#64748b" }}>{row.studentCode}</div>
+                  </td>
+                  <td style={{ padding: "16px 20px" }}>
+                    <div style={{ fontSize: 14, color: "#1e293b", fontWeight: 600 }}>{row.topicTitle}</div>
+                  </td>
+                  <td style={{ padding: "16px 20px", textAlign: "center" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: DEEP_BLUE_PRIMARY }}>{row.committeeCode || "-"}</div>
+                  </td>
+                  <td style={{ padding: "16px 20px", textAlign: "center" }}>
+                    <div style={{ fontSize: 13, color: "#475569", fontWeight: 600 }}>{row.committeeSecretaryName || "-"}</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>Thư ký</div>
+                  </td>
+                  <td style={{ padding: "16px 20px", textAlign: "center" }}>
+                    <div style={{ fontSize: 13, color: "#475569" }}>{row.deadlineDate}</div>
+                  </td>
+                  <td style={{ padding: "16px 20px", textAlign: "center" }}>
+                    <span style={{
+                      padding: "6px 12px",
+                      borderRadius: 99,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      background: row.status === "APPROVED" ? "#dcfce7" : row.status === "PENDING" ? "#fef3c7" : "#fee2e2",
+                      color: row.status === "APPROVED" ? "#16a34a" : row.status === "PENDING" ? "#b45309" : "#ef4444"
+                    }}>{row.statusLabel}</span>
+                  </td>
+                  <td style={{ padding: "16px 20px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
+                    <button 
+                      onClick={() => { 
+                        const matrixMatch = scoringMatrix.find(m => m.studentCode === row.studentCode);
+                        setSelectedTopic({ ...matrixMatch, ...row }); 
+                        setTopicDetailModalOpen(true); 
+                      }}
+                      style={{ background: "white", border: "1px solid #e2e8f0", padding: "8px 12px", borderRadius: 10, cursor: "pointer", color: DEEP_BLUE_PRIMARY, fontWeight: 700 }}
+                    >Chi tiết</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  );
+  
+    const renderAuditTab = () => {
+      const currentTemplate = exportTemplateOptions.find(t => t.value === exportTemplateMode) || exportTemplateOptions[0];
+      const filteredGroups = exportFieldGroups.map(group => ({
+        ...group,
+        fields: group.fields.filter(f => 
+          f.label.toLowerCase().includes(exportFieldSearch.toLowerCase()) || 
+          f.key.toLowerCase().includes(exportFieldSearch.toLowerCase())
+        )
+      })).filter(group => group.fields.length > 0);
+
+      return (
+        <section style={{ background: "white", borderRadius: 28, padding: 32, border: "1px solid #e2e8f0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#0f172a" }}>Trung tâm Xuất dữ liệu</h3>
+              <p style={{ margin: "4px 0 0 0", fontSize: 14, color: "#64748b" }}>Cấu hình và trích xuất báo cáo vận hành hội đồng chuyên sâu</p>
+            </div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <button 
+                onClick={() => loadOperationsSnapshot()}
+                style={{ padding: "10px 16px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, color: "#64748b", fontWeight: 700 }}
+              >
+                <RefreshCw size={16} /> Làm mới dữ liệu
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 40, alignItems: "start" }}>
+            <aside style={{ background: "#f8fafc", padding: 24, borderRadius: 24, border: "1px solid #f1f5f9", position: "sticky", top: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: DEEP_BLUE_PRIMARY, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>1</div>
+                <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chọn mẫu báo cáo</h4>
+              </div>
+              
+              <div style={{ display: "grid", gap: 10 }}>
+                {exportTemplateOptions.map((item) => (
+                  <button
+                    key={item.value}
+                    onClick={() => {
+                      setExportTemplateMode(item.value);
+                      setExportSelectedFields(exportTemplateFieldPresets[item.value] || []);
+                    }}
+                    style={{
+                      width: "100%", padding: "16px", borderRadius: 18, textAlign: "left",
+                      border: `2px solid ${exportTemplateMode === item.value ? DEEP_BLUE_PRIMARY : "transparent"}`,
+                      background: exportTemplateMode === item.value ? "white" : "transparent",
+                      boxShadow: exportTemplateMode === item.value ? "0 10px 15px -3px rgba(0,0,0,0.05)" : "none",
+                      cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", gap: 14
+                    }}
+                  >
+                    <div style={{ 
+                      padding: 10, borderRadius: 12, 
+                      background: exportTemplateMode === item.value ? `${DEEP_BLUE_PRIMARY}10` : "#f1f5f9",
+                      color: exportTemplateMode === item.value ? DEEP_BLUE_PRIMARY : "#94a3b8" 
+                    }}>{item.icon}</div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: exportTemplateMode === item.value ? 900 : 700, color: exportTemplateMode === item.value ? "#0f172a" : "#64748b" }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{item.description}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ marginTop: 40, paddingTop: 32, borderTop: "1px solid #e2e8f0" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: DEEP_BLUE_PRIMARY, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>2</div>
+                  <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Phạm vi trích xuất</h4>
+                </div>
+                <div style={{ display: "grid", gap: 10 }}>
+                  {exportScopeOptions.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setExportScopeMode(opt.value as any)}
+                      style={{
+                        padding: "14px 16px", borderRadius: 14, fontSize: 13, fontWeight: 700, textAlign: "left",
+                        border: "1px solid #e2e8f0",
+                        background: exportScopeMode === opt.value ? DEEP_BLUE_PRIMARY : "white",
+                        color: exportScopeMode === opt.value ? "white" : "#64748b",
+                        cursor: "pointer", transition: "all 0.2s"
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </aside>
+
+            <main style={{ display: "flex", flexDirection: "column", gap: 40 }}>
+              <div style={{ background: "white", padding: 32, borderRadius: 28, border: "1px solid #f1f5f9" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: DEEP_BLUE_PRIMARY, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>3</div>
+                    <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Cấu hình trường dữ liệu</h4>
+                  </div>
+                  <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                    <div style={{ position: "relative" }}>
+                      <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                      <input 
+                        placeholder="Tìm trường..."
+                        style={{ padding: "10px 16px 10px 38px", borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13, width: 200 }}
+                        value={exportFieldSearch}
+                        onChange={(e) => setExportFieldSearch(e.target.value)}
+                      />
+                    </div>
+                    <button onClick={() => setExportSelectedFields(exportFieldGroups.flatMap(g => g.fields.map(f => f.key)))} style={{ background: "none", border: "none", color: DEEP_BLUE_PRIMARY, fontSize: 13, fontWeight: 800, cursor: "pointer" }}>Chọn tất cả</button>
+                    <button onClick={() => setExportSelectedFields([])} style={{ background: "none", border: "none", color: "#ef4444", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>Bỏ chọn</button>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gap: 40, maxHeight: 500, overflowY: "auto", paddingRight: 12 }}>
+                  {filteredGroups.map(group => (
+                    <div key={group.key}>
+                      <div style={{ fontSize: 11, fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
+                        {group.label} <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+                        {group.fields.map(field => (
+                          <label
+                            key={field.key}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 14,
+                              border: `1px solid ${exportSelectedFields.includes(field.key) ? DEEP_BLUE_PRIMARY : "#f1f5f9"}`,
+                              background: exportSelectedFields.includes(field.key) ? `${DEEP_BLUE_PRIMARY}05` : "#fcfdfe",
+                              cursor: "pointer", transition: "all 0.2s"
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={exportSelectedFields.includes(field.key)}
+                              onChange={() => {
+                                setExportSelectedFields(prev => 
+                                  prev.includes(field.key) ? prev.filter(k => k !== field.key) : [...prev, field.key]
+                                );
+                              }}
+                              style={{ width: 18, height: 18, accentColor: DEEP_BLUE_PRIMARY, cursor: "pointer" }}
+                            />
+                            <span style={{ fontSize: 13, fontWeight: exportSelectedFields.includes(field.key) ? 800 : 600, color: exportSelectedFields.includes(field.key) ? "#0f172a" : "#64748b" }}>{field.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ 
+                background: "white", 
+                padding: "24px 32px", 
+                borderRadius: 24, 
+                border: "1px solid #e2e8f0", 
+                display: "flex", 
+                justifyContent: "space-between", 
+                alignItems: "center",
+                boxShadow: "0 10px 30px rgba(0,0,0,0.04)"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                  <div style={{ 
+                    width: 48, height: 48, borderRadius: 14, 
+                    background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center"
+                  }}>
+                    {isExporting ? <Loader2 size={24} className="animate-spin" color={DEEP_BLUE_PRIMARY} /> : <Download size={24} color={DEEP_BLUE_PRIMARY} />}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>{isExporting ? "Đang xử lý..." : "Sẵn sàng trích xuất"}</div>
+                    <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600, marginTop: 2 }}>
+                      Đã chọn <span style={{ color: DEEP_BLUE_PRIMARY }}>{exportSelectedFields.length}</span> trường dữ liệu
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 12, position: "relative" }}>
+                  <button
+                    onClick={() => setExportPreviewModalOpen(true)}
+                    style={{
+                      padding: "12px 24px", borderRadius: 12, border: "1px solid #e2e8f0",
+                      background: "white", color: "#475569", fontSize: 14, fontWeight: 700, cursor: "pointer",
+                      display: "flex", alignItems: "center", gap: 8, transition: "all 0.2s"
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; e.currentTarget.style.color = DEEP_BLUE_PRIMARY; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.color = "#475569"; }}
+                  >
+                    <Eye size={18} /> Xem trước
+                  </button>
+
+                  <div style={{ position: "relative" }} ref={exportDownloadMenuRef}>
+                    <button
+                      onClick={() => setExportDownloadMenuOpen(!exportDownloadMenuOpen)}
+                      disabled={isExporting}
+                      style={{
+                        padding: "12px 24px", borderRadius: 12, border: "none",
+                        background: DEEP_BLUE_PRIMARY, color: "white", fontSize: 14, fontWeight: 800, cursor: "pointer",
+                        display: "flex", alignItems: "center", gap: 10, transition: "all 0.2s"
+                      }}
+                    >
+                      {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                      Tải xuống dữ liệu
+                      <ChevronDown size={16} style={{ transform: exportDownloadMenuOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }} />
+                    </button>
+
+                    {exportDownloadMenuOpen && (
+                      <div style={{
+                        position: "absolute", bottom: "calc(100% + 12px)", right: 0, width: 220,
+                        background: "white", borderRadius: 16, boxShadow: "0 10px 40px rgba(0,0,0,0.12)",
+                        border: "1px solid #e2e8f0", padding: 8, zIndex: 100
+                      }}>
+                        {[
+                          { label: "Xuất file Excel (.xlsx)", icon: <FileSpreadsheet size={16} />, format: "excel" as const, color: "#16a34a" },
+                          { label: "Xuất file PDF (.pdf)", icon: <FileText size={16} />, format: "pdf" as const, color: "#ef4444" },
+                        ].map(opt => (
+                          <button
+                            key={opt.format}
+                            onClick={() => {
+                              exportReport({ format: opt.format });
+                              setExportDownloadMenuOpen(false);
+                            }}
+                            style={{
+                              width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+                              borderRadius: 10, border: "none", background: "none", cursor: "pointer",
+                              fontSize: 13, fontWeight: 700, color: "#475569", transition: "all 0.2s", textAlign: "left"
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.color = opt.color; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#475569"; }}
+                          >
+                            <span style={{ color: opt.color }}>{opt.icon}</span>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </section>
+      );
+    };
+
+  const renderExportPreviewModal = () => {
+    if (!exportPreviewModalOpen) return null;
+
+    // Get a sample of fields for preview (e.g., first 5 rows)
+    const previewRows = analyticsTopics.slice(0, 5);
+    const selectedFieldConfigs = exportFieldGroups.flatMap(g => g.fields).filter(f => exportSelectedFields.includes(f.key));
+
+    return (
+      <ModalOverlay onClose={() => setExportPreviewModalOpen(false)} width={1200}>
+        <div style={{ padding: 32 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#0f172a" }}>Xem trước dữ liệu trích xuất</h2>
+              <p style={{ margin: "4px 0 0 0", fontSize: 14, color: "#64748b" }}>Hiển thị 5 bản ghi mẫu dựa trên cấu hình hiện tại</p>
+            </div>
+            <button 
+              onClick={() => setExportPreviewModalOpen(false)}
+              style={{ background: "#f1f5f9", border: "none", padding: 10, borderRadius: 12, cursor: "pointer" }}
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div style={{ overflowX: "auto", background: "#f8fafc", borderRadius: 20, border: "1px solid #e2e8f0" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#f1f5f9" }}>
+                  {selectedFieldConfigs.map(f => (
+                    <th key={f.key} style={{ padding: "16px 20px", textAlign: "left", fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                      {f.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {previewRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={selectedFieldConfigs.length} style={{ padding: 40, textAlign: "center", color: "#64748b" }}>Không có dữ liệu để xem trước</td>
+                  </tr>
+                ) : (
+                  previewRows.map((row: any, idx) => (
+                    <tr key={idx} style={{ borderTop: "1px solid #e2e8f0", background: "white" }}>
+                      {selectedFieldConfigs.map(f => {
+                        let val = row[f.key] || row[f.key.charAt(0).toLowerCase() + f.key.slice(1)] || "-";
+                        if (typeof val === "boolean") val = val ? "Có" : "Không";
+                        return (
+                          <td key={f.key} style={{ padding: "14px 20px", fontSize: 13, color: "#1e293b", whiteSpace: "nowrap" }}>
+                            {String(val)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop: 32, display: "flex", justifyContent: "flex-end" }}>
+            <button 
+              onClick={() => setExportPreviewModalOpen(false)}
+              style={{ padding: "12px 24px", borderRadius: 12, background: DEEP_BLUE_PRIMARY, color: "white", border: "none", fontWeight: 800, cursor: "pointer" }}
+            >
+              Đóng xem trước
+            </button>
+          </div>
+        </div>
+      </ModalOverlay>
+    );
+  };
+
   const renderSkeletonPanel = (titleWidth: number, rows: number) => (
     <section style={cardStyle}>
       <div style={{ display: "grid", gap: 10 }}>
@@ -3047,2272 +4971,938 @@ const CommitteeOperationsManagement: React.FC = () => {
     </section>
   );
 
-  return (
-    <div
-      style={{
-        maxWidth: 1780,
-        margin: "0 auto",
-        padding: 16,
-        fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
-      }}
-    >
-      <section
-        ref={commandBarRef}
-        style={{
-          ...cardStyle,
-          position: "sticky",
-          top: 12,
-          zIndex: 40,
-          marginBottom: 12,
-          display: "grid",
-          gap: 10,
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#0f172a", fontWeight: 700 }}>
-              Mission Control Dashboard · Điều hành chấm điểm bảo vệ đồ án
-            </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <h1 style={{ margin: 0, fontSize: 22, color: "#0f172a", display: "flex", gap: 8, alignItems: "center" }}>
-                <Gavel size={20} color={DEEP_BLUE_PRIMARY} /> {periodInfo.name}
-              </h1>
-              {(() => {
-                const statusTone = getStatusTone(periodInfo.status);
-                return (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 999, padding: "5px 10px", fontSize: 11, fontWeight: 700, border: `1px solid ${statusTone.border}`, background: statusTone.bg, color: statusTone.text }}>
-                    {getStatusLabel(periodInfo.status)} · Realtime
-                  </span>
-                );
-              })()}
-            </div>
-            <div style={{ fontSize: 12, color: "#475569" }}>
-              Clock {new Date(currentTimestamp).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · Countdown {periodInfo.countdownLabel} · Last refresh {lastLoadedAt || "Chưa có"}
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <button type="button" onClick={() => void loadOperationsSnapshot()} style={{ border: "none", background: DEEP_BLUE_PRIMARY, color: "#ffffff", borderRadius: 10, minHeight: 36, padding: "0 12px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-              <RefreshCw size={14} /> Làm mới
-            </button>
-          </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 8 }}>
-          {[
-            { label: "HĐ đang hoạt động", value: formatNumber(dashboardMetrics.activeCouncils), trend: `${dashboardMetrics.totalCouncils} cộng`, action: "Tập trung", tone: DEEP_BLUE_PRIMARY, spark: progressSeries },
-            { label: "Đề tài đang chạy", value: formatNumber(dashboardMetrics.liveTopics), trend: `${dashboardMetrics.scoredTopics} đã chấm`, action: "Kiểm tra", tone: "#0ea5e9", spark: completionTrend },
-            { label: "Cảnh báo hoạt động", value: formatNumber(dashboardMetrics.warnings), trend: `${keyAlerts.length} sự kiện`, action: "Xem xét", tone: "#ef4444", spark: varianceSeries },
-            { label: "Tiến độ", value: `${formatNumber(dashboardMetrics.completionRate)}%`, trend: `${dashboardMetrics.lockedTopics} đã chốt`, action: "Mở", tone: "#16a34a", spark: progressSeries },
-            { label: "Chờ công bố", value: formatNumber(dashboardMetrics.waitingPublicTopics), trend: `${dashboardMetrics.waitingTopics} chưa bắt đầu`, action: "Xếp hàng", tone: "#f59e0b", spark: completionTrend },
-            { label: "Điểm trung bình", value: formatNumber(analytics?.overview?.average), trend: `${formatNumber(analytics?.overview?.passRate)}% vượt`, action: "Biểu đồ", tone: "#1d4ed8", spark: completionTrend },
-          ].map((item, index) => (
-            <div key={item.label} style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 10, background: "#ffffff", display: "grid", gap: 6 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>{item.label}</div>
-                <span style={{ width: 10, height: 10, borderRadius: 999, background: item.tone }} />
+  if ((loadingSnapshot || analyticsLoading) && !snapshot && !analyticsDistribution) {
+    return renderLoading();
+  }
+
+  // --- MODAL RENDERING FUNCTIONS (SCOPED) ---
+
+  const renderTopicDetailModal = () => {
+    if (!selectedTopic) return null;
+    return (
+      <ModalOverlay onClose={() => setTopicDetailModalOpen(false)} width={1000}>
+        <div style={{ padding: "32px 40px 24px", background: "linear-gradient(to bottom, #f8fafc, white)", borderBottom: "1px solid #f1f5f9" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 20 }}>
+            <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+              <div style={{ 
+                width: 72, 
+                height: 72, 
+                borderRadius: 24, 
+                background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", 
+                color: "white", 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)"
+              }}>
+                <User size={36} />
               </div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", lineHeight: 1 }}>{item.value}</div>
-              <div style={{ fontSize: 12, color: "#64748b" }}>{item.trend}</div>
-              <div style={{ marginTop: 2 }}>{renderSparkline(item.spark ?? [], item.tone)}</div>
-              <button type="button" onClick={() => {
-                const tabMap: Record<number, typeof activeTab> = { 0: "committee", 1: "committee", 2: "audit", 3: "analytics", 4: "post-defense", 5: "analytics" };
-                setActiveTab(tabMap[index] ?? "overview");
-              }} style={{ border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", borderRadius: 8, minHeight: 30, padding: "0 10px", fontWeight: 700, fontSize: 12, cursor: "pointer", justifySelf: "start" }}>
-                {item.action}
-              </button>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* TAB NAVIGATION */}
-      <section
-        style={{
-          ...cardStyle,
-          position: "sticky",
-          top: tabNavTop,
-          zIndex: 39,
-          marginBottom: 12,
-          display: "flex",
-          gap: 8,
-          overflowX: "auto",
-          paddingRight: 12,
-        }}
-      >
-        {[
-          { key: "overview" as const, label: "Tổng quan", icon: <Search size={15} />, badge: null },
-          { key: "analytics" as const, label: "Thống kê", icon: <BarChart3 size={15} />, badge: null },
-          { key: "committee" as const, label: "Hội đồng", icon: <Gavel size={15} />, badge: committeeOperationalRows.length > 0 ? String(committeeOperationalRows.length) : null },
-          { key: "post-defense" as const, label: "Hậu bảo vệ", icon: <FileSpreadsheet size={15} />, badge: postDefense?.items ? String(postDefense.items.length) : null },
-          { key: "audit" as const, label: "Kiểm toán & Báo cáo", icon: <Download size={15} />, badge: keyAlerts.length > 0 ? String(keyAlerts.length) : null },
-        ].map((tab) => {
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                border: `2px solid ${isActive ? DEEP_BLUE_PRIMARY : "#e2e8f0"}`,
-                borderRadius: 10,
-                padding: "8px 14px",
-                background: isActive ? LIGHT_BLUE_SOFTEN : "#ffffff",
-                color: isActive ? DEEP_BLUE_PRIMARY : "#0f172a",
-                fontWeight: 700,
-                fontSize: 13,
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-                flexShrink: 0,
-                position: "relative",
-              }}
-            >
-              {tab.icon}
-              {tab.label}
-              {tab.badge && (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minWidth: 20,
-                    height: 20,
-                    borderRadius: 999,
-                    background: "#ef4444",
-                    color: "#ffffff",
-                    fontSize: 11,
-                    fontWeight: 800,
-                    marginLeft: 4,
-                  }}
-                >
-                  {tab.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </section>
-
-      {/* TAB CONTENT */}
-      {activeTab === "overview" && (
-        <section style={{ display: "grid", gap: 12 }}>
-          {loadingSnapshot && renderSkeletonPanel(220, 3)}
-          {/* OVERVIEW TAB: Dashboard at a glance */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" }}>
-            {/* LEFT: KPIs */}
-            <div style={{ display: "grid", gap: 12 }}>
-              {/* KPIs Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
-                {[
-                  {
-                    label: "Tổng hội đồng",
-                    value: dashboardMetrics.totalCouncils,
-                    trend: `${dashboardMetrics.activeCouncils} đang hoạt động`,
-                    progress: (dashboardMetrics.activeCouncils / Math.max(1, dashboardMetrics.totalCouncils)) * 100,
-                    tone: DEEP_BLUE_PRIMARY,
-                    spark: progressSeries,
-                    tab: "committee" as const,
-                  },
-                  {
-                    label: "Tổng đề tài",
-                    value: dashboardMetrics.totalTopics,
-                    trend: `${dashboardMetrics.pendingTopics} chờ xử lý`,
-                    progress: (dashboardMetrics.scoredTopics / Math.max(1, dashboardMetrics.totalTopics)) * 100,
-                    tone: "#0ea5e9",
-                    spark: completionTrend,
-                    tab: "overview" as const,
-                  },
-                  {
-                    label: "Đã chấm",
-                    value: dashboardMetrics.scoredTopics,
-                    trend: `${dashboardMetrics.completionRate}% hoàn thành`,
-                    progress: dashboardMetrics.completionRate,
-                    tone: "#16a34a",
-                    spark: completionTrend,
-                    tab: "analytics" as const,
-                  },
-                  {
-                    label: "Đang bảo vệ",
-                    value: dashboardMetrics.liveTopics,
-                    trend: "Đang chấm điểm",
-                    progress: (dashboardMetrics.liveTopics / Math.max(1, dashboardMetrics.totalTopics)) * 100,
-                    tone: "#f59e0b",
-                    spark: progressSeries,
-                    tab: "committee" as const,
-                  },
-                  {
-                    label: "Chưa bắt đầu",
-                    value: dashboardMetrics.waitingTopics,
-                    trend: "Đang chờ lịch",
-                    progress: (dashboardMetrics.waitingTopics / Math.max(1, dashboardMetrics.totalTopics)) * 100,
-                    tone: "#ef4444",
-                    spark: varianceSeries,
-                    tab: "committee" as const,
-                  },
-                  {
-                    label: "Tỷ lệ hoàn thành",
-                    value: `${formatNumber(dashboardMetrics.completionRate)}%`,
-                    trend: `${dashboardMetrics.scoredTopics}/${dashboardMetrics.totalTopics}`,
-                    progress: dashboardMetrics.completionRate,
-                    tone: "#1d4ed8",
-                    spark: completionTrend,
-                    tab: "analytics" as const,
-                  },
-                  {
-                    label: "Hội đồng active",
-                    value: dashboardMetrics.activeCouncils,
-                    trend: `${dashboardMetrics.totalCouncils} tổng`,
-                    progress: (dashboardMetrics.activeCouncils / Math.max(1, dashboardMetrics.totalCouncils)) * 100,
-                    tone: "#0ea5e9",
-                    spark: progressSeries,
-                    tab: "committee" as const,
-                  },
-                  {
-                    label: "Số cảnh báo",
-                    value: keyAlerts.length,
-                    trend: "Ưu tiên cao",
-                    progress: Math.min(100, keyAlerts.length * 12),
-                    tone: "#ef4444",
-                    spark: varianceSeries,
-                    tab: "audit" as const,
-                  },
-                ].map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => setActiveTab(item.tab)}
-                    style={{ border: `2px solid ${item.tone}`, borderRadius: 12, padding: 12, background: "#ffffff", cursor: "pointer", textAlign: "left", display: "grid", gap: 6 }}
-                  >
-                    <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>{item.label}</div>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: item.tone }}>{formatNumber(item.value)}</div>
-                    <div style={{ fontSize: 12, color: "#475569" }}>{item.trend}</div>
-                    <div style={{ height: 6, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}>
-                      <div style={{ width: `${Math.min(100, Math.max(0, item.progress))}%`, height: "100%", background: item.tone }} />
-                    </div>
-                    <div>{renderSparkline(item.spark ?? [], item.tone)}</div>
-                  </button>
-                ))}
+              <div>
+                <h2 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.02em" }}>{selectedTopic.studentName}</h2>
+                <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
+                  <span style={{ fontSize: 14, color: "#64748b", fontWeight: 700, background: "#f1f5f9", padding: "2px 8px", borderRadius: 6 }}>{selectedTopic.studentCode}</span>
+                  <span style={{ fontSize: 14, color: "#64748b", fontWeight: 600 }}>{selectedTopic.className} • {selectedTopic.cohortCode}</span>
+                </div>
               </div>
             </div>
-
-            {/* RIGHT: Progress + Alerts */}
-            <div style={{ display: "grid", gap: 12 }}>
-              <section style={cardStyle}>
-                <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Tiến độ chung</div>
-                <div style={{ fontSize: 32, fontWeight: 900, color: DEEP_BLUE_PRIMARY, marginTop: 8 }}>{dashboardMetrics.completionRate}%</div>
-                <div style={{ height: 12, borderRadius: 999, background: "#e2e8f0", overflow: "hidden", marginTop: 12, display: "flex" }}>
-                  <div title="Đã chốt" style={{ width: `${(dashboardMetrics.lockedTopics / Math.max(1, dashboardMetrics.totalTopics)) * 100}%`, height: "100%", background: "#16a34a", transition: "width 0.5s ease" }} />
-                  <div title="Chờ công bố" style={{ width: `${(dashboardMetrics.waitingPublicTopics / Math.max(1, dashboardMetrics.totalTopics)) * 100}%`, height: "100%", background: "#f59e0b", transition: "width 0.5s ease" }} />
+            <button onClick={() => setTopicDetailModalOpen(false)} style={{ background: "#f1f5f9", border: "none", padding: 10, borderRadius: 14, cursor: "pointer", color: "#64748b", transition: "all 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#e2e8f0"} onMouseLeave={(e) => e.currentTarget.style.background = "#f1f5f9"}>
+              <X size={24} />
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", background: "#dcfce7", color: "#15803d", padding: "8px 16px", borderRadius: 12, gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", opacity: 0.8 }}>Điểm tổng kết:</span>
+              <span style={{ fontSize: 18, fontWeight: 900 }}>{formatScore(selectedTopic.finalScore ?? selectedTopic.currentScore)}</span>
+              {selectedTopic.finalGrade && <span style={{ fontSize: 15, fontWeight: 900, borderLeft: "1px solid #16a34a40", paddingLeft: 8 }}>{selectedTopic.finalGrade}</span>}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", background: "#f1f5f9", color: "#475569", padding: "8px 16px", borderRadius: 12, gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", opacity: 0.8 }}>Hội đồng:</span>
+              <span style={{ fontSize: 14, fontWeight: 800 }}>{selectedTopic.committeeCode}</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ padding: "32px 40px", overflowY: "auto", flex: 1, display: "grid", gridTemplateColumns: "1fr 340px", gap: 40 }}>
+          <div style={{ display: "grid", gap: 40 }}>
+            {/* Section: Topic Info */}
+            <section>
+              <h4 style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                <BookOpen size={16} color={DEEP_BLUE_PRIMARY} /> Thông tin đề tài
+              </h4>
+              <div style={{ background: "#f8fafc", padding: 24, borderRadius: 20, border: "1px solid #f1f5f9" }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", marginBottom: 8 }}>Mã đề tài: {selectedTopic.topicCode}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", lineHeight: 1.5, marginBottom: 16 }}>
+                  {selectedTopic.topicTitle}
                 </div>
-                <div style={{ fontSize: 12, color: "#475569", marginTop: 8, display: "flex", justifyContent: "space-between" }}>
-                  <span>{dashboardMetrics.scoredTopics}/{dashboardMetrics.totalTopics} đề tài</span>
-                  <span>{dashboardMetrics.waitingPublicTopics} chờ chốt · {dashboardMetrics.lockedTopics} đã chốt</span>
-                </div>
-              </section>
-
-              <section style={cardStyle}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Cảnh báo</div>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: keyAlerts.length > 0 ? "#ef4444" : "#16a34a", marginTop: 4 }}>
-                      {keyAlerts.length}
-                    </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 16, borderTop: "1px solid #e2e8f0" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <User size={24} color="#64748b" />
                   </div>
-                  <div style={{ fontSize: 40, opacity: 0.1 }}>⚠️</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Giảng viên hướng dẫn</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b" }}>{selectedTopic.supervisorLecturerName || selectedTopic.supervisorName || "-"}</div>
+                  </div>
                 </div>
-                {keyAlerts.length > 0 && (
-                  <div style={{ display: "grid", gap: 8, marginTop: 12, maxHeight: 200, overflowY: "auto" }}>
-                    {keyAlerts.slice(0, 3).map((alert) => (
-                      <div key={`${alert.focusKey}-${alert.priority}`} style={{ fontSize: 12, color: "#0f172a", padding: 8, border: "1px solid #fecaca", borderRadius: 8, background: "#fef2f2" }}>
-                        <strong>{alert.title}</strong> · {alert.committeeCode}
+              </div>
+            </section>
+
+            {/* Section: Documents */}
+            <section>
+              <h4 style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                <Paperclip size={16} color={DEEP_BLUE_PRIMARY} /> Tài liệu & Báo cáo
+              </h4>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                {/* Regular Defense Documents */}
+                {selectedTopic.defenseDocuments && selectedTopic.defenseDocuments.length > 0 && 
+                  selectedTopic.defenseDocuments.map((doc: any, i: number) => (
+                    <a 
+                      key={`def-${i}`}
+                      href={doc.url || doc.path || "#"} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{ 
+                        padding: "16px", 
+                        borderRadius: 16, 
+                        background: "white", 
+                        border: "1px solid #e2e8f0", 
+                        display: "flex", 
+                        alignItems: "center", 
+                        gap: 12, 
+                        color: "#1e293b", 
+                        textDecoration: "none", 
+                        fontSize: 14, 
+                        fontWeight: 700,
+                        transition: "all 0.2s"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY;
+                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    >
+                      <div style={{ background: "#f0f9ff", padding: 10, borderRadius: 10 }}>
+                        <FileText size={20} color={DEEP_BLUE_PRIMARY} />
                       </div>
-                    ))}
+                      <div style={{ overflow: "hidden" }}>
+                        <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{doc.name || `Tài liệu ${i + 1}`}</div>
+                        <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Tài liệu bảo vệ</div>
+                      </div>
+                    </a>
+                  ))
+                }
+
+                {/* Post-Defense New Report */}
+                {selectedTopic.revisionFileUrl && (
+                  <a 
+                    href={selectedTopic.revisionFileUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ 
+                      padding: "16px", 
+                      borderRadius: 16, 
+                      background: "#fffbeb", 
+                      border: "1px solid #fcd34d", 
+                      display: "flex", 
+                      alignItems: "center", 
+                      gap: 12, 
+                      color: "#92400e", 
+                      textDecoration: "none", 
+                      fontSize: 14, 
+                      fontWeight: 800,
+                      transition: "all 0.2s"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "#fef3c7";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(245, 158, 11, 0.1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "#fffbeb";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <div style={{ background: "#fef3c7", padding: 10, borderRadius: 10 }}>
+                      <FileSpreadsheet size={20} color="#f59e0b" />
+                    </div>
+                    <div style={{ overflow: "hidden" }}>
+                      <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Báo cáo Hậu bảo vệ mới</div>
+                      <div style={{ fontSize: 11, color: "#b45309", fontWeight: 700 }}>Nhấn để tải về</div>
+                    </div>
+                  </a>
+                )}
+
+                {(!selectedTopic.defenseDocuments || selectedTopic.defenseDocuments.length === 0) && !selectedTopic.revisionFileUrl && (
+                  <div style={{ gridColumn: "span 2", padding: "40px 20px", borderRadius: 20, background: "#f8fafc", border: "1px dashed #e2e8f0", color: "#94a3b8", textAlign: "center" }}>
+                    <div style={{ marginBottom: 12 }}>
+                      <FileText size={48} style={{ opacity: 0.2, margin: "0 auto" }} />
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>Chưa có tài liệu nào được nộp</div>
+                    <div style={{ fontSize: 12, marginTop: 4 }}>Các báo cáo bảo vệ và hậu bảo vệ sẽ xuất hiện tại đây</div>
                   </div>
                 )}
-              </section>
-            </div>
+              </div>
+            </section>
           </div>
 
-          {/* ACTIVE COMMITTEES SNAPSHOT */}
-          <section style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <div>
-                <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Hội đồng đang hoạt động</div>
-                <div style={{ fontSize: 13, color: "#475569", marginTop: 3 }}>{committeeOperationalRows.filter((r) => ["ONGOING", "READY", "DELAYED"].includes(r.status)).length} đang chạy</div>
+          <aside style={{ display: "grid", gap: 40 }}>
+            {/* Section: Scoring Breakdown */}
+            <section>
+              <h4 style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                <TrendingUp size={16} color={DEEP_BLUE_PRIMARY} /> Chi tiết chấm điểm
+              </h4>
+              <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 20, overflow: "hidden" }}>
+                {[
+                  { label: "GV Hướng dẫn", score: selectedTopic.scoreGvhd, name: selectedTopic.supervisorLecturerName },
+                  { label: "Chủ tịch", score: selectedTopic.scoreCt, name: selectedTopic.committeeChairName },
+                  { label: "Thư ký", score: selectedTopic.scoreTk, name: selectedTopic.committeeSecretaryName },
+                  { label: "Phản biện", score: selectedTopic.scorePb, name: selectedTopic.committeeReviewerName },
+                ].map((item, i) => (
+                  <div key={i} style={{ 
+                    padding: "16px 20px", 
+                    display: "flex", 
+                    justifyContent: "space-between", 
+                    alignItems: "center",
+                    borderBottom: i < 3 ? "1px solid #f1f5f9" : "none",
+                    background: i % 2 === 0 ? "white" : "#fcfdfe"
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>{item.name || "-"}</div>
+                    </div>
+                    <div style={{ 
+                      fontSize: 16, 
+                      fontWeight: 900, 
+                      color: item.score ? DEEP_BLUE_PRIMARY : "#cbd5e1",
+                      background: item.score ? "#f0f9ff" : "#f8fafc",
+                      padding: "4px 12px",
+                      borderRadius: 8
+                    }}>
+                      {formatScore(item.score)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Status & Variance */}
+              <div style={{ marginTop: 16, padding: 20, borderRadius: 20, background: "#f0f9ff", border: "1px solid #e0f2fe" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                  <span style={{ fontSize: 14, color: "#0369a1", fontWeight: 700 }}>Trạng thái:</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: selectedTopic.isLocked ? "#16a34a" : "#f59e0b" }} />
+                    <span style={{ fontSize: 14, color: "#0369a1", fontWeight: 800 }}>{selectedTopic.isLocked ? "Đã khóa điểm" : "Đang chấm"}</span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 14, color: "#0369a1", fontWeight: 700 }}>Độ lệch:</span>
+                  <span style={{ fontSize: 14, color: "#0369a1", fontWeight: 800 }}>{selectedTopic.variance ?? "0.0"}</span>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <div style={{ padding: "20px 40px", background: "white", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", gap: 16 }}>
+          <button 
+            onClick={() => setTopicDetailModalOpen(false)}
+            style={{ padding: "12px 24px", borderRadius: 14, border: "1px solid #e2e8f0", background: "white", color: "#475569", fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}
+            onMouseEnter={(e) => e.currentTarget.style.background = "#f8fafc"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "white"}
+          >
+            Đóng cửa sổ
+          </button>
+        </div>
+      </ModalOverlay>
+    );
+  };
+
+  const renderPreviewModal = () => {
+    if (!previewModalType) return null;
+    
+    if (previewModalType === "scoreSheet") {
+      if (!selectedCommittee) return null;
+      const topics = scoringMatrix.filter(row => row.committeeCode === selectedCommittee.code);
+
+      return (
+        <ModalOverlay onClose={() => setPreviewModalType(null)} width={1200}>
+          <div style={{ padding: "24px 32px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#ffffff" }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: "#0f172a" }}>XEM TRƯỚC BẢNG ĐIỂM HỘI ĐỒNG</h2>
+              <div style={{ fontSize: 13, color: "#64748b", marginTop: 4, fontWeight: 600 }}>
+                Kiểm tra dữ liệu hội đồng {selectedCommittee.code} trước khi xuất bản cứng
               </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12, marginTop: 12 }}>
-              {committeeOperationalRows.slice(0, 4).map((row) => {
-                const statusTone = getStatusTone(row.status);
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <div style={{ position: "relative" }}>
+                <button 
+                  onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
+                  disabled={isDownloadingPreviewFile}
+                  style={{ background: DEEP_BLUE_PRIMARY, color: "white", padding: "10px 18px", borderRadius: 12, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 4px 12px rgba(30, 58, 95, 0.2)" }}
+                >
+                  <Download size={16} />
+                  {isDownloadingPreviewFile ? "Đang tải..." : "Tải xuống"}
+                  <ChevronDown size={14} style={{ transform: showDownloadDropdown ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+                </button>
+                {showDownloadDropdown && (
+                  <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 12, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)", minWidth: 180, zIndex: 1000, overflow: "hidden", padding: 6 }}>
+                    <button 
+                      onClick={() => { setShowDownloadDropdown(false); downloadPreviewDocument("scoreSheet", "word"); }} 
+                      style={{ width: "100%", background: "none", border: "none", padding: "10px 12px", textAlign: "left", fontSize: 13, fontWeight: 600, color: "#0f172a", cursor: "pointer", borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "#f1f5f9"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+                    >
+                      <FileText size={16} color="#2563eb" /> Xuất Word (.docx)
+                    </button>
+                    <button 
+                      onClick={() => { setShowDownloadDropdown(false); downloadPreviewDocument("scoreSheet", "pdf"); }} 
+                      style={{ width: "100%", background: "none", border: "none", padding: "10px 12px", textAlign: "left", fontSize: 13, fontWeight: 600, color: "#0f172a", cursor: "pointer", borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "#f1f5f9"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+                    >
+                      <Download size={16} color="#dc2626" /> Xuất PDF (.pdf)
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => { setPreviewModalType(null); setShowDownloadDropdown(false); }} style={{ background: "#f1f5f9", border: "none", padding: 10, borderRadius: 12, cursor: "pointer", color: "#64748b" }}>
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+          <div style={{ padding: 40, overflowY: "auto", flex: 1, background: "#f8fafc" }}>
+            <div style={{ background: "#ffffff", padding: 50, borderRadius: 8, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", maxWidth: 900, margin: "0 auto", fontFamily: "'Be Vietnam Pro', sans-serif", color: "#000000", lineHeight: 1.6 }}>
+              <div style={{ display: "grid", gap: 10, fontSize: 13, lineHeight: 1.5 }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 12, fontWeight: "bold" }}>BỘ GIÁO DỤC VÀ ĐÀO TẠO</div>
+                  <div style={{ fontSize: 13, fontWeight: "bold" }}>TRƯỜNG ĐẠI HỌC ĐẠI NAM</div>
+                  <div style={{ fontSize: 14, fontWeight: "bold", marginTop: 6 }}>BẢNG ĐIỂM GHI KẾT QUẢ BẢO VỆ ĐỒ ÁN</div>
+                  <div style={{ fontSize: 12, marginTop: 4 }}>NGÀNH: Công nghệ thông tin</div>
+                  <div style={{ fontSize: 12, fontWeight: "bold", marginTop: 4 }}>HỘI ĐỒNG SỐ: {selectedCommittee.code}   NGÀY BẢO VỆ: {formatDate(selectedCommittee.defenseDate)}</div>
+                </div>
+
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginTop: 8 }}>
+                  <thead>
+                    <tr>
+                      <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>STT</td>
+                      <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>MSSV</td>
+                      <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Họ và tên sinh viên</td>
+                      <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Khoá</td>
+                      <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Họ và tên giảng viên hướng dẫn</td>
+                      <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Điểm GVHD</td>
+                      <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold", minWidth: 50 }}>CT</td>
+                      <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold", minWidth: 50 }}>UVTK</td>
+                      <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold", minWidth: 50 }}>UVPB</td>
+                      <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold", minWidth: 60 }}>ĐIỂM TỔNG KẾT</td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topics.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} style={{ border: "1px solid #000", padding: 8, textAlign: "center", color: "#64748b" }}>Chưa có dữ liệu bảng điểm cho hội đồng này.</td>
+                      </tr>
+                    ) : (
+                      topics.map((row, idx) => (
+                        <tr key={idx}>
+                          <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{idx + 1}</td>
+                          <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{row.studentCode}</td>
+                          <td style={{ border: "1px solid #000", padding: 4 }}>{row.studentName}</td>
+                          <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{row.cohortCode ?? "-"}</td>
+                          <td style={{ border: "1px solid #000", padding: 4 }}>{row.supervisorLecturerName ?? "-"}</td>
+                          <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{formatScore(row.scoreGvhd)}</td>
+                          <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{formatScore(row.scoreCt)}</td>
+                          <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{formatScore(row.scoreTk)}</td>
+                          <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>{formatScore(row.scorePb)}</td>
+                          <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>{formatScore(row.finalScore)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontWeight: "bold", marginBottom: 8 }}>CÁC THÀNH VIÊN HỘI ĐỒNG</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>STT</td>
+                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Chức danh</td>
+                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Họ và tên</td>
+                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center", fontWeight: "bold" }}>Ký tên</td>
+                      </tr>
+                      <tr>
+                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>1</td>
+                        <td style={{ border: "1px solid #000", padding: 4 }}>CHỦ TỊCH</td>
+                        <td style={{ border: "1px solid #000", padding: 4 }}>{selectedCommittee?.chair ?? "-"}</td>
+                        <td style={{ border: "1px solid #000", padding: 4 }}></td>
+                      </tr>
+                      <tr>
+                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>2</td>
+                        <td style={{ border: "1px solid #000", padding: 4 }}>ỦY VIÊN THƯ KÝ</td>
+                        <td style={{ border: "1px solid #000", padding: 4 }}>{selectedCommittee?.secretary ?? "-"}</td>
+                        <td style={{ border: "1px solid #000", padding: 4 }}></td>
+                      </tr>
+                      <tr>
+                        <td style={{ border: "1px solid #000", padding: 4, textAlign: "center" }}>3</td>
+                        <td style={{ border: "1px solid #000", padding: 4 }}>ỦY VIÊN PHẢN BIỆN</td>
+                        <td style={{ border: "1px solid #000", padding: 4 }}>{selectedCommittee?.reviewer ?? "-"}</td>
+                        <td style={{ border: "1px solid #000", padding: 4 }}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ marginTop: 16, textAlign: "center", fontSize: 12 }}>
+                  <div>
+                    {(() => {
+                      const d = new Date(selectedCommittee?.defenseDate || new Date());
+                      return `Hà Nội, ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
+                    })()}
+                  </div>
+                  <div style={{ marginTop: 12, fontWeight: "bold" }}>Chủ tịch Hội đồng</div>
+                  <div style={{ fontSize: 11, fontStyle: "italic", marginTop: 2 }}>(Ký và ghi rõ họ tên)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ModalOverlay>
+      );
+    }
+
+    if (!selectedMatrixRow) return null;
+    const committee = snapshot?.committees?.find(c => 
+      c.code === selectedMatrixRow.committeeCode || 
+      c.name === selectedMatrixRow.committeeName
+    );
+    return (
+      <ModalOverlay onClose={() => setPreviewModalType(null)} width={1000}>
+        <div style={{ padding: "24px 32px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#ffffff" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: "#0f172a" }}>
+              {previewModalType === "meeting" ? "BIÊN BẢN HỌP HỘI ĐỒNG" : "NHẬN XÉT PHẢN BIỆN"}
+            </h2>
+            <div style={{ fontSize: 13, color: "#64748b", marginTop: 4, fontWeight: 600 }}>
+              {selectedMatrixRow.studentName} • {selectedMatrixRow.studentCode}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
+                disabled={isDownloadingPreviewFile}
+                style={{ background: DEEP_BLUE_PRIMARY, color: "white", padding: "10px 18px", borderRadius: 12, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 4px 12px rgba(30, 58, 95, 0.2)" }}
+              >
+                <Download size={16} />
+                  {isDownloadingPreviewFile ? "Đang tải..." : "Tải xuống"}
+                  <ChevronDown size={14} style={{ transform: showDownloadDropdown ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+              </button>
+              {showDownloadDropdown && (
+                <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 12, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)", minWidth: 180, zIndex: 1000, overflow: "hidden", padding: 6 }}>
+                  <button onClick={() => downloadPreviewDocument(previewModalType, "word")} style={{ width: "100%", background: "none", border: "none", padding: "10px 12px", textAlign: "left", fontSize: 13, fontWeight: 600, color: "#0f172a", cursor: "pointer", borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={(e) => e.currentTarget.style.background = "#f1f5f9"} onMouseLeave={(e) => e.currentTarget.style.background = "none"}>
+                    <FileText size={16} color="#2563eb" /> Xuất Word (.docx)
+                  </button>
+                  <button onClick={() => downloadPreviewDocument(previewModalType, "pdf")} style={{ width: "100%", background: "none", border: "none", padding: "10px 12px", textAlign: "left", fontSize: 13, fontWeight: 600, color: "#0f172a", cursor: "pointer", borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={(e) => e.currentTarget.style.background = "#f1f5f9"} onMouseLeave={(e) => e.currentTarget.style.background = "none"}>
+                    <Download size={16} color="#dc2626" /> Xuất PDF (.pdf)
+                  </button>
+                </div>
+              )}
+            </div>
+            <button onClick={() => { setPreviewModalType(null); setShowDownloadDropdown(false); }} style={{ background: "#f1f5f9", border: "none", padding: 10, borderRadius: 12, cursor: "pointer", color: "#64748b" }}>
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+        <div style={{ padding: 40, overflowY: "auto", flex: 1, background: "#f8fafc" }}>
+          <div style={{ background: "#ffffff", padding: 50, borderRadius: 8, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", maxWidth: 800, margin: "0 auto", fontFamily: "'Be Vietnam Pro', sans-serif", color: "#000000", lineHeight: 1.6 }}>
+            {previewModalType === "meeting" ? (
+              <div style={{ display: "grid", gap: 15, fontSize: 14 }}>
+                <div style={{ textAlign: "center", fontWeight: "bold", fontSize: 16, marginBottom: 10 }}>BIÊN BẢN HỌP<br />HỘI ĐỒNG CHẤM LUẬN ĐỒ ÁN</div>
+                <div style={{ marginBottom: 10 }}>Hội đồng đã họp vào ngày <strong>{formatDate(selectedMatrixRow.scheduledAt)}</strong> tại Trường Đại học Đại Nam để chấm đồ án cho sinh viên: <strong>{selectedMatrixRow.studentName}</strong> MSV: <strong>{selectedMatrixRow.studentCode}</strong></div>
+                <div>Lớp: <strong>{selectedMatrixRow.className ?? "-"}</strong> Khóa: <strong>{selectedMatrixRow.cohortCode ?? "-"}</strong></div>
+                <div>Về đề tài: <strong>{selectedMatrixRow.topicTitle}</strong></div>
+                <div>Họ tên người hướng dẫn: <strong>{selectedMatrixRow.supervisorLecturerName ?? "-"}</strong></div>
+                <div style={{ fontWeight: "bold", marginTop: 15 }}>I. Tóm tắt nội dung đồ án</div>
+                <div style={{ paddingLeft: 15 }}>{chapterContents.length === 0 ? "..." : chapterContents.map((c: any, i: number) => (<div key={i} style={{ marginBottom: 8 }}><strong>{String.fromCharCode(97 + i)}) Chương {toRomanNumeral(i + 1)}:</strong> {c.content}</div>))}</div>
+                <div style={{ fontWeight: "bold", marginTop: 10 }}>II. Ý kiến của các thành viên Hội đồng</div>
+                <div style={{ paddingLeft: 15 }}>
+                  <div style={{ marginBottom: 5 }}><strong>1. Uỷ viên phản biện:</strong> {review || "..."}</div>
+                  <div><strong>2. Các thành viên khác:</strong> {questions || "..."}</div>
+                </div>
+                <div style={{ fontWeight: "bold", marginTop: 10 }}>III. Tác giả trả lời các câu hỏi</div>
+                <div style={{ paddingLeft: 15 }}>{answers || "..."}</div>
+                <div style={{ fontWeight: "bold", marginTop: 10 }}>IV. Đánh giá của Hội đồng</div>
+                <div style={{ paddingLeft: 15 }}>
+                  <div style={{ marginBottom: 5 }}><strong>a. Ưu điểm:</strong> {strengths || "..."}</div>
+                  <div style={{ marginBottom: 5 }}><strong>b. Thiếu sót:</strong> {weaknesses || "..."}</div>
+                  <div><strong>c. Kiến nghị:</strong> {recommendations || "..."}</div>
+                </div>
+                <div style={{ fontWeight: "bold", marginTop: 10 }}>V. Kết quả chấm điểm</div>
+                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+                  <thead><tr><th style={{ border: "1px solid #000", padding: 8 }}>Thành viên</th><th style={{ border: "1px solid #000", padding: 8 }}>Điểm số</th><th style={{ border: "1px solid #000", padding: 8 }}>Điểm chữ</th></tr></thead>
+                  <tbody>
+                    <tr><td style={{ border: "1px solid #000", padding: 8 }}>Chủ tịch: {selectedMatrixRow.committeeChairName ?? committee?.chair ?? "-"}</td><td style={{ border: "1px solid #000", padding: 8, textAlign: "center" }}>{formatScore(selectedMatrixRow.scoreCt)}</td><td style={{ border: "1px solid #000", padding: 8, textAlign: "center" }}>{formatLetterGrade(selectedMatrixRow.scoreCt)}</td></tr>
+                    <tr><td style={{ border: "1px solid #000", padding: 8 }}>Thư ký: {selectedMatrixRow.committeeSecretaryName ?? committee?.secretary ?? "-"}</td><td style={{ border: "1px solid #000", padding: 8, textAlign: "center" }}>{formatScore(selectedMatrixRow.scoreTk)}</td><td style={{ border: "1px solid #000", padding: 8, textAlign: "center" }}>{formatLetterGrade(selectedMatrixRow.scoreTk)}</td></tr>
+                    <tr><td style={{ border: "1px solid #000", padding: 8 }}>Phản biện: {selectedMatrixRow.committeeReviewerName ?? committee?.reviewer ?? "-"}</td><td style={{ border: "1px solid #000", padding: 8, textAlign: "center" }}>{formatScore(selectedMatrixRow.scorePb)}</td><td style={{ border: "1px solid #000", padding: 8, textAlign: "center" }}>{formatLetterGrade(selectedMatrixRow.scorePb)}</td></tr>
+                    <tr style={{ fontWeight: "bold" }}><td style={{ border: "1px solid #000", padding: 8, textAlign: "center" }}>TỔNG CỘNG (Trung bình)</td><td style={{ border: "1px solid #000", padding: 8, textAlign: "center" }}>{formatScore(selectedMatrixRow.finalScore)}</td><td style={{ border: "1px solid #000", padding: 8, textAlign: "center" }}>{formatLetterGrade(selectedMatrixRow.finalScore, selectedMatrixRow.finalGrade)}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 15, fontSize: 14 }}>
+                <div style={{ textAlign: "center", fontWeight: "bold", fontSize: 16, marginBottom: 10 }}>NHẬN XÉT CỦA NGƯỜI PHẢN BIỆN ĐỒ ÁN<br />NGÀNH CÔNG NGHỆ THÔNG TIN</div>
+                <div style={{ marginBottom: 10 }}>Sinh viên: <strong>{selectedMatrixRow.studentName}</strong> MSV: <strong>{selectedMatrixRow.studentCode}</strong></div>
+                <div>Đề tài: <strong>{selectedMatrixRow.topicTitle}</strong></div>
+                <div>Người phản biện: <strong>{selectedMatrixRow.committeeReviewerName ?? committee?.reviewer ?? "-"}</strong></div>
+                <div style={{ fontWeight: "bold", marginTop: 15 }}>NỘI DUNG NHẬN XÉT</div>
+                <div style={{ marginBottom: 10 }}><strong>1. Tính cấp thiết:</strong><br />{reviewerSections.necessity || "..."}</div>
+                <div style={{ marginBottom: 10 }}><strong>2. Tính mới:</strong><br />{reviewerSections.novelty || "..."}</div>
+                <div style={{ marginBottom: 10 }}><strong>3. Phương pháp nghiên cứu:</strong><br />{reviewerSections.methodologyReliability || "..."}</div>
+                <div style={{ marginBottom: 10 }}><strong>4. Kết quả đạt được:</strong><br />{reviewerSections.resultsContent || "..."}</div>
+                <div style={{ marginBottom: 10 }}><strong>5. Hạn chế:</strong><br />{reviewerSections.limitations || "..."}</div>
+                <div style={{ marginBottom: 10 }}><strong>6. Gợi ý hoàn thiện:</strong><br />{reviewerSections.suggestions || "..."}</div>
+                <div><strong>7. Kết luận:</strong><br />{reviewerSections.overallConclusion || review || "..."}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </ModalOverlay>
+    );
+  };
+
+  const renderExportModal = () => (
+    <ModalOverlay onClose={() => setExportModalOpen(false)} width={1000}>
+      <div style={{ padding: "32px 32px 20px", borderBottom: "1px solid #f1f5f9" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#0f172a" }}>Trung tâm Xuất báo cáo</h2>
+            <p style={{ margin: "4px 0 0 0", fontSize: 14, color: "#64748b" }}>Cấu hình và tải xuống các biểu mẫu điều hành</p>
+          </div>
+          <button onClick={() => setExportModalOpen(false)} style={{ background: "#f1f5f9", border: "none", padding: 8, borderRadius: 12, cursor: "pointer" }}>
+            <X size={24} />
+          </button>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", flex: 1, overflow: "hidden" }}>
+        <div style={{ background: "#f8fafc", padding: 24, borderRight: "1px solid #f1f5f9", overflowY: "auto" }}>
+          <h4 style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", marginBottom: 16 }}>Chọn Template</h4>
+          <div style={{ display: "grid", gap: 8 }}>
+            {[
+              { id: "council-summary", label: "Tổng hợp Hội đồng", icon: <Grid size={18} /> },
+              { id: "scoreboard", label: "Ma trận điểm số", icon: <Table size={18} /> },
+              { id: "form-1", label: "Biểu mẫu 01 (Cá nhân)", icon: <FileText size={18} /> },
+              { id: "minutes", label: "Biên bản Hội đồng", icon: <Printer size={18} /> },
+            ].map((t) => (
+              <button 
+                key={t.id}
+                onClick={() => setReportType(t.id as ReportType)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "12px 16px",
+                  borderRadius: 14,
+                  border: "1px solid",
+                  borderColor: reportType === t.id ? DEEP_BLUE_PRIMARY : "transparent",
+                  background: reportType === t.id ? `${DEEP_BLUE_PRIMARY}10` : "transparent",
+                  color: reportType === t.id ? DEEP_BLUE_PRIMARY : "#475569",
+                  textAlign: "left",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+              >
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
+          
+          <div style={{ marginTop: 32 }}>
+            <h4 style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", marginBottom: 16 }}>Định dạng File</h4>
+            <div style={{ display: "flex", gap: 8 }}>
+              {(["pdf", "xlsx", "docx"] as const).map(f => {
+                const formatMap: Record<string, ReportFormat> = { pdf: "pdf", xlsx: "excel", docx: "word" };
+                const targetFormat = formatMap[f];
+                const isActive = reportFormat === targetFormat;
                 return (
                   <button
-                    key={row.key}
-                    type="button"
-                    onClick={() => focusCommittee(row.code)}
-                    style={{ textAlign: "left", border: "1px solid #cbd5e1", borderRadius: 12, padding: 12, background: "#ffffff", cursor: "pointer", transition: "all 0.2s ease" }}
+                    key={f}
+                    onClick={() => setReportFormat(targetFormat)}
+                    style={{
+                      flex: 1,
+                      padding: "10px",
+                      borderRadius: 12,
+                      border: "1px solid",
+                      borderColor: isActive ? DEEP_BLUE_PRIMARY : "#e2e8f0",
+                      background: isActive ? DEEP_BLUE_PRIMARY : "white",
+                      color: isActive ? "white" : "#475569",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      textTransform: "uppercase"
+                    }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "start" }}>
-                      <div style={{ fontWeight: 800, color: "#0f172a" }}>{row.code}</div>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 999, padding: "3px 8px", fontSize: 11, fontWeight: 700, border: `1px solid ${statusTone.border}`, background: statusTone.bg, color: statusTone.text }}>
-                        {getStatusLabel(row.status)}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>Phòng {row.room} · {row.defenseDate}</div>
-                    <div style={{ fontSize: 12, color: "#0f172a", marginTop: 6, fontWeight: 700 }}>{row.totalTopics} đề tài · {row.chair}</div>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, color: "#475569", marginTop: 6 }}>
-                      <span>{row.scoredTopics}/{row.totalTopics} chấm</span>
-                      <strong>{row.progressPercent}%</strong>
-                    </div>
-                    <div style={{ height: 6, borderRadius: 999, background: "#e2e8f0", overflow: "hidden", marginTop: 6, display: "flex" }}>
-                      <div title="Đã chốt" style={{ width: `${(row.lockedTopics / Math.max(1, row.totalTopics)) * 100}%`, height: "100%", background: "#16a34a" }} />
-                      <div title="Chờ công bố" style={{ width: `${((row.scoredTopics - row.lockedTopics) / Math.max(1, row.totalTopics)) * 100}%`, height: "100%", background: "#f59e0b" }} />
-                    </div>
+                    {f}
                   </button>
                 );
               })}
             </div>
-          </section>
-
-          <section style={cardStyle}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Điểm nổi bật</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginTop: 12 }}>
-              {[leaderboardEntries.highest, leaderboardEntries.lowest, leaderboardEntries.fastest, leaderboardEntries.delayed].map((entry) => renderLeaderboardCard(entry))}
-            </div>
-          </section>
-        </section>
-      )}
-
-      {activeTab === "analytics" && (
-        <section style={{ display: "grid", gap: 12 }}>
-          {/* ANALYTICS TAB: Charts and insights */}
-          {(!scoresPublished && distributionTotal === 0) && (
-            <section style={cardStyle}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Thống kê điểm</div>
-              <div style={{ fontSize: 13, color: "#475569", marginTop: 8 }}>
-                Số liệu điểm sẽ hiển thị sau khi chủ tịch hội đồng chốt và công bố điểm.
-              </div>
-            </section>
-          )}
-
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(280px, 1fr)", gap: 12, alignItems: "start" }}>
-            {/* Grade Distribution */}
-            <section style={{ ...cardStyle, display: "grid", gap: 16, minHeight: 560 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-                <div>
-                  <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.08em", color: "#0f172a" }}>Phân bổ xếp loại</div>
-                  <div style={{ fontSize: 13, color: "#475569", marginTop: 6, maxWidth: 520 }}>
-                    {distributionViewMode === "grade"
-                      ? "Theo thang điểm chữ A+/A/B+/B/C+/C/D+/D/F"
-                      : "Theo các khoảng điểm hệ 10 tương ứng"}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  {([
-                    { value: "grade" as const, label: "Điểm chữ" },
-                    { value: "score" as const, label: "Điểm số" },
-                  ]).map((mode) => (
-                    <button
-                      key={mode.value}
-                      type="button"
-                      onClick={() => setDistributionViewMode(mode.value)}
-                      style={{
-                        padding: "6px 10px",
-                        fontSize: 11,
-                        fontWeight: 800,
-                        borderRadius: 8,
-                        border: `1px solid ${distributionViewMode === mode.value ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`,
-                        background: distributionViewMode === mode.value ? DEEP_BLUE_PRIMARY : "#ffffff",
-                        color: distributionViewMode === mode.value ? "#ffffff" : "#0f172a",
-                        cursor: "pointer",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {mode.label}
-                    </button>
-                  ))}
-                  <div ref={distributionChartMenuRef} style={{ position: "relative" }}>
-                    <button
-                      type="button"
-                      onClick={() => setDistributionChartMenuOpen((value) => !value)}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "8px 12px",
-                        fontSize: 12,
-                        fontWeight: 800,
-                        borderRadius: 10,
-                        border: "1px solid #cbd5e1",
-                        background: "#ffffff",
-                        color: "#0f172a",
-                        cursor: "pointer",
-                        boxShadow: "0 8px 20px rgba(15, 23, 42, 0.04)",
-                      }}
-                    >
-                      {distributionChartType === "pie" ? <PieChart size={15} /> : distributionChartType === "bar" ? <BarChart3 size={15} /> : <TrendingUp size={15} />}
-                      {distributionChartType === "pie" ? "Biểu đồ tròn" : distributionChartType === "bar" ? "Biểu đồ cột" : "Biểu đồ đường"}
-                      <ChevronDown size={14} style={{ transform: distributionChartMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.18s ease" }} />
-                    </button>
-
-                    {distributionChartMenuOpen && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: "calc(100% + 8px)",
-                          right: 0,
-                          minWidth: 220,
-                          background: "#ffffff",
-                          border: "1px solid #cbd5e1",
-                          borderRadius: 14,
-                          boxShadow: "0 14px 30px rgba(15, 23, 42, 0.12)",
-                          zIndex: 30,
-                          overflow: "hidden",
-                        }}
-                      >
-                        {([
-                          { value: "pie" as const, label: "Biểu đồ tròn", icon: PieChart, detail: "Nhìn nhanh tỷ trọng" },
-                          { value: "bar" as const, label: "Biểu đồ cột", icon: BarChart3, detail: "So sánh trực quan" },
-                          { value: "line" as const, label: "Biểu đồ đường", icon: TrendingUp, detail: "Theo xu hướng" },
-                        ]).map((option) => {
-                          const Icon = option.icon;
-                          const active = distributionChartType === option.value;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => {
-                                setDistributionChartType(option.value);
-                                setDistributionChartMenuOpen(false);
-                              }}
-                              style={{
-                                width: "100%",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 12,
-                                padding: "12px 14px",
-                                border: "none",
-                                background: active ? "#eff6ff" : "#ffffff",
-                                color: active ? DEEP_BLUE_PRIMARY : "#0f172a",
-                                cursor: "pointer",
-                                textAlign: "left",
-                              }}
-                            >
-                              <span style={{ width: 32, height: 32, borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", background: active ? "#dbeafe" : "#f8fafc", color: active ? DEEP_BLUE_PRIMARY : "#475569", flexShrink: 0 }}>
-                                <Icon size={15} />
-                              </span>
-                              <span style={{ display: "grid", gap: 2 }}>
-                                <span style={{ fontSize: 13, fontWeight: 800 }}>{option.label}</span>
-                                <span style={{ fontSize: 11, color: "#64748b" }}>{option.detail}</span>
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gap: 18, gridTemplateColumns: "1fr" }}>
-                <div style={{ display: "grid", placeItems: "center", minHeight: 280, padding: 12, borderRadius: 18, background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)", border: "1px solid #e2e8f0", position: "relative" }}>
-                  {distributionChartType === "pie" ? (
-                    <div
-                      style={{
-                        width: 190,
-                        height: 190,
-                        borderRadius: "50%",
-                        background: distributionTotal > 0
-                          ? `conic-gradient(${distributionStops.map((stop) => `${stop.color} ${stop.start}% ${stop.end}%`).join(", ")})`
-                          : "#e2e8f0",
-                        position: "relative",
-                        boxShadow: hoveredDistributionLabel === "pie" ? "inset 0 0 0 1px rgba(148,163,184,0.35), 0 24px 48px rgba(15, 23, 42, 0.15)" : "inset 0 0 0 1px rgba(148,163,184,0.35), 0 18px 40px rgba(15, 23, 42, 0.08)",
-                        cursor: "pointer",
-                        transition: "transform 0.15s ease, box-shadow 0.15s ease",
-                        transform: hoveredDistributionLabel === "pie" ? "scale(1.02)" : "scale(1)",
-                      }}
-                      onMouseEnter={() => setHoveredDistributionLabel("pie")}
-                      onMouseLeave={() => setHoveredDistributionLabel(null)}
-                    >
-                      <div
-                        style={{
-                          position: "absolute",
-                          inset: 20,
-                          borderRadius: "50%",
-                          background: "#ffffff",
-                          display: "grid",
-                          placeItems: "center",
-                          textAlign: "center",
-                          gap: 4,
-                          boxShadow: "0 10px 20px rgba(15, 23, 42, 0.08)",
-                        }}
-                      >
-                        <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700 }}>{distributionViewMode === "grade" ? "TỔNG XẾP LOẠI" : "TỔNG ĐIỂM"}</div>
-                        <div style={{ fontSize: 24, fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{formatNumber(distributionTotal)}</div>
-                        <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700 }}>{distributionViewMode === "grade" ? "Sinh viên" : "Mẫu"}</div>
-                      </div>
-                    </div>
-                  ) : distributionChartType === "bar" ? (
-                    <div style={{ width: "100%", height: 260, display: "flex", alignItems: "flex-end", gap: 8, padding: "16px 4px 6px", position: "relative" }}>
-                      <svg style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }} width="100%" height="100%" viewBox="0 0 100 40" preserveAspectRatio="none">
-                        {Array.from({ length: 5 }, (_, i) => (
-                          <line key={`grid-${i}`} x1="0" y1={40 - (i * 40) / 4} x2="100" y2={40 - (i * 40) / 4} stroke="#e2e8f0" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
-                        ))}
-                      </svg>
-                      {distributionRows.map((item) => (
-                        <div key={item.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 0, position: "relative", cursor: "pointer" }} onMouseEnter={() => setHoveredDistributionLabel(item.label)} onMouseLeave={() => setHoveredDistributionLabel(null)}>
-                          {hoveredDistributionLabel === item.label && <div style={{ position: "absolute", top: -26, left: "50%", transform: "translateX(-50%)", background: "#0f172a", color: "#ffffff", padding: "4px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", zIndex: 20 }}>{item.value}</div>}
-                          <div style={{ width: "100%", height: `${Math.max(8, (item.value / distributionPeak) * 200)}px`, borderRadius: "8px 8px 0 0", background: distributionPalette[item.label] ?? "#cbd5e1", transition: "all 0.2s ease", boxShadow: item.value > 0 ? "0 4px 12px rgba(15, 23, 42, 0.1)" : "none", opacity: hoveredDistributionLabel === null || hoveredDistributionLabel === item.label ? 1 : 0.4 }} />
-                          <span style={{ fontSize: 9, fontWeight: 800, color: "#475569", textAlign: "center", lineHeight: 1.2 }}>{item.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ width: "100%", height: 320, padding: "16px 8px 8px", position: "relative", background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)", borderRadius: 8 }}>
-                      <svg width="100%" height="100%" viewBox="0 0 100 40" preserveAspectRatio="xMidYMid meet" style={{ position: "relative", zIndex: 1 }}>
-                        <defs>
-                          <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stopColor={DEEP_BLUE_PRIMARY} stopOpacity="0.15" />
-                            <stop offset="100%" stopColor={DEEP_BLUE_PRIMARY} stopOpacity="0.02" />
-                          </linearGradient>
-                        </defs>
-                        {Array.from({ length: 5 }, (_, i) => (
-                          <line key={`grid-${i}`} x1="0" y1={40 - (i * 40) / 4} x2="100" y2={40 - (i * 40) / 4} stroke="#cbd5e1" strokeWidth="0.4" opacity="0.6" vectorEffect="non-scaling-stroke" />
-                        ))}
-                        {distributionRows.length > 0 && (
-                          <path
-                            d={`M ${distributionRows.map((item, idx) => `${(distributionRows.length <= 1 ? 50 : (idx / (distributionRows.length - 1)) * 100)},${40 - (item.value / distributionPeak) * 34}`).join(" L ")} L ${distributionRows.length <= 1 ? 50 : 100},40 L 0,40 Z`}
-                            fill="url(#areaGradient)"
-                          />
-                        )}
-                        <path
-                          d={`M ${distributionRows.map((item, idx) => `${(distributionRows.length <= 1 ? 50 : (idx / (distributionRows.length - 1)) * 100)},${40 - (item.value / distributionPeak) * 34}`).join(" L ")}`}
-                          fill="none"
-                          stroke={DEEP_BLUE_PRIMARY}
-                          strokeWidth="2.2"
-                          strokeLinejoin="round"
-                          strokeLinecap="round"
-                          style={{ filter: "drop-shadow(0 2px 4px rgba(15, 23, 42, 0.1))" }}
-                        />
-                        {distributionRows.map((item, idx) => (
-                          <g key={item.label} onMouseEnter={() => setHoveredDistributionLabel(item.label)} onMouseLeave={() => setHoveredDistributionLabel(null)} style={{ cursor: "pointer" }}>
-                            <circle
-                              cx={distributionRows.length <= 1 ? 50 : (idx / (distributionRows.length - 1)) * 100}
-                              cy={40 - (item.value / distributionPeak) * 34}
-                              r={hoveredDistributionLabel === item.label ? "3.5" : "2.8"}
-                              fill={distributionPalette[item.label] ?? DEEP_BLUE_PRIMARY}
-                              stroke="white"
-                              strokeWidth="1.5"
-                              style={{ transition: "r 0.2s ease, filter 0.2s ease", filter: hoveredDistributionLabel === item.label ? "drop-shadow(0 2px 8px rgba(15, 23, 42, 0.3))" : "drop-shadow(0 1px 3px rgba(15, 23, 42, 0.1))" }}
-                            />
-                            {hoveredDistributionLabel === item.label && (
-                              <g>
-                                <rect
-                                  x={distributionRows.length <= 1 ? 50 : (idx / (distributionRows.length - 1)) * 100}
-                                  y={40 - (item.value / distributionPeak) * 34 - 8}
-                                  width="12"
-                                  height="5"
-                                  rx="1"
-                                  fill="#0f172a"
-                                  textAnchor="middle"
-                                  transform={`translate(-6, 0)`}
-                                />
-                                <text
-                                  x={distributionRows.length <= 1 ? 50 : (idx / (distributionRows.length - 1)) * 100}
-                                  y={40 - (item.value / distributionPeak) * 34 - 4.5}
-                                  textAnchor="middle"
-                                  fontSize="2.2"
-                                  fontWeight="700"
-                                  fill="white"
-                                  style={{ pointerEvents: "none" }}
-                                >
-                                  {item.value}
-                                </text>
-                              </g>
-                            )}
-                          </g>
-                        ))}
-                      </svg>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(70px, 1fr))", gap: 6, marginBottom: 16 }}>
-                  {distributionRows.map((item) => (
-                    <div key={item.label} style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 8, background: "#ffffff", display: "grid", gap: 5, minHeight: 58, cursor: "pointer", transition: "all 0.2s ease", transform: hoveredDistributionLabel === item.label ? "translateY(-2px)" : "translateY(0)", boxShadow: hoveredDistributionLabel === item.label ? "0 4px 16px rgba(15, 23, 42, 0.12)" : "0 2px 8px rgba(15, 23, 42, 0.04)" }} onMouseEnter={() => setHoveredDistributionLabel(item.label)} onMouseLeave={() => setHoveredDistributionLabel(null)}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: 999, background: distributionPalette[item.label] ?? "#cbd5e1", flexShrink: 0 }} />
-                        <div style={{ fontSize: 9, color: "#64748b", fontWeight: 800, lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
-                      </div>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: distributionPalette[item.label] ?? DEEP_BLUE_PRIMARY, lineHeight: 1 }}>{item.value}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5, marginBottom: 8 }}>
-                  {distributionViewMode === "grade"
-                    ? "Phân bổ tính theo kết quả cuối cùng của từng đề tài, quy đổi đúng A+/A/B+/B/C+/C/D+/D/F."
-                    : "Phân bổ tính theo điểm hệ 10 và chia đúng theo các khoảng chuẩn tương ứng."}
-                </div>
-              </div>
-            </section>
-
-            {(scoresPublished || distributionTotal > 0) && (
-              <section style={cardStyle}>
-                <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Top sinh viên</div>
-                <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-                  {topStudents.map((r, i) => {
-                    const score = Number(r.finalScore ?? r.currentScore ?? 0);
-                    const grade = getGradeFromScore(score);
-                    const medalColors = ["#fbbf24", "#c0c0c0", "#cd7f32"];
-                    const medalBg = i < 3 ? medalColors[i] : DEEP_BLUE_PRIMARY;
-                    return (
-                      <div key={`top-${i}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: i < 3 ? medalBg + "15" : "#f8fafc", border: `1px solid ${i < 3 ? medalBg + "40" : "#e2e8f0"}` }}>
-                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: medalBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 900, fontSize: 14, color: "#ffffff" }}>{i + 1}</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.studentName ?? "-"}</div>
-                          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{r.studentCode ?? "-"} · Phòng {r.room ?? "-"} · {r.scheduledAt ? new Date(r.scheduledAt).toLocaleDateString("vi-VN") : "-"}</div>
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{score.toFixed(1)}</div>
-                          <div style={{ fontSize: 11, fontWeight: 800, padding: "2px 6px", borderRadius: 6, background: distributionPalette[grade] + "20", color: distributionPalette[grade] ?? DEEP_BLUE_PRIMARY }}>{grade}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
           </div>
-
-          {(scoresPublished || distributionTotal > 0) && (
-            <section style={cardStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
-                <div>
-                  <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Thống kê theo hội đồng</div>
-                  <div style={{ fontSize: 12, color: "#64748b", marginTop: 3 }}>Điểm trung bình, biến thiên và trạng thái khóa</div>
-                </div>
+        </div>
+        
+        <div style={{ padding: 32, overflowY: "auto" }}>
+          <h4 style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", marginBottom: 20 }}>Tùy chọn hiển thị</h4>
+          <div style={{ display: "grid", gap: 16 }}>
+            {[
+              { label: "Chèn logo trường", state: exportIncludeLogo, set: setExportIncludeLogo },
+              { label: "Hiển thị chữ ký", state: exportIncludeSignature, set: setExportIncludeSignature },
+              { label: "Bảo mật mật khẩu", state: exportPasswordProtect, set: setExportPasswordProtect },
+              { label: "Chỉ đề tài đã chốt", state: exportOnlyLocked, set: setExportOnlyLocked },
+            ].map((opt, i) => (
+              <label key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16, borderRadius: 16, border: "1px solid #f1f5f9", cursor: "pointer" }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "#475569" }}>{opt.label}</span>
+                <input 
+                  type="checkbox" 
+                  checked={opt.state} 
+                  onChange={e => opt.set(e.target.checked)}
+                  style={{ width: 20, height: 20, cursor: "pointer", accentColor: DEEP_BLUE_PRIMARY }}
+                />
+              </label>
+            ))}
+          </div>
+          
+          <div style={{ marginTop: 32, padding: 24, borderRadius: 20, background: "#f8fafc", border: "1px dashed #e2e8f0" }}>
+            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+              <div style={{ 
+                width: 48, 
+                height: 48, 
+                borderRadius: 14, 
+                background: "white", 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center", 
+                boxShadow: "0 2px 4px rgba(0,0,0,0.05)" 
+              }}>
+                <Info size={24} style={{ color: DEEP_BLUE_PRIMARY }} />
               </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", marginBottom: 10 }}>Điểm trung bình</div>
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {(() => {
-                      const totalPages = Math.ceil(committeeScoreStats.length / committeeStatsPageSize);
-                      const startIdx = (committeeStatsPage - 1) * committeeStatsPageSize;
-                      const endIdx = startIdx + committeeStatsPageSize;
-                      const pageData = committeeScoreStats.slice(startIdx, endIdx);
-                      return pageData.map((item) => (
-                        <div key={item.code}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, marginBottom: 4 }}>
-                            <span style={{ fontWeight: 700 }}>{item.code}</span>
-                            <strong>{item.avgScore.toFixed(1)}</strong>
-                          </div>
-                          <div style={{ height: 8, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}>
-                            <div style={{ width: `${(item.avgScore / scorePeak) * 100}%`, height: "100%", background: DEEP_BLUE_PRIMARY }} />
-                          </div>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                  {committeeScoreStats.length > committeeStatsPageSize && (() => {
-                    const totalPages = Math.ceil(committeeScoreStats.length / committeeStatsPageSize);
-                    return (
-                      <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 12 }}>
-                        <button type="button" onClick={() => setCommitteeStatsPage(Math.max(1, committeeStatsPage - 1))} disabled={committeeStatsPage === 1} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700, borderRadius: 6, border: "1px solid #cbd5e1", background: committeeStatsPage === 1 ? "#f1f5f9" : "#ffffff", color: committeeStatsPage === 1 ? "#94a3b8" : "#0f172a", cursor: committeeStatsPage === 1 ? "default" : "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}><ChevronLeft size={14} /> Trước</button>
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (<button key={`cpage-${page}`} type="button" onClick={() => setCommitteeStatsPage(page)} style={{ width: 28, height: 28, padding: 0, fontSize: 10, fontWeight: 800, borderRadius: 4, border: `1px solid ${committeeStatsPage === page ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`, background: committeeStatsPage === page ? DEEP_BLUE_PRIMARY : "#ffffff", color: committeeStatsPage === page ? "#ffffff" : "#0f172a", cursor: "pointer" }}>{page}</button>))}
-                        <button type="button" onClick={() => setCommitteeStatsPage(Math.min(totalPages, committeeStatsPage + 1))} disabled={committeeStatsPage === totalPages} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700, borderRadius: 6, border: "1px solid #cbd5e1", background: committeeStatsPage === totalPages ? "#f1f5f9" : "#ffffff", color: committeeStatsPage === totalPages ? "#94a3b8" : "#0f172a", cursor: committeeStatsPage === totalPages ? "default" : "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>Sau <ChevronRight size={14} /></button>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", marginBottom: 10 }}>Biến thiên điểm</div>
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {(() => {
-                      const totalPages = Math.ceil(committeeScoreStats.length / committeeStatsPageSize);
-                      const startIdx = (committeeStatsPage - 1) * committeeStatsPageSize;
-                      const endIdx = startIdx + committeeStatsPageSize;
-                      const pageData = committeeScoreStats.slice(startIdx, endIdx);
-                      return pageData.map((item) => (
-                        <div key={`${item.code}-variance`}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, marginBottom: 4 }}>
-                            <span style={{ fontWeight: 700 }}>{item.code}</span>
-                            <strong>{item.avgVariance.toFixed(1)}</strong>
-                          </div>
-                          <div style={{ height: 8, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}>
-                            <div style={{ width: `${(item.avgVariance / variancePeak) * 100}%`, height: "100%", background: "#f59e0b" }} />
-                          </div>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e2e8f0" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", marginBottom: 10 }}>Trạng thái khóa</div>
-                <div style={{ display: "grid", gap: 8 }}>
-                  {[
-                    { label: "Đã khóa", value: scoringMatrix.filter((r) => r.isLocked).length, color: "#0ea5e9" },
-                    { label: "Chưa khóa", value: scoringMatrix.filter((r) => !r.isLocked && r.finalScore != null).length, color: "#f59e0b" },
-                    { label: "Đang xử lý", value: scoringMatrix.filter((r) => r.finalScore == null).length, color: "#ef4444" },
-                  ].map((item) => (
-                    <div key={item.label}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                        <span>{item.label}</span>
-                        <strong style={{ color: item.color }}>{formatNumber(item.value)}</strong>
-                      </div>
-                      <div style={{ height: 8, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}>
-                        <div
-                          style={{
-                            width: `${(item.value / Math.max(1, scoringMatrix.length)) * 100}%`,
-                            height: "100%",
-                            background: item.color,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Committee Progress Bars */}
-          <section style={cardStyle}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Tiến độ theo hội đồng</div>
-            <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
-              {committeeOperationalRows.map((row) => (
-                <div key={row.key} style={{ display: "grid", gap: 6 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12 }}>
-                    <span style={{ fontWeight: 700 }}>{row.code}</span>
-                    <strong>{row.progressPercent}%</strong>
-                  </div>
-                  <div style={{ height: 8, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}>
-                    <div style={{ width: `${row.progressPercent}%`, height: "100%", background: row.progressPercent >= 80 ? "#16a34a" : row.progressPercent >= 50 ? "#f59e0b" : "#ef4444" }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section style={cardStyle}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Xu hướng hoàn thành</div>
-            <div style={{ marginTop: 12 }}>{renderSparkline(completionTrend, "#16a34a")}</div>
-            <div style={{ fontSize: 12, color: "#475569", marginTop: 8 }}>Hoàn thành theo thời gian trong phạm vi dữ liệu hiện tại.</div>
-          </section>
-
-          {/* Top Insights */}
-          {(scoresPublished || distributionTotal > 0) && (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-                {[leaderboardEntries.highest, leaderboardEntries.lowest, leaderboardEntries.fastest, leaderboardEntries.delayed].map((entry) => renderLeaderboardCard(entry))}
-              </div>
-
-              <section style={cardStyle}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.08em", color: "#0f172a" }}>Danh sách đề tài theo sinh viên</div>
-                    <div style={{ fontSize: 13, color: "#475569", marginTop: 6 }}>Bấm vào cột tiêu đề để sắp xếp từ A-Z hoặc Z-A</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>Kết quả:</span>
-                      <select 
-                        value={String(studentTableIsPassedFilter)} 
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setStudentTableIsPassedFilter(val === "all" ? "all" : val === "true");
-                          setStudentTablePage(1);
-                        }}
-                        style={{
-                          padding: "6px 12px",
-                          borderRadius: 8,
-                          border: "1px solid #cbd5e1",
-                          fontSize: 13,
-                          fontWeight: 600,
-                          background: "#ffffff",
-                          color: "#0f172a",
-                          cursor: "pointer"
-                        }}
-                      >
-                        <option value="all">Tất cả kết quả</option>
-                        <option value="true">ĐẠT</option>
-                        <option value="false">TRƯỢT</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-                
-                <div style={{ marginTop: 16, overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
-                        <th style={{ padding: "12px", textAlign: "left", fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap", borderRight: "1px solid #e2e8f0" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Hash size={14} /> STT</span></th>
-                        <th 
-                          onClick={() => {
-                            setStudentTableSortField("studentCode");
-                            setStudentTableSortDir(studentTableSortField === "studentCode" && studentTableSortDir === "asc" ? "desc" : "asc");
-                          }}
-                          style={{ padding: "12px", textAlign: "left", fontWeight: 800, color: "#0f172a", cursor: "pointer", whiteSpace: "nowrap", userSelect: "none", borderRight: "1px solid #e2e8f0", background: studentTableSortField === "studentCode" ? "#eff6ff" : "transparent", transition: "background 0.15s" }}
-                        >
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><User size={14} /> Mã SV</span> {studentTableSortField === "studentCode" && (studentTableSortDir === "asc" ? "↑" : "↓")}
-                        </th>
-                        <th 
-                          onClick={() => {
-                            setStudentTableSortField("studentName");
-                            setStudentTableSortDir(studentTableSortField === "studentName" && studentTableSortDir === "asc" ? "desc" : "asc");
-                          }}
-                          style={{ padding: "12px", textAlign: "left", fontWeight: 800, color: "#0f172a", cursor: "pointer", whiteSpace: "nowrap", userSelect: "none", borderRight: "1px solid #e2e8f0", background: studentTableSortField === "studentName" ? "#eff6ff" : "transparent", transition: "background 0.15s" }}
-                        >
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Users size={14} /> Họ tên</span> {studentTableSortField === "studentName" && (studentTableSortDir === "asc" ? "↑" : "↓")}
-                        </th>
-                        <th 
-                          onClick={() => {
-                            setStudentTableSortField("topicTitle");
-                            setStudentTableSortDir(studentTableSortField === "topicTitle" && studentTableSortDir === "asc" ? "desc" : "asc");
-                          }}
-                          style={{ padding: "12px", textAlign: "left", fontWeight: 800, color: "#0f172a", cursor: "pointer", userSelect: "none", borderRight: "1px solid #e2e8f0", background: studentTableSortField === "topicTitle" ? "#eff6ff" : "transparent", transition: "background 0.15s" }}
-                        >
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><FileText size={14} /> Tên đề tài</span> {studentTableSortField === "topicTitle" && (studentTableSortDir === "asc" ? "↑" : "↓")}
-                        </th>
-                        <th 
-                          onClick={() => {
-                            setStudentTableSortField("finalScore");
-                            setStudentTableSortDir(studentTableSortField === "finalScore" && studentTableSortDir === "asc" ? "desc" : "asc");
-                          }}
-                          style={{ padding: "12px", textAlign: "center", fontWeight: 800, color: "#0f172a", cursor: "pointer", whiteSpace: "nowrap", userSelect: "none", borderRight: "1px solid #e2e8f0", background: studentTableSortField === "finalScore" ? "#eff6ff" : "transparent", transition: "background 0.15s" }}
-                        >
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Star size={14} /> Điểm tổng</span> {studentTableSortField === "finalScore" && (studentTableSortDir === "asc" ? "↑" : "↓")}
-                        </th>
-                        <th style={{ padding: "12px", textAlign: "center", fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap", borderRight: "1px solid #e2e8f0" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={14} /> Điểm chữ</span></th>
-                        <th style={{ padding: "12px", textAlign: "center", fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap", borderRight: "1px solid #e2e8f0" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Activity size={14} /> Kết quả</span></th>
-                        <th 
-                          onClick={() => {
-                            setStudentTableSortField("committeeCode");
-                            setStudentTableSortDir(studentTableSortField === "committeeCode" && studentTableSortDir === "asc" ? "desc" : "asc");
-                          }}
-                          style={{ padding: "12px", textAlign: "left", fontWeight: 800, color: "#0f172a", cursor: "pointer", whiteSpace: "nowrap", userSelect: "none", borderRight: "1px solid #e2e8f0", background: studentTableSortField === "committeeCode" ? "#eff6ff" : "transparent", transition: "background 0.15s" }}
-                        >
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Gavel size={14} /> Hội đồng</span> {studentTableSortField === "committeeCode" && (studentTableSortDir === "asc" ? "↑" : "↓")}
-                        </th>
-                        <th style={{ padding: "12px", textAlign: "left", fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap", borderRight: "1px solid #e2e8f0" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Lock size={14} /> Trạng thái</span></th>
-                        <th style={{ padding: "12px", textAlign: "center", fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Paperclip size={14} /> Action</span></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        const totalPages = Math.ceil(studentTableSortedData.length / studentTablePageSize);
-                        const startIdx = (studentTablePage - 1) * studentTablePageSize;
-                        const endIdx = startIdx + studentTablePageSize;
-                        const pageData = studentTableSortedData.slice(startIdx, endIdx);
-                        
-                        return pageData.map((row, pageIdx) => {
-                          const score = Number(row.finalScore ?? row.currentScore ?? 0);
-                          const grade = getGradeFromScore(score);
-                          const statusLabel = (row.submittedCount != null && row.requiredCount != null && row.submittedCount >= row.requiredCount && !row.isLocked)
-                            ? "Chờ công bố"
-                            : row.finalScore != null || row.currentScore != null
-                              ? "Đã chấm"
-                              : "Chưa chấm";
-                          const statusColor = statusLabel === "Chờ công bố" ? "#b45309" : statusLabel === "Đã chấm" ? "#16a34a" : "#ef4444";
-                          const globalIdx = startIdx + pageIdx + 1;
-                          
-                          return (
-                            <tr key={`student-row-${row.assignmentId ?? pageIdx}`} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                              <td style={{ padding: "12px", borderRight: "1px solid #e2e8f0", fontWeight: 700, color: "#0f172a" }}>{globalIdx}</td>
-                              <td style={{ padding: "12px", borderRight: "1px solid #e2e8f0", fontWeight: 600, color: "#0f172a" }}>{row.studentCode ?? "-"}</td>
-                              <td style={{ padding: "12px", borderRight: "1px solid #e2e8f0", color: "#0f172a" }}>{row.studentName ?? "-"}</td>
-                              <td style={{ padding: "12px", borderRight: "1px solid #e2e8f0", color: "#0f172a", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.topicTitle}>{row.topicTitle ?? "-"}</td>
-                              <td style={{ padding: "12px", borderRight: "1px solid #e2e8f0", textAlign: "center", fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{score > 0 ? score.toFixed(1) : "-"}</td>
-                              <td style={{ padding: "12px", borderRight: "1px solid #e2e8f0", textAlign: "center", fontWeight: 800, fontSize: 14, color: distributionPalette[grade] ?? "#0f172a" }}>{grade}</td>
-                              <td style={{ padding: "12px", borderRight: "1px solid #e2e8f0", textAlign: "center" }}>
-                                {(() => {
-                                  const effectivePassed = row.isPassed ?? (row.finalScore != null && Number(row.finalScore) >= 5.0);
-                                  return (
-                                    <span style={{ 
-                                      display: "inline-flex", 
-                                      padding: "4px 10px", 
-                                      borderRadius: 999, 
-                                      fontSize: 11, 
-                                      fontWeight: 800, 
-                                      background: effectivePassed ? "#dcfce7" : "#fee2e2", 
-                                      color: effectivePassed ? "#16a34a" : "#ef4444",
-                                      border: `1px solid ${effectivePassed ? "#86efac" : "#fecaca"}`
-                                    }}>
-                                      {effectivePassed ? "ĐẠT" : "TRƯỢT"}
-                                    </span>
-                                  );
-                                })()}
-                              </td>
-                              <td style={{ padding: "12px", borderRight: "1px solid #e2e8f0", fontWeight: 600, color: "#0f172a" }}>{row.committeeCode ?? "-"}</td>
-                              <td style={{ padding: "12px", borderRight: "1px solid #e2e8f0" }}>
-                                <span style={{ display: "inline-block", padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: statusColor === "#b45309" ? "#fef3c7" : statusColor === "#16a34a" ? "#dcfce7" : "#fee2e2", color: statusColor }}>{statusLabel}</span>
-                              </td>
-                              <td style={{ padding: "12px", textAlign: "center" }}>
-                                <button type="button" onClick={() => {setSelectedTopic(row); setTopicDetailModalOpen(true);}} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "6px 8px", fontSize: 12, fontWeight: 700, borderRadius: 8, border: "1px solid #cbd5e1", background: "#ffffff", color: DEEP_BLUE_PRIMARY, cursor: "pointer", transition: "all 0.2s ease" }} title="Xem chi tiết"><Eye size={16} /></button>
-                              </td>
-                            </tr>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                  </table>
-                  {studentTableSortedData.length === 0 && (<div style={{ textAlign: "center", padding: "40px 20px", color: "#64748b", fontSize: 14 }}>Không có dữ liệu sinh viên</div>)}
-                </div>
-                
-                {studentTableSortedData.length > 0 && (() => {
-                  const totalPages = Math.ceil(studentTableSortedData.length / studentTablePageSize);
-                  return (
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 12, borderTop: "1px solid #e2e8f0" }}>
-                      <div style={{ fontSize: 12, color: "#475569" }}>Hiển thị {((studentTablePage - 1) * studentTablePageSize) + 1} đến {Math.min(studentTablePage * studentTablePageSize, studentTableSortedData.length)} của {studentTableSortedData.length} đề tài</div>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <button type="button" onClick={() => setStudentTablePage(Math.max(1, studentTablePage - 1))} disabled={studentTablePage === 1} style={{ padding: "6px 12px", fontSize: 12, fontWeight: 700, borderRadius: 8, border: "1px solid #cbd5e1", background: studentTablePage === 1 ? "#f1f5f9" : "#ffffff", color: studentTablePage === 1 ? "#94a3b8" : "#0f172a", cursor: studentTablePage === 1 ? "default" : "pointer", transition: "all 0.2s ease", display: "inline-flex", alignItems: "center", gap: 6 }}><ChevronLeft size={14} /> Trước</button>
-                        <div style={{ display: "flex", gap: 4 }}>
-                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (<button key={`page-${page}`} type="button" onClick={() => setStudentTablePage(page)} style={{ width: 32, height: 32, padding: 0, fontSize: 11, fontWeight: 800, borderRadius: 6, border: `1px solid ${studentTablePage === page ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`, background: studentTablePage === page ? DEEP_BLUE_PRIMARY : "#ffffff", color: studentTablePage === page ? "#ffffff" : "#0f172a", cursor: "pointer", transition: "all 0.15s ease" }}>{page}</button>))}
-                        </div>
-                        <button type="button" onClick={() => setStudentTablePage(Math.min(totalPages, studentTablePage + 1))} disabled={studentTablePage === totalPages} style={{ padding: "6px 12px", fontSize: 12, fontWeight: 700, borderRadius: 8, border: "1px solid #cbd5e1", background: studentTablePage === totalPages ? "#f1f5f9" : "#ffffff", color: studentTablePage === totalPages ? "#94a3b8" : "#0f172a", cursor: studentTablePage === totalPages ? "default" : "pointer", transition: "all 0.2s ease", display: "inline-flex", alignItems: "center", gap: 6 }}>Sau <ChevronRight size={14} /></button>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </section>
-            </>
-          )}
-        </section>
-      )}
-
-      {activeTab === "committee" && (
-        <section style={{ display: "grid", gridTemplateColumns: "minmax(320px, 0.95fr) minmax(0, 1.45fr)", gap: 12, alignItems: "start" }}>
-          {/* LEFT: Committee List */}
-          <aside style={{ ...cardStyle, display: "grid", gap: 12, maxHeight: "calc(100vh - 236px)", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <div>
-                <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Danh sách hội đồng</div>
-                <div style={{ fontSize: 13, color: "#475569", marginTop: 3 }}>{visibleCommitteeRows.length}/{committeeOperationalRows.length}</div>
-              </div>
-            </div>
-            <label style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 600 }}>Tìm kiếm</span>
-              <input ref={committeeSearchInputRef} value={committeeIdFilter} onChange={(event) => setCommitteeIdFilter(event.target.value)} placeholder="Mã, phòng, chủ tịch" style={{ minHeight: 38, border: "1px solid #cbd5e1", borderRadius: 10, padding: "0 12px" }} />
-            </label>
-            <div style={{ display: "grid", gap: 8 }}>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 600 }}>Phòng</span>
-                <input value={committeeRoomFilter} onChange={(event) => setCommitteeRoomFilter(event.target.value)} placeholder="Lọc theo phòng" style={{ minHeight: 38, border: "1px solid #cbd5e1", borderRadius: 10, padding: "0 12px" }} />
-              </label>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 600 }}>Chủ tịch</span>
-                <input value={committeeChairFilter} onChange={(event) => setCommitteeChairFilter(event.target.value)} placeholder="Lọc theo chủ tịch" style={{ minHeight: 38, border: "1px solid #cbd5e1", borderRadius: 10, padding: "0 12px" }} />
-              </label>
-            </div>
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              {[
-                { value: "all" as NavigatorFilter, label: "Tất cả" },
-                { value: "active" as NavigatorFilter, label: "Hoạt động" },
-                { value: "completed" as NavigatorFilter, label: "Hoàn thành" },
-              ].map((filter) => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  onClick={() => setNavigatorFilter(filter.value)}
-                  style={{
-                    border: `1px solid ${navigatorFilter === filter.value ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`,
-                    background: navigatorFilter === filter.value ? LIGHT_BLUE_SOFTEN : "#ffffff",
-                    color: navigatorFilter === filter.value ? DEEP_BLUE_PRIMARY : "#0f172a",
-                    borderRadius: 999,
-                    minHeight: 30,
-                    padding: "0 10px",
-                    fontWeight: 700,
-                    fontSize: 11,
-                    cursor: "pointer",
-                  }}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: "grid", gap: 8 }}>
-              {visibleCommitteeRows.length === 0 ? (
-                <div style={{ ...emptyStateCardStyle, minHeight: 160 }}>Không có hội đồng phù hợp.</div>
-              ) : (
-                visibleCommitteeRows.map((row) => {
-                  const isActive = selectedCommittee?.code === row.code;
-                  const statusTone = getStatusTone(row.status);
-                  return (
-                    <button
-                      key={row.key}
-                      type="button"
-                      onClick={() => focusCommittee(row.code)}
-                      style={{
-                        textAlign: "left",
-                        border: `1px solid ${isActive ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`,
-                        borderRadius: 12,
-                        background: isActive ? LIGHT_BLUE_SOFTEN : "#ffffff",
-                        padding: 12,
-                        cursor: "pointer",
-                        transition: "all 0.2s ease",
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "start" }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: "#0f172a" }}>{row.code}</div>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 999, padding: "3px 8px", fontSize: 11, fontWeight: 700, border: `1px solid ${statusTone.border}`, background: statusTone.bg, color: statusTone.text }}>
-                          {getStatusLabel(row.status)}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>Phòng {row.room} · {row.defenseDate}</div>
-                      <div style={{ fontSize: 13, color: "#0f172a", marginTop: 6, fontWeight: 800 }}>{row.totalTopics} đề tài · {row.chair}</div>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                        <button type="button" onClick={(event) => { event.stopPropagation(); void submitCommitteeAction("OPEN", row); }} style={{ border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", borderRadius: 8, minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                          Mở ca
-                        </button>
-                        {(row.status === "WAITING_PUBLIC" || row.status === "WAITING_PUBLISH" || (row.totalTopics > 0 && row.scoredTopics >= row.totalTopics)) && row.status !== "LOCKED" && row.status !== "PUBLISHED" && (
-                          <button type="button" onClick={(event) => { event.stopPropagation(); void submitCommitteeAction("LOCK", row); }} style={{ border: "none", background: "#16a34a", color: "#ffffff", borderRadius: 8, minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                            Công bố
-                          </button>
-                        )}
-                        <button type="button" onClick={(event) => { event.stopPropagation(); void submitCommitteeAction("LOCK", row); }} style={{ border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", borderRadius: 8, minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                          Khóa ca
-                        </button>
-                        <button type="button" onClick={(event) => { event.stopPropagation(); void submitCommitteeAction("REOPEN", row); }} style={{ border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", borderRadius: 8, minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                          Mở lại
-                        </button>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, color: "#475569", marginTop: 6 }}>
-                        <span>{row.scoredTopics}/{row.totalTopics}</span>
-                        <strong>{row.progressPercent}%</strong>
-                      </div>
-                      <div style={{ height: 6, borderRadius: 999, background: "#e2e8f0", overflow: "hidden", marginTop: 6 }}>
-                        <div style={{ width: `${row.progressPercent}%`, height: "100%", background: row.progressPercent >= 80 ? "#16a34a" : row.progressPercent >= 50 ? "#f59e0b" : "#ef4444" }} />
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </aside>
-
-          {/* RIGHT: Committee Details */}
-          <main style={{ display: "grid", gap: 12, maxHeight: "calc(100vh - 236px)", overflowY: "auto" }}>
-            {!selectedCommittee ? (
-              <section style={emptyStateCardStyle}>Chọn hội đồn từ danh sách bên trái.</section>
-            ) : (
-              <>
-                <section style={cardStyle}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "start" }}>
-                    <div>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}><Users size={14} /> Chi tiết hội đồng</div>
-                      <h2 style={{ margin: "6px 0 0 0", fontSize: 18, color: "#0f172a" }}>{selectedCommittee.name}</h2>
-                      <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>
-                        {selectedCommittee.code} · Phòng {selectedCommittee.room} · {selectedCommittee.defenseDate}
-                      </div>
-                    </div>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 999, padding: "5px 10px", fontSize: 11, fontWeight: 700, border: `1px solid ${getStatusTone(selectedCommittee.status).border}`, background: getStatusTone(selectedCommittee.status).bg, color: getStatusTone(selectedCommittee.status).text }}>
-                      {getStatusLabel(selectedCommittee.status)}
-                    </span>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginTop: 12 }}>
-                    <div>
-                      <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase" }}>Tổng đề tài</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginTop: 4 }}>{selectedCommitteeRows.length}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase" }}>Đã chấm</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginTop: 4 }}>{selectedCommittee.scoredTopics}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase" }}>Tiến độ</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginTop: 4 }}>{selectedCommittee.progressPercent}%</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase" }}>Điểm TB</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginTop: 4 }}>{selectedCommittee.avgScore != null && selectedCommittee.avgScore > 0 ? formatNumber(selectedCommittee.avgScore) : "-"}</div>
-                    </div>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginTop: 12 }}>
-                    <div style={cardStyle}>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#475569" }}><User size={12} /> Giảng viên hướng dẫn</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginTop: 6 }}>{selectedCommitteeSupervisor}</div>
-                    </div>
-                    <div style={cardStyle}>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#475569" }}><Gavel size={12} /> Chủ tịch hội đồng</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginTop: 6 }}>{selectedCommittee.chair || "-"}</div>
-                    </div>
-                    <div style={cardStyle}>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#475569" }}><MessageSquare size={12} /> Ủy viên thư ký</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginTop: 6 }}>{selectedCommittee.secretary || "-"}</div>
-                    </div>
-                    <div style={cardStyle}>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#475569" }}><Users size={12} /> Ủy viên phản biện</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginTop: 6 }}>{selectedCommittee.reviewer || "-"}</div>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 12 }}>
-                    <button type="button" onClick={() => { setPreviewModalType("scoreSheet"); }} style={{ border: "1px solid #cbd5e1", background: LIGHT_BLUE_SOFTEN, color: DEEP_BLUE_PRIMARY, borderRadius: 8, minHeight: 34, padding: "0 16px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-                      <Eye size={14} /> Xem bảng điểm
-                    </button>
-                  </div>
-                </section>
-
-
-                <section style={cardStyle}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                    <div>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}><Table size={14} /> Danh sách đề tài</div>
-                      <div style={{ fontSize: 13, color: "#475569", marginTop: 3 }}>{selectedCommitteeRows.length} hàng</div>
-                    </div>
-                  </div>
-                  <div style={{ overflow: "auto", marginTop: 12, border: "1px solid #cbd5e1", borderRadius: 10 }}>
-                    <div style={{ minWidth: 800 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "72px 110px 1fr 1fr 1fr 90px 90px 220px", gap: 12, padding: "10px 12px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#475569" }}>
-                        <div>STT</div>
-                        <div>Mã SV</div>
-                        <div>Họ tên</div>
-                        <div>Đề tài</div>
-                        <div>Giảng viên hướng dẫn</div>
-                        <div>Điểm</div>
-                        <div>Kết quả</div>
-                        <div>Thao tác</div>
-                      </div>
-                      {selectedCommitteeRows.map((row, idx) => {
-                        const statusValue = row.status ?? (row.isLocked ? "LOCKED" : row.finalScore ? "COMPLETED" : "ONGOING");
-                        const statusTone = getStatusTone(statusValue);
-                        const rowFinalized = selectedCommitteeFinalized || row.isLocked === true || ["LOCKED", "COMPLETED", "PUBLISHED", "FINALIZED", "WAITING_PUBLIC"].includes(normalizeStatusKey(statusValue));
-                        return (
-                          <div key={`${row.assignmentId ?? idx}`} style={{ display: "grid", gridTemplateColumns: "72px 110px 1fr 1fr 1fr 90px 90px 220px", gap: 12, padding: "10px 12px", borderTop: "1px solid #e2e8f0", fontSize: 12, color: "#0f172a", alignItems: "center" }}>
-                            <div>{idx + 1}</div>
-                            <div style={{ fontWeight: 700 }}>{row.studentCode ?? "-"}</div>
-                            <div>
-                              <div style={{ fontWeight: 700 }}>{row.studentName ?? "-"}</div>
-                            </div>
-                            <div>
-                              <div style={{ fontWeight: 700 }}>{row.topicTitle ?? "-"}</div>
-                              <div style={{ fontSize: 11, color: "#475569" }}>{row.topicCode ?? "-"}</div>
-                            </div>
-                            <div>
-                              <div style={{ fontWeight: 700 }}>{row.supervisorLecturerName ?? row.supervisorName ?? selectedCommitteeChair}</div>
-                              <div style={{ fontSize: 11, color: "#475569" }}>Giảng viên hướng dẫn</div>
-                            </div>
-                            <div>
-                              <div style={{ fontWeight: 700 }}>{getTopicScoreDisplay(row)}</div>
-                              <div style={{ fontSize: 11, color: "#475569", marginTop: 4 }}>{getTopicGradeDisplay(row)}</div>
-                            </div>
-                            <div>
-                              {row.isPassed !== undefined ? (
-                                <span style={{
-                                  display: "inline-flex",
-                                  padding: "4px 10px",
-                                  borderRadius: 999,
-                                  fontSize: 11,
-                                  fontWeight: 800,
-                                  background: row.isPassed ? "#f0fdf4" : "#fef2f2",
-                                  color: row.isPassed ? "#16a34a" : "#ef4444",
-                                  border: `1px solid ${row.isPassed ? "#86efac" : "#fecaca"}`
-                                }}>
-                                  {row.isPassed ? "ĐẠT" : "TRƯỢT"}
-                                </span>
-                              ) : "-"}
-                            </div>
-                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                              {!rowFinalized ? (
-                                <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Chờ chốt điểm</span>
-                              ) : (
-                                <>
-                                  <button type="button" onClick={() => { setSelectedTopic(row); setPreviewModalType("meeting"); }} style={{ border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", borderRadius: 8, minHeight: 28, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Eye size={12} /> Xem biên bản</button>
-                                  <button type="button" onClick={() => { setSelectedTopic(row); setPreviewModalType("reviewer"); }} style={{ border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", borderRadius: 8, minHeight: 28, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}><Eye size={12} /> Xem nhận xét</button>
-                                  <button type="button" onClick={() => { setSelectedTopic(row); setTopicDetailModalOpen(true); }} style={{ border: "1px solid #cbd5e1", background: LIGHT_BLUE_SOFTEN, color: DEEP_BLUE_PRIMARY, borderRadius: 8, minHeight: 28, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>Chi tiết</button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </section>
-
-              </>
-            )}
-          </main>
-        </section>
-      )}
-
-      {activeTab === "post-defense" && (
-        <section style={{ display: "grid", gap: 20 }}>
-          {/* Header & Metrics */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
-            <div>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: DEEP_BLUE_PRIMARY }}><FileSpreadsheet size={16} /> Điều hành Hậu bảo vệ</div>
-              <h2 style={{ margin: "4px 0 0 0", fontSize: 24, fontWeight: 800, color: "#0f172a" }}>Quản lý báo cáo sửa đổi</h2>
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <div style={{ ...cardStyle, padding: "10px 20px", display: "grid", gap: 4, minWidth: 160, background: "linear-gradient(to bottom, #ffffff, #f8fafc)" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Chờ nộp báo cáo</span>
-                <div style={{ fontSize: 20, fontWeight: 900, color: "#0f172a" }}>{formatNumber((postDefense?.items ?? []).filter(i => !i.submittedAt).length)}</div>
-              </div>
-              <div style={{ ...cardStyle, padding: "10px 20px", display: "grid", gap: 4, minWidth: 160, background: "linear-gradient(to bottom, #ffffff, #f0f9ff)" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#0369a1", textTransform: "uppercase" }}>Đang chờ duyệt</span>
-                <div style={{ fontSize: 20, fontWeight: 900, color: "#0369a1" }}>{formatNumber(postDefense?.pendingRevisions ?? 0)}</div>
-              </div>
-              <div style={{ ...cardStyle, padding: "10px 20px", display: "grid", gap: 4, minWidth: 160, background: "linear-gradient(to bottom, #ffffff, #f0fdf4)" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#166534", textTransform: "uppercase" }}>Đã hoàn tất</span>
-                <div style={{ fontSize: 20, fontWeight: 900, color: "#166534" }}>{formatNumber(postDefense?.approvedRevisions ?? 0)}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>Preview: {reportType}.{reportFormat === "excel" ? "xlsx" : reportFormat}</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>Báo cáo bao gồm {scoredRowsForDistribution.length} đề tài đã chấm điểm.</div>
               </div>
             </div>
           </div>
+        </div>
+      </div>
+      <div style={{ padding: "24px 32px", borderTop: "1px solid #f1f5f9", background: "white", display: "flex", justifyContent: "flex-end", gap: 12 }}>
+        <button 
+          onClick={() => setExportModalOpen(false)}
+          style={{ padding: "12px 24px", borderRadius: 14, border: "1px solid #e2e8f0", background: "white", color: "#475569", fontWeight: 700, cursor: "pointer" }}
+        >
+          Hủy
+        </button>
+        <button 
+          style={{ 
+            padding: "12px 32px", 
+            borderRadius: 14, 
+            border: "none", 
+            background: "linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)", 
+            color: "white", 
+            fontWeight: 800, 
+            cursor: "pointer",
+            boxShadow: "0 10px 15px -3px rgba(30, 58, 95, 0.3)"
+          }}
+        >
+          Tải xuống ngay
+        </button>
+      </div>
+    </ModalOverlay>
+  );
 
-          {/* List Section */}
-          <section style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: 16 }}>
-              <div style={{ display: "flex", gap: 8, flex: 1, maxWidth: 600 }}>
-                <div style={{ position: "relative", flex: 1 }}>
-                  <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#64748b" }} />
-                  <input 
-                    value={revisionKeyword} 
-                    onChange={(e) => setRevisionKeyword(e.target.value)}
-                    placeholder="Tìm sinh viên, mã số, đề tài..." 
-                    style={{ width: "100%", height: 40, border: "1px solid #cbd5e1", borderRadius: 10, padding: "0 12px 0 36px", fontSize: 14 }} 
-                  />
-                </div>
-                <select 
-                  value={revisionStatus} 
-                  onChange={(e) => setRevisionStatus(e.target.value as RevisionStatus)}
-                  style={{ height: 40, border: "1px solid #cbd5e1", borderRadius: 10, padding: "0 12px", fontSize: 13, background: "#ffffff", fontWeight: 600, color: "#0f172a", minWidth: 160 }}
-                >
-                  <option value="all">Tất cả trạng thái</option>
-                  <option value="pending">Chờ xử lý</option>
-                  <option value="approved">Đã duyệt</option>
-                  <option value="rejected">Từ chối</option>
-                </select>
-                <select 
-                  value={isPassedFilter} 
-                  onChange={(e) => setIsPassedFilter(e.target.value)}
-                  style={{ height: 40, border: "1px solid #cbd5e1", borderRadius: 10, padding: "0 12px", fontSize: 13, background: "#ffffff", fontWeight: 600, color: "#0f172a", minWidth: 120 }}
-                >
-                  <option value="all">Mọi kết quả</option>
-                  <option value="passed">Đạt</option>
-                  <option value="failed">Trượt</option>
-                </select>
-              </div>
-              <button 
-                type="button" 
-                onClick={() => void loadOperationsSnapshot()}
-                style={{ height: 40, padding: "0 16px", border: "1px solid #cbd5e1", borderRadius: 10, background: "#ffffff", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
-              >
-                <RotateCcw size={14} /> Làm mới
-              </button>
-            </div>
 
-            <div style={{ overflow: "auto", border: "1px solid #e2e8f0", borderRadius: 12 }}>
-              <table style={{ width: "100%", minWidth: 1100, borderCollapse: "collapse" }}>
-                <thead style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
-                  <tr>
-                    <th style={{ padding: "14px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>Hội đồng / Sinh viên</th>
-                    <th style={{ padding: "14px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>Đề tài</th>
-                    <th style={{ padding: "14px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>Điểm</th>
-                    <th style={{ padding: "14px 16px", textAlign: "center", fontSize: 11, fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>Kết quả</th>
-                    <th style={{ padding: "14px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>Người kiểm duyệt</th>
-                    <th style={{ padding: "14px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>Hạn nộp</th>
-                    <th style={{ padding: "14px 16px", textAlign: "center", fontSize: 11, fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>Trạng thái</th>
-                    <th style={{ padding: "14px 16px", textAlign: "center", fontSize: 11, fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>Hành động</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(postDefense?.items ?? []).length === 0 ? (
-                    <tr>
-                      <td colSpan={7} style={{ padding: "60px 20px", textAlign: "center" }}>
-                        <div style={{ display: "grid", placeItems: "center", gap: 12 }}>
-                          <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#f1f5f9", display: "grid", placeItems: "center" }}>
-                            <Archive size={24} color="#94a3b8" />
-                          </div>
-                          <div style={{ fontSize: 14, color: "#64748b", fontWeight: 500 }}>Không tìm thấy dữ liệu hậu bảo vệ nào.</div>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    (postDefense?.items ?? []).filter(item => {
-                      if (isPassedFilter === "all") return true;
-                      const committeeRow = scoringMatrix?.find(r => r.studentCode === item.studentCode);
-                      const effectivePassed = item.isPassed ?? committeeRow?.isPassed ?? (committeeRow?.finalScore != null && Number(committeeRow.finalScore) >= 5.0);
-                      return isPassedFilter === "passed" ? effectivePassed : !effectivePassed;
-                    }).map((item, idx) => {
-                      const effectiveStatus = item.status || item.revisionStatus || item.finalStatus || "";
-                      const statusTone = getStatusTone(effectiveStatus);
-                      
-                      const committeeRow = scoringMatrix?.find(r => r.studentCode === item.studentCode);
-                      const effectiveReviewer = item.reviewerName || item.reviewer || committeeRow?.secretaryName || committeeRow?.secretary || "Thư ký HĐ";
-                      
-                      const effectiveStudentName = item.studentName || item.proposerStudentName || "-";
-                      const effectiveStudentCode = item.studentCode || item.proposerStudentCode || "-";
-                      const effectiveScore = committeeRow?.finalScore ?? committeeRow?.currentScore;
-                      const effectivePassed = item.isPassed ?? committeeRow?.isPassed ?? (effectiveScore != null && Number(effectiveScore) >= 5.0);
+  return (
+    <div className="committee-ops-root" style={{
+      minHeight: "100vh",
+      background: "#f8fafc",
+      color: "#1e293b",
+      fontFamily: "'Be Vietnam Pro', sans-serif",
+      padding: "0 0 40px 0"
+    }}>
+      {/* 1. Header Section */}
+      <div style={{
+        background: DEEP_BLUE_PRIMARY,
+        padding: "40px 32px 80px 32px",
+        position: "relative",
+        overflow: "hidden"
+      }}>
+        {/* Background Accents */}
+        <div style={{
+          position: "absolute",
+          top: "-50%",
+          right: "-10%",
+          width: "600px",
+          height: "600px",
+          background: "radial-gradient(circle, rgba(243, 112, 33, 0.1) 0%, transparent 70%)",
+          filter: "blur(60px)"
+        }} />
 
-                      return (
-                        <tr key={item.revisionId ?? idx} style={{ borderBottom: "1px solid #f1f5f9", transition: "background 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#f8fafc"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                          <td style={{ padding: "16px" }}>
-                            <div style={{ fontSize: 11, fontWeight: 800, color: DEEP_BLUE_PRIMARY, marginBottom: 4 }}>{item.committeeCode ?? "-"}</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{effectiveStudentName}</div>
-                            <div style={{ fontSize: 12, color: "#64748b" }}>{effectiveStudentCode}</div>
-                          </td>
-                          <td style={{ padding: "16px", maxWidth: 250 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "#334155", lineHeight: 1.5 }}>{item.topicTitle ?? "-"}</div>
-                            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{item.topicCode ?? "-"}</div>
-                          </td>
-                          <td style={{ padding: "16px" }}>
-                            <div style={{ fontSize: 14, fontWeight: 800, color: DEEP_BLUE_PRIMARY }}>{effectiveScore != null ? Number(effectiveScore).toFixed(1) : "-"}</div>
-                          </td>
-                          <td style={{ padding: "16px", textAlign: "center" }}>
-                            <span style={{
-                              display: "inline-flex",
-                              padding: "4px 10px",
-                              borderRadius: 999,
-                              fontSize: 10,
-                              fontWeight: 800,
-                              background: effectivePassed ? "#dcfce7" : "#fee2e2",
-                              color: effectivePassed ? "#16a34a" : "#ef4444",
-                              border: `1px solid ${effectivePassed ? "#86efac" : "#fecaca"}`
-                            }}>
-                              {effectivePassed ? "ĐẠT" : "TRƯỢT"}
-                            </span>
-                          </td>
-                          <td style={{ padding: "16px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#f0f4f8", display: "grid", placeItems: "center", fontSize: 11, fontWeight: 800, color: DEEP_BLUE_PRIMARY }}>
-                                {String(effectiveReviewer).slice(0, 1).toUpperCase()}
-                              </div>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>{effectiveReviewer}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: "16px" }}>
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, color: item.submissionDeadline && new Date(item.submissionDeadline) < new Date() ? "#ef4444" : "#475569" }}>
-                              <Clock size={14} />
-                              <span style={{ fontSize: 12, fontWeight: 700 }}>{item.submissionDeadline ? new Date(item.submissionDeadline).toLocaleDateString("vi-VN") : "-"}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: "16px", textAlign: "center" }}>
-                            <span style={{ 
-                              display: "inline-flex", 
-                              alignItems: "center", 
-                              gap: 6, 
-                              borderRadius: 999, 
-                              padding: "5px 12px", 
-                              fontSize: 10, 
-                              fontWeight: 800, 
-                              background: statusTone.bg, 
-                              color: statusTone.text,
-                              border: statusTone.border !== "none" ? statusTone.border : `1px solid transparent`
-                            }}>
-                              {getStatusLabel(effectiveStatus)}
-                            </span>
-                          </td>
-                          <td style={{ padding: "16px", textAlign: "center" }}>
-                            <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
-                              <button 
-                                type="button" 
-                                title="Xem chi tiết"
-                                onClick={() => {
-                                  const fullRow = scoringMatrix?.find(r => r.studentCode === item.studentCode);
-                                  if (fullRow) {
-                                    setSelectedTopic(fullRow);
-                                    setTopicDetailModalOpen(true);
-                                  } else {
-                                    notifyInfo("Dữ liệu chi tiết đề tài hiện không khả dụng.");
-                                  }
-                                }}
-                                style={{ ...actionIconButtonStyle, width: 32, height: 32 }}
-                              >
-                                <Eye size={14} />
-                              </button>
-                              {item.revisionFileUrl && (
-                                <button 
-                                  type="button" 
-                                  title="Tải báo cáo sửa đổi"
-                                  onClick={() => window.open(item.revisionFileUrl, "_blank")}
-                                  style={{ ...actionIconButtonStyle, width: 32, height: 32, background: LIGHT_BLUE_BG, color: DEEP_BLUE_PRIMARY, border: "none" }}
-                                >
-                                  <FileText size={14} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
-              <div style={{ fontSize: 13, color: "#64748b" }}>
-                Hiển thị <strong>{(postDefense?.items ?? []).length}</strong> bản ghi trên trang này
-              </div>
-              <div style={{ display: "flex", gap: 4 }}>
-                 <button 
-                  disabled={revisionPage <= 1}
-                  onClick={() => setRevisionPage(prev => Math.max(1, prev - 1))}
-                  style={{ ...actionIconButtonStyle, width: 36, height: 36, opacity: revisionPage <= 1 ? 0.5 : 1 }}
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <div style={{ width: 36, height: 36, display: "grid", placeItems: "center", fontSize: 14, fontWeight: 800, background: DEEP_BLUE_PRIMARY, color: "#ffffff", borderRadius: 8 }}>{revisionPage}</div>
-                <button 
-                  onClick={() => setRevisionPage(prev => prev + 1)}
-                  style={{ ...actionIconButtonStyle, width: 36, height: 36 }}
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* Verification Tools */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            <section style={{ ...cardStyle, background: "#f8fafc", border: "1px dashed #cbd5e1" }}>
-              <h3 style={{ margin: "0 0 12px 0", fontSize: 16, fontWeight: 800, color: "#0f172a" }}>Quy trình Chốt điểm & Lưu trữ</h3>
-              <p style={{ fontSize: 13, color: "#64748b", lineHeight: 1.6, marginBottom: 16 }}>Dành cho quản trị viên thực hiện chốt điểm cuối cùng sau khi tất cả báo cáo sửa đổi đã được duyệt và xác nhận tính hợp lệ.</p>
-              <div style={{ display: "flex", gap: 12 }}>
-                <button type="button" style={{ flex: 1, height: 44, border: "none", background: DEEP_BLUE_PRIMARY, color: "#ffffff", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                   <Lock size={16} /> Khóa dữ liệu hậu bảo vệ
-                </button>
-                <button type="button" style={{ flex: 1, height: 44, border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                   <Download size={16} /> Xuất file tổng hợp
-                </button>
-              </div>
-            </section>
-            
-            <section style={{ ...cardStyle, background: "#f0f9ff", border: "1px solid #bae6fd" }}>
-               <h3 style={{ margin: "0 0 12px 0", fontSize: 16, fontWeight: 800, color: "#0369a1" }}>Kiểm tra Tính đồng nhất</h3>
-               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div style={{ background: "#ffffff", padding: 12, borderRadius: 10, border: "1px solid #e0f2fe" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Điểm đã khóa</div>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: "#0369a1", marginTop: 4 }}>{postDefense?.lockedScores ?? 0}</div>
-                  </div>
-                  <div style={{ background: "#ffffff", padding: 12, borderRadius: 10, border: "1px solid #e0f2fe" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Tỷ lệ hoàn thành</div>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: "#0369a1", marginTop: 4 }}>{Math.round(((postDefense?.approvedRevisions ?? 0) / Math.max(1, (postDefense?.totalRevisions ?? 0))) * 100)}%</div>
-                  </div>
-               </div>
-               <div style={{ marginTop: 12, fontSize: 12, color: "#0369a1", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                 <Activity size={14} /> Hệ thống đang sẵn sàng cho việc đồng bộ điểm cuối cùng.
-               </div>
-            </section>
-          </div>
-        </section>
-      )}
-
-      {activeTab === "audit" && (
-        <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 12 }}>
-          {/* Audit Timeline */}
-          <section style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-              <div>
-                <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Lịch trình kiểm toán</div>
-              </div>
-            </div>
-            <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 600 }}>Lọc audit</span>
-                <input value={auditKeyword} onChange={(event) => setAuditKeyword(event.target.value)} placeholder="Ai, hành động, mô tả" style={{ minHeight: 38, border: "1px solid #cbd5e1", borderRadius: 10, padding: "0 12px" }} />
-              </label>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {auditActionOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setAuditActionFilter(option.value)}
-                    style={{
-                      border: `1px solid ${auditActionFilter === option.value ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`,
-                      background: auditActionFilter === option.value ? LIGHT_BLUE_SOFTEN : "#ffffff",
-                      color: auditActionFilter === option.value ? DEEP_BLUE_PRIMARY : "#0f172a",
-                      borderRadius: 999,
-                      minHeight: 30,
-                      padding: "0 10px",
-                      fontWeight: 700,
-                      fontSize: 11,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div style={{ display: "grid", gap: 8, marginTop: 12, maxHeight: 500, overflowY: "auto" }}>
-              {auditTimelineItems.length === 0 ? (
-                <div style={{ fontSize: 12, color: "#64748b" }}>Không có hoạt động.</div>
-              ) : (
-                auditTimelineItems.map((item) => (
-                  <div key={item.key} style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: 10 }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 999, background: "#f0f4f8", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 11, color: DEEP_BLUE_PRIMARY }}>
-                        {String(item.action ?? "").slice(0, 1).toUpperCase()}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{item.actor}</div>
-                        <div style={{ fontSize: 11, color: "#475569" }}>{item.action} · {item.timestamp}</div>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 12, color: "#0f172a", marginTop: 6, fontWeight: 700 }}>{item.detail}</div>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-
-          {/* Export Center */}
-          <section style={{ ...cardStyle, display: "grid", gap: 12, overflowX: "hidden" }}>
-            <div>
-              <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Trung tâm xuất bảng điểm</div>
-              <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>Preset + nhóm field, tối ưu cho thao tác nhanh.</div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12, alignItems: "start" }}>
-              <div style={{ border: "1px solid #dbe4ee", borderRadius: 14, padding: 14, background: "#ffffff", display: "grid", gap: 12 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Phạm vi dữ liệu</div>
-                <div style={{ display: "grid", gap: 8 }}>
-                  {exportScopeOptions.map((option) => (
-                    <label key={option.value} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0f172a", cursor: "pointer" }}>
-                      <input
-                        type="radio"
-                        name="export-scope"
-                        checked={exportScopeMode === option.value}
-                        onChange={() => setExportScopeMode(option.value)}
-                      />
-                      {option.label}
-                    </label>
-                  ))}
-                </div>
-
-                {exportScopeMode === "per-council" && (
-                  <label style={{ display: "grid", gap: 6 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>Hội đồng</span>
-                    <select
-                      value={reportCouncilId}
-                      onChange={(event) => setReportCouncilId(event.target.value)}
-                      style={{ minHeight: 36, border: "1px solid #cbd5e1", borderRadius: 10, padding: "0 10px", fontSize: 13, color: "#0f172a", background: "#ffffff" }}
-                    >
-                      <option value="">Chọn hội đồng</option>
-                      {exportCouncilOptions.map((item) => (
-                        <option key={item.value} value={item.value}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-
-                {exportScopeMode === "per-topic" && (
-                  <label style={{ display: "grid", gap: 6 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>Đề tài / Sinh viên</span>
-                    <input
-                      value={exportTopicKeyword}
-                      onChange={(event) => setExportTopicKeyword(event.target.value)}
-                      placeholder="Nhập mã đề tài, tên đề tài hoặc MSSV"
-                      style={{ minHeight: 36, border: "1px solid #cbd5e1", borderRadius: 10, padding: "0 10px", fontSize: 13 }}
-                    />
-                  </label>
-                )}
-
-                <div style={{ display: "grid", gap: 6 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>Bộ lọc</div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    <button
-                      type="button"
-                      onClick={() => setExportOnlyLocked((prev) => !prev)}
-                      style={{ border: `1px solid ${exportOnlyLocked ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`, background: exportOnlyLocked ? LIGHT_BLUE_SOFTEN : "#f8fafc", color: exportOnlyLocked ? DEEP_BLUE_PRIMARY : "#334155", borderRadius: 999, minHeight: 28, padding: "0 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                    >
-                      Đã khóa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setExportOnlyPublished((prev) => !prev)}
-                      style={{ border: `1px solid ${exportOnlyPublished ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`, background: exportOnlyPublished ? LIGHT_BLUE_SOFTEN : "#f8fafc", color: exportOnlyPublished ? DEEP_BLUE_PRIMARY : "#334155", borderRadius: 999, minHeight: 28, padding: "0 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                    >
-                      Đã công bố
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setExportIsPassed(exportIsPassed === true ? null : true)}
-                      style={{ border: `1px solid ${exportIsPassed === true ? "#16a34a" : "#cbd5e1"}`, background: exportIsPassed === true ? "#f0fdf4" : "#f8fafc", color: exportIsPassed === true ? "#166534" : "#334155", borderRadius: 999, minHeight: 28, padding: "0 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                    >
-                      Đạt
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setExportIsPassed(exportIsPassed === false ? null : false)}
-                      style={{ border: `1px solid ${exportIsPassed === false ? "#ef4444" : "#cbd5e1"}`, background: exportIsPassed === false ? "#fef2f2" : "#f8fafc", color: exportIsPassed === false ? "#991b1b" : "#334155", borderRadius: 999, minHeight: 28, padding: "0 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                    >
-                      Trượt
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ border: "1px solid #dbe4ee", borderRadius: 14, padding: 14, background: "#ffffff", display: "grid", gap: 12 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Template báo cáo</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
-                  {exportTemplateOptions.map((template) => {
-                    const isActive = exportTemplateMode === template.value;
-                    return (
-                      <button
-                        key={template.value}
-                        type="button"
-                        onClick={() => setExportTemplateMode(template.value)}
-                        style={{ border: `1.5px solid ${isActive ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`, background: isActive ? "#eff6ff" : "#ffffff", borderRadius: 12, padding: 12, cursor: "pointer", textAlign: "left", display: "grid", gap: 4 }}
-                      >
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: isActive ? DEEP_BLUE_PRIMARY : "#0f172a", fontWeight: 800 }}>
-                          {template.icon} {template.label}
-                        </span>
-                        <span style={{ fontSize: 12, color: "#64748b" }}>{template.description}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Fields</div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button type="button" onClick={selectAllExportFields} style={{ border: "1px solid #cbd5e1", background: "#ffffff", borderRadius: 8, minHeight: 28, padding: "0 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>All</button>
-                    <button type="button" onClick={resetExportFields} style={{ border: "1px solid #cbd5e1", background: "#ffffff", borderRadius: 8, minHeight: 28, padding: "0 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Reset</button>
-                  </div>
-                </div>
-
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Tìm field</span>
-                  <div style={{ position: "relative" }}>
-                    <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#64748b" }} />
-                    <input
-                      value={exportFieldSearch}
-                      onChange={(event) => setExportFieldSearch(event.target.value)}
-                      placeholder="Tìm theo tên hoặc key"
-                      style={{ width: "100%", minHeight: 36, border: "1px solid #cbd5e1", borderRadius: 10, padding: "0 10px 0 30px", fontSize: 13 }}
-                    />
-                  </div>
-                </label>
-
-                <div style={{ display: "grid", gap: 8, maxHeight: 300, overflowY: "auto", paddingRight: 2 }}>
-                  {exportFilteredGroups.map((group) => {
-                    const selectedCount = group.fields.filter((field) => exportSelectedFields.includes(field.key)).length;
-                    const allSelected = group.fields.length > 0 && selectedCount === group.fields.length;
-                    const expanded = exportExpandedGroups.includes(group.key);
-                    return (
-                      <div key={group.key} style={{ border: "1px solid #dbe4ee", borderRadius: 10, background: "#f8fafc" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", padding: 10 }}>
-                          <button
-                            type="button"
-                            onClick={() => toggleExportGroupExpand(group.key)}
-                            style={{ border: "none", background: "transparent", padding: 0, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: "#0f172a", fontWeight: 800, fontSize: 12 }}
-                          >
-                            <ChevronDown size={13} style={{ transform: expanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.18s ease" }} />
-                            {group.label}
-                            <span style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>({selectedCount}/{group.fields.length})</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleExportGroup(group)}
-                            style={{ border: `1px solid ${allSelected ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`, background: allSelected ? LIGHT_BLUE_SOFTEN : "#ffffff", color: allSelected ? DEEP_BLUE_PRIMARY : "#0f172a", borderRadius: 999, minHeight: 24, padding: "0 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-                          >
-                            {allSelected ? "Bỏ nhóm" : "Chọn nhóm"}
-                          </button>
-                        </div>
-                        {expanded && (
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 6, padding: "0 10px 10px" }}>
-                            {group.fields.map((field) => (
-                              <label key={field.key} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#0f172a", cursor: "pointer" }}>
-                                <input type="checkbox" checked={exportSelectedFields.includes(field.key)} onChange={() => toggleExportField(field.key)} />
-                                {field.label}
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div style={{ border: "1px solid #dbe4ee", borderRadius: 14, padding: 14, background: "#ffffff", display: "grid", gap: 12 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Preview & Export</div>
-
-                <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, overflowX: "auto", overflowY: "hidden" }}>
-                  <table style={{ width: "100%", minWidth: 320, borderCollapse: "collapse", fontSize: 12 }}>
-                    <thead style={{ background: "#f1f5f9" }}>
-                      <tr>
-                        {exportPreviewColumns.map((columnKey) => (
-                          <th key={columnKey} style={{ textAlign: "left", padding: "8px 10px", fontWeight: 800, color: "#0f172a", borderBottom: "1px solid #cbd5e1" }}>
-                            {exportFieldLabelMap.get(columnKey) ?? columnKey}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {exportPreviewRows.length === 0 ? (
-                        <tr>
-                          <td colSpan={exportPreviewColumns.length} style={{ padding: "10px", color: "#64748b" }}>
-                            Không có dữ liệu phù hợp bộ lọc hiện tại.
-                          </td>
-                        </tr>
-                      ) : (
-                        exportPreviewRows.map((row) => (
-                          <tr key={row.key}>
-                            {row.values.map((value, index) => (
-                              <td key={`${row.key}-${index}`} style={{ padding: "8px 10px", borderBottom: "1px solid #e2e8f0", color: "#0f172a" }}>
-                                {String(value)}
-                              </td>
-                            ))}
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div style={{ display: "grid", gap: 6 }}>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#0f172a", cursor: "pointer" }}><input type="checkbox" checked={exportIncludeLogo} onChange={() => setExportIncludeLogo((prev) => !prev)} /> Bao gồm logo</label>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#0f172a", cursor: "pointer" }}><input type="checkbox" checked={exportIncludeSignature} onChange={() => setExportIncludeSignature((prev) => !prev)} /> Bao gồm chữ ký</label>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#0f172a", cursor: "pointer" }}><input type="checkbox" checked={exportPasswordProtect} onChange={() => setExportPasswordProtect((prev) => !prev)} /> Bảo vệ bằng mật khẩu</label>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setExportModalOpen(true)}
-                  style={{ width: "100%", border: "1px solid #cbd5e1", background: LIGHT_BLUE_SOFTEN, color: DEEP_BLUE_PRIMARY, borderRadius: 12, minHeight: 42, fontSize: 14, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-                >
-                  <Eye size={16} /> Xem trước bảng sẽ xuất
-                </button>
-
-                <div ref={exportDownloadMenuRef} style={{ position: "relative" }}>
-                  <button
-                    type="button"
-                    onClick={() => setExportDownloadMenuOpen((prev) => !prev)}
-                    style={{ width: "100%", border: "none", background: DEEP_BLUE_PRIMARY, color: "#ffffff", borderRadius: 12, minHeight: 44, fontSize: 18, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-                  >
-                    <Download size={16} /> Export Now <ChevronDown size={16} style={{ transform: exportDownloadMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.18s ease" }} />
-                  </button>
-
-                  {exportDownloadMenuOpen && (
-                    <div style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 8px)", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: 12, boxShadow: "0 12px 28px rgba(15, 23, 42, 0.15)", overflow: "hidden", zIndex: 45 }}>
-                      {[
-                        { value: "pdf" as ReportFormat, label: "Tải PDF", icon: <FileText size={14} /> },
-                        { value: "excel" as ReportFormat, label: "Tải Excel", icon: <FileSpreadsheet size={14} /> },
-                        { value: "csv" as ReportFormat, label: "Tải CSV", icon: <Table size={14} /> },
-                      ].map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => {
-                            setExportDownloadMenuOpen(false);
-                            setReportFormat(option.value);
-                            setReportType(exportResolvedReportType);
-                            exportReport({
-                              reportType: exportResolvedReportType,
-                              format: option.value,
-                              councilId: exportScopeMode === "per-council" ? reportCouncilId : undefined,
-                            });
-                          }}
-                          style={{ width: "100%", border: "none", borderTop: "1px solid #e2e8f0", background: "#ffffff", minHeight: 42, padding: "0 12px", fontSize: 13, fontWeight: 700, color: "#0f172a", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "flex-start", gap: 8 }}
-                        >
-                          {option.icon}
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ marginTop: 4, display: "grid", gap: 8 }}>
-                  <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Export gần đây</div>
-                  {recentExports.length === 0 ? (
-                    <div style={{ fontSize: 12, color: "#64748b" }}>Chưa có export gần đây.</div>
-                  ) : (
-                    recentExports.slice(0, 3).map((item, index) => (
-                      <div key={`${String(item?.name ?? item?.fileName ?? "export")}-${index}`} style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: 10 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{String(item?.name ?? item?.fileName ?? "Export")}</div>
-                        <div style={{ fontSize: 11, color: "#475569", marginTop: 4 }}>{String(item?.timestamp ?? item?.createdAt ?? "-")}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-        </section>
-      )}
-
-        {exportModalOpen && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(15, 23, 42, 0.45)",
-              zIndex: 4005,
+        <div style={{
+          maxWidth: 1600,
+          margin: "0 auto",
+          position: "relative",
+          zIndex: 2,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          gap: 24,
+          flexWrap: "wrap"
+        }}>
+          <div>
+            <div style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              padding: 18,
-            }}
-            onClick={() => setExportModalOpen(false)}
-          >
-            <div
-              style={{
-                width: "min(1120px, calc(100vw - 24px))",
-                maxHeight: "calc(100vh - 36px)",
-                overflowY: "auto",
-                background: "#ffffff",
-                border: "1px solid #cbd5e1",
-                borderRadius: 14,
-                padding: 16,
-                boxShadow: "0 20px 44px rgba(2, 6, 23, 0.24)",
-                display: "grid",
-                gap: 12,
-              }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 18, color: "#0f172a" }}>Xem trước bảng sẽ xuất</div>
-                  <div style={{ fontSize: 12, color: "#64748b", marginTop: 3 }}>
-                    Kiểm tra phạm vi, template, định dạng và các trường sẽ được đưa vào file trước khi tải xuống.
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                  <button
-                    type="button"
-                    style={{ border: "1px solid #cbd5e1", background: "#f8fafc", color: "#64748b", padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", height: "fit-content", display: "inline-flex", alignItems: "center", gap: 8 }}
-                    onClick={() => setExportModalOpen(false)}
-                  >
-                    <X size={14} /> Đóng
-                  </button>
-                </div>
+              gap: 12,
+              marginBottom: 16,
+              animation: "fadeIn 0.5s ease"
+            }}>
+              <div style={{
+                background: "rgba(255, 255, 255, 0.15)",
+                backdropFilter: "blur(8px)",
+                padding: "8px 16px",
+                borderRadius: 99,
+                color: "white",
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: "0.05em",
+                textTransform: "uppercase",
+                border: "1px solid rgba(255, 255, 255, 0.2)"
+              }}>
+                Hệ thống Quản lý Đồ án
               </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
-                <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 12, background: "#f8fafc" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Phạm vi</div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>
-                    {exportScopeOptions.find((option) => option.value === exportScopeMode)?.label ?? exportScopeMode}
-                  </div>
-                </div>
-                <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 12, background: "#f8fafc" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Template</div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>
-                    {exportTemplateOptions.find((template) => template.value === exportTemplateMode)?.label ?? exportTemplateMode}
-                  </div>
-                </div>
-                <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 12, background: "#f8fafc" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Định dạng</div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>{reportFormat.toUpperCase()}</div>
-                </div>
-                <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 12, background: "#f8fafc" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Số field</div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>{exportSelectedFields.length}</div>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a" }}>Các trường sẽ xuất</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {exportPreviewModalColumns.map((fieldKey) => (
-                    <span key={fieldKey} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 999, border: "1px solid #cbd5e1", background: "#ffffff", fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
-                      {exportFieldLabelMap.get(fieldKey) ?? fieldKey}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden", background: "#ffffff" }}>
-                <div style={{ overflowX: "auto", overflowY: "hidden" }}>
-                  <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse", fontSize: 12 }}>
-                    <thead style={{ background: "#f1f5f9" }}>
-                      <tr>
-                        {exportPreviewModalColumns.map((columnKey) => (
-                          <th key={columnKey} style={{ textAlign: "left", padding: "8px 10px", fontWeight: 800, color: "#0f172a", borderBottom: "1px solid #cbd5e1" }}>
-                            {exportFieldLabelMap.get(columnKey) ?? columnKey}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {exportPreviewModalRows.length === 0 ? (
-                        <tr>
-                          <td colSpan={exportPreviewModalColumns.length} style={{ padding: "10px", color: "#64748b" }}>
-                            Không có dữ liệu phù hợp với bộ lọc hiện tại.
-                          </td>
-                        </tr>
-                      ) : (
-                        exportPreviewModalRows.map((row) => (
-                          <tr key={row.key}>
-                            {row.values.map((value, index) => (
-                              <td key={`${row.key}-${index}`} style={{ padding: "8px 10px", borderBottom: "1px solid #e2e8f0", color: "#0f172a" }}>
-                                {String(value)}
-                              </td>
-                            ))}
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+              <div style={{
+                height: 4,
+                width: 4,
+                borderRadius: "50%",
+                background: "rgba(255, 255, 255, 0.3)"
+              }} />
+              <div style={{
+                color: "rgba(255, 255, 255, 0.7)",
+                fontSize: 12,
+                fontWeight: 500
+              }}>
+                Hội đồng & Điểm số
               </div>
             </div>
-          </div>
-        )}
 
-      {previewModalType && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15, 23, 42, 0.45)",
-            zIndex: 4000,
+            <h1 style={{
+              fontSize: 42,
+              fontWeight: 900,
+              color: "white",
+              margin: 0,
+              letterSpacing: "-0.03em",
+              lineHeight: 1,
+              animation: "slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1)"
+            }}>
+              Committee <span style={{ color: "#f37021" }}>Operations</span>
+            </h1>
+            
+            <p style={{
+              fontSize: 16,
+              color: "rgba(255, 255, 255, 0.7)",
+              marginTop: 12,
+              maxWidth: 600,
+              fontWeight: 500,
+              animation: "fadeIn 0.8s ease"
+            }}>
+              Điều hành, chấm điểm và quản lý hồ sơ bảo vệ cho đợt: <strong style={{ color: "white" }}>{periodInfo.name}</strong>
+            </p>
+          </div>
+
+          <div style={{
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 18,
-          }}
-          onClick={() => setPreviewModalType(null)}
-        >
-          <div
-            style={{
-              width: "min(980px, calc(100vw - 24px))",
-              maxHeight: "calc(100vh - 36px)",
-              overflowY: "auto",
-              background: "#ffffff",
-              border: "1px solid #cbd5e1",
+            gap: 12,
+            animation: "fadeIn 1s ease"
+          }}>
+            <button
+              onClick={() => loadOperationsSnapshot()}
+              style={{
+                background: "rgba(255, 255, 255, 0.1)",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                color: "white",
+                padding: "12px 20px",
+                borderRadius: 14,
+                fontSize: 14,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                backdropFilter: "blur(10px)"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"}
+            >
+              <RefreshCw size={18} className={loadingSnapshot ? "animate-spin" : ""} />
+              {loadingSnapshot ? "Đang đồng bộ..." : "Làm mới Realtime"}
+            </button>
+            
+            <div style={{
+              background: "#f37021",
+              color: "white",
+              padding: "12px 24px",
               borderRadius: 14,
-              padding: 16,
-              boxShadow: "0 20px 44px rgba(2, 6, 23, 0.24)",
-              display: "grid",
+              fontSize: 14,
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
               gap: 10,
-            }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 18, color: "#0f172a" }}>
-                  {previewModalType === "meeting"
-                    ? "BIÊN BẢN HỌP HỘI ĐỒNG CHẤM LUẬN ĐỒ ÁN"
-                    : previewModalType === "reviewer"
-                      ? "NHẬN XÉT CỦA NGƯỜI PHẢN BIỆN ĐỒ ÁN"
-                      : "BẢNG ĐIỂM GHI KẾT QUẢ BẢO VỆ"}
-                </div>
-                <div style={{ fontSize: 12, color: "#64748b", marginTop: 3 }}>
-                  {previewModalType === "scoreSheet"
-                    ? "Xem trước bảng điểm của toàn bộ đề tài trong hội đồng trước khi tải file."
-                    : `Xem trước dữ liệu của đề tài: ${selectedTopic?.topicTitle ?? "-"}`}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <div style={{ position: "relative" }}>
-                  <button
-                    type="button"
-                    style={{ border: "1px solid #cbd5e1", background: DEEP_BLUE_PRIMARY, color: "#ffffff", padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, transition: "all 0.2s" }}
-                    disabled={isDownloadingPreviewFile}
-                    onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
-                  >
-                    <Download size={14} /> {isDownloadingPreviewFile ? "Đang xử lý..." : "Tải xuống"} <ChevronDown size={14} style={{ transform: showDownloadDropdown ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
-                  </button>
-                  {showDownloadDropdown && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "calc(100% + 6px)",
-                        right: 0,
-                        background: "#ffffff",
-                        border: "1px solid #cbd5e1",
-                        borderRadius: 10,
-                        boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-                        minWidth: 160,
-                        zIndex: 4100,
-                        overflow: "hidden",
-                        display: "grid",
-                        padding: 4,
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => { setShowDownloadDropdown(false); void downloadPreviewDocument(previewModalType, "word"); }}
-                        style={{ background: "none", border: "none", padding: "10px 12px", textAlign: "left", fontSize: 13, fontWeight: 600, color: "#0f172a", cursor: "pointer", borderRadius: 6, display: "flex", alignItems: "center", gap: 8 }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-                      >
-                        <FileText size={14} color="#2563eb" /> Xuất bản Word (.docx)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setShowDownloadDropdown(false); void downloadPreviewDocument(previewModalType, "pdf"); }}
-                        style={{ background: "none", border: "none", padding: "10px 12px", textAlign: "left", fontSize: 13, fontWeight: 600, color: "#0f172a", cursor: "pointer", borderRadius: 6, display: "flex", alignItems: "center", gap: 8 }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-                      >
-                        <Archive size={14} color="#dc2626" /> Xuất bản PDF (.pdf)
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  style={{ border: "1px solid #cbd5e1", background: "#f8fafc", color: "#64748b", padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", height: "fit-content", display: "inline-flex", alignItems: "center", gap: 8 }}
-                  onClick={() => { setPreviewModalType(null); setShowDownloadDropdown(false); }}
-                >
-                  <X size={14} /> Đóng
-                </button>
-              </div>
-            </div>
-
-            <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 20, background: "#fcfcfc", minHeight: 400 }}>
-              {previewModalType === "scoreSheet" ? (
-                <div style={{ display: "grid", gap: 10 }}>
-                  <div style={{ textAlign: "center", fontWeight: "bold", fontSize: 16, marginBottom: 10 }}>BẢNG ĐIỂM CHI TIẾT</div>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr style={{ background: "#f1f5f9" }}>
-                        <th style={{ border: "1px solid #cbd5e1", padding: 8 }}>STT</th>
-                        <th style={{ border: "1px solid #cbd5e1", padding: 8, textAlign: "left" }}>Sinh viên</th>
-                        <th style={{ border: "1px solid #cbd5e1", padding: 8, textAlign: "left" }}>Đề tài</th>
-                        <th style={{ border: "1px solid #cbd5e1", padding: 8 }}>CT</th>
-                        <th style={{ border: "1px solid #cbd5e1", padding: 8 }}>TK</th>
-                        <th style={{ border: "1px solid #cbd5e1", padding: 8 }}>PB</th>
-                        <th style={{ border: "1px solid #cbd5e1", padding: 8 }}>GVHD</th>
-                        <th style={{ border: "1px solid #cbd5e1", padding: 8 }}>Tổng</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedCommitteeRows.map((row, idx) => (
-                        <tr key={idx}>
-                          <td style={{ border: "1px solid #cbd5e1", padding: 8, textAlign: "center" }}>{idx + 1}</td>
-                          <td style={{ border: "1px solid #cbd5e1", padding: 8 }}>{row.studentName}</td>
-                          <td style={{ border: "1px solid #cbd5e1", padding: 8 }}>{row.topicTitle}</td>
-                          <td style={{ border: "1px solid #cbd5e1", padding: 8, textAlign: "center" }}>{getLockedScoreValue(row, row.scoreCt)}</td>
-                          <td style={{ border: "1px solid #cbd5e1", padding: 8, textAlign: "center" }}>{getLockedScoreValue(row, row.scoreTk)}</td>
-                          <td style={{ border: "1px solid #cbd5e1", padding: 8, textAlign: "center" }}>{getLockedScoreValue(row, row.scorePb)}</td>
-                          <td style={{ border: "1px solid #cbd5e1", padding: 8, textAlign: "center" }}>{getLockedScoreValue(row, row.scoreGvhd ?? row.topicSupervisorScore)}</td>
-                          <td style={{ border: "1px solid #cbd5e1", padding: 8, textAlign: "center", fontWeight: "bold" }}>{getLockedScoreValue(row, row.finalScore ?? row.currentScore)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : selectedTopic ? (
-                <div style={{ display: "grid", gap: 16, fontSize: 14, lineHeight: 1.6 }}>
-                  <div style={{ textAlign: "center", fontWeight: "bold", fontSize: 16 }}>
-                    {previewModalType === "meeting" ? "BIÊN BẢN HỌP HỘI ĐỒNG" : "NHẬN XÉT PHẢN BIỆN"}
-                  </div>
-                  
-                  <div style={{ display: "grid", gap: 8, borderBottom: "1px solid #e2e8f0", paddingBottom: 12 }}>
-                    <div>Sinh viên: <strong>{selectedTopic.studentName}</strong> ({selectedTopic.studentCode})</div>
-                    <div>Đề tài: <strong>{selectedTopic.topicTitle}</strong></div>
-                    <div>Hội đồng: <strong>{selectedCommittee?.code} - {selectedCommittee?.name}</strong></div>
-                  </div>
-
-                  {previewModalType === "meeting" ? (
-                    <div style={{ display: "grid", gap: 12 }}>
-                      <div style={{ fontWeight: "bold" }}>I. Thông tin bảo vệ:</div>
-                      <div style={{ display: "grid", gap: 8, padding: 12, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8 }}>
-                        <div><strong>Giảng viên hướng dẫn:</strong> {selectedTopic.supervisorName || selectedTopic.supervisorLecturerName || "-"}</div>
-                        <div><strong>Chủ tịch hội đồng:</strong> {selectedTopic.chairName || selectedTopic.committeeChairName || "-"}</div>
-                        <div><strong>Thư ký hội đồng:</strong> {selectedTopic.secretaryName || selectedTopic.committeeSecretaryName || "-"}</div>
-                        <div><strong>Phản biện:</strong> {selectedTopic.reviewerName || selectedTopic.committeeReviewerName || "-"}</div>
-                        {selectedTopic.room && <div><strong>Phòng:</strong> {selectedTopic.room}</div>}
-                        {selectedTopic.startTime && <div><strong>Thời gian:</strong> {selectedTopic.startTime} {selectedTopic.endTime ? `- ${selectedTopic.endTime}` : ""}</div>}
-                      </div>
-                      <div style={{ fontWeight: "bold" }}>II. Điểm thành phần:</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
-                        <div style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: 10, background: "#ffffff" }}>
-                          <div style={{ fontSize: 11, color: "#475569", fontWeight: 700 }}>Chủ tịch</div>
-                          <div style={{ fontSize: 16, fontWeight: 900, color: "#1e3a5f", marginTop: 6 }}>{getLockedScoreValue(selectedTopic, selectedTopic.scoreCt)}</div>
-                        </div>
-                        <div style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: 10, background: "#ffffff" }}>
-                          <div style={{ fontSize: 11, color: "#475569", fontWeight: 700 }}>Thư ký</div>
-                          <div style={{ fontSize: 16, fontWeight: 900, color: "#1e3a5f", marginTop: 6 }}>{getLockedScoreValue(selectedTopic, selectedTopic.scoreTk)}</div>
-                        </div>
-                        <div style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: 10, background: "#ffffff" }}>
-                          <div style={{ fontSize: 11, color: "#475569", fontWeight: 700 }}>Phản biện</div>
-                          <div style={{ fontSize: 16, fontWeight: 900, color: "#1e3a5f", marginTop: 6 }}>{getLockedScoreValue(selectedTopic, selectedTopic.scorePb)}</div>
-                        </div>
-                        <div style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: 10, background: "#ffffff" }}>
-                          <div style={{ fontSize: 11, color: "#475569", fontWeight: 700 }}>GVHD</div>
-                          <div style={{ fontSize: 16, fontWeight: 900, color: "#1e3a5f", marginTop: 6 }}>{getLockedScoreValue(selectedTopic, selectedTopic.scoreGvhd ?? selectedTopic.topicSupervisorScore)}</div>
-                        </div>
-                      </div>
-                      {selectedTopic.commentTk || selectedTopic.commentCt && (
-                        <>
-                          <div style={{ fontWeight: "bold" }}>III. Nhận xét chung:</div>
-                          <div style={{ whiteSpace: "pre-wrap", padding: 12, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8 }}>
-                            {selectedTopic.commentTk || selectedTopic.commentCt || "Không có nhận xét"}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ display: "grid", gap: 12 }}>
-                      <div style={{ fontWeight: "bold" }}>I. Điểm đánh giá của phản biện:</div>
-                      <div style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: 12, background: "#f8fafc" }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
-                          <div><strong>Điểm phản biện:</strong> {getLockedScoreValue(selectedTopic, selectedTopic.scorePb)}</div>
-                          <div><strong>Phản biện:</strong> {selectedTopic.reviewerName || selectedTopic.committeeReviewerName || "-"}</div>
-                        </div>
-                      </div>
-                      <div style={{ fontWeight: "bold" }}>II. Nội dung nhận xét phản biện:</div>
-                      <div style={{ whiteSpace: "pre-wrap", padding: 12, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8 }}>
-                        {selectedTopic.commentPb || "Không có nhận xét phản biện chi tiết. Vui lòng tải file PDF để xem đầy đủ."}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div style={{ textAlign: "center", color: "#64748b", marginTop: 40 }}>Vui lòng chọn một đề tài để xem trước.</div>
-              )}
+              boxShadow: "0 10px 20px -5px rgba(243, 112, 33, 0.4)"
+            }}>
+              <div style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "white",
+                animation: "pulse 2s infinite"
+              }} />
+              {getStatusLabel(periodInfo.status)}
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {topicDetailModalOpen && selectedTopic && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 4100, background: "rgba(15, 23, 42, 0.56)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }} onClick={() => setTopicDetailModalOpen(false)}>
-          <div style={{ background: "#ffffff", borderRadius: 12, maxWidth: 980, width: "100%", maxHeight: "86vh", overflow: "auto", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.12)" }} onClick={(event) => event.stopPropagation()}>
-            <div style={{ padding: 20, display: "grid", gap: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Chi tiết đề tài</div>
-                  <h3 style={{ margin: "6px 0 0 0", fontSize: 20, color: "#0f172a" }}>{selectedTopic.topicTitle ?? "-"}</h3>
-                </div>
-                <button type="button" onClick={() => setTopicDetailModalOpen(false)} style={{ border: "none", background: "none", color: "#64748b", cursor: "pointer", fontSize: 20 }}>×</button>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
-                <div style={cardStyle}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <User size={14} color="#0f172a" />
-                    <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#475569" }}>Sinh viên</div>
-                  </div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", marginTop: 6 }}>{selectedTopic.studentName ?? "-"}</div>
-                  <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{selectedTopic.studentCode ?? "-"}</div>
-                </div>
-                <div style={cardStyle}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <Users size={14} color="#0f172a" />
-                    <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#475569" }}>Hội đồng</div>
-                  </div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", marginTop: 6 }}>{selectedCommittee?.name ?? selectedTopic.committeeName ?? selectedTopic.committeeCode ?? "-"}</div>
-                  <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{selectedTopic.committeeCode ?? selectedCommittee?.code ?? "-"}</div>
-                </div>
-                <div style={cardStyle}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <Star size={14} color="#f59e0b" fill="#f59e0b" />
-                    <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#475569" }}>Điểm cuối</div>
-                  </div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: DEEP_BLUE_PRIMARY, marginTop: 6 }}>{getTopicScoreDisplay(selectedTopic)}</div>
-                  <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{getTopicGradeDisplay(selectedTopic)}</div>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
-                <div style={cardStyle}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <FileText size={13} color="#0f172a" />
-                    <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase" }}>Giảng viên hướng dẫn</div>
-                  </div>
-                  <div style={{ marginTop: 6, fontWeight: 700 }}>{selectedTopic.supervisorLecturerName ?? selectedTopic.supervisorName ?? "-"}</div>
-                </div>
-                <div style={cardStyle}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <User size={13} color="#0f172a" />
-                    <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase" }}>Chủ tịch hội đồng</div>
-                  </div>
-                  <div style={{ marginTop: 6, fontWeight: 700 }}>{selectedCommittee?.chair ?? "-"}</div>
-                </div>
-                <div style={cardStyle}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <FileText size={13} color="#0f172a" />
-                    <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase" }}>Ủy viên thư ký</div>
-                  </div>
-                  <div style={{ marginTop: 6, fontWeight: 700 }}>{selectedCommittee?.secretary ?? "-"}</div>
-                </div>
-                <div style={cardStyle}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <MessageSquare size={13} color="#0f172a" />
-                    <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase" }}>Ủy viên phản biện</div>
-                  </div>
-                  <div style={{ marginTop: 6, fontWeight: 700 }}>{selectedCommittee?.reviewer ?? "-"}</div>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 12 }}>
-                <section style={cardStyle}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-                    <FileText size={14} color="#0f172a" />
-                    <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Thông tin đề tài</div>
-                  </div>
-                  <div style={{ display: "grid", gap: 8, marginTop: 10, fontSize: 13, color: "#0f172a" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: "#475569", fontWeight: 600, minWidth: 90 }}>Mã:</span> <strong>{selectedTopic.topicCode ?? "-"}</strong></div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: "#475569", fontWeight: 600, minWidth: 90 }}>Lớp:</span> <strong>{selectedTopic.className ?? "-"}</strong></div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: "#475569", fontWeight: 600, minWidth: 90 }}>Khoá:</span> <strong>{selectedTopic.cohortCode ?? "-"}</strong></div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: "#475569", fontWeight: 600, minWidth: 90 }}>Thời gian:</span> <strong>{selectedTopic.startTime ?? "-"} - {selectedTopic.endTime ?? "-"}</strong></div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: "#475569", fontWeight: 600, minWidth: 90 }}>Trạng thái:</span> <strong>{getStatusLabel(selectedTopic.status ?? (selectedTopic.isLocked ? "LOCKED" : "ONGOING"))}</strong></div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: "#475569", fontWeight: 600, minWidth: 90 }}>Đã nộp:</span> <strong>{selectedTopic.submittedCount ?? 0} / {selectedTopic.requiredCount ?? 0}</strong></div>
-                  </div>
-                </section>
-
-                <section style={cardStyle}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-                    <Paperclip size={14} color="#0f172a" />
-                    <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Tệp đính kèm</div>
-                  </div>
-                  <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
-                    {(selectedTopic.defenseDocuments ?? []).length > 0 ? (
-                      selectedTopic.defenseDocuments!.map((doc, index) => (
-                        <div key={`${String(doc.documentId ?? index)}`} style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 10 }}>
-                          <div style={{ fontWeight: 700, color: "#0f172a" }}>{String(doc.fileName ?? doc.documentType ?? "File")}</div>
-                          <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{String(doc.mimeType ?? "-")}</div>
-                        </div>
-                      ))
-                    ) : (
-                      <div style={{ fontSize: 13, color: "#475569" }}>Chưa có tệp đính kèm.</div>
-                    )}
-                  </div>
-                </section>
-              </div>
-
-              <section style={cardStyle}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-                  <BarChart3 size={14} color="#0f172a" />
-                  <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 700, color: "#0f172a" }}>Bảng điểm thành phần</div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 10, marginTop: 12 }}>
-                  {[
-                    { label: "GVHD", value: getLockedScoreValue(selectedTopic, selectedTopic.scoreGvhd ?? selectedTopic.topicSupervisorScore) },
-                    { label: "CT", value: getLockedScoreValue(selectedTopic, selectedTopic.scoreCt) },
-                    { label: "TK", value: getLockedScoreValue(selectedTopic, selectedTopic.scoreTk) },
-                    { label: "PB", value: getLockedScoreValue(selectedTopic, selectedTopic.scorePb) },
-                    { label: "Tổng", value: getLockedScoreValue(selectedTopic, selectedTopic.finalScore ?? selectedTopic.currentScore) },
-                  ].map((item) => (
-                    <div key={item.label} style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: 10, background: "#ffffff" }}>
-                      <div style={{ fontSize: 11, textTransform: "uppercase", color: "#475569", fontWeight: 700 }}>{item.label}</div>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: DEEP_BLUE_PRIMARY, marginTop: 6 }}>{item.value}</div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
-                <button type="button" onClick={() => downloadCommitteeReport(selectedCommittee ?? { code: String(selectedTopic.committeeCode ?? "-"), name: "-", room: "-", chair: "-", secretary: "-", reviewer: "-", totalTopics: 0, scoredTopics: 0, lockedTopics: 0, status: "ONGOING", currentTopic: "-", currentStudent: "-", progressPercent: 0, estimatedCompletion: "-", delayLabel: "On time", key: String(selectedTopic.committeeCode ?? "-") }, "minutes", "pdf")} style={{ border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", padding: "8px 14px", borderRadius: 8, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}><Download size={14} /> Tải biên bản</button>
-                <button type="button" onClick={() => downloadCommitteeReport(selectedCommittee ?? { code: String(selectedTopic.committeeCode ?? "-"), name: "-", room: "-", chair: "-", secretary: "-", reviewer: "-", totalTopics: 0, scoredTopics: 0, lockedTopics: 0, status: "ONGOING", currentTopic: "-", currentStudent: "-", progressPercent: 0, estimatedCompletion: "-", delayLabel: "On time", key: String(selectedTopic.committeeCode ?? "-") }, "review", "pdf")} style={{ border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", padding: "8px 14px", borderRadius: 8, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}><Download size={14} /> Tải nhận xét</button>
-                <button type="button" onClick={() => setTopicDetailModalOpen(false)} style={{ border: "none", background: DEEP_BLUE_PRIMARY, color: "#ffffff", padding: "8px 14px", borderRadius: 8, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}><X size={14} /> Đóng</button>
-              </div>
-            </div>
-          </div>
+      {/* 2. Main Content Wrapper */}
+      <div style={{
+        maxWidth: 1600,
+        margin: "-48px auto 0 auto",
+        padding: "0 32px",
+        position: "relative",
+        zIndex: 10
+      }}>
+        {/* 2.1 Tab Navigation (Sticky) */}
+        <div style={{
+          background: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(16px)",
+          borderRadius: 20,
+          padding: "8px",
+          display: "flex",
+          gap: 4,
+          boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.1)",
+          marginBottom: 24,
+          position: "sticky",
+          top: 16,
+          zIndex: 100,
+          border: "1px solid rgba(255, 255, 255, 0.8)"
+        }}>
+          {[
+            { key: "overview", label: "Điều hành Dashboard", icon: <LayoutDashboard size={18} />, badge: null },
+            { key: "analytics", label: "Phân tích & Thống kê", icon: <Activity size={18} />, badge: null },
+            { key: "committee", label: "Danh sách Hội đồng", icon: <Users size={18} />, badge: snapshot?.committees?.length ? String(snapshot.committees.length) : null },
+            { key: "post-defense", label: "Hồ sơ Sau bảo vệ", icon: <Archive size={18} />, badge: snapshot?.postDefense?.items?.length ? String(snapshot.postDefense.items.length) : null },
+            { key: "audit", label: "Nhật ký Hệ thống", icon: <ShieldCheck size={18} />, badge: null },
+          ].map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key as any)}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                  padding: "14px 20px",
+                  borderRadius: 14,
+                  border: "none",
+                  background: isActive ? DEEP_BLUE_PRIMARY : "transparent",
+                  color: isActive ? "white" : "#64748b",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                  position: "relative"
+                }}
+              >
+                {tab.icon}
+                {tab.label}
+                {tab.badge && (
+                  <span style={{
+                    background: isActive ? "#f37021" : "#e2e8f0",
+                    color: isActive ? "white" : "#475569",
+                    padding: "2px 8px",
+                    borderRadius: 8,
+                    fontSize: 11,
+                    fontWeight: 800
+                  }}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
-      )}
 
+        {/* 2.2 Dynamic Content Area */}
+        <div style={{
+          animation: "fadeIn 0.4s ease",
+          minHeight: 600
+        }}>
+          {activeTab === "overview" && renderOverviewTab()}
+          {activeTab === "analytics" && renderAnalyticsTab()}
+          {activeTab === "committee" && renderCommitteeTab()}
+          {activeTab === "post-defense" && renderPostDefenseTab()}
+          {activeTab === "audit" && renderAuditTab()}
+        </div>
+
+        {/* Global Modals Area */}
+        {topicDetailModalOpen && renderTopicDetailModal()}
+        {exportModalOpen && renderExportModal()}
+        {previewModalType && renderPreviewModal()}
+        {exportPreviewModalOpen && renderExportPreviewModal()}
+      </div>
     </div>
   );
+};
+
+const formatScore = (s: any) => {
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 ? n.toFixed(1) : "-";
+};
+
+const formatLetterGrade = (s: any, fallback?: string) => {
+  if (fallback && fallback.length <= 2) return fallback;
+  const n = Number(s);
+  if (!Number.isFinite(n) || n <= 0) return "-";
+  if (n >= 9.0) return "A+";
+  if (n >= 8.5) return "A";
+  if (n >= 8.0) return "B+";
+  if (n >= 7.0) return "B";
+  if (n >= 6.5) return "C+";
+  if (n >= 5.5) return "C";
+  if (n >= 5.0) return "D+";
+  if (n >= 4.0) return "D";
+  return "F";
+};
+
+const toRomanNumeral = (num: number) => {
+  const lookup: any = { M: 1000, CM: 900, D: 500, CD: 400, C: 100, XC: 90, L: 50, XL: 40, X: 10, IX: 9, V: 5, IV: 4, I: 1 };
+  let roman = "";
+  for (let i in lookup) {
+    while (num >= lookup[i]) {
+      roman += i;
+      num -= lookup[i];
+    }
+  }
+  return roman;
+};
+
+const stripQuestionSource = (q: string) => (q ?? "").replace(/^\[(II\.1|II\.2)\]\s*/i, "").trimStart();
+
+const formatDate = (d: any) => {
+  if (!d) return "-";
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return String(d);
+  return date.toLocaleDateString("vi-VN");
 };
 
 export default CommitteeOperationsManagement;

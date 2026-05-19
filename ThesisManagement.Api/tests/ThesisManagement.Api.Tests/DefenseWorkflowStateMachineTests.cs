@@ -40,4 +40,15 @@ public class DefenseWorkflowStateMachineTests
         var result = DefenseWorkflowStateMachine.ResolveScoreStatus(submitted, locked);
         result.Should().Be(expected);
     }
+
+    [Theory]
+    [InlineData(DefenseTermStatus.Draft, "Nháp")]
+    [InlineData(DefenseTermStatus.Registration, "Đăng ký")]
+    [InlineData(DefenseTermStatus.Running, "Đang chạy")]
+    [InlineData(DefenseTermStatus.Archived, "Đã lưu trữ")]
+    public void GetStatusLabel_ShouldReturnExpectedLabel(DefenseTermStatus status, string expected)
+    {
+        var result = DefenseWorkflowStateMachine.GetStatusLabel(status);
+        result.Should().Be(expected);
+    }
 }

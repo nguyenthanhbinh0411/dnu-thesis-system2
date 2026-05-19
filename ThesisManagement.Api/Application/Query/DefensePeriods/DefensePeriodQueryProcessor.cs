@@ -207,6 +207,23 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
             _documentExportService = documentExportService;
         }
 
+        private static string BuildCommitteeMemberDisplaySimple(ThesisManagement.Api.Models.CommitteeMember? member, IReadOnlyDictionary<string, LecturerProfile> lecturerProfiles)
+        {
+            if (member == null)
+                return string.Empty;
+
+            var code = member.MemberLecturerCode;
+            if (!string.IsNullOrWhiteSpace(code) && lecturerProfiles.TryGetValue(code.Trim(), out var profile))
+            {
+                return string.IsNullOrWhiteSpace(profile.FullName) ? code.Trim() : profile.FullName!.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(member.MemberUserCode))
+                return member.MemberUserCode!.Trim();
+
+            return string.Empty;
+        }
+
         public async Task<ApiResponse<List<EligibleStudentDto>>> GetStudentsAsync(int periodId, bool eligibleOnly, CancellationToken cancellationToken = default)
         {
             var periodExists = await PeriodExistsAsync(periodId, cancellationToken);
@@ -1964,15 +1981,18 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            var supervisorNameRows = await _db.LecturerProfiles.AsNoTracking()
-                .Where(x => x.LecturerCode != null && supervisorCodes.Contains(x.LecturerCode))
-                .Select(x => new
-                {
-                    x.LecturerCode,
-                    Name = x.FullName ?? x.LecturerCode,
-                    x.Organization
-                })
-                .ToListAsync(cancellationToken);
+            var supervisorNameRows = new List<(string LecturerCode, string Name, string? Organization)>();
+            try
+            {
+                supervisorNameRows = await _db.LecturerProfiles.AsNoTracking()
+                    .Where(x => x.LecturerCode != null && supervisorCodes.Contains(x.LecturerCode))
+                    .Select(x => new ValueTuple<string, string, string?>(x.LecturerCode!, x.FullName ?? x.LecturerCode!, x.Organization))
+                    .ToListAsync(cancellationToken);
+            }
+            catch (Exception ex) when (ex.Message.Contains("ORA-00942", StringComparison.OrdinalIgnoreCase))
+            {
+                supervisorNameRows = new List<(string LecturerCode, string Name, string? Organization)>();
+            }
 
             var supervisorNameMap = supervisorNameRows
                 .Where(x => !string.IsNullOrWhiteSpace(x.LecturerCode))
@@ -2523,37 +2543,94 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                         500);
                 }
 
-                // Fetch the defense assignment for this committee
-                var assignment = await _db.DefenseAssignments.AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.CommitteeID == councilId.Value, cancellationToken);
+                // Fetch all assignments for this committee (so we can build a full score table)
+                var assignments = await _db.DefenseAssignments.AsNoTracking()
+                    .Where(x => x.CommitteeID == councilId.Value || (!string.IsNullOrWhiteSpace(x.CommitteeCode) && x.CommitteeCode == committee.CommitteeCode))
+                    .ToListAsync(cancellationToken);
 
-                // Fetch defense result for score data
-                DefenseResult? defenseResult = null;
-                if (assignment != null)
-                {
-                    defenseResult = await _db.DefenseResults.AsNoTracking()
-                        .FirstOrDefaultAsync(x => x.AssignmentId == assignment.AssignmentID, cancellationToken);
-                }
+                // Preload topics, students, results for assignments
+                var topicCodes = assignments.Where(a => !string.IsNullOrWhiteSpace(a.TopicCode)).Select(a => a.TopicCode!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                var topics = await _db.Topics.AsNoTracking().Where(t => topicCodes.Contains(t.TopicCode)).ToDictionaryAsync(t => t.TopicCode, t => t, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
-                // Fetch student and class information
-                StudentProfile? student = null;
-                Class? studentClass = null;
-                if (assignment != null)
-                {
-                    var topic = await _db.Topics.AsNoTracking()
-                        .FirstOrDefaultAsync(x => x.TopicCode == assignment.TopicCode, cancellationToken);
+                var assignmentIds = assignments.Select(a => a.AssignmentID).Distinct().ToList();
+                var results = assignmentIds.Count == 0 ? new List<DefenseResult>() : await _db.DefenseResults.AsNoTracking().Where(r => assignmentIds.Contains(r.AssignmentId)).ToListAsync(cancellationToken);
 
-                    if (topic != null && !string.IsNullOrWhiteSpace(topic.ProposerStudentCode))
+                var studentCodes = topics.Values.Where(t => !string.IsNullOrWhiteSpace(t.ProposerStudentCode)).Select(t => t.ProposerStudentCode!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                var students = studentCodes.Count == 0 ? new List<StudentProfile>() : await _db.StudentProfiles.AsNoTracking().Where(s => studentCodes.Contains(s.StudentCode)).ToListAsync(cancellationToken);
+
+                var classIds = students.Where(s => s.ClassID.HasValue).Select(s => s.ClassID!.Value).Distinct().ToList();
+                var classes = classIds.Count == 0
+                    ? new List<Class>()
+                    : await _db.Classes.AsNoTracking().Where(c => classIds.Contains(c.ClassID)).ToListAsync(cancellationToken);
+                var classById = classes.ToDictionary(c => c.ClassID, c => c);
+
+                var supervisorCodes = topics.Values
+                    .Where(t => !string.IsNullOrWhiteSpace(t.SupervisorLecturerCode))
+                    .Select(t => t.SupervisorLecturerCode!.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                    var supervisorProfiles = new List<LecturerProfile>();
+                    if (supervisorCodes.Count > 0)
                     {
-                        student = await _db.StudentProfiles.AsNoTracking()
-                            .FirstOrDefaultAsync(x => x.StudentCode == topic.ProposerStudentCode.Trim(), cancellationToken);
-
-                        if (student?.ClassID.HasValue == true)
+                        try
                         {
-                            studentClass = await _db.Classes.AsNoTracking()
-                                .FirstOrDefaultAsync(x => x.ClassID == student.ClassID.Value, cancellationToken);
+                            supervisorProfiles = await _db.LecturerProfiles.AsNoTracking().Where(l => supervisorCodes.Contains(l.LecturerCode)).ToListAsync(cancellationToken);
+                        }
+                        catch (Exception ex) when (ex.Message.Contains("ORA-00942", StringComparison.OrdinalIgnoreCase))
+                        {
+                            supervisorProfiles = new List<LecturerProfile>();
                         }
                     }
+                var supervisorByCode = supervisorProfiles.ToDictionary(l => l.LecturerCode, l => l, StringComparer.OrdinalIgnoreCase);
+
+                // Build student rows for the scoreboard
+                var studentRows = new List<object>();
+                var rowNumber = 1;
+                foreach (var a in assignments.OrderBy(a => a.OrderIndex))
+                {
+                    Topic? topic = null;
+                    if (!string.IsNullOrWhiteSpace(a.TopicCode) && topics.TryGetValue(a.TopicCode.Trim(), out var t)) topic = t;
+
+                    var studentProfile = topic != null && !string.IsNullOrWhiteSpace(topic.ProposerStudentCode)
+                        ? students.FirstOrDefault(s => string.Equals(s.StudentCode, topic.ProposerStudentCode.Trim(), StringComparison.OrdinalIgnoreCase))
+                        : null;
+
+                    var studentClass = studentProfile?.ClassID.HasValue == true && classById.TryGetValue(studentProfile.ClassID.Value, out var cls)
+                        ? cls
+                        : null;
+
+                    var cohortCode = !string.IsNullOrWhiteSpace(studentClass?.CohortCode)
+                        ? studentClass!.CohortCode!.Trim()
+                        : string.Empty;
+
+                    var supervisorCode = topic?.SupervisorLecturerCode?.Trim();
+                    var supervisorName = !string.IsNullOrWhiteSpace(supervisorCode) && supervisorByCode.TryGetValue(supervisorCode, out var supervisorProfile)
+                        ? (supervisorProfile.FullName ?? supervisorCode)
+                        : (supervisorCode ?? string.Empty);
+
+                    var result = results.FirstOrDefault(r => r.AssignmentId == a.AssignmentID);
+
+                    studentRows.Add(new
+                    {
+                        RowNumber = rowNumber.ToString(),
+                        AssignmentCode = a.AssignmentCode,
+                        TopicCode = a.TopicCode,
+                        TopicTitle = topic?.Title ?? string.Empty,
+                        StudentCode = studentProfile?.StudentCode ?? topic?.ProposerStudentCode ?? string.Empty,
+                        StudentName = studentProfile?.FullName ?? string.Empty,
+                        // Backward compatibility: many templates place {{ClassName}} in "Khóa" column.
+                        ClassName = cohortCode,
+                        CohortCode = cohortCode,
+                        ClassCode = FirstNonEmpty(studentClass?.ClassName, studentClass?.ClassCode),
+                        Supervisor = supervisorName,
+                        ScoreGVHD = result != null ? FormatScore(result.ScoreGvhd) : string.Empty,
+                        ScoreCT = result != null ? FormatScore(result.ScoreCt) : string.Empty,
+                        ScoreTK = result != null ? FormatScore(result.ScoreUvtk) : string.Empty,
+                        ScorePB = result != null ? FormatScore(result.ScoreUvpb) : string.Empty,
+                        FinalScore = result != null ? FormatScore(result.FinalScoreNumeric) : string.Empty
+                    });
+
+                    rowNumber++;
                 }
 
                 var reportData = new ReportData
@@ -2565,21 +2642,36 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                     DefenseYear = committee.DefenseDate?.Year.ToString(),
                     MajorCode = "CNTT",
                     MajorName = "Công nghệ thông tin",
-                    ScoreCTNumber = defenseResult != null ? FormatScore(defenseResult.ScoreCt) : string.Empty,
-                    ScoreCTText = defenseResult?.FinalScoreText,
-                    ScoreCTNote = string.Empty,
-                    ScorePBNumber = defenseResult != null ? FormatScore(defenseResult.ScoreUvpb) : string.Empty,
-                    ScorePBText = defenseResult?.FinalScoreText,
-                    ScorePBNote = string.Empty,
-                    ScoreTKNumber = defenseResult != null ? FormatScore(defenseResult.ScoreUvtk) : string.Empty,
-                    ScoreTKText = defenseResult?.FinalScoreText,
-                    ScoreTKNote = string.Empty,
-                    FinalScoreNumber = defenseResult != null ? FormatScore(defenseResult.FinalScoreNumeric) : string.Empty,
-                    FinalScoreText = defenseResult?.FinalScoreText,
-                    StudentCode = student?.StudentCode,
-                    StudentFullName = student?.FullName,
-                    ClassName = FirstNonEmpty(studentClass?.ClassName, studentClass?.ClassCode)
+                    FinalScoreNumber = string.Empty,
+                    FinalScoreText = string.Empty
                 };
+
+                // Attach the full rows as JSON so the document exporter can render the table
+                reportData.AdditionalTokens["StudentRowsJson"] = System.Text.Json.JsonSerializer.Serialize(studentRows);
+
+                // Populate committee member displays (chair/secretary/reviewer) if available
+                var committeeMembers = await _db.CommitteeMembers.AsNoTracking().Where(m => m.CommitteeID == committee.CommitteeID || m.CommitteeCode == committee.CommitteeCode).ToListAsync(cancellationToken);
+                var lecturerCodes = committeeMembers.Where(m => !string.IsNullOrWhiteSpace(m.MemberLecturerCode)).Select(m => m.MemberLecturerCode!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                var lecturerProfiles = new List<LecturerProfile>();
+                if (lecturerCodes.Count > 0)
+                {
+                    try
+                    {
+                        lecturerProfiles = await _db.LecturerProfiles.AsNoTracking().Where(l => lecturerCodes.Contains(l.LecturerCode)).ToListAsync(cancellationToken);
+                    }
+                    catch (Exception ex) when (ex.Message.Contains("ORA-00942", StringComparison.OrdinalIgnoreCase))
+                    {
+                        lecturerProfiles = new List<LecturerProfile>();
+                    }
+                }
+                var chair = committeeMembers.FirstOrDefault(m => string.Equals(m.Role, "CT", StringComparison.OrdinalIgnoreCase));
+                var secretary = committeeMembers.FirstOrDefault(m => string.Equals(m.Role, "UVTK", StringComparison.OrdinalIgnoreCase));
+                var reviewer = committeeMembers.FirstOrDefault(m => string.Equals(m.Role, "UVPB", StringComparison.OrdinalIgnoreCase));
+
+                var lecturerDict = lecturerProfiles.ToDictionary(x => x.LecturerCode ?? string.Empty, x => x);
+                reportData.ChairMemberDisplay = chair != null ? BuildCommitteeMemberDisplaySimple(chair, lecturerDict) : null;
+                reportData.SecretaryMemberDisplay = secretary != null ? BuildCommitteeMemberDisplaySimple(secretary, lecturerDict) : null;
+                reportData.ReviewerMemberDisplay = reviewer != null ? BuildCommitteeMemberDisplaySimple(reviewer, lecturerDict) : null;
 
                 if (normalizedFormat == "pdf")
                 {

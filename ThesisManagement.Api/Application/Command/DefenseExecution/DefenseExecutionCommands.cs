@@ -30,6 +30,11 @@ namespace ThesisManagement.Api.Application.Command.DefenseExecution
         Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
     }
 
+    public interface ICloseLecturerSessionCommand
+    {
+        Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
+    }
+
     public interface IApproveRevisionByLecturerCommand
     {
         Task<ApiResponse<bool>> ExecuteAsync(int revisionId, string? reason, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
@@ -83,6 +88,17 @@ namespace ThesisManagement.Api.Application.Command.DefenseExecution
         public LockLecturerSessionCommand(IDefensePeriodCommandProcessor processor) => _processor = processor;
         public Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default)
             => _processor.LockSessionAsync(committeeId, lecturerCode, actorUserId, idempotencyKey, cancellationToken);
+    }
+
+    public class CloseLecturerSessionCommand : ICloseLecturerSessionCommand
+    {
+        private readonly Application.Command.DefensePeriods.Services.IDefenseScoreWorkflowService _workflowService;
+        public CloseLecturerSessionCommand(Application.Command.DefensePeriods.Services.IDefenseScoreWorkflowService workflowService) => _workflowService = workflowService;
+        public async Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+        {
+            await _workflowService.CloseSessionAsync(committeeId, lecturerCode, actorUserId, cancellationToken);
+            return ApiResponse<bool>.SuccessResponse(true);
+        }
     }
 
     public class ApproveRevisionByLecturerCommand : IApproveRevisionByLecturerCommand

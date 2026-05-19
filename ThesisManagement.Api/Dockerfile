@@ -39,8 +39,8 @@ RUN dotnet publish ThesisManagement.Api.csproj \
 # ============================================
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 
-# Install wget for healthcheck
-RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
+# Install wget for healthcheck and bash for entrypoint script
+RUN apt-get update && apt-get install -y wget bash && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
 RUN groupadd --gid 1000 appgroup && \
@@ -50,6 +50,10 @@ WORKDIR /app
 
 # Copy published files
 COPY --from=publish /app/publish .
+
+# Copy and set up entrypoint script for migrations
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Set ownership
 RUN chown -R appuser:appgroup /app
@@ -68,5 +72,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
     CMD wget -qO- http://localhost:8080/healthz || exit 1
 
-# Entry point - uses DLL name from .csproj AssemblyName
-ENTRYPOINT ["dotnet", "ThesisManagement.Api.dll"]
+# Entry point - runs migrations then starts the application
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

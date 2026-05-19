@@ -210,9 +210,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport.Exporters
 
         private bool ShouldRenderTitle(string title)
         {
-            if (string.IsNullOrWhiteSpace(title)) return false;
-            var upper = title.ToUpperInvariant();
-            return !(upper.Contains("BẢNG") || upper.Contains("BANG") || upper.Contains("DANH SÁCH") || upper.Contains("THEO DÕI"));
+            return !string.IsNullOrWhiteSpace(title);
         }
 
         private string GetReportTitle(string template) => template switch

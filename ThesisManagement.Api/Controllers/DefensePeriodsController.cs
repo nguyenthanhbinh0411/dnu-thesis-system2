@@ -48,6 +48,7 @@ namespace ThesisManagement.Api.Controllers
         }
 
         private readonly ApplicationDbContext _db;
+        private readonly IDefenseModularExportService _modularExportService;
         private readonly ISyncDefensePeriodCommand _syncCommand;
         private readonly IStartDefensePeriodCommand _startCommand;
         private readonly IMoveNextDefensePeriodCommand _moveNextCommand;
@@ -183,9 +184,11 @@ namespace ThesisManagement.Api.Controllers
             IUpdateDefenseTermLecturerCommand updateDefenseTermLecturerCommand,
             IDeleteDefenseTermLecturerCommand deleteDefenseTermLecturerCommand,
             IMoveNextDefensePeriodCommand moveNextCommand,
+            IDefenseModularExportService modularExportService,
             IDefensePeriodQueryProcessor queryProcessor) : base(uow, codeGen, mapper)
         {
             _db = db;
+            _modularExportService = modularExportService;
             _syncCommand = syncCommand;
             _startCommand = startCommand;
             _moveNextCommand = moveNextCommand;
@@ -1755,489 +1758,42 @@ namespace ThesisManagement.Api.Controllers
 
         [HttpGet("{periodId:int}/exports/students")]
         [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
-        public async Task<IActionResult> ExportStudentsByPeriod(int periodId, [FromQuery] string format = "xlsx", [FromQuery] bool includeScores = false)
+        public async Task<IActionResult> ExportStudentsByPeriod(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
         {
-            try
-            {
-                var period = await _uow.DefenseTerms.GetByIdAsync(periodId);
-                if (period == null)
-                {
-                    return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt đồ án tốt nghiệp.", 404));
-                }
-
-                var context = await BuildPeriodPipelineContextAsync(period);
-                var items = await BuildRegistrationItemsAsync(context);
-                var students = items.Where(x => x.IsEligibleForDefense).ToList();
-
-                var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-                var fileNameBase = $"students-period-{periodId}-{timestamp}";
-
-                if (string.Equals(format, "csv", StringComparison.OrdinalIgnoreCase))
-                {
-                    var sb = new System.Text.StringBuilder();
-                    sb.AppendLine("STT,MaSV,Ho va ten,Ngay sinh,Lop,Diem TBC, Xep loai,Ten de tai,Giang vien huong dan,Ghi chu");
-                    for (int i = 0; i < students.Count; i++)
-                    {
-                        var s = students[i];
-                        var line = string.Join(",",
-                            (i + 1).ToString(),
-                            EscapeCsv(s.StudentCode),
-                            EscapeCsv(s.StudentName),
-                            "",
-                            "",
-                            "",
-                            "",
-                            EscapeCsv(s.TopicTitle ?? string.Empty),
-                            EscapeCsv(s.SupervisorName ?? string.Empty),
-                            "");
-                        sb.AppendLine(line);
-                    }
-
-                    var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
-                    return File(bytes, "text/csv", fileNameBase + ".csv");
-                }
-
-                if (string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase))
-                {
-                    var headers = new List<string> { "STT", "Mã SV", "Họ và tên", "Tên đề tài", "Giảng viên hướng dẫn", "Ghi chú" };
-                    var rows = students.Select((s, i) => new List<string>
-                    {
-                        (i+1).ToString(),
-                        s.StudentCode ?? string.Empty,
-                        s.StudentName ?? string.Empty,
-                        s.TopicTitle ?? string.Empty,
-                        s.SupervisorName ?? string.Empty,
-                        string.Empty
-                    }).ToList();
-
-                    var sections = new List<(string Title, List<string> Headers, List<List<string>> Rows)> {
-                        ("DANH SÁCH SINH VIÊN", headers, rows)
-                    };
-
-                    if (includeScores)
-                    {
-                        var scoreRows = await _scoringMatrixQuery.ExecuteAsync(periodId);
-                        var scoreData = scoreRows.Success && scoreRows.Data != null
-                            ? scoreRows.Data.Select((r, idx) => new List<string> { (idx+1).ToString(), r.StudentCode ?? string.Empty, r.StudentName ?? string.Empty, r.FinalScore?.ToString() ?? string.Empty, r.FinalGrade ?? string.Empty }).ToList()
-                            : new List<List<string>>();
-
-                        var scoreHeaders = new List<string> { "STT", "Mã SV", "Họ và tên", "Điểm", "Xếp loại" };
-                        sections.Add(("BẢNG ĐIỂM", scoreHeaders, scoreData));
-                    }
-
-                    var docx = CreateDocxWithTables(sections);
-                    var doc = new Aspose.Words.Document(new MemoryStream(docx));
-                    using var outMs = new MemoryStream();
-                    doc.Save(outMs, Aspose.Words.SaveFormat.Pdf);
-                    return File(outMs.ToArray(), "application/pdf", fileNameBase + ".pdf");
-                }
-
-                using var wb = new XLWorkbook();
-                var ws = wb.Worksheets.Add("Sinh vien");
-                var row = 1;
-                ws.Cell(row, 1).Value = "STT";
-                ws.Cell(row, 2).Value = "Mã SV";
-                ws.Cell(row, 3).Value = "Họ và tên";
-                ws.Cell(row, 4).Value = "Ngày sinh";
-                ws.Cell(row, 5).Value = "Lớp";
-                ws.Cell(row, 6).Value = "Điểm TBC";
-                ws.Cell(row, 7).Value = "Xếp loại";
-                ws.Cell(row, 8).Value = "Tên đề tài";
-                ws.Cell(row, 9).Value = "Giảng viên hướng dẫn";
-                ws.Row(row).Style.Font.Bold = true;
-
-                for (int i = 0; i < students.Count; i++)
-                {
-                    var s = students[i];
-                    row++;
-                    ws.Cell(row, 1).Value = i + 1;
-                    ws.Cell(row, 2).Value = s.StudentCode;
-                    ws.Cell(row, 3).Value = s.StudentName;
-                    ws.Cell(row, 4).Value = string.Empty;
-                    ws.Cell(row, 5).Value = string.Empty;
-                    ws.Cell(row, 6).Value = string.Empty;
-                    ws.Cell(row, 7).Value = string.Empty;
-                    ws.Cell(row, 8).Value = s.TopicTitle ?? string.Empty;
-                    ws.Cell(row, 9).Value = s.SupervisorName ?? string.Empty;
-                }
-
-                // Apply standard branding and formatting
-                ApplyStandardExcelFormatting(ws, "DANH SÁCH SINH VIÊN ĐỦ ĐIỀU KIỆN THAM GIA THỰC HIỆN ĐỒ ÁN", students.Count);
-
-                using var ms = new MemoryStream();
-                wb.SaveAs(ms);
-                ms.Seek(0, SeekOrigin.Begin);
-                var fileBytes = ms.ToArray();
-                if (fileBytes == null || fileBytes.Length == 0)
-                {
-                    return BadRequest(ApiResponse<object>.Fail("Không thể tạo file Excel. Dữ liệu có thể trống hoặc có lỗi khi tạo file.", 400));
-                }
-                return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileNameBase + ".xlsx");
-            }
-            catch (Exception ex)
-            {
-                var errorMsg = $"Lỗi khi xuất danh sách sinh viên: {ex.Message}";
-                return StatusCode(500, ApiResponse<object>.Fail(errorMsg, 500));
-            }
+            var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
+            var result = await _modularExportService.ExportStudentsAsync(periodId, format, fieldList, HttpContext.RequestAborted);
+            if (!result.Success) return StatusCode(result.HttpStatusCode, result);
+            return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
         }
 
         [HttpGet("{periodId:int}/exports/lecturers")]
-        [Authorize(Roles = "Admin,Head,Secretary")]
-        public async Task<IActionResult> ExportLecturersByPeriod(int periodId, [FromQuery] string format = "xlsx", [FromQuery] bool includeScores = false)
+        [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
+        public async Task<IActionResult> ExportLecturersByPeriod(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
         {
-            try
-            {
-                var exists = await DefensePeriodExistsAsync(periodId);
-                if (!exists)
-                {
-                    return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt đồ án tốt nghiệp.", 404));
-                }
-
-                var query = _uow.DefenseTermLecturers.Query().AsNoTracking()
-                    .Where(x => x.DefenseTermId == periodId);
-
-                var list = await query
-                    .GroupJoin(_uow.LecturerProfiles.Query().AsNoTracking(),
-                        dt => dt.LecturerCode,
-                        lp => lp.LecturerCode,
-                        (dt, profiles) => new
-                        {
-                            dt.LecturerCode,
-                            Name = profiles.Select(p => p.FullName).FirstOrDefault() ?? dt.LecturerCode,
-                            dt.IsPrimary,
-                            dt.UserCode
-                        })
-                    .OrderBy(x => x.Name)
-                    .ToListAsync();
-
-                var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-                var fileNameBase = $"lecturers-period-{periodId}-{timestamp}";
-
-                if (string.Equals(format, "csv", StringComparison.OrdinalIgnoreCase))
-                {
-                    var sb = new System.Text.StringBuilder();
-                    sb.AppendLine("STT,MaGV,Ho va ten,IsPrimary,UserCode");
-                    for (int i = 0; i < list.Count; i++)
-                    {
-                        var r = list[i];
-                        sb.AppendLine(string.Join(",",
-                            (i + 1).ToString(),
-                            EscapeCsv(r.LecturerCode),
-                            EscapeCsv(r.Name),
-                            r.IsPrimary ? "Có" : "Không",
-                            EscapeCsv(r.UserCode ?? string.Empty)));
-                    }
-                    return File(System.Text.Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", fileNameBase + ".csv");
-                }
-
-                if (string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase))
-                {
-                    var headers = new List<string> { "STT", "Mã GV", "Họ và tên", "Là chính", "UserCode" };
-                    var rows = list.Select((r, i) => new List<string> { (i+1).ToString(), r.LecturerCode, r.Name, r.IsPrimary ? "Có" : "Không", r.UserCode ?? string.Empty }).ToList();
-
-                    var sections = new List<(string Title, List<string> Headers, List<List<string>> Rows)> { ("DANH SÁCH GIẢng VIÊN", headers, rows) };
-                    var docx = CreateDocxWithTables(sections);
-                    var doc = new Aspose.Words.Document(new MemoryStream(docx));
-                    using var outMs = new MemoryStream();
-                    doc.Save(outMs, Aspose.Words.SaveFormat.Pdf);
-                    return File(outMs.ToArray(), "application/pdf", fileNameBase + ".pdf");
-                }
-
-                using var wb = new XLWorkbook();
-                var ws = wb.Worksheets.Add("Giang vien");
-                var row = 1;
-                ws.Cell(row, 1).Value = "STT";
-                ws.Cell(row, 2).Value = "Mã GV";
-                ws.Cell(row, 3).Value = "Họ và tên";
-                ws.Cell(row, 4).Value = "Là chính";
-                ws.Cell(row, 5).Value = "UserCode";
-                ws.Row(row).Style.Font.Bold = true;
-
-                for (int i = 0; i < list.Count; i++)
-                {
-                    var r = list[i];
-                    row++;
-                    ws.Cell(row, 1).Value = i + 1;
-                    ws.Cell(row, 2).Value = r.LecturerCode;
-                    ws.Cell(row, 3).Value = r.Name;
-                    ws.Cell(row, 4).Value = r.IsPrimary ? "Có" : "Không";
-                    ws.Cell(row, 5).Value = r.UserCode ?? string.Empty;
-                }
-
-                // Apply standard branding and formatting
-                ApplyStandardExcelFormatting(ws, "DANH SÁCH GIẢNG VIÊN HƯỚNG DẪN", list.Count);
-
-                using var ms = new MemoryStream();
-                wb.SaveAs(ms);
-                ms.Seek(0, SeekOrigin.Begin);
-                var fileBytes = ms.ToArray();
-                if (fileBytes == null || fileBytes.Length == 0)
-                {
-                    return BadRequest(ApiResponse<object>.Fail("Không thể tạo file Excel. Dữ liệu có thể trống hoặc có lỗi khi tạo file.", 400));
-                }
-                return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileNameBase + ".xlsx");
-            }
-            catch (Exception ex)
-            {
-                var errorMsg = $"Lỗi khi xuất danh sách giảng viên: {ex.Message}";
-                return StatusCode(500, ApiResponse<object>.Fail(errorMsg, 500));
-            }
-        }
-
-        [HttpGet("{periodId:int}/exports/topics-by-supervisor")]
-        [Authorize(Roles = "Admin,Head,Secretary")]
-        public async Task<IActionResult> ExportTopicsBySupervisor(int periodId, [FromQuery] string? supervisorCode = null, [FromQuery] string format = "xlsx", [FromQuery] bool includeScores = false)
-        {
-            try
-            {
-                var period = await _uow.DefenseTerms.GetByIdAsync(periodId);
-                if (period == null)
-                {
-                    return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt đồ án tốt nghiệp.", 404));
-                }
-
-                var context = await BuildPeriodPipelineContextAsync(period);
-                var items = await BuildRegistrationItemsAsync(context);
-                var filtered = string.IsNullOrWhiteSpace(supervisorCode)
-                    ? items
-                    : items.Where(x => string.Equals(x.SupervisorCode, supervisorCode, StringComparison.OrdinalIgnoreCase)).ToList();
-
-                var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-                var fileNameBase = $"topics-by-supervisor-{periodId}-{timestamp}";
-
-                if (string.Equals(format, "csv", StringComparison.OrdinalIgnoreCase))
-                {
-                    var sb = new System.Text.StringBuilder();
-                    sb.AppendLine("STT,MaDeTai,TenDeTai,MaSV,Ho va ten,MaGVHD,Giang vien huong dan,Trang thai,Da phan cong");
-                    for (int i = 0; i < filtered.Count; i++)
-                    {
-                        var t = filtered[i];
-                        sb.AppendLine(string.Join(",",
-                            (i + 1).ToString(),
-                            EscapeCsv(t.TopicCode),
-                            EscapeCsv(t.TopicTitle),
-                            EscapeCsv(t.StudentCode),
-                            EscapeCsv(t.StudentName),
-                            EscapeCsv(t.SupervisorCode ?? string.Empty),
-                            EscapeCsv(t.SupervisorName ?? string.Empty),
-                            EscapeCsv(t.IsEligibleForDefense ? "Đủ điều kiện" : "Chưa"),
-                            EscapeCsv(t.IsAssignedToCouncil ? "Có" : "Không")));
-                    }
-                    return File(System.Text.Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", fileNameBase + ".csv");
-                }
-
-                if (string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase))
-                {
-                    var headers = new List<string> { "STT", "Mã đề tài", "Tên đề tài", "Mã SV", "Họ và tên", "Mã GVHD", "Giảng viên hướng dẫn", "Trạng thái", "Đã phân công" };
-                    var rows = filtered.Select((t, i) => new List<string> {
-                        (i+1).ToString(), t.TopicCode ?? string.Empty, t.TopicTitle ?? string.Empty, t.StudentCode ?? string.Empty, t.StudentName ?? string.Empty, t.SupervisorCode ?? string.Empty, t.SupervisorName ?? string.Empty, t.IsEligibleForDefense ? "Đủ điều kiện" : "Chưa", t.IsAssignedToCouncil ? "Có" : "Không"
-                    }).ToList();
-
-                    var sections = new List<(string Title, List<string> Headers, List<List<string>> Rows)> { ("DANH SÁCH ĐỀ TÀI", headers, rows) };
-                    if (includeScores)
-                    {
-                        var scoreRows = await _scoringMatrixQuery.ExecuteAsync(periodId);
-                        var scoreData = scoreRows.Success && scoreRows.Data != null
-                            ? scoreRows.Data.Select((r, idx) => new List<string> { (idx+1).ToString(), r.StudentCode ?? string.Empty, r.StudentName ?? string.Empty, r.FinalScore?.ToString() ?? string.Empty, r.FinalGrade ?? string.Empty }).ToList()
-                            : new List<List<string>>();
-                        sections.Add(("BẢNG ĐIỂM", new List<string> { "STT", "Mã SV", "Họ và tên", "Điểm", "Xếp loại" }, scoreData));
-                    }
-
-                    var docx = CreateDocxWithTables(sections);
-                    var doc = new Aspose.Words.Document(new MemoryStream(docx));
-                    using var outMs = new MemoryStream();
-                    doc.Save(outMs, Aspose.Words.SaveFormat.Pdf);
-                    return File(outMs.ToArray(), "application/pdf", fileNameBase + ".pdf");
-                }
-
-                using var wb = new XLWorkbook();
-                var ws = wb.Worksheets.Add("De tai");
-                var row = 1;
-                ws.Cell(row, 1).Value = "STT";
-                ws.Cell(row, 2).Value = "Mã đề tài";
-                ws.Cell(row, 3).Value = "Tên đề tài";
-                ws.Cell(row, 4).Value = "Mã SV";
-                ws.Cell(row, 5).Value = "Họ và tên";
-                ws.Cell(row, 6).Value = "Mã GVHD";
-                ws.Cell(row, 7).Value = "Giảng viên hướng dẫn";
-                ws.Cell(row, 8).Value = "Trạng thái";
-                ws.Cell(row, 9).Value = "Đã phân công";
-                ws.Row(row).Style.Font.Bold = true;
-
-                for (int i = 0; i < filtered.Count; i++)
-                {
-                    var t = filtered[i];
-                    row++;
-                    ws.Cell(row, 1).Value = i + 1;
-                    ws.Cell(row, 2).Value = t.TopicCode;
-                    ws.Cell(row, 3).Value = t.TopicTitle;
-                    ws.Cell(row, 4).Value = t.StudentCode;
-                    ws.Cell(row, 5).Value = t.StudentName;
-                    ws.Cell(row, 6).Value = t.SupervisorCode ?? string.Empty;
-                    ws.Cell(row, 7).Value = t.SupervisorName ?? string.Empty;
-                    ws.Cell(row, 8).Value = t.IsEligibleForDefense ? "Đủ điều kiện" : "Chưa";
-                    ws.Cell(row, 9).Value = t.IsAssignedToCouncil ? "Có" : "Không";
-                }
-
-                using var ms = new MemoryStream();
-                wb.SaveAs(ms);
-                ms.Seek(0, SeekOrigin.Begin);
-                var fileBytes = ms.ToArray();
-                if (fileBytes == null || fileBytes.Length == 0)
-                {
-                    return BadRequest(ApiResponse<object>.Fail("Không thể tạo file Excel. Dữ liệu có thể trống hoặc có lỗi khi tạo file.", 400));
-                }
-                return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileNameBase + ".xlsx");
-            }
-            catch (Exception ex)
-            {
-                var errorMsg = $"Lỗi khi xuất danh sách đề tài: {ex.Message}";
-                return StatusCode(500, ApiResponse<object>.Fail(errorMsg, 500));
-            }
+            var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
+            var result = await _modularExportService.ExportLecturersAsync(periodId, format, fieldList, HttpContext.RequestAborted);
+            if (!result.Success) return StatusCode(result.HttpStatusCode, result);
+            return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
         }
 
         [HttpGet("{periodId:int}/exports/assigned-topics")]
-        [Authorize(Roles = "Admin,Head,Secretary")]
-        public async Task<IActionResult> ExportAssignedTopics(int periodId, [FromQuery] string format = "xlsx", [FromQuery] bool includeScores = false)
+        [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
+        public async Task<IActionResult> ExportAssignedTopics(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
         {
-            try
-            {
-                var period = await _uow.DefenseTerms.GetByIdAsync(periodId);
-                if (period == null)
-                {
-                    return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt đồ án tốt nghiệp.", 404));
-                }
+            var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
+            var result = await _modularExportService.ExportAssignedTopicsAsync(periodId, format, fieldList, HttpContext.RequestAborted);
+            if (!result.Success) return StatusCode(result.HttpStatusCode, result);
+            return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+        }
 
-                var councilIds = await GetPeriodCouncilIdsAsync(period);
-                if (councilIds.Count == 0)
-                {
-                    return Ok(ApiResponse<object>.SuccessResponse(new { Message = "Không có hội đồng để xuất." }));
-                }
-
-                var assignments = await _uow.DefenseAssignments.Query().AsNoTracking()
-                    .Where(x => x.CommitteeID.HasValue && councilIds.Contains(x.CommitteeID.Value))
-                    .ToListAsync();
-
-                var topicIds = assignments.Where(a => a.TopicID.HasValue).Select(a => a.TopicID!.Value).Distinct().ToList();
-                var topics = topicIds.Count == 0
-                    ? new List<dynamic>()
-                    : await _uow.Topics.Query().AsNoTracking()
-                        .Where(t => topicIds.Contains(t.TopicID))
-                        .Select(t => new { t.TopicID, t.TopicCode, t.Title, t.ProposerStudentCode })
-                        .ToListAsync<dynamic>();
-
-                var studentCodes = topics.Select(t => (string?)t.ProposerStudentCode).Where(c => !string.IsNullOrWhiteSpace(c)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                var studentMap = studentCodes.Count == 0
-                    ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                    : (await _uow.StudentProfiles.Query().AsNoTracking()
-                        .Where(s => studentCodes.Contains(s.StudentCode))
-                        .Select(s => new { s.StudentCode, s.FullName })
-                        .ToListAsync())
-                        .ToDictionary(x => x.StudentCode, x => string.IsNullOrWhiteSpace(x.FullName) ? x.StudentCode : x.FullName, StringComparer.OrdinalIgnoreCase);
-
-                var list = assignments.Select(a =>
-                {
-                    var topic = topics.FirstOrDefault(t => t.TopicID == a.TopicID);
-                    var proposer = topic != null ? (string?)topic.ProposerStudentCode : null;
-                    var studentName = string.IsNullOrWhiteSpace(proposer) ? string.Empty : (studentMap.TryGetValue(proposer!, out var n) ? n : proposer);
-                    return new
-                    {
-                        a.AssignmentID,
-                        a.AssignmentCode,
-                        TopicCode = topic != null ? topic.TopicCode : string.Empty,
-                        TopicTitle = topic != null ? topic.Title : string.Empty,
-                        StudentCode = proposer ?? string.Empty,
-                        StudentName = studentName,
-                        a.CommitteeID
-                    };
-                }).OrderBy(x => x.CommitteeID).ThenBy(x => x.AssignmentCode).ToList();
-
-                var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-                var fileNameBase = $"assigned-topics-period-{periodId}-{timestamp}";
-
-                if (string.Equals(format, "csv", StringComparison.OrdinalIgnoreCase))
-                {
-                    var sb = new System.Text.StringBuilder();
-                    sb.AppendLine("STT,MaPhanCong,MaDeTai,TenDeTai,MaSV,Ho va ten,MaHoiDong");
-                    for (int i = 0; i < list.Count; i++)
-                    {
-                        var r = list[i];
-                        sb.AppendLine(string.Join(",",
-                            (i + 1).ToString(),
-                            EscapeCsv(r.AssignmentCode),
-                            EscapeCsv(r.TopicCode),
-                            EscapeCsv(r.TopicTitle),
-                            EscapeCsv(r.StudentCode),
-                            EscapeCsv(r.StudentName),
-                            r.CommitteeID?.ToString() ?? string.Empty));
-                    }
-                    return File(System.Text.Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", fileNameBase + ".csv");
-                }
-
-                if (string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase))
-                {
-                    var headers = new List<string> { "STT", "Mã phân công", "Mã đề tài", "Tên đề tài", "Mã SV", "Họ và tên", "Mã hội đồng" };
-                    var rows = list.Select((r, i) => new List<string> { (i+1).ToString(), r.AssignmentCode ?? string.Empty, r.TopicCode ?? string.Empty, r.TopicTitle ?? string.Empty, r.StudentCode ?? string.Empty, r.StudentName ?? string.Empty, r.CommitteeID?.ToString() ?? string.Empty }).ToList();
-
-                    var sections = new List<(string Title, List<string> Headers, List<List<string>> Rows)> { ("DANH SÁCH PHÂN CÔNG", headers, rows) };
-                    if (includeScores)
-                    {
-                        var scoreRows = await _scoringMatrixQuery.ExecuteAsync(periodId);
-                        var scoreData = scoreRows.Success && scoreRows.Data != null
-                            ? scoreRows.Data.Select((r, idx) => new List<string> { (idx+1).ToString(), r.StudentCode ?? string.Empty, r.StudentName ?? string.Empty, r.FinalScore?.ToString() ?? string.Empty, r.FinalGrade ?? string.Empty }).ToList()
-                            : new List<List<string>>();
-                        sections.Add(("BẢNG ĐIỂM", new List<string> { "STT", "Mã SV", "Họ và tên", "Điểm", "Xếp loại" }, scoreData));
-                    }
-
-                    var docx = CreateDocxWithTables(sections);
-                    var doc = new Aspose.Words.Document(new MemoryStream(docx));
-                    using var outMs = new MemoryStream();
-                    doc.Save(outMs, Aspose.Words.SaveFormat.Pdf);
-                    return File(outMs.ToArray(), "application/pdf", fileNameBase + ".pdf");
-                }
-
-                using var wb = new XLWorkbook();
-                var ws = wb.Worksheets.Add("Phan cong");
-                var row = 1;
-                ws.Cell(row, 1).Value = "STT";
-                ws.Cell(row, 2).Value = "Mã phân công";
-                ws.Cell(row, 3).Value = "Mã đề tài";
-                ws.Cell(row, 4).Value = "Tên đề tài";
-                ws.Cell(row, 5).Value = "Mã SV";
-                ws.Cell(row, 6).Value = "Họ và tên";
-                ws.Cell(row, 7).Value = "Mã hội đồng";
-                ws.Row(row).Style.Font.Bold = true;
-
-                for (int i = 0; i < list.Count; i++)
-                {
-                    var r = list[i];
-                    row++;
-                    ws.Cell(row, 1).Value = i + 1;
-                    ws.Cell(row, 2).Value = r.AssignmentCode;
-                    ws.Cell(row, 3).Value = r.TopicCode;
-                    ws.Cell(row, 4).Value = r.TopicTitle;
-                    ws.Cell(row, 5).Value = r.StudentCode;
-                    ws.Cell(row, 6).Value = r.StudentName;
-                    ws.Cell(row, 7).Value = r.CommitteeID?.ToString() ?? string.Empty;
-                }
-
-                ApplyStandardExcelFormatting(ws, "DANH SÁCH ĐỀ TÀI ĐÃ PHÂN CÔNG", list.Count);
-
-                using var ms = new MemoryStream();
-                wb.SaveAs(ms);
-                ms.Seek(0, SeekOrigin.Begin);
-                var fileBytes = ms.ToArray();
-                if (fileBytes == null || fileBytes.Length == 0)
-                {
-                    return BadRequest(ApiResponse<object>.Fail("Không thể tạo file Excel. Dữ liệu có thể trống hoặc có lỗi khi tạo file.", 400));
-                }
-                return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileNameBase + ".xlsx");
-            }
-            catch (Exception ex)
-            {
-                var errorMsg = $"Lỗi khi xuất danh sách đề tài: {ex.Message}";
-                return StatusCode(500, ApiResponse<object>.Fail(errorMsg, 500));
-            }
+        [HttpGet("{periodId:int}/exports/lecturers-grouped-students")]
+        [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
+        public async Task<IActionResult> ExportGroupedLecturerReport(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
+        {
+            var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
+            var result = await _modularExportService.ExportGroupedLecturerReportAsync(periodId, format, fieldList, HttpContext.RequestAborted);
+            if (!result.Success) return StatusCode(result.HttpStatusCode, result);
+            return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
         }
 
         private static string EscapeCsv(string? v)

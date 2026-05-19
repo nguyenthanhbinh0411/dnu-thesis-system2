@@ -285,14 +285,6 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport.Exporters
         {
             if (string.IsNullOrWhiteSpace(title)) return;
 
-            // Skip rendering small table captions/titles to keep templates cleaner.
-            // Examples: "BẢNG ...", "DANH SÁCH ...", "THEO DÕI ...".
-            var upper = title.ToUpperInvariant();
-            if (upper.Contains("BẢNG") || upper.Contains("BANG") || upper.Contains("DANH SÁCH") || upper.Contains("THEO DÕI"))
-            {
-                return;
-            }
-
             MergeAndStyle(worksheet, row, startCol, row, endCol, title, true, 11);
         }
 
