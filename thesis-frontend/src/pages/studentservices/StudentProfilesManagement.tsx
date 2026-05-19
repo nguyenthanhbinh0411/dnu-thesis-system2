@@ -383,6 +383,7 @@ const StudentProfilesManagement: React.FC = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
 
   const normalizeItems = (items: unknown): StudentDashboardItem[] => {
     if (!Array.isArray(items)) return [];
@@ -789,27 +790,13 @@ const StudentProfilesManagement: React.FC = () => {
         </div>
 
         <div className="spm-actions-wrap">
-          <button type="button" className="spm-create-btn" onClick={openCreate}>
-            <Plus size={14} /> Thêm mới
+          <button
+            type="button"
+            className="spm-btn spm-btn-secondary"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter size={14} /> Bộ lọc
           </button>
-          <div className="spm-filter-wrap">
-            <Filter size={16} />
-            <select
-              value={statusFilter}
-              onChange={(event) => {
-                setStatusFilter(event.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="pending">Chờ duyệt</option>
-              <option value="approved">Đã duyệt</option>
-              <option value="revision">Cần sửa đổi</option>
-              <option value="defense-ready">Chờ bảo vệ</option>
-              <option value="committee-assigned">đã có HĐ</option>
-              <option value="rejected">Từ chối</option>
-            </select>
-          </div>
           <ImportExportActions
             moduleName="students"
             moduleLabel="Quản lý sinh viên"
@@ -818,8 +805,36 @@ const StudentProfilesManagement: React.FC = () => {
               setRefreshTick((prev) => prev + 1);
             }}
           />
+          <button type="button" className="spm-create-btn" onClick={openCreate}>
+            <Plus size={14} /> Thêm mới
+          </button>
         </div>
       </div>
+
+      {showFilters && (
+        <div className="spm-filter-panel">
+          <div className="spm-filter-grid">
+            <div className="spm-filter-field">
+              <span>Trạng thái</span>
+              <select
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="all">Tất cả trạng thái</option>
+                <option value="pending">Chờ duyệt</option>
+                <option value="approved">Đã duyệt</option>
+                <option value="revision">Cần sửa đổi</option>
+                <option value="defense-ready">Chờ bảo vệ</option>
+                <option value="committee-assigned">đã có HĐ</option>
+                <option value="rejected">Từ chối</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="spm-table-wrap">
         <table className="spm-table">

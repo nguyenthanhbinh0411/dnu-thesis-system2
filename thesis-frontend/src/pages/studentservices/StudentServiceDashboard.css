@@ -1,450 +1,1090 @@
+/* ==========================================================================
+   Student Service Dashboard Styles (Central Control Tower Glassmorphic CSS)
+   ========================================================================== */
+
 .student-service-dashboard {
   min-height: calc(100vh - 80px);
-  padding: 28px;
+  padding: 32px;
   background:
     radial-gradient(
-      circle at top left,
-      rgba(243, 112, 33, 0.12),
-      transparent 32%
+      circle at 0% 0%,
+      rgba(243, 112, 33, 0.06),
+      transparent 40%
     ),
     radial-gradient(
-      circle at top right,
-      rgba(14, 165, 233, 0.1),
-      transparent 28%
+      circle at 100% 100%,
+      rgba(14, 165, 233, 0.05),
+      transparent 40%
     ),
-    linear-gradient(180deg, #fffdf9 0%, #f7f8fc 56%, #f5f7fb 100%);
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   color: #0f172a;
+  position: relative;
+  overflow: hidden;
+  font-family: "Inter", "Segoe UI", Roboto, sans-serif;
 }
 
 .student-service-dashboard * {
   box-sizing: border-box;
 }
 
-.ssd-shell {
-  max-width: 1440px;
-  margin: 0 auto;
+/* --------------------------------------------------------------------------
+   Background Decorative Blobs (Premium Floating Backdrop)
+   -------------------------------------------------------------------------- */
+.ssd-blob {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(140px);
+  opacity: 0.06;
+  z-index: 0;
+  pointer-events: none;
+  animation: float-blob 22s infinite alternate ease-in-out;
 }
 
+.ssd-blob--1 {
+  width: 500px;
+  height: 500px;
+  background: #f37021;
+  left: -5%;
+  top: -5%;
+}
+
+.ssd-blob--2 {
+  width: 600px;
+  height: 600px;
+  background: #0ea5e9;
+  right: -5%;
+  bottom: -5%;
+  animation-delay: -5s;
+}
+
+.ssd-blob--3 {
+  width: 400px;
+  height: 400px;
+  background: #8b5cf6;
+  left: 35%;
+  top: 45%;
+  animation-delay: -10s;
+}
+
+@keyframes float-blob {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    transform: translate(60px, 80px) scale(1.18);
+  }
+}
+
+.ssd-shell {
+  max-width: 1480px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* --------------------------------------------------------------------------
+   Hero / Header
+   -------------------------------------------------------------------------- */
 .ssd-hero {
-  display: grid;
-  gap: 16px;
-  margin-bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 20px;
+  padding: 24px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.02);
 }
 
 .ssd-hero__eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: fit-content;
-  padding: 7px 12px;
+  padding: 6px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(243, 112, 33, 0.18);
-  background: rgba(255, 255, 255, 0.8);
-  color: #b45309;
-  font-size: 12px;
+  border: 1px solid rgba(243, 112, 33, 0.15);
+  background: rgba(255, 255, 255, 0.95);
+  color: #d97706;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+  box-shadow: 0 2px 8px rgba(243, 112, 33, 0.05);
 }
 
 .ssd-hero__content {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 20px;
 }
 
 .ssd-hero__title {
   margin: 0;
-  font-size: clamp(28px, 4vw, 44px);
-  line-height: 1.05;
+  font-size: 28px;
   font-weight: 800;
-  color: #111827;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .ssd-hero__desc {
-  max-width: 860px;
-  margin: 12px 0 0;
+  max-width: 850px;
+  margin: 6px 0 0;
   color: #475569;
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .ssd-refresh-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 14px;
-  padding: 12px 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  padding: 10px 18px;
   background: #ffffff;
   color: #0f172a;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .ssd-refresh-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  border-color: rgba(243, 112, 33, 0.25);
+  color: #f37021;
 }
 
-.ssd-stat-grid,
-.ssd-main-grid,
-.ssd-footer-grid {
-  display: grid;
-  gap: 18px;
-  margin-top: 18px;
+.ssd-refresh-btn svg {
+  transition: transform 0.4s ease;
 }
 
+.ssd-refresh-btn:hover svg {
+  transform: rotate(180deg);
+}
+
+/* --------------------------------------------------------------------------
+   TẦNG 1: Global KPIs row
+   -------------------------------------------------------------------------- */
 .ssd-stat-grid {
+  display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.ssd-main-grid {
-  grid-template-columns: 1.35fr 0.95fr;
-}
-
-.ssd-footer-grid {
-  grid-template-columns: 1fr 1fr;
-}
-
-.ssd-stat-card,
-.ssd-panel {
-  position: relative;
-  overflow: hidden;
-  border-radius: 22px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+  gap: 20px;
 }
 
 .ssd-stat-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
   padding: 20px;
   display: flex;
   gap: 16px;
-  align-items: flex-start;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.02);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ssd-stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  border-color: rgba(255, 255, 255, 0.8);
 }
 
 .ssd-stat-card::before {
   content: "";
   position: absolute;
-  inset: 0 auto 0 0;
-  width: 6px;
-  border-radius: 22px 0 0 22px;
-  background: linear-gradient(180deg, #f37021, #fb923c);
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
 }
 
-.ssd-stat-card.orange::before {
-  background: linear-gradient(180deg, #f37021, #fb923c);
-}
-
-.ssd-stat-card.blue::before {
-  background: linear-gradient(180deg, #0284c7, #38bdf8);
-}
-
-.ssd-stat-card.green::before {
-  background: linear-gradient(180deg, #16a34a, #4ade80);
-}
-
-.ssd-stat-card.purple::before {
-  background: linear-gradient(180deg, #7c3aed, #a78bfa);
-}
+.ssd-stat-card.orange::before { background: #f37021; }
+.ssd-stat-card.blue::before { background: #0ea5e9; }
+.ssd-stat-card.green::before { background: #10b981; }
+.ssd-stat-card.purple::before { background: #8b5cf6; }
 
 .ssd-stat-card__icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  color: #fff;
-  background: linear-gradient(135deg, #f37021, #fb923c);
-  box-shadow: 0 12px 24px rgba(243, 112, 33, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  flex-shrink: 0;
 }
 
-.ssd-stat-card.blue .ssd-stat-card__icon {
-  background: linear-gradient(135deg, #0284c7, #38bdf8);
-  box-shadow: 0 12px 24px rgba(2, 132, 199, 0.18);
-}
-
-.ssd-stat-card.green .ssd-stat-card__icon {
-  background: linear-gradient(135deg, #16a34a, #4ade80);
-  box-shadow: 0 12px 24px rgba(22, 163, 74, 0.18);
-}
-
-.ssd-stat-card.purple .ssd-stat-card__icon {
-  background: linear-gradient(135deg, #7c3aed, #a78bfa);
-  box-shadow: 0 12px 24px rgba(124, 58, 237, 0.18);
-}
+.ssd-stat-card.orange .ssd-stat-card__icon { background: rgba(243, 112, 33, 0.08); color: #f37021; }
+.ssd-stat-card.blue .ssd-stat-card__icon { background: rgba(14, 165, 233, 0.08); color: #0ea5e9; }
+.ssd-stat-card.green .ssd-stat-card__icon { background: rgba(16, 185, 129, 0.08); color: #10b981; }
+.ssd-stat-card.purple .ssd-stat-card__icon { background: rgba(139, 92, 246, 0.08); color: #8b5cf6; }
 
 .ssd-stat-card__body {
-  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-grow: 1;
 }
 
 .ssd-stat-card__label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: #64748b;
   text-transform: uppercase;
 }
 
+.ssd-stat-card__value-wrap {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .ssd-stat-card__value {
-  margin-top: 10px;
-  font-size: 34px;
-  line-height: 1;
+  font-size: 24px;
   font-weight: 800;
   color: #0f172a;
 }
 
+.ssd-stat-card__trend {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.ssd-stat-card.orange .ssd-stat-card__trend { background: rgba(243, 112, 33, 0.08); color: #ea580c; }
+.ssd-stat-card.blue .ssd-stat-card__trend { background: rgba(14, 165, 233, 0.08); color: #0284c7; }
+.ssd-stat-card.green .ssd-stat-card__trend { background: rgba(16, 185, 129, 0.08); color: #059669; }
+.ssd-stat-card.purple .ssd-stat-card__trend { background: rgba(139, 92, 246, 0.08); color: #7c3aed; }
+
 .ssd-stat-card__hint {
-  margin-top: 10px;
+  font-size: 12px;
   color: #64748b;
+}
+
+/* --------------------------------------------------------------------------
+   TẦNG 2: 8-Module Central Hub Grid
+   -------------------------------------------------------------------------- */
+.ssd-hub-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ssd-hub-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 4px;
+}
+
+.ssd-hub-header__icon {
+  color: #f37021;
+  background: rgba(243, 112, 33, 0.08);
+  padding: 8px;
+  border-radius: 12px;
+  box-sizing: content-box;
+}
+
+.ssd-hub-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.ssd-hub-subtitle {
+  margin: 2px 0 0;
   font-size: 13px;
-  line-height: 1.5;
+  color: #64748b;
 }
 
+.ssd-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.ssd-hub-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(18px);
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.02);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 250px;
+  overflow: hidden;
+}
+
+/* Floating overlay color glow when hovering cards */
+.ssd-hub-card::after {
+  content: "";
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.15;
+  transition: all 0.35s ease;
+  pointer-events: none;
+}
+
+.ssd-hub-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
+/* Modifiers for 8 color themes */
+.ssd-hub-card.teal::after { background: #0d9488; }
+.ssd-hub-card.teal { border-top: 3px solid #0d9488; }
+
+.ssd-hub-card.blue::after { background: #3b82f6; }
+.ssd-hub-card.blue { border-top: 3px solid #3b82f6; }
+
+.ssd-hub-card.purple::after { background: #a855f7; }
+.ssd-hub-card.purple { border-top: 3px solid #a855f7; }
+
+.ssd-hub-card.orange::after { background: #f97316; }
+.ssd-hub-card.orange { border-top: 3px solid #f97316; }
+
+.ssd-hub-card.rose::after { background: #f43f5e; }
+.ssd-hub-card.rose { border-top: 3px solid #f43f5e; }
+
+.ssd-hub-card.gold::after { background: #eab308; }
+.ssd-hub-card.gold { border-top: 3px solid #eab308; }
+
+.ssd-hub-card.emerald::after { background: #10b981; }
+.ssd-hub-card.emerald { border-top: 3px solid #10b981; }
+
+.ssd-hub-card.neutral::after { background: #64748b; }
+.ssd-hub-card.neutral { border-top: 3px solid #64748b; }
+
+/* Hub Card Header */
+.ssd-hub-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.ssd-hub-card__icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.ssd-hub-card.teal .ssd-hub-card__icon-wrap { background: rgba(13, 148, 136, 0.08); color: #0d9488; }
+.ssd-hub-card.blue .ssd-hub-card__icon-wrap { background: rgba(59, 130, 246, 0.08); color: #3b82f6; }
+.ssd-hub-card.purple .ssd-hub-card__icon-wrap { background: rgba(168, 85, 247, 0.08); color: #a855f7; }
+.ssd-hub-card.orange .ssd-hub-card__icon-wrap { background: rgba(249, 115, 22, 0.08); color: #f97316; }
+.ssd-hub-card.rose .ssd-hub-card__icon-wrap { background: rgba(244, 63, 94, 0.08); color: #f43f5e; }
+.ssd-hub-card.gold .ssd-hub-card__icon-wrap { background: rgba(234, 179, 8, 0.08); color: #ca8a04; }
+.ssd-hub-card.emerald .ssd-hub-card__icon-wrap { background: rgba(16, 185, 129, 0.08); color: #10b981; }
+.ssd-hub-card.neutral .ssd-hub-card__icon-wrap { background: rgba(100, 116, 139, 0.08); color: #64748b; }
+
+.ssd-hub-card__badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.ssd-hub-card.teal .ssd-hub-card__badge { background: rgba(13, 148, 136, 0.06); color: #0d9488; }
+.ssd-hub-card.blue .ssd-hub-card__badge { background: rgba(59, 130, 246, 0.06); color: #3b82f6; }
+.ssd-hub-card.purple .ssd-hub-card__badge { background: rgba(168, 85, 247, 0.06); color: #a855f7; }
+.ssd-hub-card.orange .ssd-hub-card__badge { background: rgba(249, 115, 22, 0.06); color: #f97316; }
+.ssd-hub-card.rose .ssd-hub-card__badge { background: rgba(244, 63, 94, 0.06); color: #f43f5e; }
+.ssd-hub-card.gold .ssd-hub-card__badge { background: rgba(234, 179, 8, 0.06); color: #ca8a04; }
+.ssd-hub-card.emerald .ssd-hub-card__badge { background: rgba(16, 185, 129, 0.06); color: #10b981; }
+.ssd-hub-card.neutral .ssd-hub-card__badge { background: rgba(100, 116, 139, 0.06); color: #64748b; }
+
+/* Hub Card Body */
+.ssd-hub-card__body {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.ssd-hub-card__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.ssd-hub-card__metrics {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.4);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.ssd-hub-card__metric {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.ssd-hub-card__metric .value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.ssd-hub-card__metric .label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+.ssd-hub-card__metric.border-left {
+  border-left: 1px solid rgba(15, 23, 42, 0.06);
+  padding-left: 16px;
+}
+
+/* Custom Visual Elements */
+
+/* 1. Academic Semester Info bubble */
+.ssd-hub-card__footer-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ssd-hub-card__footer-info .dot {
+  width: 6px;
+  height: 6px;
+  background: #0d9488;
+  border-radius: 50%;
+  animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.7; }
+}
+
+.ssd-hub-card__footer-info .text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* 2. Progress chart */
+.ssd-hub-card__chart-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ssd-hub-card__chart-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.ssd-hub-card__chart-label strong {
+  color: #0f172a;
+}
+
+.ssd-hub-card__progress {
+  width: 100%;
+  height: 6px;
+  background: rgba(15, 23, 42, 0.05);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.ssd-hub-card__progress .fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ssd-hub-card.blue .ssd-hub-card__progress .fill { background: #3b82f6; }
+.ssd-hub-card.purple .ssd-hub-card__progress .fill { background: #a855f7; }
+.ssd-hub-card.emerald .ssd-hub-card__progress .fill { background: #10b981; }
+
+/* 3. Topics Segments */
+.ssd-hub-card__segments {
+  display: flex;
+  height: 8px;
+  width: 100%;
+  border-radius: 99px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.05);
+  margin-top: 4px;
+}
+
+.ssd-hub-card__segments .segment {
+  height: 100%;
+  transition: flex 0.5s ease;
+}
+
+.ssd-hub-card__segments .segment.active { background: #f97316; }
+.ssd-hub-card__segments .segment.risk { background: #f43f5e; }
+.ssd-hub-card__segments .segment.backlog { background: #3b82f6; }
+
+.ssd-hub-card__segment-labels {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.ssd-hub-card__segment-labels .dot-lbl {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ssd-hub-card__segment-labels .dot-lbl::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.ssd-hub-card__segment-labels .dot-lbl.active::before { background: #f97316; }
+.ssd-hub-card__segment-labels .dot-lbl.risk::before { background: #f43f5e; }
+
+/* 4. Department rankings */
+.ssd-hub-card__rankings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.ranking-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.ranking-row .rank-idx {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: rgba(244, 63, 94, 0.1);
+  color: #f43f5e;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ranking-row .rank-name {
+  flex-grow: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranking-row .rank-val {
+  color: #0f172a;
+}
+
+/* 5. Tag cloud */
+.ssd-hub-card__tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.mini-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(234, 179, 8, 0.08);
+  color: #ca8a04;
+  border: 1px solid rgba(234, 179, 8, 0.15);
+}
+
+.mini-tag em {
+  font-style: normal;
+  opacity: 0.7;
+}
+
+/* 6. Active user light */
+.ssd-hub-card__user-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.ssd-hub-card__user-status .status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.ssd-hub-card__user-status .status-indicator.active {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.ssd-hub-card__user-status strong {
+  color: #0f172a;
+}
+
+/* Hub Card Footer Nút bấm */
+.ssd-hub-card__footer {
+  margin-top: auto;
+}
+
+.ssd-hub-card__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  padding: 8px 16px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.01);
+  transition: all 0.25s ease;
+}
+
+.ssd-hub-card:hover .ssd-hub-card__btn {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+}
+
+.ssd-hub-card__btn svg {
+  transition: transform 0.25s ease;
+}
+
+.ssd-hub-card__btn:hover svg {
+  transform: translate(2px, -2px);
+}
+
+/* --------------------------------------------------------------------------
+   TẦNG 3: Incidents & Side widgets (Layout double column)
+   -------------------------------------------------------------------------- */
+.ssd-main-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 0.9fr;
+  gap: 24px;
+}
+
+.ssd-sidebar-widgets {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Panels styling */
 .ssd-panel {
-  padding: 22px;
-}
-
-.ssd-panel--wide {
-  min-height: 100%;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .ssd-panel__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 20px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  padding-bottom: 16px;
 }
 
 .ssd-panel__eyebrow {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
   color: #f37021;
   text-transform: uppercase;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
 .ssd-panel__title {
   margin: 0;
-  font-size: 20px;
-  line-height: 1.2;
-  color: #111827;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
 }
 
 .ssd-panel__badge-icon {
-  color: #f37021;
-  flex-shrink: 0;
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.06);
+  padding: 8px;
+  border-radius: 10px;
+  box-sizing: content-box;
 }
 
-.ssd-issue-list,
-.ssd-action-list,
-.ssd-bar-list,
-.ssd-mini-summary,
-.ssd-notes {
-  display: grid;
-  gap: 12px;
+/* Incident section lists */
+.ssd-incident-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.ssd-incident-subsection-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 12px;
+}
+
+.ssd-incident-subsection-title.margin-top {
+  margin-top: 24px;
+}
+
+.ssd-incident-subsection-title .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.ssd-incident-subsection-title .dot.danger { background: #f43f5e; }
+.ssd-incident-subsection-title .dot.warning { background: #f59e0b; }
+
+/* Issue items lists */
+.ssd-issue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ssd-empty-state {
+  text-align: center;
+  padding: 24px;
+  color: #94a3b8;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  border: 1px dashed rgba(15, 23, 42, 0.08);
 }
 
 .ssd-issue-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px;
-  border: 1px solid #e5e7eb;
-  border-radius: 18px;
-  background: linear-gradient(180deg, #ffffff, #fcfdff);
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  transition: all 0.2s ease;
+}
+
+.ssd-issue-item:hover {
+  background: #ffffff;
+  border-color: rgba(243, 112, 33, 0.18);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
 }
 
 .ssd-issue-item.compact {
-  padding: 14px 16px;
+  padding: 10px 14px;
+  border-radius: 12px;
 }
+
+.ssd-issue-item__info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Avatar bubble using initials */
+.ssd-avatar-bubble {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.ssd-avatar-bubble--orange { background: rgba(249, 115, 22, 0.08); color: #ea580c; }
+.ssd-avatar-bubble--blue { background: rgba(59, 130, 246, 0.08); color: #2563eb; }
+.ssd-avatar-bubble--green { background: rgba(16, 185, 129, 0.08); color: #059669; }
+.ssd-avatar-bubble--purple { background: rgba(168, 85, 247, 0.08); color: #7c3aed; }
 
 .ssd-issue-item__main {
   min-width: 0;
-  display: grid;
-  gap: 6px;
 }
 
 .ssd-issue-item__title {
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 700;
-  color: #111827;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ssd-issue-item__subtitle {
-  font-size: 13px;
+  font-size: 12px;
   color: #64748b;
-  line-height: 1.45;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssd-issue-item__right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: 12px;
+  flex-shrink: 0;
 }
 
 .ssd-issue-item__meta {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.ssd-issue-item__meta.stacked {
-  justify-content: space-between;
-}
-
-.ssd-issue-item__date {
-  font-size: 12px;
-  color: #94a3b8;
+  gap: 4px;
 }
 
 .ssd-status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
-
-.ssd-status-badge.success {
-  color: #166534;
-  background: #dcfce7;
-}
-
-.ssd-status-badge.warning {
-  color: #92400e;
-  background: #fef3c7;
-}
-
-.ssd-status-badge.danger {
-  color: #991b1b;
-  background: #fee2e2;
-}
-
-.ssd-status-badge.neutral {
-  color: #334155;
-  background: #e2e8f0;
-}
-
-.ssd-action-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  background: #fff;
-  color: #0f172a;
-  text-decoration: none;
+  font-size: 10.5px;
   font-weight: 700;
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease,
-    border-color 0.18s ease;
+  padding: 2px 8px;
+  border-radius: 99px;
+  text-transform: uppercase;
 }
 
-.ssd-action-card:hover {
-  transform: translateY(-1px);
-  border-color: rgba(243, 112, 33, 0.3);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+.ssd-status-badge.danger { background: rgba(244, 63, 94, 0.08); color: #f43f5e; }
+.ssd-status-badge.warning { background: rgba(245, 158, 11, 0.08); color: #d97706; }
+.ssd-status-badge.success { background: rgba(16, 185, 129, 0.08); color: #10b981; }
+.ssd-status-badge.neutral { background: rgba(100, 116, 139, 0.08); color: #64748b; }
+
+.ssd-issue-item__date {
+  font-size: 11px;
+  color: #94a3b8;
 }
 
-.ssd-bar-row {
-  display: grid;
-  gap: 8px;
+.ssd-row-action-btn {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.02);
+  transition: all 0.2s ease;
 }
 
-.ssd-bar-row__head {
+.ssd-row-action-btn:hover {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
+/* Timeline Milestones style */
+.ssd-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  padding-left: 12px;
+}
+
+.ssd-timeline::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: 15px;
+  bottom: 10px;
+  width: 2px;
+  background: rgba(15, 23, 42, 0.05);
+  z-index: 0;
+}
+
+.ssd-timeline-item {
+  display: flex;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.ssd-timeline-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  outline: 4px solid #ffffff;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.ssd-timeline-dot.completed { background: #10b981; outline-color: rgba(16, 185, 129, 0.12); }
+.ssd-timeline-dot.active { background: #f37021; outline-color: rgba(243, 112, 33, 0.12); animation: status-pulse 1.6s infinite; }
+.ssd-timeline-dot.pending { background: #94a3b8; }
+
+@keyframes status-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(243, 112, 33, 0.4); }
+  70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(243, 112, 33, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(243, 112, 33, 0); }
+}
+
+.ssd-timeline-item__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ssd-timeline-item__title-wrap {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 13px;
-  color: #334155;
-}
-
-.ssd-bar-row__head strong {
-  color: #111827;
-  font-size: 14px;
-}
-
-.ssd-bar-track {
-  height: 10px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  overflow: hidden;
-}
-
-.ssd-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #f37021, #fb923c);
-}
-
-.ssd-mini-summary {
-  gap: 14px;
-}
-
-.ssd-mini-summary__item {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.ssd-mini-summary__item span {
-  color: #64748b;
-  font-size: 13px;
-}
-
-.ssd-mini-summary__item strong {
-  color: #111827;
-  font-size: 20px;
-}
-
-.ssd-note {
-  display: flex;
   gap: 8px;
-  align-items: flex-start;
-  padding: 14px 16px;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  border-radius: 16px;
-  color: #7c2d12;
+}
+
+.ssd-timeline-item__title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ssd-timeline-item__status {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 99px;
+  text-transform: uppercase;
+}
+
+.ssd-timeline-item__status.completed { background: rgba(16, 185, 129, 0.08); color: #10b981; }
+.ssd-timeline-item__status.active { background: rgba(243, 112, 33, 0.08); color: #ea580c; }
+.ssd-timeline-item__status.pending { background: rgba(100, 116, 139, 0.08); color: #64748b; }
+
+.ssd-timeline-item__desc {
+  font-size: 12px;
+  color: #64748b;
   line-height: 1.5;
 }
 
-.ssd-empty-state {
-  padding: 18px;
-  border: 1px dashed #cbd5e1;
-  border-radius: 16px;
-  background: #f8fafc;
-  color: #64748b;
-  text-align: center;
+/* Activity Feed rows */
+.ssd-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-@media (max-width: 1280px) {
+.ssd-activity-item {
+  display: flex;
+  gap: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.ssd-activity-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.ssd-activity-icon--success { background: rgba(16, 185, 129, 0.08); color: #10b981; }
+.ssd-activity-icon--warning { background: rgba(245, 158, 11, 0.08); color: #d97706; }
+.ssd-activity-icon--danger { background: rgba(244, 63, 94, 0.08); color: #f43f5e; }
+
+.ssd-activity-body {
+  flex-grow: 1;
+}
+
+.ssd-activity-body strong {
+  color: #0f172a;
+}
+
+.ssd-activity-time {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   RESPONSIVENESS (Media Breakpoints Queries)
+   -------------------------------------------------------------------------- */
+@media (max-width: 1400px) {
+  .ssd-hub-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1200px) {
   .ssd-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .ssd-main-grid,
-  .ssd-footer-grid {
+  .ssd-hub-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ssd-main-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -453,25 +1093,34 @@
   .student-service-dashboard {
     padding: 16px;
   }
-
   .ssd-hero__content {
     flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
   }
-
+  .ssd-refresh-btn {
+    width: 100%;
+    justify-content: center;
+  }
   .ssd-stat-grid {
     grid-template-columns: 1fr;
   }
-
+  .ssd-hub-grid {
+    grid-template-columns: 1fr;
+  }
   .ssd-panel {
     padding: 18px;
   }
-
-  .ssd-issue-item,
-  .ssd-mini-summary__item {
+  .ssd-issue-item {
     flex-direction: column;
     align-items: flex-start;
+    gap: 12px;
   }
-
+  .ssd-issue-item__right {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+  }
   .ssd-issue-item__meta {
     align-items: flex-start;
   }

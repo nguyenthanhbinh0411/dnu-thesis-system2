@@ -8,6 +8,7 @@ import ManagementFormSection, {
 import { useToast } from "../../context/useToast";
 import type { ApiResponse } from "../../types/api";
 import "../admin/Dashboard.css";
+import "./TagsManagement.css";
 
 type RecordData = Record<string, unknown>;
 
@@ -374,26 +375,13 @@ const TagsManagement: React.FC = () => {
   };
 
   return (
-    <div className="admin-dashboard">
+    <div className="tags-module admin-dashboard">
       <div className="dashboard-header">
         <h1>Tag Management</h1>
         <p>Quản lý tags: danh sách, CRUD và import dữ liệu từ file.</p>
       </div>
 
-      <div
-        style={{
-          background: "white",
-          padding: "16px 18px",
-          borderRadius: 12,
-          marginBottom: 20,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
+      <div className="tags-toolbar">
         <div
           style={{
             display: "flex",
@@ -402,27 +390,12 @@ const TagsManagement: React.FC = () => {
             flexWrap: "wrap",
           }}
         >
-          <div style={{ flex: "1 1 260px", position: "relative" }}>
-            <Search
-              size={18}
-              style={{
-                position: "absolute",
-                left: 10,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: "#94a3b8",
-              }}
-            />
+          <div className="tags-search-wrap">
+            <Search size={16} />
             <input
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Tìm theo mã/tên tag..."
-              style={{
-                width: "100%",
-                padding: "9px 10px 9px 34px",
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-              }}
             />
             {suggestions.length > 0 && searchInput.trim() ? (
               <div
@@ -468,18 +441,12 @@ const TagsManagement: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowAdvancedFilters((prev) => !prev)}
+            className="tags-btn tags-btn-secondary"
             style={{
-              border: "1px solid #cbd5e1",
               background: showAdvancedFilters ? "#fff7ed" : "#fff",
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontWeight: 600,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
             }}
           >
-            <Filter size={16} /> Bộ lọc
+            <Filter size={14} /> Bộ lọc
           </button>
 
           <button
@@ -488,36 +455,19 @@ const TagsManagement: React.FC = () => {
               setPage(1);
               void loadRows();
             }}
-            style={{
-              border: "1px solid #cbd5e1",
-              background: "#fff",
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontWeight: 600,
-            }}
+            className="tags-btn tags-btn-secondary"
           >
             Tìm kiếm
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="tags-actions-wrap">
           <button
             type="button"
             onClick={openCreate}
-            style={{
-              border: "none",
-              background: "#f37021",
-              color: "#fff",
-              borderRadius: 8,
-              padding: "9px 12px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            className="tags-create-btn"
           >
-            <Plus size={16} /> Create Tag
+            <Plus size={14} /> Create Tag
           </button>
           <ImportExportActions
             moduleName="tags"
@@ -528,55 +478,38 @@ const TagsManagement: React.FC = () => {
       </div>
 
       {showAdvancedFilters && (
-        <div
-          style={{
-            background: "#fff",
-            border: "1px solid #e2e8f0",
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 16,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-            gap: 10,
-          }}
-        >
-          <input
-            value={filters.tagCode}
-            onChange={(event) =>
-              setFilters((prev) => ({ ...prev, tagCode: event.target.value }))
-            }
-            placeholder="Lọc theo TagCode"
-            style={{
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
-              padding: 10,
-            }}
-          />
-          <input
-            value={filters.tagName}
-            onChange={(event) =>
-              setFilters((prev) => ({ ...prev, tagName: event.target.value }))
-            }
-            placeholder="Lọc theo TagName"
-            style={{
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
-              padding: 10,
-            }}
-          />
-          <button
-            type="button"
-            onClick={resetFilters}
-            style={{
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
-              padding: "10px 12px",
-              background: "#fff",
-              fontWeight: 600,
-            }}
-          >
-            Xóa bộ lọc
-          </button>
+        <div className="tags-filter-panel">
+          <div className="tags-filter-grid">
+            <label className="tags-filter-field">
+              <span>Mã Tag</span>
+              <input
+                value={filters.tagCode}
+                onChange={(event) =>
+                  setFilters((prev) => ({ ...prev, tagCode: event.target.value }))
+                }
+                placeholder="Lọc theo TagCode"
+              />
+            </label>
+            <label className="tags-filter-field">
+              <span>Tên Tag</span>
+              <input
+                value={filters.tagName}
+                onChange={(event) =>
+                  setFilters((prev) => ({ ...prev, tagName: event.target.value }))
+                }
+                placeholder="Lọc theo TagName"
+              />
+            </label>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="tags-btn tags-btn-secondary"
+            >
+              Xóa bộ lọc
+            </button>
+          </div>
         </div>
       )}
 

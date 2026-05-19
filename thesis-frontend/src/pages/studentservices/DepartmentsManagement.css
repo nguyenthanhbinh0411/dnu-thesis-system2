@@ -56,6 +56,8 @@
   padding: 8px 10px 8px 36px;
   font-size: 12px;
   outline: none;
+  height: 32px;
+  box-sizing: border-box;
 }
 
 .departments-actions-wrap {
@@ -72,23 +74,40 @@
   color: #fff;
   font-size: 12px;
   font-weight: 600;
-  padding: 7px 10px;
+  padding: 7px 12px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   cursor: pointer;
+  height: 32px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.departments-create-btn:hover {
+  background: #e65c0f;
 }
 
 .departments-filter-btn {
   border: 1px solid #cbd5e1;
   background: #fff;
   border-radius: 8px;
-  padding: 7px 10px;
+  padding: 7px 12px;
+  font-size: 12px;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   cursor: pointer;
+  height: 32px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.departments-filter-btn:hover {
+  background: #f8fafc;
 }
 
 .departments-search-wrap input:focus,
@@ -135,8 +154,12 @@
 .departments-filter-field input {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   background: #fff;
+  font-size: 12px;
+  outline: none;
+  height: 32px;
+  box-sizing: border-box;
 }
 
 .departments-filter-actions {
@@ -149,8 +172,20 @@
   border: 1px solid #cbd5e1;
   background: #fff;
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
+  height: 32px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.departments-reset-btn:hover {
+  background: #f8fafc;
 }
 
 .departments-table-wrap {
@@ -697,4 +732,28 @@
   .departments-paging {
     align-items: flex-start;
   }
+}
+
+/* Override ImportExportActions inside the departments module */
+.departments-module .departments-actions-wrap button {
+  height: 32px !important;
+  min-width: auto !important;
+  border-radius: 8px !important;
+  padding: 7px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.departments-module .departments-actions-wrap button.departments-create-btn {
+  background: #f37021 !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+.departments-module .departments-actions-wrap button.departments-create-btn:hover {
+  background: #e65c0f !important;
 }

@@ -15,6 +15,7 @@ import ImportExportActions from "../../components/admin/ImportExportActions";
 import { useToast } from "../../context/useToast";
 import type { ApiResponse } from "../../types/api";
 import "../admin/Dashboard.css";
+import "./CatalogTopicsWarehousePage.css";
 
 type CatalogTopicTagDto = {
   tagID: number;
@@ -587,7 +588,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
   };
 
   return (
-    <div className="admin-dashboard">
+    <div className="warehouse-module admin-dashboard">
       <div className="dashboard-header">
         <h1>Kho đề tài có sẵn</h1>
         <p>
@@ -596,251 +597,163 @@ const CatalogTopicsWarehousePage: React.FC = () => {
         </p>
       </div>
 
-      <div style={sectionCardStyle}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flex: "1 1 320px",
-              minWidth: 280,
-            }}
-          >
-            <Search size={16} color="#64748b" />
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Tìm kiếm theo search..."
-              style={{
-                width: "100%",
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                padding: "9px 12px",
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-              alignItems: "center",
-              flex: "0 1 auto",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setShowFilters((prev) => !prev)}
-              style={{
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                padding: "8px 12px",
-                background: showFilters ? "#fff7ed" : "#fff",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                fontWeight: 600,
-              }}
-            >
-              <Filter size={16} />
-              {showFilters ? "Ẩn bộ lọc" : "Bộ lọc nâng cao"}
-            </button>
-
-            <select
-              value={sortBy}
-              onChange={(event) => {
-                setSortBy(event.target.value as SortableField);
-                setPage(1);
-              }}
-              style={{
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                padding: "8px 10px",
-                background: "#fff",
-              }}
-            >
-              <option value="lastUpdated">Sort: lastUpdated</option>
-              <option value="createdAt">Sort: createdAt</option>
-              <option value="title">Sort: title</option>
-              <option value="catalogTopicCode">Sort: catalogTopicCode</option>
-              <option value="departmentCode">Sort: departmentCode</option>
-              <option value="assignedStatus">Sort: assignedStatus</option>
-            </select>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSortDescending((prev) => !prev);
-                setPage(1);
-              }}
-              style={{
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                padding: "8px 12px",
-                background: "#fff",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                fontWeight: 600,
-              }}
-            >
-              {sortDescending ? (
-                <ArrowDownWideNarrow size={16} />
-              ) : (
-                <ArrowUpWideNarrow size={16} />
-              )}
-              {sortDescending ? "DESC" : "ASC"}
-            </button>
-
-            <ImportExportActions
-              moduleName="catalogtopics"
-              moduleLabel="Kho đề tài có sẵn"
-              onImportSuccess={loadRows}
-            />
-          </div>
+      <div className="warehouse-toolbar">
+        <div className="warehouse-search-wrap">
+          <Search size={16} />
+          <input
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Tìm kiếm theo search..."
+          />
         </div>
 
-        {showFilters && (
-          <div
+        <div className="warehouse-actions-wrap">
+          <button
+            type="button"
+            onClick={() => setShowFilters((prev) => !prev)}
+            className="warehouse-btn warehouse-btn-secondary"
             style={{
-              border: "1px solid #e2e8f0",
-              borderRadius: 10,
-              padding: 12,
-              background: "#f8fafc",
-              display: "grid",
-              gap: 10,
+              background: showFilters ? "#fff7ed" : "#fff",
             }}
           >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
-                gap: 10,
-              }}
-            >
+            <Filter size={14} />
+            {showFilters ? "Ẩn bộ lọc" : "Bộ lọc nâng cao"}
+          </button>
+
+          <select
+            value={sortBy}
+            onChange={(event) => {
+              setSortBy(event.target.value as SortableField);
+              setPage(1);
+            }}
+            className="warehouse-select"
+          >
+            <option value="lastUpdated">Sort: lastUpdated</option>
+            <option value="createdAt">Sort: createdAt</option>
+            <option value="title">Sort: title</option>
+            <option value="catalogTopicCode">Sort: catalogTopicCode</option>
+            <option value="departmentCode">Sort: departmentCode</option>
+            <option value="assignedStatus">Sort: assignedStatus</option>
+          </select>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSortDescending((prev) => !prev);
+              setPage(1);
+            }}
+            className="warehouse-btn warehouse-btn-secondary"
+          >
+            {sortDescending ? (
+              <ArrowDownWideNarrow size={14} />
+            ) : (
+              <ArrowUpWideNarrow size={14} />
+            )}
+            {sortDescending ? "DESC" : "ASC"}
+          </button>
+
+          <ImportExportActions
+            moduleName="catalogtopics"
+            moduleLabel="Kho đề tài có sẵn"
+            onImportSuccess={loadRows}
+          />
+        </div>
+      </div>
+
+      {showFilters && (
+        <div className="warehouse-filter-panel">
+          <div className="warehouse-filter-grid">
+            <label className="warehouse-filter-field">
+              <span>Mã đề tài</span>
               <input
                 value={filters.catalogTopicCode}
                 onChange={(event) =>
                   updateFilter("catalogTopicCode", event.target.value)
                 }
                 placeholder="Mã đề tài"
-                style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 8,
-                  padding: 8,
-                }}
               />
+            </label>
+            <label className="warehouse-filter-field">
+              <span>Tiêu đề</span>
               <input
                 value={filters.title}
                 onChange={(event) => updateFilter("title", event.target.value)}
                 placeholder="Tiêu đề"
-                style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 8,
-                  padding: 8,
-                }}
               />
+            </label>
+            <label className="warehouse-filter-field">
+              <span>Khoa</span>
               <input
                 value={filters.departmentCode}
                 onChange={(event) =>
                   updateFilter("departmentCode", event.target.value)
                 }
                 placeholder="Khoa"
-                style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 8,
-                  padding: 8,
-                }}
               />
+            </label>
+            <label className="warehouse-filter-field">
+              <span>Trạng thái</span>
               <input
                 value={filters.assignedStatus}
                 onChange={(event) =>
                   updateFilter("assignedStatus", event.target.value)
                 }
                 placeholder="Trạng thái"
-                style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 8,
-                  padding: 8,
-                }}
               />
+            </label>
+            <label className="warehouse-filter-field">
+              <span>Mã tag</span>
               <input
                 value={filters.tagCode}
                 onChange={(event) =>
                   updateFilter("tagCode", event.target.value)
                 }
                 placeholder="Mã tag"
-                style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 8,
-                  padding: 8,
-                }}
               />
+            </label>
+            <label className="warehouse-filter-field">
+              <span>Tên tag</span>
               <input
                 value={filters.tagName}
                 onChange={(event) =>
                   updateFilter("tagName", event.target.value)
                 }
                 placeholder="Tên tag"
-                style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 8,
-                  padding: 8,
-                }}
               />
+            </label>
+            <label className="warehouse-filter-field">
+              <span>Từ ngày</span>
               <input
                 type="date"
                 value={filters.fromDate}
                 onChange={(event) =>
                   updateFilter("fromDate", event.target.value)
                 }
-                style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 8,
-                  padding: 8,
-                }}
               />
+            </label>
+            <label className="warehouse-filter-field">
+              <span>Đến ngày</span>
               <input
                 type="date"
                 value={filters.toDate}
                 onChange={(event) => updateFilter("toDate", event.target.value)}
-                style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 8,
-                  padding: 8,
-                }}
               />
-            </div>
-
-            <div
-              style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}
-            >
-              <button
-                type="button"
-                onClick={resetFilters}
-                style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 8,
-                  padding: "8px 12px",
-                  background: "#fff",
-                }}
-              >
-                Xóa bộ lọc
-              </button>
-            </div>
+            </label>
           </div>
-        )}
-      </div>
+
+          <div
+            style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}
+          >
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="warehouse-btn warehouse-btn-secondary"
+            >
+              Xóa bộ lọc
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={sectionCardStyle}>
         <div style={{ overflowX: "auto" }}>

@@ -59,6 +59,8 @@
   padding: 8px 10px 8px 36px;
   font-size: 12px;
   outline: none;
+  height: 32px;
+  box-sizing: border-box;
 }
 
 .topics-actions-wrap {
@@ -75,23 +77,40 @@
   color: #fff;
   font-size: 12px;
   font-weight: 600;
-  padding: 7px 10px;
+  padding: 7px 12px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   cursor: pointer;
+  height: 32px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.topics-create-btn:hover {
+  background: #e65c0f;
 }
 
 .topics-filter-btn {
   border: 1px solid #cbd5e1;
   background: #fff;
   border-radius: 8px;
-  padding: 7px 10px;
+  padding: 7px 12px;
+  font-size: 12px;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   cursor: pointer;
+  height: 32px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.topics-filter-btn:hover {
+  background: #f8fafc;
 }
 
 .topics-search-wrap input:focus,
@@ -137,8 +156,12 @@
 .topics-filter-field input {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   background: #fff;
+  font-size: 12px;
+  outline: none;
+  height: 32px;
+  box-sizing: border-box;
 }
 
 .topics-filter-actions {
@@ -151,8 +174,20 @@
   border: 1px solid #cbd5e1;
   background: #fff;
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
+  height: 32px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.topics-reset-btn:hover {
+  background: #f8fafc;
 }
 
 .topics-table-wrap {
@@ -1212,4 +1247,28 @@
   .topics-profile-name {
     font-size: 20px;
   }
+}
+
+/* Override ImportExportActions inside the topics module */
+.topics-module .topics-actions-wrap button {
+  height: 32px !important;
+  min-width: auto !important;
+  border-radius: 8px !important;
+  padding: 7px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.topics-module .topics-actions-wrap button.topics-create-btn {
+  background: #f37021 !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+.topics-module .topics-actions-wrap button.topics-create-btn:hover {
+  background: #e65c0f !important;
 }

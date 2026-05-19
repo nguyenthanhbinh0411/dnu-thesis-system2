@@ -52,11 +52,19 @@
   color: #fff;
   font-size: 12px;
   font-weight: 600;
-  padding: 7px 10px;
+  padding: 7px 12px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   cursor: pointer;
+  height: 32px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.spm-create-btn:hover {
+  background: #e65c0f;
 }
 
 .spm-search-wrap {
@@ -74,11 +82,13 @@
 
 .spm-search-wrap input {
   width: 100%;
-  border: 1px solid #d1d5db;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 8px 10px 8px 36px;
   font-size: 12px;
   outline: none;
+  height: 32px;
+  box-sizing: border-box;
 }
 
 .spm-filter-wrap {
@@ -1482,3 +1492,96 @@
   font-weight: 600;
 }
 
+.spm-btn {
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+.spm-btn-secondary {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+}
+
+.spm-btn-secondary:hover {
+  background: #f8fafc;
+}
+
+.spm-filter-panel {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  background: #f8fafc;
+  margin-bottom: 14px;
+}
+
+.spm-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.spm-filter-field {
+  display: grid;
+  gap: 6px;
+}
+
+.spm-filter-field span {
+  font-size: 13px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.spm-filter-field select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fff;
+  font-size: 12px;
+  outline: none;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+.spm-filter-field select:focus {
+  border-color: #f37021;
+  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+}
+
+/* Force all buttons in the actions wrap to be compact, overriding any inline styles */
+.student-profiles-module .spm-actions-wrap button {
+  height: 32px !important;
+  min-width: auto !important;
+  border-radius: 8px !important;
+  padding: 7px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+/* Maintain proper background for primary action button even under actions override */
+.student-profiles-module .spm-actions-wrap button.spm-create-btn {
+  background: #f37021 !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+.student-profiles-module .spm-actions-wrap button.spm-create-btn:hover {
+  background: #e65c0f !important;
+}
