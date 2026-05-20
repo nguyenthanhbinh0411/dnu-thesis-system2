@@ -1,0 +1,151 @@
+.warehouse-module {
+  padding: 16px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: transparent;
+}
+
+.warehouse-toolbar {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  padding: 12px;
+  margin-bottom: 14px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.warehouse-search-wrap {
+  position: relative;
+  flex: 1 1 360px;
+  display: flex;
+  align-items: center;
+}
+
+.warehouse-search-wrap svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+.warehouse-search-wrap input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px 8px 36px;
+  font-size: 12px;
+  outline: none;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+.warehouse-search-wrap input:focus,
+.warehouse-filter-panel input:focus,
+.warehouse-select:focus,
+.warehouse-btn:focus {
+  border-color: #f37021;
+  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+}
+
+.warehouse-actions-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.warehouse-btn {
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+.warehouse-btn-secondary {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+}
+
+.warehouse-btn-secondary:hover {
+  background: #f8fafc;
+}
+
+.warehouse-select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fff;
+  font-size: 12px;
+  outline: none;
+  height: 32px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.warehouse-filter-panel {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  background: #f8fafc;
+  margin-bottom: 14px;
+}
+
+.warehouse-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.warehouse-filter-field {
+  display: grid;
+  gap: 6px;
+}
+
+.warehouse-filter-field span {
+  font-size: 13px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.warehouse-filter-field input {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fff;
+  font-size: 12px;
+  outline: none;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+/* Override ImportExportActions inside the warehouse module */
+.warehouse-module .warehouse-actions-wrap button {
+  height: 32px !important;
+  min-width: auto !important;
+  border-radius: 8px !important;
+  padding: 7px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}

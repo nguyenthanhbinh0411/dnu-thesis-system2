@@ -1,0 +1,196 @@
+.users-module {
+  padding: 16px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: transparent;
+}
+
+.users-toolbar {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  padding: 12px;
+  margin-bottom: 14px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.users-filters {
+  display: flex;
+  gap: 10px;
+  flex: 1 1 420px;
+  flex-wrap: wrap;
+}
+
+.users-search-wrap {
+  position: relative;
+  flex: 1 1 240px;
+  display: flex;
+  align-items: center;
+}
+
+.users-search-wrap svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.users-input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px 8px 36px;
+  font-size: 12px;
+  outline: none;
+  height: 32px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.users-select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fff;
+  font-size: 12px;
+  height: 32px;
+  box-sizing: border-box;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.users-btn-secondary {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  height: 32px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.users-btn-secondary:hover {
+  background: #f8fafc;
+}
+
+.users-create-btn {
+  border: none;
+  border-radius: 8px;
+  background: #f37021;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  height: 32px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.users-create-btn:hover {
+  background: #e65c0f;
+}
+
+.users-input:focus,
+.users-select:focus,
+.users-btn-secondary:focus,
+.users-create-btn:focus {
+  border-color: #f37021;
+  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+}
+
+.users-paging {
+  margin-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.users-paging-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.users-paging-controls select,
+.users-paging-controls button {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px 10px;
+  font-size: 12px;
+  height: 32px;
+  box-sizing: border-box;
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.users-paging-controls button {
+  cursor: pointer;
+  font-weight: 600;
+  color: #334155;
+  transition: all 0.2s;
+}
+
+.users-paging-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.users-paging-controls button:not(:disabled):hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.users-actions-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Force override for button elements in users-actions-wrap if there are external elements */
+.users-module .users-actions-wrap button {
+  height: 32px !important;
+  min-width: auto !important;
+  border-radius: 8px !important;
+  padding: 7px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.users-module .users-actions-wrap button.users-create-btn {
+  background: #f37021 !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+.users-module .users-actions-wrap button.users-create-btn:hover {
+  background: #e65c0f !important;
+}

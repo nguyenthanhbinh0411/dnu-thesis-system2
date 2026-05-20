@@ -719,165 +719,82 @@ const LecturerProfilesManagement: React.FC = () => {
         </p>
       </div>
 
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 12,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-          padding: 16,
-          marginBottom: 20,
-          display: "grid",
-          gap: 12,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flex: "1 1 300px",
-            }}
+      <div className="lpm-toolbar">
+        <div className="lpm-search-wrap">
+          <Search size={16} />
+          <input
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Tìm kiếm nhanh..."
+          />
+        </div>
+
+        <div className="lpm-actions-wrap">
+          <button
+            type="button"
+            className="lpm-btn lpm-btn-secondary"
+            onClick={() => setShowAdvancedFilters((prev) => !prev)}
           >
-            <Search size={16} color="#64748b" />
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Tìm kiếm nhanh..."
-              style={{
-                width: "100%",
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                padding: "9px 12px",
-              }}
-            />
+            <Filter size={14} />{" "}
+            {showAdvancedFilters ? "Ẩn lọc" : "Lọc nâng cao"}
+          </button>
+          <ImportExportActions
+            moduleName="lecturers"
+            moduleLabel="Quản lý giảng viên"
+            onImportSuccess={loadRows}
+          />
+          <button
+            type="button"
+            className="lpm-create-btn"
+            onClick={openCreate}
+          >
+            <Plus size={14} /> Thêm mới
+          </button>
+        </div>
+      </div>
+
+      {showAdvancedFilters && (
+        <div className="lpm-filter-panel">
+          <div className="lpm-filter-grid">
+            {filterFields.map((field) => (
+              <label key={field.name} className="lpm-filter-field">
+                <span>{field.label}</span>
+                <input
+                  type={
+                    field.type === "number"
+                      ? "number"
+                      : field.type === "date"
+                        ? "date"
+                        : "text"
+                  }
+                  value={advancedFilters[field.name] ?? ""}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setAdvancedFilters((prev) => ({
+                      ...prev,
+                      [field.name]: next,
+                    }));
+                    setPage(1);
+                  }}
+                />
+              </label>
+            ))}
           </div>
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div
+            style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}
+          >
             <button
               type="button"
-              onClick={() => setShowAdvancedFilters((prev) => !prev)}
-              style={{
-                border: "1px solid #cbd5e1",
-                background: "#fff",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontWeight: 600,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                cursor: "pointer",
-              }}
+              className="lpm-btn lpm-btn-secondary"
+              onClick={resetFilters}
             >
-              <Filter size={16} />{" "}
-              {showAdvancedFilters ? "Ẩn lọc" : "Lọc nâng cao"}
-            </button>
-            <ImportExportActions
-              moduleName="lecturers"
-              moduleLabel="Quản lý giảng viên"
-              onImportSuccess={loadRows}
-            />
-            <button
-              type="button"
-              onClick={openCreate}
-              style={{
-                border: "none",
-                background: "#f37021",
-                color: "#fff",
-                borderRadius: 8,
-                padding: "9px 12px",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              <Plus size={16} /> Thêm mới
+              Xóa bộ lọc
             </button>
           </div>
         </div>
+      )}
 
-        {showAdvancedFilters && (
-          <div
-            style={{
-              border: "1px solid #e2e8f0",
-              borderRadius: 10,
-              padding: 12,
-              display: "grid",
-              gap: 10,
-              background: "#f8fafc",
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-                gap: 10,
-              }}
-            >
-              {filterFields.map((field) => (
-                <label key={field.name} style={{ display: "grid", gap: 6 }}>
-                  <span
-                    style={{ fontSize: 13, color: "#334155", fontWeight: 600 }}
-                  >
-                    {field.label}
-                  </span>
-                  <input
-                    type={
-                      field.type === "number"
-                        ? "number"
-                        : field.type === "date"
-                          ? "date"
-                          : "text"
-                    }
-                    value={advancedFilters[field.name] ?? ""}
-                    onChange={(event) => {
-                      const next = event.target.value;
-                      setAdvancedFilters((prev) => ({
-                        ...prev,
-                        [field.name]: next,
-                      }));
-                      setPage(1);
-                    }}
-                    style={{
-                      border: "1px solid #cbd5e1",
-                      borderRadius: 8,
-                      padding: "8px 10px",
-                      background: "#fff",
-                    }}
-                  />
-                </label>
-              ))}
-            </div>
-
-            <div
-              style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}
-            >
-              <button
-                type="button"
-                onClick={resetFilters}
-                style={{
-                  border: "1px solid #cbd5e1",
-                  background: "#fff",
-                  borderRadius: 8,
-                  padding: "8px 12px",
-                }}
-              >
-                Xóa bộ lọc
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
 
       <div className="lecturer-table-wrap">
         <table className="lecturer-table">
