@@ -16,6 +16,7 @@ import type { ApiResponse } from "../../types/api";
 import { normalizeRole } from "../../utils/role";
 import { hasUserManagementPermission } from "../../utils/permissions";
 import "../admin/Dashboard.css";
+import "./UsersManagement.css";
 
 type UserRow = Record<string, unknown>;
 type LinkedProfile = Record<string, unknown>;
@@ -606,7 +607,7 @@ const UsersManagement: React.FC = () => {
   }
 
   return (
-    <div className="admin-dashboard">
+    <div className="users-module admin-dashboard">
       <div className="dashboard-header">
         <h1>
           <Users size={28} style={{ marginRight: 10, color: "#f37021" }} />
@@ -618,60 +619,22 @@ const UsersManagement: React.FC = () => {
         </p>
       </div>
 
-      <div
-        style={{
-          background: "white",
-          padding: "16px 18px",
-          borderRadius: 12,
-          marginBottom: 20,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            flex: "1 1 420px",
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ flex: "1 1 240px", position: "relative" }}>
-            <Search
-              size={18}
-              style={{
-                position: "absolute",
-                left: 10,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: "#94a3b8",
-              }}
-            />
+      <div className="users-toolbar">
+        <div className="users-filters">
+          <div className="users-search-wrap">
+            <Search size={18} />
             <input
+              className="users-input"
               value={searchUserCode}
               onChange={(event) => setSearchUserCode(event.target.value)}
               placeholder="Lọc theo userCode"
-              style={{
-                width: "100%",
-                padding: "9px 10px 9px 34px",
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-              }}
             />
           </div>
 
           <select
+            className="users-select"
             value={roleFilter}
             onChange={(event) => setRoleFilter(event.target.value)}
-            style={{
-              padding: "9px 10px",
-              borderRadius: 8,
-              border: "1px solid #cbd5e1",
-            }}
           >
             <option value="">Tất cả role</option>
             <option value="ADMIN">ADMIN</option>
@@ -681,17 +644,11 @@ const UsersManagement: React.FC = () => {
           </select>
 
           <button
+            className="users-btn-secondary"
             type="button"
             onClick={() => {
               setPage(1);
               void loadUsers();
-            }}
-            style={{
-              border: "1px solid #cbd5e1",
-              background: "#fff",
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontWeight: 600,
             }}
           >
             Tìm kiếm
@@ -699,24 +656,15 @@ const UsersManagement: React.FC = () => {
         </div>
 
         {canCreate && (
-          <button
-            type="button"
-            onClick={() => setShowCreateModal(true)}
-            style={{
-              border: "none",
-              background: "#f37021",
-              color: "#fff",
-              borderRadius: 8,
-              padding: "9px 12px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            <UserPlus size={16} /> Tạo user
-          </button>
+          <div className="users-actions-wrap">
+            <button
+              className="users-create-btn"
+              type="button"
+              onClick={() => setShowCreateModal(true)}
+            >
+              <UserPlus size={16} /> Tạo user
+            </button>
+          </div>
         )}
       </div>
 
@@ -949,30 +897,16 @@ const UsersManagement: React.FC = () => {
           </tbody>
         </table>
 
-        <div
-          style={{
-            marginTop: 14,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 8,
-            flexWrap: "wrap",
-          }}
-        >
+        <div className="users-paging">
           <div style={{ color: "#64748b", fontSize: 13 }}>
             Tổng user: <strong>{totalCount}</strong>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="users-paging-controls">
             <select
               value={pageSize}
               onChange={(event) => {
                 setPageSize(Number(event.target.value));
                 setPage(1);
-              }}
-              style={{
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                padding: "6px 8px",
               }}
             >
               <option value={10}>10</option>
@@ -983,12 +917,6 @@ const UsersManagement: React.FC = () => {
               type="button"
               disabled={page <= 1 || loading}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-              style={{
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                padding: "6px 10px",
-                background: "#fff",
-              }}
             >
               Trước
             </button>
@@ -999,12 +927,6 @@ const UsersManagement: React.FC = () => {
               type="button"
               disabled={page >= pageCount || loading}
               onClick={() => setPage((prev) => Math.min(pageCount, prev + 1))}
-              style={{
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                padding: "6px 10px",
-                background: "#fff",
-              }}
             >
               Sau
             </button>
