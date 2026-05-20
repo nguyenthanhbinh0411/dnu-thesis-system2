@@ -325,6 +325,17 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 actorUserId,
                 cancellationToken);
 
+            await _systemActivityLogger.WriteLogAsync(
+                entityName: "Committee",
+                entityId: committeeId.ToString(),
+                actionType: "OPEN_SESSION",
+                actionDescription: $"Chủ tịch {lecturerCode} mở phiên bảo vệ hội đồng {committee.CommitteeCode}",
+                actorUserId: actorUserId,
+                module: "Defense",
+                status: "SUCCESS",
+                relatedRecordCode: committee.CommitteeCode,
+                cancellationToken: cancellationToken);
+
             await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
             {
                 await _hub.Clients.All.SendAsync("DefenseSessionOpened", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
@@ -370,6 +381,17 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 new { CommitteeId = committeeId, LecturerCode = lecturerCode },
                 actorUserId,
                 cancellationToken);
+
+            await _systemActivityLogger.WriteLogAsync(
+                entityName: "Committee",
+                entityId: committeeId.ToString(),
+                actionType: "CLOSE_SESSION",
+                actionDescription: $"Chủ tịch {lecturerCode} đóng phiên bảo vệ hội đồng {committee.CommitteeCode}",
+                actorUserId: actorUserId,
+                module: "Defense",
+                status: "SUCCESS",
+                relatedRecordCode: committee.CommitteeCode,
+                cancellationToken: cancellationToken);
 
             await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
             {

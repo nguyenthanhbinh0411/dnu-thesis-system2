@@ -1264,6 +1264,7 @@ const CommitteeOperationsManagement: React.FC = () => {
   const [logsSearch, setLogsSearch] = useState("");
   const [logsActionFilter, setLogsActionFilter] = useState("all");
   const [logsModuleFilter, setLogsModuleFilter] = useState("all");
+  const [logsImportantOnly, setLogsImportantOnly] = useState(true);
   const [logsLoading, setLogsLoading] = useState(false);
   const [selectedLogDetail, setSelectedLogDetail] = useState<any | null>(null);
   // System logs export state
@@ -1924,6 +1925,7 @@ const CommitteeOperationsManagement: React.FC = () => {
       const params = new URLSearchParams();
       params.set("page", String(logsPage));
       params.set("pageSize", String(logsPageSize));
+      params.set("ImportantOnly", "true");
       if (logsSearch.trim()) {
         params.set("search", logsSearch.trim());
       }
@@ -1971,6 +1973,7 @@ const CommitteeOperationsManagement: React.FC = () => {
           search: logsSearch || undefined,
           module: logsModuleFilter !== "all" ? logsModuleFilter : undefined,
           actionType: logsActionFilter !== "all" ? logsActionFilter : undefined,
+          importantOnly: true,
         },
       };
 
@@ -5356,6 +5359,8 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                 <option value="SUBMIT">Nhập điểm/Nộp (SUBMIT)</option>
                 <option value="APPROVE">Phê duyệt (APPROVE)</option>
                 <option value="REJECT">Từ chối (REJECT)</option>
+                <option value="OPEN_SESSION">Mở phiên (OPEN_SESSION)</option>
+                <option value="CLOSE_SESSION">Đóng phiên (CLOSE_SESSION)</option>
               </select>
 
               {/* Refresh Button */}
@@ -5370,9 +5375,9 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               <button
                 onClick={() => setLogExportModalOpen(true)}
                 disabled={logsLoading}
-                style={{ marginLeft: 8, padding: "10px 14px", borderRadius: 12, border: "1px solid #1e3a5f", background: "#1e3a5f", color: "white", cursor: "pointer", fontWeight: 700 }}
+                style={{ marginLeft: 8, padding: "10px 14px", borderRadius: 12, border: "1px solid #1e3a5f", background: "#1e3a5f", color: "white", cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}
               >
-                Export
+                <Download size={16} /> Tải xuống
               </button>
             </div>
           </div>
@@ -5434,12 +5439,24 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                               log.actionType === "CREATE" ? "#dcfce7" : 
                               log.actionType === "UPDATE" ? "#eff6ff" : 
                               log.actionType === "DELETE" ? "#fee2e2" : 
-                              log.actionType === "LOCK" ? "#fef3c7" : "#f1f5f9",
+                              log.actionType === "LOCK" ? "#fef3c7" : 
+                              log.actionType === "PUBLISH" ? "#e0e7ff" :
+                              log.actionType === "APPROVE" ? "#d1fae5" :
+                              log.actionType === "REJECT" ? "#ffe4e6" :
+                              log.actionType === "SUBMIT" ? "#dbeafe" :
+                              log.actionType === "OPEN_SESSION" ? "#ecfdf5" :
+                              log.actionType === "CLOSE_SESSION" ? "#fef9c3" : "#f1f5f9",
                             color: 
                               log.actionType === "CREATE" ? "#15803d" : 
                               log.actionType === "UPDATE" ? "#1d4ed8" : 
                               log.actionType === "DELETE" ? "#991b1b" : 
-                              log.actionType === "LOCK" ? "#b45309" : "#475569"
+                              log.actionType === "LOCK" ? "#b45309" : 
+                              log.actionType === "PUBLISH" ? "#4338ca" :
+                              log.actionType === "APPROVE" ? "#047857" :
+                              log.actionType === "REJECT" ? "#be123c" :
+                              log.actionType === "SUBMIT" ? "#1e40af" :
+                              log.actionType === "OPEN_SESSION" ? "#059669" :
+                              log.actionType === "CLOSE_SESSION" ? "#a16207" : "#475569"
                           }}>{log.actionType}</span>
                         </td>
                         <td style={{ padding: "16px 20px", fontSize: 13, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -5455,8 +5472,11 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                         <td style={{ padding: "16px 20px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
                           <button 
                             onClick={() => setSelectedLogDetail(log)}
-                            style={{ background: "white", border: "1px solid #e2e8f0", padding: "8px 12px", borderRadius: 10, cursor: "pointer", color: DEEP_BLUE_PRIMARY, fontWeight: 700 }}
-                          >Chi tiết</button>
+                            style={{ background: "white", border: "1px solid #e2e8f0", padding: "8px", borderRadius: 10, cursor: "pointer", color: DEEP_BLUE_PRIMARY, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                            title="Xem chi tiết"
+                          >
+                            <Eye size={18} />
+                          </button>
                         </td>
                       </tr>
                     );

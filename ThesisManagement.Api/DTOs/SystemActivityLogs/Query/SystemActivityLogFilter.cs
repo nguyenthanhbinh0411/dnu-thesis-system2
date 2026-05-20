@@ -1,4 +1,6 @@
 using System;
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ThesisManagement.Api.DTOs.SystemActivityLogs.Query
 {
@@ -15,5 +17,9 @@ namespace ThesisManagement.Api.DTOs.SystemActivityLogs.Query
         public DateTime? PerformedFrom { get; set; }
         public DateTime? PerformedTo { get; set; }
         public string? IPAddress { get; set; }
+        
+        [FromQuery(Name = "ImportantOnly")]
+        [JsonPropertyName("importantOnly")]
+        public bool? ImportantOnly { get; set; }
     }
 }

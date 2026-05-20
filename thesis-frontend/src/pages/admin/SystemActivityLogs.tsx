@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronRight,
   Code,
+  Download,
 } from "lucide-react";
 import { fetchData } from "../../api/fetchData";
 import type {
@@ -37,7 +38,53 @@ const SystemActivityLogs: React.FC = () => {
   );
   const [showOldValue, setShowOldValue] = useState(true);
   const [showNewValue, setShowNewValue] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const pageSize = 15;
+
+  const handleExportLogs = async () => {
+    try {
+      setIsExporting(true);
+      const payload = {
+        format: "xlsx",
+        filters: {
+          search: searchTerm.trim() || undefined,
+          module: moduleFilter !== "all" ? moduleFilter : undefined,
+          actionType: actionFilter !== "all" ? actionFilter : undefined,
+        }
+      };
+
+      const arrayBuffer = await fetchData<ArrayBuffer>(
+        `/SystemActivityLogs/export`,
+        { 
+          method: "POST",
+          body: payload,
+          timeoutMs: 120000,
+          headers: { Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+        }
+      );
+
+      if (!arrayBuffer) {
+        throw new Error("Không nhận được dữ liệu file từ server.");
+      }
+
+      const blob = new Blob([arrayBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `system-activity-logs-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export error:", err);
+      setError("Không thể xuất lịch sử hoạt động hệ thống");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const loadLogs = async (page: number = 1) => {
     try {
@@ -183,16 +230,15 @@ const SystemActivityLogs: React.FC = () => {
                 Array.isArray(compareParsed) &&
                 (!compareParsed[index] ||
                   JSON.stringify(compareParsed[index]) !==
-                    JSON.stringify(item));
+                  JSON.stringify(item));
 
               return (
                 <div
                   key={index}
                   style={{
                     backgroundColor: type === "old" ? "#FEF7F7" : "#F7FEF7",
-                    border: `1px solid ${
-                      type === "old" ? "#FECACA" : "#BBF7D0"
-                    }`,
+                    border: `1px solid ${type === "old" ? "#FECACA" : "#BBF7D0"
+                      }`,
                     borderRadius: "6px",
                     padding: "12px",
                     fontSize: "13px",
@@ -316,9 +362,8 @@ const SystemActivityLogs: React.FC = () => {
                     alignItems: "center",
                     padding: "8px 12px",
                     backgroundColor: type === "old" ? "#FEF7F7" : "#F7FEF7",
-                    border: `1px solid ${
-                      type === "old" ? "#FECACA" : "#BBF7D0"
-                    }`,
+                    border: `1px solid ${type === "old" ? "#FECACA" : "#BBF7D0"
+                      }`,
                     borderRadius: "6px",
                     fontSize: "13px",
                   }}
@@ -406,46 +451,73 @@ const SystemActivityLogs: React.FC = () => {
           style={{
             display: "flex",
             alignItems: "center",
+            justifyContent: "space-between",
             gap: "12px",
             marginBottom: "8px",
           }}
         >
-          <div
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div
+              style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "12px",
+                backgroundColor: "#F37021",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 4px 12px rgba(243, 112, 33, 0.3)",
+              }}
+            >
+              <Activity size={24} color="#FFFFFF" />
+            </div>
+            <div>
+              <h1
+                style={{
+                  margin: 0,
+                  color: "#1F2937",
+                  fontSize: "32px",
+                  fontWeight: "700",
+                  lineHeight: "1.2",
+                }}
+              >
+                Lịch sử hoạt động hệ thống
+              </h1>
+              <p
+                style={{
+                  margin: "4px 0 0 0",
+                  color: "#6B7280",
+                  fontSize: "16px",
+                }}
+              >
+                Theo dõi và giám sát tất cả hoạt động trong hệ thống
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => handleExportLogs()}
+            disabled={isExporting}
             style={{
-              width: "48px",
-              height: "48px",
+              padding: "10px 18px",
               borderRadius: "12px",
+              border: "none",
               backgroundColor: "#F37021",
+              color: "white",
+              fontWeight: "700",
+              fontSize: "14px",
+              cursor: isExporting ? "not-allowed" : "pointer",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
+              gap: "8px",
               boxShadow: "0 4px 12px rgba(243, 112, 33, 0.3)",
+              opacity: isExporting ? 0.7 : 1,
+              transition: "all 0.2s",
             }}
           >
-            <Activity size={24} color="#FFFFFF" />
-          </div>
-          <div>
-            <h1
-              style={{
-                margin: 0,
-                color: "#1F2937",
-                fontSize: "32px",
-                fontWeight: "700",
-                lineHeight: "1.2",
-              }}
-            >
-              Lịch sử hoạt động hệ thống
-            </h1>
-            <p
-              style={{
-                margin: "4px 0 0 0",
-                color: "#6B7280",
-                fontSize: "16px",
-              }}
-            >
-              Theo dõi và giám sát tất cả hoạt động trong hệ thống
-            </p>
-          </div>
+            <Download size={18} />
+            {isExporting ? "Đang xuất..." : "Tải xuống"}
+          </button>
         </div>
       </div>
 
