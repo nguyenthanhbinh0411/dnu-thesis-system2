@@ -1266,6 +1266,7 @@ const CommitteeManagement: React.FC = () => {
     [],
   );
   const [stateHydrated, setStateHydrated] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(18);
   const [, setReadinessReady] = useState(true);
   const [, setReadinessNote] = useState<string>("");
   const [actionInFlight, setActionInFlight] = useState<string | null>(null);
@@ -1285,6 +1286,25 @@ const CommitteeManagement: React.FC = () => {
   const autoStartDateRef = useRef(autoStartDate);
   const missingEndpointWarningsRef = useRef(new Set<string>());
   const missingPeriodWarningsRef = useRef(false);
+
+  // Loading progress animation
+  useEffect(() => {
+    if (stateHydrated) {
+      setLoadingProgress(100);
+      return;
+    }
+
+    setLoadingProgress(18);
+
+    const timer = window.setInterval(() => {
+      setLoadingProgress((prev) => {
+        if (prev >= 92) return 92;
+        return Math.min(92, prev + Math.max(2, Math.round((100 - prev) * 0.16)));
+      });
+    }, 140);
+
+    return () => window.clearInterval(timer);
+  }, [stateHydrated]);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -7113,6 +7133,206 @@ const CommitteeManagement: React.FC = () => {
   }, [eligibleTopicRows, eligibleTopicsPage]);
   
   const totalEligiblePages = Math.ceil(eligibleTopicRows.length / ELIGIBLE_TOPICS_PAGE_SIZE);
+
+  if (!stateHydrated) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "32px",
+        background: "#ffffff",
+        position: "relative",
+        overflow: "hidden",
+        fontFamily: "'Be Vietnam Pro', sans-serif"
+      }}>
+        {/* Animated Background Blobs */}
+        <div style={{
+          position: "absolute",
+          top: "-10%",
+          left: "-5%",
+          width: "40%",
+          height: "40%",
+          background: "radial-gradient(circle, rgba(30, 58, 95, 0.06) 0%, transparent 70%)",
+          filter: "blur(40px)",
+          animation: "committeeFloat 15s infinite ease-in-out"
+        }} />
+        <div style={{
+          position: "absolute",
+          bottom: "-10%",
+          right: "-5%",
+          width: "50%",
+          height: "50%",
+          background: "radial-gradient(circle, rgba(243, 112, 33, 0.06) 0%, transparent 70%)",
+          filter: "blur(60px)",
+          animation: "committeeFloat 20s infinite ease-in-out reverse"
+        }} />
+
+        <div style={{
+          position: "relative",
+          width: "100%",
+          maxWidth: 480,
+          animation: "committeeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1)"
+        }}>
+          <div style={{
+            position: "relative",
+            background: "#ffffff",
+            border: "1px solid #f1f5f9",
+            borderRadius: 32,
+            padding: "48px 40px",
+            boxShadow: "0 8px 20px rgba(16,24,40,0.06)",
+            textAlign: "center"
+          }}>
+            {/* Logo */}
+            <div style={{
+              display: "inline-flex",
+              padding: 20,
+              background: "white",
+              borderRadius: 24,
+              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
+              marginBottom: 32,
+              animation: "committeePulse 3s infinite ease-in-out"
+            }}>
+              <img src="/dnu_logo.png" alt="DNU" style={{ width: 64, height: 64, objectFit: "contain" }} />
+            </div>
+
+            <div style={{ marginBottom: 32 }}>
+              <div style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#f37021",
+                textTransform: "uppercase" as const,
+                letterSpacing: "0.16em",
+                marginBottom: 6
+              }}>
+                Đang khởi tạo hệ thống
+              </div>
+              <h2 style={{
+                fontSize: 22,
+                fontWeight: 800,
+                color: "#0f172a",
+                margin: 0,
+                letterSpacing: "-0.01em"
+              }}>
+                Quản lý hội đồng
+              </h2>
+            </div>
+
+            <div style={{
+              fontSize: 15,
+              color: "#64748b",
+              lineHeight: 1.6,
+              marginBottom: 40,
+              padding: "0 10px"
+            }}>
+              Vui lòng đợi trong giây lát, chúng tôi đang chuẩn bị không gian làm việc tối ưu cho bạn.
+            </div>
+
+            {/* Progress Bar */}
+            <div style={{ position: "relative", marginBottom: 20 }}>
+              <div style={{
+                width: "100%",
+                height: 10,
+                background: "rgba(0, 0, 0, 0.05)",
+                borderRadius: 99,
+                overflow: "hidden"
+              }}>
+                <div style={{
+                  width: `${loadingProgress}%`,
+                  height: "100%",
+                  borderRadius: 99,
+                  background: "linear-gradient(90deg, #1e3a5f 0%, #3b82f6 50%, #f37021 100%)",
+                  transition: "width 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                  position: "relative"
+                }}>
+                  <div style={{
+                    position: "absolute",
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
+                    animation: "committeeShimmer 2s infinite"
+                  }} />
+                </div>
+              </div>
+
+              {/* Floating % badge */}
+              <div style={{
+                position: "absolute",
+                top: -28,
+                left: `${loadingProgress}%`,
+                transform: "translateX(-50%)",
+                background: "#1e293b",
+                color: "white",
+                padding: "4px 8px",
+                borderRadius: 8,
+                fontSize: 11,
+                fontWeight: 700,
+                transition: "left 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)"
+              }}>
+                {Math.round(loadingProgress)}%
+                <div style={{
+                  position: "absolute",
+                  bottom: -4,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: 0, height: 0,
+                  borderLeft: "4px solid transparent",
+                  borderRight: "4px solid transparent",
+                  borderTop: "4px solid #1e293b"
+                }} />
+              </div>
+            </div>
+
+            <div style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: "#475569",
+              minHeight: 20
+            }}>
+              {loadingProgress < 30
+                ? "Đang kết nối API..."
+                : loadingProgress < 60
+                  ? "Tải cấu hình hội đồng..."
+                  : loadingProgress < 85
+                    ? "Đồng bộ hóa dữ liệu..."
+                    : "Sắp hoàn tất..."}
+            </div>
+
+            <div style={{
+              marginTop: 48,
+              fontSize: 11,
+              color: "#94a3b8",
+              fontWeight: 500,
+              letterSpacing: "0.05em",
+              textTransform: "uppercase" as const
+            }}>
+              Powered by DNU FIT • 2025
+            </div>
+          </div>
+        </div>
+
+        <style>{`
+          @keyframes committeeSlideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes committeeShimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+          @keyframes committeePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+          }
+          @keyframes committeeFloat {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(20px, 20px); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -794,8 +794,8 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
     <div className="dashboard-root" style={{ padding: "24px", maxWidth: "1400px", margin: "0 auto" }}>
       <style>{`
         :root {
-          --primary: #F37021;
-          --primary-light: #fff7ed;
+          --primary: #1e3a5f;
+          --primary-light: #f0f6ff;
           --secondary: #1e3a8a;
           --text-main: #0f172a;
           --text-muted: #64748b;
@@ -851,7 +851,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
             gap: "12px",
           }}
         >
-          <BookOpen size={32} color="#F59E0B" />
+          <BookOpen size={32} color="#1e3a5f" />
           Quản lý đề tài
         </h1>
         <p style={{ fontSize: "14px", color: "#666" }}>
@@ -908,7 +908,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                 transition: "all 0.2s ease",
               }}
               onFocus={(e) => {
-                e.currentTarget.style.borderColor = "#F37021";
+                e.currentTarget.style.borderColor = "#1e3a5f";
                 e.currentTarget.style.boxShadow =
                   "0 0 0 3px rgba(243, 112, 33, 0.1)";
               }}
@@ -990,8 +990,8 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
           >
             <div className="premium-card">
               <div>
-                <div className="stat-icon-wrapper" style={{ background: "rgba(245, 158, 11, 0.1)" }}>
-                  <BookOpen size={24} color="#F59E0B" />
+                <div className="stat-icon-wrapper" style={{ background: "rgba(30, 58, 95, 0.1)" }}>
+                  <BookOpen size={24} color="#1e3a5f" />
                 </div>
                 <div style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", marginBottom: "4px" }}>
                   Tổng đề tài
@@ -1000,7 +1000,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                   {stats.total}
                 </div>
               </div>
-              <div style={{ height: "4px", background: "#F59E0B", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
+              <div style={{ height: "4px", background: "#1e3a5f", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
             </div>
 
             <div className="premium-card">
@@ -2628,7 +2628,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                       display: "flex",
                       alignItems: "center",
                       gap: "8px",
-                      color: "#f37021",
+                      color: "#1e3a5f",
                       fontSize: "12px",
                       fontWeight: "800",
                       textTransform: "uppercase",
@@ -2678,11 +2678,11 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                     <span
                       style={{
                         padding: "6px 12px",
-                        background: "#fff7ed",
+                        background: "#f0f6ff",
                         borderRadius: "8px",
                         fontSize: "12px",
                         fontWeight: "700",
-                        color: "#f37021",
+                        color: "#1e3a5f",
                       }}
                     >
                       {detailModal.topic.category}
@@ -2705,7 +2705,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                         gap: "8px",
                       }}
                     >
-                      <FileText size={18} color="#f37021" />
+                      <FileText size={18} color="#1e3a5f" />
                       Tóm tắt đề tài
                     </h3>
                     <div
@@ -2737,7 +2737,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                         gap: "8px",
                       }}
                     >
-                      <TagIcon size={18} color="#f37021" />
+                      <TagIcon size={18} color="#1e3a5f" />
                       Lĩnh vực & Chuyên ngành
                     </h3>
                     <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -2781,16 +2781,16 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                           gap: "8px",
                         }}
                       >
-                        <MessageCircle size={18} color="#f37021" />
+                        <MessageCircle size={18} color="#1e3a5f" />
                         Ghi chú từ giảng viên
                       </h3>
                       <div
                         style={{
                           padding: "20px",
-                          background: "#fff7ed",
+                          background: "#f0f6ff",
                           borderRadius: "16px",
                           fontSize: "14px",
-                          color: "#9a3412",
+                          color: "#1e3a5f",
                           lineHeight: "1.6",
                           border: "1px solid #ffedd5",
                           fontWeight: "500",
@@ -3087,7 +3087,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                       height: "128px",
                       borderRadius: "32px",
                       margin: "0 auto 24px",
-                      background: "linear-gradient(135deg, #f37021 0%, #ff8838 100%)",
+                      background: "linear-gradient(135deg, #1e3a5f 0%, #2a5282 100%)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -3123,7 +3123,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                       style={{
                         fontSize: "11px",
                         fontWeight: "900",
-                        color: "#f37021",
+                        color: "#1e3a5f",
                         textTransform: "uppercase",
                         letterSpacing: "0.1em",
                       }}
@@ -3179,7 +3179,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                       Giảng viên hướng dẫn
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "#f37021", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800" }}>
+                      <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "#1e3a5f", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800" }}>
                         {detailModal.topic.lecturerProfile.fullName.charAt(0)}
                       </div>
                       <div>
@@ -3235,9 +3235,9 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                       }}
                       style={{
                         padding: "14px",
-                        background: "#fff7ed",
+                        background: "#f0f6ff",
                         color: "#d97706",
-                        border: "1px solid #fed7aa",
+                        border: "1px solid #bfdbfe",
                         borderRadius: "16px",
                         fontSize: "14px",
                         fontWeight: "700",
@@ -3248,7 +3248,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                         e.currentTarget.style.background = "#ffedd5";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "#fff7ed";
+                        e.currentTarget.style.background = "#f0f6ff";
                       }}
                     >
                       Yêu cầu sửa đổi

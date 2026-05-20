@@ -1747,7 +1747,7 @@ const DefensePeriodsManagement: React.FC = () => {
         boxShadow: "0 20px 40px rgba(15, 23, 42, 0.06)",
         border: "1px solid #e2e8f0",
         maxWidth: 1000,
-        margin: "40px auto",
+        margin: "0 auto", // Changed from 40px auto to 0 auto to prevent extra gap
         textAlign: "center"
       }}>
         {/* Welcome Icon Circle wrapper */}
@@ -1755,13 +1755,13 @@ const DefensePeriodsManagement: React.FC = () => {
           width: 80,
           height: 80,
           borderRadius: 24,
-          background: "#fff7ed",
-          color: "#f37021",
+          background: "rgba(30, 58, 95, 0.08)",
+          color: "#1e3a5f",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           margin: "0 auto 24px auto",
-          boxShadow: "0 8px 16px rgba(243, 112, 33, 0.12)"
+          boxShadow: "0 8px 16px rgba(30, 58, 95, 0.08)"
         }}>
           <Sparkles size={40} />
         </div>
@@ -1795,7 +1795,7 @@ const DefensePeriodsManagement: React.FC = () => {
           marginBottom: "48px",
           textAlign: "left"
         }}>
-          <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+          <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0", transition: "all 0.2s ease" }}>
             <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#eff6ff", color: "#3b82f6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
               <Settings size={18} />
             </div>
@@ -1803,7 +1803,7 @@ const DefensePeriodsManagement: React.FC = () => {
             <p style={{ color: "#64748b", fontSize: "12px", margin: 0, lineHeight: 1.5 }}>Cấu hình lộ trình mốc thời gian, áp dụng biểu mẫu tiến trình chuẩn hóa.</p>
           </div>
 
-          <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+          <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0", transition: "all 0.2s ease" }}>
             <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#ecfdf5", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
               <Users size={18} />
             </div>
@@ -1811,7 +1811,7 @@ const DefensePeriodsManagement: React.FC = () => {
             <p style={{ color: "#64748b", fontSize: "12px", margin: 0, lineHeight: 1.5 }}>Nhập xuất sinh viên, giảng viên hướng dẫn và kiểm soát hạn ngạch phụ trách.</p>
           </div>
 
-          <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+          <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0", transition: "all 0.2s ease" }}>
             <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#fffbeb", color: "#f59e0b", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
               <Shield size={18} />
             </div>
@@ -1819,7 +1819,7 @@ const DefensePeriodsManagement: React.FC = () => {
             <p style={{ color: "#64748b", fontSize: "12px", margin: 0, lineHeight: 1.5 }}>Lập danh sách hội đồng, chia nhóm đề tài chuyên môn và xếp lịch bảo vệ.</p>
           </div>
 
-          <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+          <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0", transition: "all 0.2s ease" }}>
             <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#fdf2f8", color: "#ec4899", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
               <Zap size={18} />
             </div>
@@ -1830,15 +1830,15 @@ const DefensePeriodsManagement: React.FC = () => {
 
         {/* CTA Section */}
         <div style={{
-          background: "#fff8f3",
-          border: "1px solid #ffedd5",
+          background: "#f0f6ff",
+          border: "1px solid #bfdbfe",
           padding: "24px",
           borderRadius: "16px",
           display: "inline-block",
           width: "100%",
           maxWidth: 640
         }}>
-          <div style={{ fontSize: "14px", color: "#64748b", fontWeight: 700, marginBottom: "16px" }}>
+          <div style={{ fontSize: "14px", color: "#1e3a5f", fontWeight: 700, marginBottom: "16px" }}>
             Hiện chưa có đợt đồ án tốt nghiệp nào được khởi tạo trong hệ thống.
           </div>
           <button
@@ -1850,23 +1850,23 @@ const DefensePeriodsManagement: React.FC = () => {
               padding: "14px 28px",
               borderRadius: "12px",
               border: "none",
-              background: "#f37021",
+              background: "#1e3a5f",
               color: "white",
               fontSize: "14px",
               fontWeight: "800",
               cursor: "pointer",
-              boxShadow: "0 10px 20px -5px rgba(243, 112, 33, 0.4)",
+              boxShadow: "0 10px 20px -5px rgba(30, 58, 95, 0.3)",
               transition: "all 0.2s ease"
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#e05e10";
+              e.currentTarget.style.background = "#12253f";
               e.currentTarget.style.transform = "translateY(-1px)";
-              e.currentTarget.style.boxShadow = "0 12px 24px -3px rgba(243, 112, 33, 0.5)";
+              e.currentTarget.style.boxShadow = "0 12px 24px -3px rgba(30, 58, 95, 0.4)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#f37021";
+              e.currentTarget.style.background = "#1e3a5f";
               e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 10px 20px -5px rgba(243, 112, 33, 0.4)";
+              e.currentTarget.style.boxShadow = "0 10px 20px -5px rgba(30, 58, 95, 0.3)";
             }}
           >
             <Plus size={18} /> Khởi tạo đợt đồ án tốt nghiệp
@@ -1984,7 +1984,7 @@ const DefensePeriodsManagement: React.FC = () => {
         background: "#ffffff",
         position: "relative",
         overflow: "hidden",
-        fontFamily: "'Inter', sans-serif"
+        fontFamily: "'Be Vietnam Pro', sans-serif"
       }}>
         {/* Animated Background Elements */}
         <div style={{
@@ -2189,7 +2189,7 @@ const DefensePeriodsManagement: React.FC = () => {
       }}>
         <div style={{
           background: DEEP_BLUE_PRIMARY,
-          padding: "40px 32px 80px 32px",
+          padding: "60px 24px 100px 24px", // Increased padding bottom to give title more breathing space
           position: "relative",
           overflow: "hidden"
         }}>
@@ -2205,20 +2205,21 @@ const DefensePeriodsManagement: React.FC = () => {
           }} />
 
           <div style={{
-            maxWidth: 1600,
+            maxWidth: 800,
             margin: "0 auto",
             position: "relative",
             zIndex: 2,
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            gap: 24,
-            flexWrap: "wrap"
+            flexDirection: "column",
+            alignItems: "center",
+            textAlign: "center",
+            gap: 16
           }}>
             <div>
               <div style={{
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "center",
                 gap: 12,
                 marginBottom: 16,
                 animation: "fadeIn 0.5s ease"
@@ -2253,25 +2254,25 @@ const DefensePeriodsManagement: React.FC = () => {
               </div>
 
               <h1 style={{
-                fontSize: 42,
+                fontSize: 38,
                 fontWeight: 900,
                 color: "white",
                 margin: 0,
-                letterSpacing: "-0.03em",
-                lineHeight: 1.1,
+                letterSpacing: "-0.02em",
+                lineHeight: 1.2,
                 animation: "slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1)"
               }}>
-                Quản lý <span style={{ color: "#f37021" }}>Đợt đồ án tốt nghiệp</span>
+                Quản lý <span style={{ color: "#38bdf8" }}>Đợt đồ án tốt nghiệp</span>
               </h1>
               
               <p style={{
-                fontSize: 16,
-                color: "rgba(255, 255, 255, 0.7)",
-                marginTop: 12,
-                maxWidth: 700,
+                fontSize: 15,
+                color: "rgba(255, 255, 255, 0.8)",
+                marginTop: 8,
+                maxWidth: 600,
                 fontWeight: 500,
                 animation: "fadeIn 0.8s ease",
-                lineHeight: 1.5
+                lineHeight: 1.6
               }}>
                 Điều hành vòng đời, cấu hình lộ trình thời gian và quản lý thành viên đợt đồ án tốt nghiệp.
               </p>
@@ -2280,9 +2281,9 @@ const DefensePeriodsManagement: React.FC = () => {
         </div>
 
         <div style={{
-          maxWidth: 1600,
-          margin: "-48px auto 0 auto",
-          padding: "0 32px",
+          maxWidth: 1000,
+          margin: "-60px auto 0 auto",
+          padding: "0 24px",
           position: "relative",
           zIndex: 10
         }}>

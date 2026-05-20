@@ -227,7 +227,7 @@ const TopicWorkflowAudits: React.FC = () => {
               border: "none",
               borderRadius: 8,
               padding: "10px 14px",
-              background: "#f37021",
+              background: "#1e3a5f",
               color: "#fff",
               fontWeight: 600,
             }}

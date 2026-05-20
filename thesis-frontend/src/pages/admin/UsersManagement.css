@@ -90,7 +90,7 @@
 .users-create-btn {
   border: none;
   border-radius: 8px;
-  background: #f37021;
+  background: #1e3a5f;
   color: #fff;
   font-size: 12px;
   font-weight: 600;
@@ -106,15 +106,15 @@
 }
 
 .users-create-btn:hover {
-  background: #e65c0f;
+  background: #162d4c;
 }
 
 .users-input:focus,
 .users-select:focus,
 .users-btn-secondary:focus,
 .users-create-btn:focus {
-  border-color: #f37021;
-  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
 }
 
 .users-paging {
@@ -186,11 +186,11 @@
 }
 
 .users-module .users-actions-wrap button.users-create-btn {
-  background: #f37021 !important;
+  background: #1e3a5f !important;
   color: #fff !important;
   border: none !important;
 }
 
 .users-module .users-actions-wrap button.users-create-btn:hover {
-  background: #e65c0f !important;
+  background: #162d4c !important;
 }

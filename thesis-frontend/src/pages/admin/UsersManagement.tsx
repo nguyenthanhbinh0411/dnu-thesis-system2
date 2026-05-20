@@ -610,7 +610,7 @@ const UsersManagement: React.FC = () => {
     <div className="users-module admin-dashboard">
       <div className="dashboard-header">
         <h1>
-          <Users size={28} style={{ marginRight: 10, color: "#f37021" }} />
+          <Users size={28} style={{ marginRight: 10, color: "#1e3a5f" }} />
           Quản lý tài khoản
         </h1>
         <p>
@@ -783,7 +783,7 @@ const UsersManagement: React.FC = () => {
                     key={id || String(row.userCode ?? Math.random())}
                     style={{
                       background: selectedUserIDs.includes(Number(id))
-                        ? "#fff7ed"
+                        ? "#f0f6ff"
                         : "transparent",
                     }}
                   >
@@ -880,7 +880,7 @@ const UsersManagement: React.FC = () => {
                             style={{
                               border: "1px solid #fdba74",
                               background: "#fff",
-                              color: "#c2410c",
+                              color: "#1e3a5f",
                               borderRadius: 8,
                               padding: 6,
                             }}
@@ -1080,7 +1080,7 @@ const UsersManagement: React.FC = () => {
                 disabled={saving}
                 style={{
                   border: "none",
-                  background: "#f37021",
+                  background: "#1e3a5f",
                   color: "#fff",
                   borderRadius: 8,
                   padding: "8px 12px",
@@ -1169,7 +1169,7 @@ const UsersManagement: React.FC = () => {
                 disabled={saving}
                 style={{
                   border: "none",
-                  background: "#f37021",
+                  background: "#1e3a5f",
                   color: "#fff",
                   borderRadius: 8,
                   padding: "8px 12px",

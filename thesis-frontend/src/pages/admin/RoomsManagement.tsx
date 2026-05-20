@@ -182,8 +182,8 @@ const INJECTED_STYLES = `
 }
 
 .rooms-search-wrap input:focus {
-  border-color: #f37021;
-  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
 }
 
 .rooms-actions-wrap {
@@ -207,12 +207,12 @@ const INJECTED_STYLES = `
 }
 
 .rooms-btn-primary {
-  background: #f37021;
+  background: #1e3a5f;
   color: #fff;
 }
 
 .rooms-btn-primary:hover {
-  background: #e65c0f;
+  background: #162d4c;
 }
 
 .rooms-btn-secondary {
@@ -676,7 +676,7 @@ const RoomsManagement: React.FC = () => {
       <style>{INJECTED_STYLES}</style>
 
       <header className="rooms-header">
-        <h1><Building2 size={24} color="#f37021" /> Quản lý Phòng bảo vệ</h1>
+        <h1><Building2 size={24} color="#1e3a5f" /> Quản lý Phòng bảo vệ</h1>
         <p>Quản lý danh sách các phòng học được sử dụng làm hội đồng bảo vệ khóa luận.</p>
       </header>
 

@@ -296,6 +296,7 @@ namespace ThesisManagement.Api.Controllers
 
         private byte[] GeneratePdfReport(List<SystemActivityLogReadDto> logs)
         {
+            QuestPDF.Settings.License = LicenseType.Community;
             return Document.Create(container =>
             {
                 container.Page(page =>

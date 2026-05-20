@@ -221,7 +221,7 @@ const LoginPage: React.FC = () => {
       style={{
         minHeight: "100vh",
         backgroundColor: "#FFFFFF",
-        fontFamily: "'Inter', 'Poppins', 'Roboto', sans-serif",
+        fontFamily: "'Be Vietnam Pro', sans-serif",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

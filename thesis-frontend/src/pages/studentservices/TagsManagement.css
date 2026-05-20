@@ -50,8 +50,8 @@
 .tags-filter-btn:focus,
 .tags-create-btn:focus,
 .tags-btn:focus {
-  border-color: #f37021;
-  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
 }
 
 .tags-actions-wrap {
@@ -90,7 +90,7 @@
 .tags-create-btn {
   border: none;
   border-radius: 8px;
-  background: #f37021;
+  background: #1e3a5f;
   color: #fff;
   font-size: 12px;
   font-weight: 600;
@@ -106,7 +106,7 @@
 }
 
 .tags-create-btn:hover {
-  background: #e65c0f;
+  background: #162d4c;
 }
 
 .tags-filter-panel {
@@ -162,11 +162,11 @@
 }
 
 .tags-module .tags-actions-wrap button.tags-create-btn {
-  background: #f37021 !important;
+  background: #1e3a5f !important;
   color: #fff !important;
   border: none !important;
 }
 
 .tags-module .tags-actions-wrap button.tags-create-btn:hover {
-  background: #e65c0f !important;
+  background: #162d4c !important;
 }

@@ -845,7 +845,7 @@ const ImportExportActions: React.FC<ImportExportActionsProps> = ({
         }
         .import-export-action-button:active:not(:disabled) {
           transform: translateY(0);
-          box-shadow: 0 12px 20px rgba(249, 115, 22, 0.24);
+          box-shadow: 0 12px 20px rgba(30, 58, 95, 0.24);
         }
         .import-export-action-button:disabled {
           opacity: 0.55;
@@ -1298,7 +1298,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 24,
     borderBottom: "1px solid rgba(148,163,184,0.18)",
     background:
-      "linear-gradient(135deg, rgba(243,112,33,0.08), rgba(14,165,233,0.05))",
+      "linear-gradient(135deg, rgba(30, 58, 95, 0.08), rgba(14,165,233,0.05))",
   },
   eyebrow: {
     display: "inline-flex",
@@ -1306,8 +1306,8 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     padding: "6px 10px",
     borderRadius: 999,
-    background: "rgba(243,112,33,0.12)",
-    color: "#c2410c",
+    background: "rgba(30, 58, 95, 0.12)",
+    color: "#1e3a5f",
     fontSize: 12,
     fontWeight: 800,
     textTransform: "uppercase",
@@ -1354,9 +1354,9 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
   tabActive: {
-    border: "1px solid rgba(243,112,33,0.3)",
-    background: "linear-gradient(135deg, #fff7ed 0%, #fff 100%)",
-    color: "#c2410c",
+    border: "1px solid rgba(30, 58, 95, 0.3)",
+    background: "linear-gradient(135deg, #f0f6ff 0%, #ffffff 100%)",
+    color: "#1e3a5f",
     borderRadius: 14,
     padding: "10px 14px",
     display: "inline-flex",
@@ -1364,7 +1364,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     fontWeight: 800,
     cursor: "pointer",
-    boxShadow: "0 10px 20px rgba(243,112,33,0.08)",
+    boxShadow: "0 10px 20px rgba(30, 58, 95, 0.08)",
   },
   body: {
     display: "grid",
@@ -1421,19 +1421,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   noteItemHighlighted: {
     background:
-      "linear-gradient(135deg, rgba(243,112,33,0.16), rgba(255,247,237,0.96))",
-    border: "1px solid rgba(243,112,33,0.28)",
-    color: "#9a3412",
-    boxShadow: "0 10px 20px rgba(243,112,33,0.08)",
+      "linear-gradient(135deg, rgba(30,58,95,0.16), rgba(240,246,255,0.96))",
+    border: "1px solid rgba(30, 58, 95, 0.28)",
+    color: "#1e3a5f",
+    boxShadow: "0 10px 20px rgba(30, 58, 95, 0.08)",
   },
   noteItemInfo: {
     display: "flex",
     gap: 8,
     alignItems: "flex-start",
-    color: "#9a3412",
+    color: "#1e3a5f",
     fontSize: 13,
     lineHeight: 1.45,
-    background: "#fff7ed",
+    background: "#f0f6ff",
     padding: 10,
     borderRadius: 12,
   },
@@ -1477,7 +1477,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   sectionActionButton: {
     border: "1px solid rgba(249,115,22,0.35)",
-    background: "linear-gradient(135deg, #f97316 0%, #fb923c 100%)",
+    background: "linear-gradient(135deg, #1e3a5f 0%, #2a5282 100%)",
     color: "#ffffff",
     borderRadius: 999,
     padding: "9px 16px",
@@ -1485,7 +1485,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     cursor: "pointer",
     minWidth: 108,
-    boxShadow: "0 14px 24px rgba(249,115,22,0.24)",
+    boxShadow: "0 14px 24px rgba(30, 58, 95, 0.24)",
     letterSpacing: 0.02,
   },
   sectionActionHint: {
@@ -1523,11 +1523,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
   },
   fileButton: {
-    border: "1px dashed #f37021",
+    border: "1px dashed #1e3a5f",
     borderRadius: 14,
     padding: "11px 14px",
-    background: "linear-gradient(135deg, #fff7ed 0%, #ffffff 100%)",
-    color: "#c2410c",
+    background: "linear-gradient(135deg, #f0f6ff 0%, #ffffff 100%)",
+    color: "#1e3a5f",
     display: "inline-flex",
     alignItems: "center",
     gap: 8,
@@ -1749,7 +1749,7 @@ const styles: Record<string, React.CSSProperties> = {
   errorListFrame: {
     borderRadius: 16,
     border: "1px solid #fecaca",
-    background: "#fff7f7",
+    background: "#f8fafc",
     overflow: "hidden",
   },
   errorList: {
@@ -1791,7 +1791,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   primaryButton: {
     border: "none",
-    background: "linear-gradient(135deg, #f37021, #fb923c)",
+    background: "linear-gradient(135deg, #1e3a5f, #2a5282)",
     color: "#fff",
     borderRadius: 14,
     padding: "10px 16px",
@@ -1800,7 +1800,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 8,
     cursor: "pointer",
-    boxShadow: "0 14px 24px rgba(243,112,33,0.22)",
+    boxShadow: "0 14px 24px rgba(30, 58, 95, 0.22)",
     minWidth: 132,
     justifyContent: "center",
     height: 42,

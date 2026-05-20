@@ -772,7 +772,7 @@ const StudentProfilesManagement: React.FC = () => {
     <div className="student-profiles-module">
       <div className="spm-header">
         <h1>
-          <Users size={30} color="#F37021" /> Danh sách sinh viên
+          <Users size={30} color="#1e3a5f" /> Danh sách sinh viên
         </h1>
         <p>Hiển thị theo dashboard báo cáo sinh viên và tiến độ đề tài.</p>
       </div>

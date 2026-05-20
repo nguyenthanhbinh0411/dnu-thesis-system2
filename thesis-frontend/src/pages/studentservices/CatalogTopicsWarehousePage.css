@@ -49,8 +49,8 @@
 .warehouse-filter-panel input:focus,
 .warehouse-select:focus,
 .warehouse-btn:focus {
-  border-color: #f37021;
-  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
 }
 
 .warehouse-actions-wrap {

@@ -70,7 +70,7 @@
 .departments-create-btn {
   border: none;
   border-radius: 8px;
-  background: #f37021;
+  background: #1e3a5f;
   color: #fff;
   font-size: 12px;
   font-weight: 600;
@@ -86,7 +86,7 @@
 }
 
 .departments-create-btn:hover {
-  background: #e65c0f;
+  background: #162d4c;
 }
 
 .departments-filter-btn {
@@ -120,8 +120,8 @@
 .departments-cancel-btn:focus,
 .departments-save-btn:focus,
 .departments-modal-close:focus {
-  border-color: #f37021;
-  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
 }
 
 .departments-filter-panel {
@@ -350,8 +350,8 @@
 }
 
 .departments-detail-tabs button.is-active {
-  color: #f37021;
-  border-bottom-color: #f37021;
+  color: #1e3a5f;
+  border-bottom-color: #1e3a5f;
 }
 
 .departments-detail-title {
@@ -364,9 +364,9 @@
   width: fit-content;
   border-radius: 999px;
   padding: 4px 10px;
-  background: #fff7ed;
-  color: #c2410c;
-  border: 1px solid #fed7aa;
+  background: #f0f6ff;
+  color: #1e3a5f;
+  border: 1px solid #bfdbfe;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -539,7 +539,7 @@
 .departments-lecturer-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: #f37021;
+  background: #1e3a5f;
 }
 
 .departments-lecturer-progress-cell strong {
@@ -554,7 +554,7 @@
   height: 38px;
   border-radius: 50%;
   overflow: hidden;
-  background: linear-gradient(135deg, #f37021 0%, #ff8f46 100%);
+  background: linear-gradient(135deg, #1e3a5f 0%, #2a5282 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -666,8 +666,8 @@
 .departments-cancel-btn:focus,
 .departments-save-btn:focus,
 .departments-modal-close:focus {
-  border-color: #f37021;
-  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
 }
 
 .departments-form-actions {
@@ -686,7 +686,7 @@
 
 .departments-save-btn {
   border: none;
-  background: #f37021;
+  background: #1e3a5f;
   color: #fff;
 }
 
@@ -749,11 +749,11 @@
 }
 
 .departments-module .departments-actions-wrap button.departments-create-btn {
-  background: #f37021 !important;
+  background: #1e3a5f !important;
   color: #fff !important;
   border: none !important;
 }
 
 .departments-module .departments-actions-wrap button.departments-create-btn:hover {
-  background: #e65c0f !important;
+  background: #162d4c !important;
 }

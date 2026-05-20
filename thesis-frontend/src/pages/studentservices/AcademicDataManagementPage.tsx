@@ -62,9 +62,9 @@ const AcademicDataManagementPage: React.FC = () => {
 
       <div
         style={{
-          background: "linear-gradient(135deg, #fff7ed 0%, #eff6ff 100%)",
+          background: "linear-gradient(135deg, #f0f6ff 0%, #eff6ff 100%)",
           borderRadius: 16,
-          border: "1px solid #fed7aa",
+          border: "1px solid #bfdbfe",
           boxShadow: "0 10px 26px rgba(15,23,42,0.08)",
           padding: 20,
           marginBottom: 20,
@@ -135,7 +135,7 @@ const AcademicDataManagementPage: React.FC = () => {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
-                color: "#f37021",
+                color: "#1e3a5f",
                 fontWeight: 600,
               }}
             >

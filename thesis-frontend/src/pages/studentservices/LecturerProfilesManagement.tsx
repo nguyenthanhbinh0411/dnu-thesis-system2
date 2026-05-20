@@ -711,7 +711,7 @@ const LecturerProfilesManagement: React.FC = () => {
     <div className="lecturer-profiles-module">
       <div className="dashboard-header">
         <h1>
-          <Users size={30} color="#F37021" /> Quản lý giảng viên
+          <Users size={30} color="#1e3a5f" /> Quản lý giảng viên
         </h1>
         <p>
           Dữ liệu chuẩn theo schema LecturerProfiles (email, guideQuota,

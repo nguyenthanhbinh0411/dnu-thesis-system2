@@ -1980,7 +1980,7 @@ const CommitteeOperationsManagement: React.FC = () => {
       const arrayBuffer = await fetchData<ArrayBuffer>(`/SystemActivityLogs/export`, {
         method: "POST",
         body: payload,
-        timeoutMs: 120000,
+        timeoutMs: 300000,
         headers: { Accept: logExportFormat === "pdf" ? "application/pdf" : logExportFormat === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv" },
       });
 
@@ -2001,12 +2001,12 @@ const CommitteeOperationsManagement: React.FC = () => {
       URL.revokeObjectURL(url);
 
       notifySuccess("Đã xuất nhật ký hoạt động.");
+      setLogExportModalOpen(false);
     } catch (error) {
       console.error("Export system logs error:", error);
       notifyError(error instanceof Error ? error.message : "Không thể xuất nhật ký hoạt động.");
     } finally {
       setLogIsExporting(false);
-      setLogExportModalOpen(false);
     }
   }, [logExportFormat, logExportSelectedFields, logsSearch, logsModuleFilter, logsActionFilter, notifyError, notifySuccess]);
 
@@ -2799,17 +2799,6 @@ const CommitteeOperationsManagement: React.FC = () => {
           committeeCode: row.committeeCode ?? "-",
           focusKey: row.committeeCode ?? "-",
           priority: 2,
-        })),
-      ...committeeOperationalRows
-        .filter((row) => row.progressPercent >= 100)
-        .slice(0, 3)
-        .map((row) => ({
-          severity: "info" as DashboardAlertSeverity,
-          title: row.code,
-          detail: `${row.name} · đã hoàn thành`,
-          committeeCode: row.code,
-          focusKey: row.code,
-          priority: 3,
         })),
       ...committeeOperationalRows
         .filter((row) => row.delayLabel !== "On time")
@@ -3709,67 +3698,6 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
           <div style={{ fontSize: 32, fontWeight: 900, color: "#f37021" }}>{dashboardMetrics.totalTopics ?? 0}</div>
           <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Đã chấm: {dashboardMetrics.scoredTopics ?? 0} / Đã chốt: {dashboardMetrics.lockedTopics ?? 0}</p>
         </section>
-
-        {/* System Logs Export Modal */}
-        {logExportModalOpen && (
-          <ModalOverlay onClose={() => setLogExportModalOpen(false)} width={720}>
-            <div style={{ maxWidth: 680 }}>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Xuất Nhật ký Hoạt động</h3>
-              <div style={{ marginTop: 12, color: "#64748b" }}>Chọn trường cần xuất và định dạng file.</div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: 12, marginTop: 16 }}>
-                <div style={{ maxHeight: 320, overflow: "auto", padding: 12, border: "1px solid #e6eef6", borderRadius: 8, background: "#fff" }}>
-                  {[
-                    { key: "PerformedAt", label: "Thời gian" },
-                    { key: "UserCode", label: "Tài khoản" },
-                    { key: "UserRole", label: "Vai trò" },
-                    { key: "Module", label: "Phân hệ" },
-                    { key: "ActionType", label: "Hành động" },
-                    { key: "ActionDescription", label: "Mô tả" },
-                    { key: "EntityName", label: "Đối tượng" },
-                    { key: "EntityId", label: "ID đối tượng" },
-                    { key: "Status", label: "Trạng thái" },
-                    { key: "OldValue", label: "Giá trị cũ" },
-                    { key: "NewValue", label: "Giá trị mới" },
-                    { key: "IPAddress", label: "Địa chỉ IP" },
-                  ].map((f) => (
-                    <label key={f.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px" }}>
-                      <input
-                        type="checkbox"
-                        checked={logExportSelectedFields.includes(f.key)}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setLogExportSelectedFields((prev) => checked ? Array.from(new Set([...prev, f.key])) : prev.filter((x) => x !== f.key));
-                        }}
-                      />
-                      <span style={{ fontWeight: 600 }}>{f.label}</span>
-                    </label>
-                  ))}
-                </div>
-
-                <div style={{ padding: 12, border: "1px solid #e6eef6", borderRadius: 8, background: "#fff", height: 160 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Định dạng</div>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <input type="radio" name="logExportFormat" checked={logExportFormat === "excel"} onChange={() => setLogExportFormat("excel")} /> Excel (.xlsx)
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <input type="radio" name="logExportFormat" checked={logExportFormat === "pdf"} onChange={() => setLogExportFormat("pdf")} /> PDF
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <input type="radio" name="logExportFormat" checked={logExportFormat === "csv"} onChange={() => setLogExportFormat("csv")} /> CSV
-                  </label>
-
-                  <div style={{ marginTop: 12 }}>
-                    <button onClick={() => exportSystemLogs()} disabled={logIsExporting} style={{ padding: "10px 16px", borderRadius: 10, background: "#1e3a5f", color: "white", border: "none", fontWeight: 800, cursor: "pointer" }}>
-                      {logIsExporting ? "Đang xuất..." : "Xuất"}
-                    </button>
-                    <button onClick={() => setLogExportModalOpen(false)} style={{ marginLeft: 8, padding: "10px 12px", borderRadius: 10, background: "white", border: "1px solid #e2e8f0", cursor: "pointer" }}>Hủy</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </ModalOverlay>
-        )}
 
         <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tổng số Hội đồng</div>
@@ -6617,6 +6545,223 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
 
         {/* Global Modals Area */}
         {topicDetailModalOpen && renderTopicDetailModal()}
+        {logExportModalOpen && (
+          <ModalOverlay onClose={() => setLogExportModalOpen(false)} width={860}>
+            <div style={{ display: "flex", flexDirection: "column", minHeight: 0, maxWidth: 860 }}>
+              <div style={{
+                padding: "28px 32px 22px 32px",
+                background: "linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)",
+                color: "white",
+                position: "relative",
+                overflow: "hidden"
+              }}>
+                <div style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: "radial-gradient(circle at top right, rgba(243, 112, 33, 0.18), transparent 38%)"
+                }} />
+                <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+                    <div style={{ width: 52, height: 52, borderRadius: 16, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 24px rgba(0,0,0,0.18)" }}>
+                      <Download size={24} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.7)", marginBottom: 6 }}>
+                        Xuất nhật ký
+                      </div>
+                      <h3 style={{ margin: 0, fontSize: 24, fontWeight: 900, lineHeight: 1.2 }}>Tải Nhật ký Hoạt động</h3>
+                      <p style={{ margin: "8px 0 0 0", fontSize: 14, color: "rgba(255,255,255,0.78)", maxWidth: 640 }}>
+                        Chọn các trường cần xuất và định dạng file phù hợp trước khi tải xuống.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    alignSelf: "center",
+                    padding: "10px 14px",
+                    borderRadius: 999,
+                    background: "rgba(255,255,255,0.12)",
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    color: "white"
+                  }}>
+                    {logExportSelectedFields.length} trường đã chọn
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ padding: 32, background: "#f8fafc", overflowY: "auto" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 280px", gap: 24, alignItems: "start" }}>
+                  <div style={{ display: "grid", gap: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                      <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#1e293b" }}>Chọn trường xuất</h4>
+                      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>Có thể bật/tắt từng cột</div>
+                    </div>
+
+                    <div style={{ maxHeight: 360, overflow: "auto", paddingRight: 8 }}>
+                      <div style={{ display: "grid", gap: 10 }}>
+                        {[
+                          { key: "PerformedAt", label: "Thời gian" },
+                          { key: "UserCode", label: "Tài khoản" },
+                          { key: "UserRole", label: "Vai trò" },
+                          { key: "Module", label: "Phân hệ" },
+                          { key: "ActionType", label: "Hành động" },
+                          { key: "ActionDescription", label: "Mô tả" },
+                          { key: "EntityName", label: "Đối tượng" },
+                          { key: "EntityId", label: "ID đối tượng" },
+                          { key: "Status", label: "Trạng thái" },
+                          { key: "OldValue", label: "Giá trị cũ" },
+                          { key: "NewValue", label: "Giá trị mới" },
+                          { key: "IPAddress", label: "Địa chỉ IP" },
+                        ].map((f) => {
+                          const checked = logExportSelectedFields.includes(f.key);
+                          return (
+                            <label
+                              key={f.key}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 16,
+                                padding: "14px 16px",
+                                borderRadius: 16,
+                                border: `1px solid ${checked ? DEEP_BLUE_PRIMARY : "#e2e8f0"}`,
+                                background: checked ? "#eef4ff" : "white",
+                                boxShadow: checked ? "0 8px 16px rgba(30,58,95,0.08)" : "0 2px 8px rgba(15,23,42,0.03)",
+                                cursor: "pointer",
+                                transition: "all 0.2s ease"
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                <span style={{
+                                  width: 12,
+                                  height: 12,
+                                  borderRadius: 99,
+                                  background: checked ? DEEP_BLUE_PRIMARY : "#cbd5e1",
+                                  boxShadow: checked ? "0 0 0 4px rgba(30,58,95,0.12)" : "none"
+                                }} />
+                                <span style={{ fontWeight: 700, color: "#0f172a" }}>{f.label}</span>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  const nextChecked = e.target.checked;
+                                  setLogExportSelectedFields((prev) => nextChecked
+                                    ? Array.from(new Set([...prev, f.key]))
+                                    : prev.filter((x) => x !== f.key));
+                                }}
+                                style={{ width: 18, height: 18, cursor: "pointer", accentColor: DEEP_BLUE_PRIMARY }}
+                              />
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 16, position: "sticky", top: 0 }}>
+                    <div style={{ background: "white", borderRadius: 20, padding: 20, border: "1px solid #e2e8f0", boxShadow: "0 10px 20px rgba(15,23,42,0.04)" }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#64748b", marginBottom: 12 }}>Định dạng file</div>
+                      <div style={{ display: "grid", gap: 10 }}>
+                        {[
+                          { value: "excel", label: "Excel", hint: ".xlsx" },
+                          { value: "pdf", label: "PDF", hint: "in ấn" },
+                          { value: "csv", label: "CSV", hint: "dữ liệu thô" },
+                        ].map((item) => {
+                          const active = logExportFormat === item.value;
+                          return (
+                            <label
+                              key={item.value}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 12,
+                                padding: 14,
+                                borderRadius: 16,
+                                border: `1px solid ${active ? DEEP_BLUE_PRIMARY : "#e2e8f0"}`,
+                                background: active ? "#f0f7ff" : "#fff",
+                                cursor: "pointer",
+                                transition: "all 0.2s ease"
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                <input
+                                  type="radio"
+                                  name="logExportFormat"
+                                  checked={active}
+                                  onChange={() => setLogExportFormat(item.value as ReportFormat)}
+                                  style={{ width: 18, height: 18, accentColor: DEEP_BLUE_PRIMARY, cursor: "pointer" }}
+                                />
+                                <div>
+                                  <div style={{ fontSize: 14, fontWeight: 800, color: "#0f172a" }}>{item.label}</div>
+                                  <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{item.hint}</div>
+                                </div>
+                              </div>
+                              {active && (
+                                <span style={{ fontSize: 11, fontWeight: 800, color: DEEP_BLUE_PRIMARY, background: "rgba(30,58,95,0.08)", padding: "6px 10px", borderRadius: 999 }}>
+                                  Đang chọn
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div style={{ background: "white", borderRadius: 20, padding: 20, border: "1px solid #e2e8f0", boxShadow: "0 10px 20px rgba(15,23,42,0.04)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ width: 44, height: 44, borderRadius: 14, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Info size={22} style={{ color: DEEP_BLUE_PRIMARY }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: "#0f172a" }}>Xem trước</div>
+                          <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+                            system-activity-logs.{logExportFormat === "excel" ? "xlsx" : logExportFormat}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 14, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
+                        File sẽ bao gồm {logExportSelectedFields.length} cột đã chọn và bộ lọc hiện tại của danh sách logs.
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                      <button
+                        onClick={() => setLogExportModalOpen(false)}
+                        style={{ padding: "12px 18px", borderRadius: 14, background: "white", border: "1px solid #e2e8f0", color: "#475569", fontWeight: 700, cursor: "pointer" }}
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        onClick={() => exportSystemLogs()}
+                        disabled={logIsExporting}
+                        style={{
+                          padding: "12px 20px",
+                          borderRadius: 14,
+                          background: logIsExporting ? "#94a3b8" : "linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)",
+                          color: "white",
+                          border: "none",
+                          fontWeight: 800,
+                          cursor: logIsExporting ? "not-allowed" : "pointer",
+                          boxShadow: logIsExporting ? "none" : "0 10px 15px -3px rgba(30,58,95,0.28)",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8
+                        }}
+                      >
+                        <Download size={16} />
+                        {logIsExporting ? "Đang xuất..." : "Tải xuống ngay"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ModalOverlay>
+        )}
         {exportModalOpen && renderExportModal()}
         {previewModalType && renderPreviewModal()}
         {exportPreviewModalOpen && renderExportPreviewModal()}

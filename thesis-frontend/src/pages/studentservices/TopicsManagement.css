@@ -73,7 +73,7 @@
 .topics-create-btn {
   border: none;
   border-radius: 8px;
-  background: #f37021;
+  background: #1e3a5f;
   color: #fff;
   font-size: 12px;
   font-weight: 600;
@@ -89,7 +89,7 @@
 }
 
 .topics-create-btn:hover {
-  background: #e65c0f;
+  background: #162d4c;
 }
 
 .topics-filter-btn {
@@ -122,8 +122,8 @@
 .topics-save-btn:focus,
 .topics-modal-close:focus,
 .topics-edit-btn:focus {
-  border-color: #f37021;
-  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
 }
 
 .topics-filter-panel {
@@ -479,12 +479,12 @@
 }
 
 .topics-detail-tabs button.is-active {
-  color: #f37021;
-  border-bottom-color: #f37021;
+  color: #1e3a5f;
+  border-bottom-color: #1e3a5f;
 }
 
 .topics-detail-tabs button:hover {
-  color: #f37021;
+  color: #1e3a5f;
 }
 
 .topics-detail-body {
@@ -772,9 +772,9 @@
 }
 
 .topics-tag {
-  border: 1px solid #fed7aa;
-  color: #c2410c;
-  background: #fff7ed;
+  border: 1px solid #bfdbfe;
+  color: #1e3a5f;
+  background: #f0f6ff;
   font-size: 12px;
   padding: 5px 9px;
   border-radius: 999px;
@@ -791,7 +791,7 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #f37021 0%, #ff8f46 100%);
+  background: linear-gradient(135deg, #1e3a5f 0%, #2a5282 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -871,7 +871,7 @@
 }
 
 .topics-timeline-step.is-current::after {
-  background: #f37021;
+  background: #1e3a5f;
 }
 
 .topics-timeline-node {
@@ -899,9 +899,9 @@
 
 .topics-timeline-step.is-current .topics-timeline-node {
   background: #fff;
-  border-color: #f37021;
-  box-shadow: 0 0 0 6px rgba(243, 112, 33, 0.12);
-  color: #f37021;
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 6px rgba(30, 58, 95, 0.12);
+  color: #1e3a5f;
 }
 
 .topics-timeline-step.is-current .topics-timeline-node svg,
@@ -912,8 +912,8 @@
 }
 
 .topics-timeline-step.is-current .topics-timeline-node svg {
-  color: #f37021;
-  stroke: #f37021;
+  color: #1e3a5f;
+  stroke: #1e3a5f;
 }
 
 .topics-timeline-step-body {
@@ -1134,8 +1134,8 @@
 .topics-save-btn:focus,
 .topics-modal-close:focus,
 .topics-edit-btn:focus {
-  border-color: #f37021;
-  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
 }
 
 .topics-form-actions {
@@ -1148,7 +1148,7 @@
 
 .topics-save-btn {
   border: none;
-  background: #f37021;
+  background: #1e3a5f;
   color: #fff;
 }
 
@@ -1264,11 +1264,11 @@
 }
 
 .topics-module .topics-actions-wrap button.topics-create-btn {
-  background: #f37021 !important;
+  background: #1e3a5f !important;
   color: #fff !important;
   border: none !important;
 }
 
 .topics-module .topics-actions-wrap button.topics-create-btn:hover {
-  background: #e65c0f !important;
+  background: #162d4c !important;
 }

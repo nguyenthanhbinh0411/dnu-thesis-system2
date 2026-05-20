@@ -995,7 +995,7 @@ const TopicsManagement: React.FC = () => {
     <div className="topics-module">
       <div className="topics-header">
         <h1>
-          <BookOpen size={30} color="#F37021" /> Quản lý đề tài
+          <BookOpen size={30} color="#1e3a5f" /> Quản lý đề tài
         </h1>
         <p>
           Dữ liệu chuẩn theo schema Topics, hiển thị theo bố cục giống giao diện

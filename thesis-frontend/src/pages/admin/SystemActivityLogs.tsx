@@ -27,7 +27,8 @@ import "../admin/Dashboard.css";
 const SystemActivityLogs: React.FC = () => {
   const [logs, setLogs] = useState<SystemActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
   const [moduleFilter, setModuleFilter] = useState("all");
@@ -39,13 +40,17 @@ const SystemActivityLogs: React.FC = () => {
   const [showOldValue, setShowOldValue] = useState(true);
   const [showNewValue, setShowNewValue] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"excel" | "pdf" | "csv">("excel");
   const pageSize = 15;
 
   const handleExportLogs = async () => {
     try {
       setIsExporting(true);
+      setExportError(null);
+      const apiFormat = exportFormat === "excel" ? "xlsx" : exportFormat;
       const payload = {
-        format: "xlsx",
+        format: apiFormat,
         filters: {
           search: searchTerm.trim() || undefined,
           module: moduleFilter !== "all" ? moduleFilter : undefined,
@@ -53,13 +58,20 @@ const SystemActivityLogs: React.FC = () => {
         }
       };
 
+      const acceptHeader =
+        exportFormat === "pdf"
+          ? "application/pdf"
+          : exportFormat === "csv"
+          ? "text/csv"
+          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
       const arrayBuffer = await fetchData<ArrayBuffer>(
         `/SystemActivityLogs/export`,
         { 
           method: "POST",
           body: payload,
-          timeoutMs: 120000,
-          headers: { Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+          timeoutMs: 300000,
+          headers: { Accept: acceptHeader }
         }
       );
 
@@ -67,20 +79,28 @@ const SystemActivityLogs: React.FC = () => {
         throw new Error("Không nhận được dữ liệu file từ server.");
       }
 
-      const blob = new Blob([arrayBuffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      });
+      const mimeType =
+        exportFormat === "pdf"
+          ? "application/pdf"
+          : exportFormat === "csv"
+          ? "text/csv; charset=utf-8"
+          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+      const ext = exportFormat === "excel" ? "xlsx" : exportFormat;
+
+      const blob = new Blob([arrayBuffer], { type: mimeType });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `system-activity-logs-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.download = `system-activity-logs-${new Date().toISOString().slice(0, 10)}.${ext}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
+      setExportModalOpen(false);
     } catch (err) {
       console.error("Export error:", err);
-      setError("Không thể xuất lịch sử hoạt động hệ thống");
+      setExportError("Không thể xuất lịch sử hoạt động hệ thống. Vui lòng thử lại hoặc giảm phạm vi lọc.");
     } finally {
       setIsExporting(false);
     }
@@ -89,7 +109,7 @@ const SystemActivityLogs: React.FC = () => {
   const loadLogs = async (page: number = 1) => {
     try {
       setLoading(true);
-      setError(null);
+      setLoadError(null);
 
       const response = await fetchData(
         `/SystemActivityLogs/get-list?Page=${page}&PageSize=${pageSize}`
@@ -101,7 +121,7 @@ const SystemActivityLogs: React.FC = () => {
         (response as ApiResponseSystemActivityLogs).totalCount || 0
       );
     } catch (err) {
-      setError("Không thể tải lịch sử hoạt động hệ thống");
+      setLoadError("Không thể tải lịch sử hoạt động hệ thống");
       console.error("Error loading system activity logs:", err);
     } finally {
       setLoading(false);
@@ -462,22 +482,22 @@ const SystemActivityLogs: React.FC = () => {
                 width: "48px",
                 height: "48px",
                 borderRadius: "12px",
-                backgroundColor: "#F37021",
+                backgroundColor: "#e0e7ff",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: "0 4px 12px rgba(243, 112, 33, 0.3)",
+                border: "1px solid #c7d2fe",
               }}
             >
-              <Activity size={24} color="#FFFFFF" />
+              <Activity size={24} color="#1e3a5f" />
             </div>
             <div>
               <h1
                 style={{
                   margin: 0,
-                  color: "#1F2937",
+                  color: "#0f172a",
                   fontSize: "32px",
-                  fontWeight: "700",
+                  fontWeight: "900",
                   lineHeight: "1.2",
                 }}
               >
@@ -486,8 +506,8 @@ const SystemActivityLogs: React.FC = () => {
               <p
                 style={{
                   margin: "4px 0 0 0",
-                  color: "#6B7280",
-                  fontSize: "16px",
+                  color: "#64748b",
+                  fontSize: "15px",
                 }}
               >
                 Theo dõi và giám sát tất cả hoạt động trong hệ thống
@@ -496,21 +516,24 @@ const SystemActivityLogs: React.FC = () => {
           </div>
 
           <button
-            onClick={() => handleExportLogs()}
+            onClick={() => {
+              setExportError(null);
+              setExportModalOpen(true);
+            }}
             disabled={isExporting}
             style={{
               padding: "10px 18px",
               borderRadius: "12px",
-              border: "none",
-              backgroundColor: "#F37021",
+              border: "1px solid #1e3a5f",
+              backgroundColor: "#1e3a5f",
               color: "white",
-              fontWeight: "700",
+              fontWeight: "800",
               fontSize: "14px",
               cursor: isExporting ? "not-allowed" : "pointer",
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              boxShadow: "0 4px 12px rgba(243, 112, 33, 0.3)",
+              boxShadow: "0 4px 12px rgba(30, 58, 95, 0.2)",
               opacity: isExporting ? 0.7 : 1,
               transition: "all 0.2s",
             }}
@@ -532,106 +555,86 @@ const SystemActivityLogs: React.FC = () => {
       >
         <div
           style={{
-            background: "linear-gradient(135deg, #667EEA 0%, #764BA2 100%)",
-            borderRadius: "16px",
+            background: "white",
+            borderRadius: "24px",
             padding: "24px",
-            color: "white",
-            boxShadow: "0 8px 25px rgba(102, 126, 234, 0.3)",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+            display: "flex",
+            flexDirection: "column"
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "12px",
-            }}
-          >
-            <BarChart3 size={24} />
-            <span style={{ fontSize: "24px", fontWeight: "700" }}>
-              {stats.total}
-            </span>
-          </div>
-          <p style={{ margin: 0, fontSize: "14px", opacity: 0.9 }}>
+          <div style={{ fontSize: "13px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <BarChart3 size={16} color="#1e3a5f" />
             Tổng hoạt động
-          </p>
+          </div>
+          <div style={{ fontSize: "32px", fontWeight: "900", color: "#1e3a5f" }}>
+            {stats.total}
+          </div>
+          <p style={{ margin: "8px 0 0 0", fontSize: "13px", color: "#94a3b8" }}>Toàn bộ nhật ký hệ thống</p>
         </div>
 
         <div
           style={{
-            background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
-            borderRadius: "16px",
+            background: "white",
+            borderRadius: "24px",
             padding: "24px",
-            color: "white",
-            boxShadow: "0 8px 25px rgba(16, 185, 129, 0.3)",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+            display: "flex",
+            flexDirection: "column"
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "12px",
-            }}
-          >
-            <CheckCircle size={24} />
-            <span style={{ fontSize: "24px", fontWeight: "700" }}>
-              {stats.success}
-            </span>
-          </div>
-          <p style={{ margin: 0, fontSize: "14px", opacity: 0.9 }}>
+          <div style={{ fontSize: "13px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <CheckCircle size={16} color="#16a34a" />
             Thành công
-          </p>
+          </div>
+          <div style={{ fontSize: "32px", fontWeight: "900", color: "#16a34a" }}>
+            {stats.success}
+          </div>
+          <p style={{ margin: "8px 0 0 0", fontSize: "13px", color: "#94a3b8" }}>Các thao tác hợp lệ</p>
         </div>
 
         <div
           style={{
-            background: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)",
-            borderRadius: "16px",
+            background: "white",
+            borderRadius: "24px",
             padding: "24px",
-            color: "white",
-            boxShadow: "0 8px 25px rgba(245, 158, 11, 0.3)",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+            display: "flex",
+            flexDirection: "column"
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "12px",
-            }}
-          >
-            <TrendingUp size={24} />
-            <span style={{ fontSize: "24px", fontWeight: "700" }}>
-              {stats.update}
-            </span>
+          <div style={{ fontSize: "13px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <TrendingUp size={16} color="#f59e0b" />
+            Cập nhật
           </div>
-          <p style={{ margin: 0, fontSize: "14px", opacity: 0.9 }}>Cập nhật</p>
+          <div style={{ fontSize: "32px", fontWeight: "900", color: "#f59e0b" }}>
+            {stats.update}
+          </div>
+          <p style={{ margin: "8px 0 0 0", fontSize: "13px", color: "#94a3b8" }}>Chỉnh sửa dữ liệu</p>
         </div>
 
         <div
           style={{
-            background: "linear-gradient(135deg, #EF4444 0%, #DC2626 100%)",
-            borderRadius: "16px",
+            background: "white",
+            borderRadius: "24px",
             padding: "24px",
-            color: "white",
-            boxShadow: "0 8px 25px rgba(239, 68, 68, 0.3)",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+            display: "flex",
+            flexDirection: "column"
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "12px",
-            }}
-          >
-            <XCircle size={24} />
-            <span style={{ fontSize: "24px", fontWeight: "700" }}>
-              {stats.delete}
-            </span>
+          <div style={{ fontSize: "13px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <XCircle size={16} color="#ef4444" />
+            Xóa
           </div>
-          <p style={{ margin: 0, fontSize: "14px", opacity: 0.9 }}>Xóa</p>
+          <div style={{ fontSize: "32px", fontWeight: "900", color: "#ef4444" }}>
+            {stats.delete}
+          </div>
+          <p style={{ margin: "8px 0 0 0", fontSize: "13px", color: "#94a3b8" }}>Xóa dữ liệu</p>
         </div>
       </div>
 
@@ -841,7 +844,7 @@ const SystemActivityLogs: React.FC = () => {
       )}
 
       {/* Error State */}
-      {error && (
+      {loadError && (
         <div
           style={{
             padding: "32px",
@@ -868,13 +871,13 @@ const SystemActivityLogs: React.FC = () => {
             Lỗi tải dữ liệu
           </h3>
           <p style={{ margin: 0, color: "#DC2626", fontSize: "14px" }}>
-            {error}
+            {loadError}
           </p>
         </div>
       )}
 
       {/* Activity Cards */}
-      {!loading && !error && (
+      {!loading && !loadError && (
         <>
           <div
             style={{
@@ -1693,6 +1696,100 @@ const SystemActivityLogs: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Format Selection Export Modal */}
+      {exportModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderRadius: "16px",
+              width: "480px",
+              padding: "24px",
+              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.15)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 12px 0", fontSize: "18px", fontWeight: "800", color: "#1e3a5f" }}>Tải xuống Nhật ký Hoạt động</h3>
+            <p style={{ margin: "0 0 20px 0", fontSize: "14px", color: "#64748b" }}>Chọn định dạng file bạn muốn tải xuống:</p>
+
+            {exportError && (
+              <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 12, background: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C", fontSize: 14, lineHeight: 1.5 }}>
+                {exportError}
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "24px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", fontWeight: "600", color: "#334155" }}>
+                <input type="radio" name="exportFormat" checked={exportFormat === "excel"} onChange={() => setExportFormat("excel")} style={{ width: "16px", height: "16px" }} />
+                <span>Excel (.xlsx)</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", fontWeight: "600", color: "#334155" }}>
+                <input type="radio" name="exportFormat" checked={exportFormat === "pdf"} onChange={() => setExportFormat("pdf")} style={{ width: "16px", height: "16px" }} />
+                <span>PDF Document (.pdf)</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", fontWeight: "600", color: "#334155" }}>
+                <input type="radio" name="exportFormat" checked={exportFormat === "csv"} onChange={() => setExportFormat("csv")} style={{ width: "16px", height: "16px" }} />
+                <span>CSV (Phân tách bằng dấu phẩy)</span>
+              </label>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+              <button
+                onClick={() => {
+                  setExportError(null);
+                  setExportModalOpen(false);
+                }}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: "10px",
+                  border: "1px solid #e2e8f0",
+                  background: "white",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "700",
+                  color: "#64748b"
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleExportLogs}
+                disabled={isExporting}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "#1e3a5f",
+                  color: "white",
+                  cursor: isExporting ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  fontWeight: "800",
+                  boxShadow: "0 4px 12px rgba(30, 58, 95, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}
+              >
+                {isExporting ? "Đang xuất..." : "Tải xuống"}
+              </button>
             </div>
           </div>
         </div>

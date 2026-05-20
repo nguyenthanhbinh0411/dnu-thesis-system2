@@ -48,7 +48,7 @@
 .spm-create-btn {
   border: none;
   border-radius: 8px;
-  background: #f37021;
+  background: #1e3a5f;
   color: #fff;
   font-size: 12px;
   font-weight: 600;
@@ -64,7 +64,7 @@
 }
 
 .spm-create-btn:hover {
-  background: #e65c0f;
+  background: #162d4c;
 }
 
 .spm-search-wrap {
@@ -109,8 +109,8 @@
 .spm-search-wrap input:focus,
 .spm-filter-wrap select:focus,
 .spm-paging-controls select:focus {
-  border-color: #f37021;
-  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
 }
 
 .spm-table-wrap {
@@ -229,7 +229,7 @@
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: linear-gradient(135deg, #f37021 0%, #ff8f46 100%);
+  background: linear-gradient(135deg, #1e3a5f 0%, #2a5282 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -349,13 +349,13 @@
 .spm-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: #f37021;
+  background: #1e3a5f;
 }
 
 .spm-detail-btn {
   border: none;
   border-radius: 8px;
-  background: #f37021;
+  background: #1e3a5f;
   color: #fff;
   padding: 7px 9px;
   font-size: 12px;
@@ -575,12 +575,12 @@
 }
 
 .spm-detail-tabs button.is-active {
-  color: #f37021;
-  border-bottom-color: #f37021;
+  color: #1e3a5f;
+  border-bottom-color: #1e3a5f;
 }
 
 .spm-detail-tabs button:hover {
-  color: #f37021;
+  color: #1e3a5f;
 }
 
 .spm-detail-body {
@@ -714,7 +714,7 @@
 .spm-progress-track-lg .spm-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: #f37021;
+  background: #1e3a5f;
 }
 
 .spm-detail-column {
@@ -1139,7 +1139,7 @@
 }
 
 .spm-timeline-step.is-current::after {
-  background: #f37021;
+  background: #1e3a5f;
 }
 
 .spm-timeline-node {
@@ -1172,9 +1172,9 @@
 
 .spm-timeline-step.is-current .spm-timeline-node {
   background: #fff;
-  color: #f37021;
-  border-color: #f37021;
-  box-shadow: 0 0 0 6px rgba(243, 112, 33, 0.12);
+  color: #1e3a5f;
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 6px rgba(30, 58, 95, 0.12);
 }
 
 .spm-timeline-step-body {
@@ -1339,7 +1339,7 @@
 
 .spm-save-btn {
   border: none;
-  background: #f37021;
+  background: #1e3a5f;
   color: #fff;
 }
 
@@ -1357,9 +1357,9 @@
 }
 
 .spm-tag {
-  border: 1px solid #fed7aa;
-  color: #c2410c;
-  background: #fff7ed;
+  border: 1px solid #bfdbfe;
+  color: #1e3a5f;
+  background: #f0f6ff;
   font-size: 12px;
   padding: 5px 9px;
   border-radius: 999px;
@@ -1557,8 +1557,8 @@
 }
 
 .spm-filter-field select:focus {
-  border-color: #f37021;
-  box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.12);
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
 }
 
 /* Force all buttons in the actions wrap to be compact, overriding any inline styles */
@@ -1577,11 +1577,11 @@
 
 /* Maintain proper background for primary action button even under actions override */
 .student-profiles-module .spm-actions-wrap button.spm-create-btn {
-  background: #f37021 !important;
+  background: #1e3a5f !important;
   color: #fff !important;
   border: none !important;
 }
 
 .student-profiles-module .spm-actions-wrap button.spm-create-btn:hover {
-  background: #e65c0f !important;
+  background: #162d4c !important;
 }

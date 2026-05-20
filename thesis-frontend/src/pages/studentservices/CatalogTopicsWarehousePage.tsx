@@ -613,7 +613,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
             onClick={() => setShowFilters((prev) => !prev)}
             className="warehouse-btn warehouse-btn-secondary"
             style={{
-              background: showFilters ? "#fff7ed" : "#fff",
+              background: showFilters ? "#f0f6ff" : "#fff",
             }}
           >
             <Filter size={14} />
@@ -882,9 +882,9 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                             <span
                               key={`${row.catalogTopicID}-${tag.tagID}`}
                               style={{
-                                border: "1px solid #fed7aa",
-                                color: "#9a3412",
-                                background: "#fff7ed",
+                                border: "1px solid #bfdbfe",
+                                color: "#1e3a5f",
+                                background: "#f0f6ff",
                                 borderRadius: 999,
                                 padding: "2px 8px",
                                 fontSize: 12,
@@ -1075,7 +1075,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                 padding: 24,
                 borderBottom: "1px solid rgba(148,163,184,0.18)",
                 background:
-                  "linear-gradient(135deg, rgba(243,112,33,0.08), rgba(14,165,233,0.05))",
+                  "linear-gradient(135deg, rgba(30, 58, 95, 0.08), rgba(14,165,233,0.05))",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "flex-start",
@@ -1090,8 +1090,8 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                     gap: 8,
                     padding: "6px 10px",
                     borderRadius: 999,
-                    background: "rgba(243,112,33,0.12)",
-                    color: "#c2410c",
+                    background: "rgba(30, 58, 95, 0.12)",
+                    color: "#1e3a5f",
                     fontSize: 12,
                     fontWeight: 800,
                     textTransform: "uppercase",
@@ -1206,15 +1206,15 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                                 gap: 6,
                                 padding: "7px 10px",
                                 borderRadius: 999,
-                                background: "#fff7ed",
-                                border: "1px solid #fed7aa",
-                                color: "#9a3412",
+                                background: "#f0f6ff",
+                                border: "1px solid #bfdbfe",
+                                color: "#1e3a5f",
                                 fontSize: 13,
                                 fontWeight: 700,
                               }}
                             >
                               {tag.tagCode}
-                              <span style={{ color: "#c2410c", fontWeight: 600 }}>{tag.tagName}</span>
+                              <span style={{ color: "#1e3a5f", fontWeight: 600 }}>{tag.tagName}</span>
                             </span>
                           ))
                         ) : (
@@ -1459,7 +1459,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                         <div style={{ color: "#475569", lineHeight: 1.6 }}>{selectedTopic?.summary || "--"}</div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                           {selectedTopic?.tags?.map((tag) => (
-                            <span key={tag.tagID} style={{ padding: "6px 10px", borderRadius: 999, background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: 12, fontWeight: 700 }}>
+                            <span key={tag.tagID} style={{ padding: "6px 10px", borderRadius: 999, background: "#f0f6ff", border: "1px solid #bfdbfe", color: "#1e3a5f", fontSize: 12, fontWeight: 700 }}>
                               {tag.tagCode}
                             </span>
                           ))}
@@ -1501,7 +1501,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                   disabled={isModalSaving}
                   style={{
                     border: "none",
-                    background: "#f37021",
+                    background: "#1e3a5f",
                     color: "#fff",
                     borderRadius: 8,
                     padding: "8px 12px",
@@ -1689,7 +1689,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                   border: "none",
                   borderRadius: 8,
                   padding: "8px 12px",
-                  background: "#f37021",
+                  background: "#1e3a5f",
                   color: "#fff",
                   fontWeight: 800,
                   cursor: "pointer",

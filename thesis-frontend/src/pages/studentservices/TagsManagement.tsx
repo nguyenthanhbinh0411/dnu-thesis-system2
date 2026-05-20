@@ -443,7 +443,7 @@ const TagsManagement: React.FC = () => {
             onClick={() => setShowAdvancedFilters((prev) => !prev)}
             className="tags-btn tags-btn-secondary"
             style={{
-              background: showAdvancedFilters ? "#fff7ed" : "#fff",
+              background: showAdvancedFilters ? "#f0f6ff" : "#fff",
             }}
           >
             <Filter size={14} /> Bộ lọc
@@ -761,7 +761,7 @@ const TagsManagement: React.FC = () => {
                   disabled={isSubmitting}
                   style={{
                     border: "none",
-                    background: "#f37021",
+                    background: "#1e3a5f",
                     color: "#fff",
                     borderRadius: 8,
                     padding: "8px 12px",

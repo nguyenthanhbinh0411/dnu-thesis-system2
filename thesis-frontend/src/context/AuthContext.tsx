@@ -149,6 +149,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               textAlign: "center",
               boxShadow: "0 20px 50px rgba(0,0,0,0.06)",
               animation: "slideUp 0.5s ease-out",
+              fontFamily: "'Be Vietnam Pro', sans-serif",
             }}
           >
             <img
@@ -169,7 +170,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 fontWeight: 800,
                 color: "#001C3D",
                 marginBottom: 12,
-                fontFamily: '"Inter", sans-serif',
               }}
             >
               Chuyển đổi không gian làm việc
