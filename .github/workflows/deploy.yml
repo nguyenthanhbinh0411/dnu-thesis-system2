@@ -763,7 +763,12 @@ jobs:
               -o UserKnownHostsFile=~/.ssh/known_hosts \
               -p "$SERVER_SSH_PORT" \
               "$SERVER_USER@$SERVER_HOST" \
-            "cd '$SERVER_APP_DIR' && docker compose --env-file .env -f docker-compose.production.yml down --remove-orphans 2>/dev/null; docker compose --env-file .env -f docker-compose.production.yml up -d --remove-orphans"
+            "set -e; \
+            cd '$SERVER_APP_DIR'; \
+            docker compose --env-file .env -f docker-compose.production.yml down --remove-orphans || true; \
+            docker rm -f graduation-thesis-api graduation-thesis-web 2>/dev/null || true; \
+            docker compose --env-file .env -f docker-compose.production.yml up -d --remove-orphans; \
+            docker compose --env-file .env -f docker-compose.production.yml ps"
 
           echo "✓ Services deployed"
 

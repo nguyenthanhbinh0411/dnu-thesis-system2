@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 # ================================================
 # Graduation Thesis Management System
@@ -102,9 +102,6 @@ services:
 networks:
   graduation-thesis-net:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16
 
 # ================================================
 # Notes
