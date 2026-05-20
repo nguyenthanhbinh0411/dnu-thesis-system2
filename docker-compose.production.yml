@@ -21,7 +21,7 @@ services:
     image: ${BACKEND_IMAGE}
     container_name: graduation-thesis-api
     restart: unless-stopped
-
+    network_mode: host
     environment:
       # ASP.NET Core settings
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
@@ -46,12 +46,9 @@ services:
       - Logging__LogLevel__Microsoft.EntityFrameworkCore=Warning
 
     # Internal network only - NOT exposed to host
-    expose:
-      - "8080"
+
 
     # Docker internal network
-    networks:
-      - graduation-thesis-net
 
     # Healthcheck using wget (aspnet image has wget, not curl)
     healthcheck:
@@ -81,6 +78,8 @@ services:
     ports:
       - "${PUBLIC_PORT:-8888}:80"
 
+    extra_hosts:
+      - "backend:host-gateway"
     depends_on:
       backend:
         condition: service_healthy
