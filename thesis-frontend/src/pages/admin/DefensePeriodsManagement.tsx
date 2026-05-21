@@ -956,6 +956,11 @@ const DefensePeriodsManagement: React.FC = () => {
     }
   }, [selectedRow?.configJson]);
 
+  const councilListLocked = parsedConfig?.councilListLocked === true || parsedConfig?.CouncilListLocked === true;
+  const scoredTopics = asNumber(monitoring?.pipeline?.scoredTopics);
+  const totalTopics = asNumber(monitoring?.pipeline?.totalTopics);
+  const hasAnyScoredTopics = scoredTopics > 0;
+  const isScoringComplete = totalTopics > 0 && scoredTopics >= totalTopics;
   const canRollbackStage = parsedConfig?.canRollbackStage === true || parsedConfig?.CanRollbackStage === true;
 
   const loadData = useCallback(async (isSilent = false) => {
@@ -1200,8 +1205,12 @@ const DefensePeriodsManagement: React.FC = () => {
 
     if (action === "FINALIZE") {
       const scoringPercent = asNumber(monitoring?.pipeline?.overallCompletionPercent);
-      if (scoringPercent < 100) {
-        if (!window.confirm(`Tiến độ chấm điểm hiện mới đạt ${scoringPercent}%. Việc tổng kết đợt khi chưa chấm đủ có thể dẫn đến sai lệch kết quả. Bạn vẫn muốn tiếp tục?`)) return;
+      if (!isScoringComplete || scoringPercent < 100) {
+        addToast(
+          `Chưa thể tổng kết đợt. Cần chốt điểm toàn bộ đề tài trước khi chuyển sang giai đoạn hậu bảo vệ và kết thúc đợt. Hiện mới đạt ${scoringPercent}% (${scoredTopics}/${totalTopics}).`,
+          "warning",
+        );
+        return;
       }
     }
 
@@ -1214,8 +1223,13 @@ const DefensePeriodsManagement: React.FC = () => {
 
     if (action === "ROLLBACK_STAGE") {
       // Check if already rolled back in this session or if backend says not allowed
-      if (hasRolledBackThisSession || !canRollbackStage) {
-        addToast("Rollback chỉ được phép thực hiện tối đa 1 lần cho mỗi giai đoạn. Lần rollback đã được sử dụng.", "warning");
+      if (hasRolledBackThisSession || !canRollbackStage || councilListLocked || hasAnyScoredTopics) {
+        addToast(
+          councilListLocked || hasAnyScoredTopics
+            ? "Không thể quay lại giai đoạn trước khi đã chốt danh sách hội đồng hoặc đã có điểm cho bất kỳ hội đồng nào."
+            : "Rollback chỉ được phép thực hiện tối đa 1 lần cho mỗi giai đoạn. Lần rollback đã được sử dụng.",
+          "warning",
+        );
         return;
       }
       setConfirmState({
@@ -1820,12 +1834,15 @@ const DefensePeriodsManagement: React.FC = () => {
 
             <div style={{ marginTop: "auto", paddingTop: "24px", borderTop: "1px solid #f1f5f9" }}>
               <button
-                disabled={refreshing || currentStatus === "Archived"}
+                disabled={refreshing || currentStatus === "Archived" || (nextAction === "Tổng kết đợt" && !isScoringComplete)}
                 onClick={() => handleAction("NEXT")}
+                title={nextAction === "Tổng kết đợt" && !isScoringComplete ? "Cần chốt điểm toàn bộ đề tài trước khi tổng kết đợt." : undefined}
                 style={{
                   width: "100%", padding: "18px", borderRadius: "16px", border: "none",
-                  background: `linear-gradient(135deg, ${DEEP_BLUE_PRIMARY}, #2c5282)`,
-                  color: "white", fontSize: "16px", fontWeight: "800", cursor: "pointer",
+                  background: refreshing || currentStatus === "Archived" || (nextAction === "Tổng kết đợt" && !isScoringComplete)
+                    ? "#cbd5e1"
+                    : `linear-gradient(135deg, ${DEEP_BLUE_PRIMARY}, #2c5282)`,
+                  color: "white", fontSize: "16px", fontWeight: "800", cursor: refreshing || currentStatus === "Archived" || (nextAction === "Tổng kết đợt" && !isScoringComplete) ? "not-allowed" : "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
                   boxShadow: "0 10px 20px -5px rgba(30, 58, 95, 0.3)", transition: "all 0.2s"
                 }}
@@ -1866,7 +1883,7 @@ const DefensePeriodsManagement: React.FC = () => {
                       : "Quay lại bước trước (Rollback)",
                     icon: <RotateCcw size={18} />,
                     color: "#64748b",
-                    disabled: !canRollbackStage || hasRolledBackThisSession,
+                    disabled: !canRollbackStage || hasRolledBackThisSession || councilListLocked || hasAnyScoredTopics,
                     tooltip: hasRolledBackThisSession ? "Đã dùng lần rollback duy nhất" : undefined
                   },
                 ].map(op => (

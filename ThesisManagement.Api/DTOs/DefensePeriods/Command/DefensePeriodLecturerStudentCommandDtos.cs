@@ -105,6 +105,8 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
 
         public ReopenScoreRequestDto? Reopen { get; set; }
 
+        public string? Reason { get; set; }
+
         public string? IdempotencyKey { get; set; }
     }
 

@@ -22,17 +22,17 @@ namespace ThesisManagement.Api.Application.Command.DefenseExecution
 
     public interface IOpenLecturerSessionCommand
     {
-        Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
+        Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
     }
 
     public interface ILockLecturerSessionCommand
     {
-        Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
+        Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
     }
 
     public interface ICloseLecturerSessionCommand
     {
-        Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
+        Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
     }
 
     public interface IApproveRevisionByLecturerCommand
@@ -78,25 +78,25 @@ namespace ThesisManagement.Api.Application.Command.DefenseExecution
     {
         private readonly IDefensePeriodCommandProcessor _processor;
         public OpenLecturerSessionCommand(IDefensePeriodCommandProcessor processor) => _processor = processor;
-        public Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default)
-            => _processor.OpenSessionAsync(committeeId, lecturerCode, actorUserId, idempotencyKey, cancellationToken);
+        public Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+            => _processor.OpenSessionAsync(committeeId, lecturerCode, actorUserId, reason, isAdmin, idempotencyKey, cancellationToken);
     }
 
     public class LockLecturerSessionCommand : ILockLecturerSessionCommand
     {
         private readonly IDefensePeriodCommandProcessor _processor;
         public LockLecturerSessionCommand(IDefensePeriodCommandProcessor processor) => _processor = processor;
-        public Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default)
-            => _processor.LockSessionAsync(committeeId, lecturerCode, actorUserId, idempotencyKey, cancellationToken);
+        public Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+            => _processor.LockSessionAsync(committeeId, lecturerCode, actorUserId, reason, isAdmin, idempotencyKey, cancellationToken);
     }
 
     public class CloseLecturerSessionCommand : ICloseLecturerSessionCommand
     {
         private readonly Application.Command.DefensePeriods.Services.IDefenseScoreWorkflowService _workflowService;
         public CloseLecturerSessionCommand(Application.Command.DefensePeriods.Services.IDefenseScoreWorkflowService workflowService) => _workflowService = workflowService;
-        public async Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+        public async Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default)
         {
-            await _workflowService.CloseSessionAsync(committeeId, lecturerCode, actorUserId, cancellationToken);
+            await _workflowService.CloseSessionAsync(committeeId, lecturerCode, actorUserId, reason, isAdmin, cancellationToken);
             return ApiResponse<bool>.SuccessResponse(true);
         }
     }

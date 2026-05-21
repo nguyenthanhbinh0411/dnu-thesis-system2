@@ -529,7 +529,16 @@ const LecturerCommittees: React.FC = () => {
                   <button className="action-btn btn-ghost" style={{ flex: 1 }} onClick={() => setDetailCommitteeId(c.id)}>
                     <Eye size={16} /> Chi tiết
                   </button>
-                  {c.status !== "Đã đóng" ? (
+                  {c.status === "Sắp diễn ra" && c.roleCode !== "UVTK" ? (
+                    <button 
+                      className="action-btn btn-disabled" 
+                      style={{ flex: 1, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }} 
+                      disabled
+                      title="Chờ thư ký mở phiên họp"
+                    >
+                      <Lock size={16} /> Chờ mở phiên
+                    </button>
+                  ) : c.status !== "Đã đóng" ? (
                     <button 
                       className="action-btn btn-primary" 
                       style={{ flex: 1, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }} 
@@ -626,7 +635,16 @@ const LecturerCommittees: React.FC = () => {
 
             <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button className="action-btn btn-ghost" onClick={() => setDetailCommitteeId("")}>Đóng lại</button>
-              {detailCommittee.status !== "Đã đóng" ? (
+              {detailCommittee.status === "Sắp diễn ra" && detailCommittee.roleCode !== "UVTK" ? (
+                <button
+                  className="action-btn btn-disabled"
+                  disabled
+                  title="Chờ thư ký mở phiên họp"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Lock size={16} /> Chờ mở phiên
+                </button>
+              ) : detailCommittee.status !== "Đã đóng" ? (
                 <button
                   className="action-btn btn-primary"
                   onClick={() => {

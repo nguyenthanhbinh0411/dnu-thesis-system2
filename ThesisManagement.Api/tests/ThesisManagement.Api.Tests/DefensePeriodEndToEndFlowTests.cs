@@ -342,7 +342,13 @@ public class DefensePeriodEndToEndFlowTests
             {
                 AssignmentId = assignment.AssignmentID,
                 ScoreGvhd = 7.0m,
-                IsLocked = false,
+                ScoreCt = 7.5m,
+                ScoreUvtk = 7.5m,
+                ScoreUvpb = 7.5m,
+                FinalScoreNumeric = 7.5m,
+                FinalScoreText = "B",
+                IsPassed = true,
+                IsLocked = true,
                 CreatedAt = now,
                 LastUpdated = now
             });

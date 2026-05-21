@@ -985,42 +985,46 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                 },
                 headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
             }),
-        openSessionByCommittee: (id: string | number, idempotencyKey?: string) =>
+        openSessionByCommittee: (id: string | number, idempotencyKey?: string, reason?: string) =>
             fetchData<ApiResponse<boolean>>(`${lecturerBase}/scoring/actions`, {
                 method: "POST",
                 body: {
                     action: "OPEN_SESSION",
                     committeeId: Number(id),
+                    reason: reason,
                     ...(idempotencyKey ? { idempotencyKey } : {}),
                 },
                 headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
             }),
-        closeSessionByCommittee: (id: string | number, idempotencyKey?: string) =>
+        closeSessionByCommittee: (id: string | number, idempotencyKey?: string, reason?: string) =>
             fetchData<ApiResponse<boolean>>(`${lecturerBase}/scoring/actions`, {
                 method: "POST",
                 body: {
                     action: "LOCK_SESSION",
                     committeeId: Number(id),
+                    reason: reason,
                     ...(idempotencyKey ? { idempotencyKey } : {}),
                 },
                 headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
             }),
-        lockSessionByCommittee: (id: string | number, idempotencyKey?: string) =>
+        lockSessionByCommittee: (id: string | number, idempotencyKey?: string, reason?: string) =>
             fetchData<ApiResponse<boolean>>(`${lecturerBase}/scoring/actions`, {
                 method: "POST",
                 body: {
                     action: "LOCK_SESSION",
                     committeeId: Number(id),
+                    reason: reason,
                     ...(idempotencyKey ? { idempotencyKey } : {}),
                 },
                 headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
             }),
-        closeSessionPermanentlyByCommittee: (id: string | number, idempotencyKey?: string) =>
+        closeSessionPermanentlyByCommittee: (id: string | number, idempotencyKey?: string, reason?: string) =>
             fetchData<ApiResponse<boolean>>(`${lecturerBase}/scoring/actions`, {
                 method: "POST",
                 body: {
                     action: "CLOSE_SESSION",
                     committeeId: Number(id),
+                    reason: reason,
                     ...(idempotencyKey ? { idempotencyKey } : {}),
                 },
                 headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
@@ -1427,6 +1431,18 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
 
         if (!targetCommittee) {
             notifyInfo("Không tìm thấy hội đồng đã chọn. Vui lòng vào lại từ Danh sách hội đồng.");
+            navigate("/lecturer/committees", { replace: true });
+            return;
+        }
+
+        if (targetCommittee.status === "Đã đóng") {
+            notifyInfo("Hội đồng đã đóng phiên vĩnh viễn. Chỉ quản trị viên mở lại thì mới vào được phòng.");
+            navigate("/lecturer/committees", { replace: true });
+            return;
+        }
+
+        if (targetCommittee.status === "Sắp diễn ra" && targetCommittee.roleCode !== "UVTK") {
+            notifyInfo("Chỉ Thư ký hội đồng mới được vào phòng để mở phiên trước khi Chủ tịch tham gia.");
             navigate("/lecturer/committees", { replace: true });
             return;
         }
@@ -2622,7 +2638,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
     const isSecretaryRole = selectedCommittee?.roleCode === "UVTK";
     const isReviewerRole = selectedCommittee?.roleCode === "UVPB";
 
-    const canOpenSession = canOpenSessionByActions || isChairRole;
+    const canOpenSession = canOpenSessionByActions || isSecretaryRole;
     const canSubmitScore = canSubmitScoreByActions || isChairRole || isSecretaryRole || isReviewerRole;
     const canRequestReopen = canRequestReopenByActions || isChairRole;
 
@@ -2933,9 +2949,19 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         }
     };
 
-    const handleChairOpenSession = async (committee: Committee) => {
-        if (committee.normalizedRole !== "CT") {
-            notifyInfo("Chỉ Chủ tịch hội đồng mới có thể mở phiên.");
+    const requestActionReason = (message: string) => {
+        const reason = window.prompt(message);
+        const trimmed = reason?.trim() ?? "";
+        if (!trimmed) {
+            notifyInfo("Vui lòng nhập lý do thực hiện.");
+            return null;
+        }
+        return trimmed;
+    };
+
+    const handleSecretaryOpenSession = async (committee: Committee) => {
+        if (committee.normalizedRole !== "UVTK") {
+            notifyInfo("Chỉ Thư ký hội đồng mới có thể mở phiên.");
             return;
         }
         if (committee.status === "Đang họp") {
@@ -2946,20 +2972,21 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             notifyInfo("Phiên đã đóng vĩnh viễn. Liên hệ quản trị viên để mở lại.");
             return;
         }
-        if (committee.status === "Đã chốt") {
-            notifyInfo("Phiên đã khóa, không thể mở lại từ danh sách này.");
+
+        const reason = requestActionReason(`Nhập lý do mở phiên hội đồng ${committee.id}:`);
+        if (!reason) {
             return;
         }
 
         try {
-            const idempotencyKey = createIdempotencyKey(periodIdText || "NA", `chair-open-${committee.id}`);
-            const response = await lecturerApi.openSessionByCommittee(committee.numericId, idempotencyKey);
+            const idempotencyKey = createIdempotencyKey(periodIdText || "NA", `secretary-open-${committee.id}`);
+            const response = await lecturerApi.openSessionByCommittee(committee.numericId, idempotencyKey, reason);
             if (notifyApiFailure(response as ApiResponse<unknown>, "Mở phiên hội đồng thất bại.")) {
                 return;
             }
 
             syncCommitteeSessionStatus(committee.id, "Đang họp");
-            pushTrace("open-session", `[Chair] Mở phiên hội đồng ${committee.id}.`);
+            pushTrace("open-session", `[UC3.1] Thư ký đã mở phiên hội đồng ${committee.id}.`);
 
             if (selectedCommitteeId === committee.id) {
                 await refreshScoringData(committee.numericId);
@@ -2971,9 +2998,9 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         }
     };
 
-    const handleChairCloseSession = async (committee: Committee) => {
-        if (committee.normalizedRole !== "CT") {
-            notifyInfo("Chỉ Chủ tịch hội đồng mới có thể đóng phiên.");
+    const handleSecretaryCloseSession = async (committee: Committee) => {
+        if (committee.normalizedRole !== "UVTK") {
+            notifyInfo("Chỉ Thư ký hội đồng mới có thể đóng phiên.");
             return;
         }
         if (committee.status !== "Đã chốt") {
@@ -2981,15 +3008,20 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             return;
         }
 
+        const reason = requestActionReason(`Nhập lý do đóng phiên hội đồng ${committee.id}:`);
+        if (!reason) {
+            return;
+        }
+
         try {
-            const idempotencyKey = createIdempotencyKey(periodIdText || "NA", `chair-close-permanent-${committee.id}`);
-            const response = await lecturerApi.closeSessionPermanentlyByCommittee(committee.numericId, idempotencyKey);
+            const idempotencyKey = createIdempotencyKey(periodIdText || "NA", `secretary-close-${committee.id}`);
+            const response = await lecturerApi.closeSessionPermanentlyByCommittee(committee.numericId, idempotencyKey, reason);
             if (notifyApiFailure(response as ApiResponse<unknown>, "Đóng phiên hội đồng thất bại.")) {
                 return;
             }
 
             syncCommitteeSessionStatus(committee.id, "Đã đóng");
-            pushTrace("close-session-permanent", `[Chair] Đóng phiên vĩnh viễn hội đồng ${committee.id}.`);
+            pushTrace("close-session-permanent", `[UC3.6] Thư ký đã đóng phiên vĩnh viễn hội đồng ${committee.id}.`);
 
             if (selectedCommitteeId === committee.id) {
                 await refreshScoringData(committee.numericId);
@@ -3139,6 +3171,13 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             return;
         }
 
+        const reason = window.prompt(`Nhập lý do chốt điểm hội đồng ${selectedCommitteeId || selectedCommitteeNumericId}:`);
+        const trimmedReason = reason?.trim();
+        if (!trimmedReason) {
+            notifyInfo("Vui lòng nhập lý do thực hiện.");
+            return;
+        }
+
         try {
             const submittedOk = await handleSubmitScore({ suppressToast: true });
             if (!submittedOk) {
@@ -3146,7 +3185,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             }
 
             const idempotencyKey = createIdempotencyKey(periodIdText || "NA", "lecturer-session-lock");
-            const response = await lecturerApi.lockSessionByCommittee(selectedCommitteeNumericId, idempotencyKey);
+            const response = await lecturerApi.lockSessionByCommittee(selectedCommitteeNumericId, idempotencyKey, trimmedReason);
             if (notifyApiFailure(response as ApiResponse<unknown>, "Chốt điểm thất bại.")) {
                 return;
             }
@@ -3157,7 +3196,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                     item.id === selectedCommitteeId ? { ...item, status: "Đã chốt" } : item,
                 ),
             );
-            pushTrace("lock-session", "[UC3.5] Đã chốt điểm hội đồng.");
+            pushTrace("lock-session", `[UC3.5] Chủ tịch đã chốt điểm hội đồng ${selectedCommitteeId || selectedCommitteeNumericId}.`);
             await refreshScoringData(selectedCommitteeNumericId);
             await refreshAllScoringRows();
             notifySuccess("Đã chốt điểm hội đồng thành công.");
@@ -3168,6 +3207,49 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                 return;
             }
             notifyError("Chốt điểm thất bại.");
+        }
+    };
+
+    const handleChairUnlockSession = async () => {
+        if (!isChairRole) {
+            notifyError("Chỉ Chủ tịch hội đồng mới có thể mở chốt điểm.");
+            return;
+        }
+
+        const confirmed = window.confirm(
+            "Bạn có chắc chắn muốn mở chốt điểm? Các thành viên sẽ có thể chỉnh sửa điểm.",
+        );
+        if (!confirmed) {
+            return;
+        }
+
+        const reason = window.prompt(`Nhập lý do mở chốt điểm hội đồng ${selectedCommitteeId || selectedCommitteeNumericId}:`);
+        const trimmedReason = reason?.trim();
+        if (!trimmedReason) {
+            notifyInfo("Vui lòng nhập lý do thực hiện.");
+            return;
+        }
+
+        try {
+            const idempotencyKey = createIdempotencyKey(periodIdText || "NA", "lecturer-session-unlock");
+            const response = await lecturerApi.openSessionByCommittee(selectedCommitteeNumericId, idempotencyKey, trimmedReason);
+            if (notifyApiFailure(response as ApiResponse<unknown>, "Mở chốt điểm thất bại.")) {
+                return;
+            }
+
+            setSessionLocked(false);
+            setSubmittedByAssignment((prev) => ({ ...(prev ?? {}), [selectedAssignmentId]: false }));
+            setCommittees((prev) =>
+                prev.map((item) =>
+                    item.id === selectedCommitteeId ? { ...item, status: "Đang họp" } : item,
+                ),
+            );
+            pushTrace("unlock-session", `[UC3.5] Chủ tịch đã mở chốt điểm hội đồng ${selectedCommitteeId || selectedCommitteeNumericId}.`);
+            await refreshScoringData(selectedCommitteeNumericId);
+            await refreshAllScoringRows();
+            notifySuccess("Đã mở chốt điểm. Các thành viên có thể chỉnh sửa điểm.");
+        } catch {
+            notifyError("Mở chốt điểm thất bại.");
         }
     };
 
@@ -3770,41 +3852,21 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                 >
                                     <ArrowRight size={14} /> Rời phòng
                                 </button>
-                                {/* Chair actions moved to header: Open / Lock / Unlock / Close session buttons */}
-                                {isChairRole && (
+                                {/* Role-specific session actions */}
+                                {(isSecretaryRole || isChairRole) && (
                                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                        {selectedCommittee?.status === "Sắp diễn ra" && (
+                                        {selectedCommittee?.status === "Sắp diễn ra" && isSecretaryRole && (
                                             <button
                                                 type="button"
                                                 className="lec-primary"
                                                 disabled={!canOpenSession}
-                                                onClick={async () => {
-                                                    try {
-                                                        const idempotencyKey = createIdempotencyKey(periodIdText || "NA", "lecturer-session-open");
-                                                        const response = await lecturerApi.openSessionByCommittee(selectedCommitteeNumericId, idempotencyKey);
-                                                        if (notifyApiFailure(response as ApiResponse<unknown>, "Mở phiên chấm thất bại.")) {
-                                                            return;
-                                                        }
-                                                        setCommittees((prev) =>
-                                                            prev.map((item) =>
-                                                                item.id === selectedCommitteeId ? { ...item, status: "Đang họp" } : item,
-                                                            ),
-                                                        );
-                                                        setSessionLocked(false);
-                                                        pushTrace("open-session", "[UC3.1] Đã mở phiên chấm.");
-                                                        await refreshScoringData(selectedCommitteeNumericId);
-                                                        await refreshAllScoringRows();
-                                                        notifySuccess("Đã mở phiên hội đồng.");
-                                                    } catch {
-                                                        notifyError("Mở phiên chấm thất bại.");
-                                                    }
-                                                }}
+                                                onClick={() => { void handleSecretaryOpenSession(selectedCommittee); }}
                                             >
                                                 <CalendarClock size={14} /> Mở phiên
                                             </button>
                                         )}
 
-                                        {selectedCommittee?.status === "Đang họp" && (
+                                        {selectedCommittee?.status === "Đang họp" && isChairRole && (
                                             <button
                                                 type="button"
                                                 className="lec-primary"
@@ -3815,48 +3877,26 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                             </button>
                                         )}
 
-                                        {selectedCommittee?.status === "Đã chốt" && (
+                                        {selectedCommittee?.status === "Đã chốt" && isChairRole && (
                                             <>
                                                 <button
                                                     type="button"
                                                     style={{ padding: "0 14px", minHeight: 40, borderRadius: 10, border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontWeight: 700, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}
-                                                    onClick={async () => {
-                                                        if (!window.confirm("Bạn có chắc chắn muốn mở chốt điểm? Các thành viên sẽ có thể chỉnh sửa điểm.")) {
-                                                            return;
-                                                        }
-                                                        try {
-                                                            const idempotencyKey = createIdempotencyKey(periodIdText || "NA", "lecturer-session-unlock");
-                                                            const response = await lecturerApi.openSessionByCommittee(selectedCommitteeNumericId, idempotencyKey);
-                                                            if (notifyApiFailure(response as ApiResponse<unknown>, "Mở chốt điểm thất bại.")) {
-                                                                return;
-                                                            }
-                                                            setSessionLocked(false);
-                                                            setSubmittedByAssignment((prev) => ({ ...(prev ?? {}), [selectedAssignmentId]: false }));
-                                                            setCommittees((prev) =>
-                                                                prev.map((item) =>
-                                                                    item.id === selectedCommitteeId ? { ...item, status: "Đang họp" } : item,
-                                                                ),
-                                                            );
-                                                            pushTrace("unlock-session", "[UC3.5] Chủ tịch đã mở chốt điểm.");
-                                                            await refreshScoringData(selectedCommitteeNumericId);
-                                                            await refreshAllScoringRows();
-                                                            notifySuccess("Đã mở chốt điểm. Các thành viên có thể chỉnh sửa điểm.");
-                                                        } catch {
-                                                            notifyError("Mở chốt điểm thất bại.");
-                                                        }
-                                                    }}
+                                                    onClick={() => { void handleChairUnlockSession(); }}
                                                 >
                                                     <Unlock size={14} /> Mở chốt điểm
                                                 </button>
 
-                                                <button
-                                                    type="button"
-                                                    className="lec-primary"
-                                                    style={{ background: "#1e293b", borderColor: "#1e293b" }}
-                                                    onClick={() => { void handleChairCloseSession(selectedCommittee); }}
-                                                >
-                                                    <CheckCircle2 size={14} /> Đóng phiên vĩnh viễn
-                                                </button>
+                                                {isSecretaryRole && (
+                                                    <button
+                                                        type="button"
+                                                        className="lec-primary"
+                                                        style={{ background: "#1e293b", borderColor: "#1e293b" }}
+                                                        onClick={() => { void handleSecretaryCloseSession(selectedCommittee); }}
+                                                    >
+                                                        <CheckCircle2 size={14} /> Đóng phiên vĩnh viễn
+                                                    </button>
+                                                )}
                                             </>
                                         )}
                                     </div>

@@ -48,6 +48,15 @@ namespace ThesisManagement.Api.Application.Common
                 return status;
             }
 
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? string.Empty
+                : value.Trim().ToUpperInvariant().Replace("Đ", "D").Replace("đ", "d");
+
+            if (normalized is "DA_KHOA" or "KHOA" or "KHOA_DIEM" or "KHOA_CHAM_DIEM" or "LOCKED")
+            {
+                return CommitteeStatus.Completed;
+            }
+
             return CommitteeStatus.Draft;
         }
 

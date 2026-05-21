@@ -415,4 +415,13 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
         [Required]
         public string NotifTitle { get; set; } = string.Empty;
     }
+
+    public class AdminSessionActionRequestDto
+    {
+        [Range(1, int.MaxValue)]
+        public int CommitteeId { get; set; }
+
+        [Required(AllowEmptyStrings = false)]
+        public string Reason { get; set; } = string.Empty;
+    }
 }

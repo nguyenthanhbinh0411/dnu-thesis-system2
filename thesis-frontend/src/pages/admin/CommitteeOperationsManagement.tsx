@@ -291,6 +291,7 @@ type DashboardAlert = {
 };
 
 type CommitteeSummary = {
+  committeeId?: number;
   key: string;
   code: string;
   name: string;
@@ -2331,7 +2332,7 @@ const CommitteeOperationsManagement: React.FC = () => {
   };
 
   const submitCommitteeAction = useCallback(
-    async (action: "OPEN_SESSION" | "CLOSE_SESSION" | "LOCK_SESSION" | "ADMIN_REOPEN", committee: CommitteeSummary | null) => {
+    async (action: "ADMIN_UNLOCK" | "ADMIN_REOPEN", committee: CommitteeSummary | null) => {
       if (!periodId) {
         notifyWarning("Chưa chọn đợt bảo vệ. Vui lòng chọn đợt tại module Quản lý đợt.");
         return;
@@ -2344,55 +2345,80 @@ const CommitteeOperationsManagement: React.FC = () => {
       const actionKey = `COMMITTEE-${committee.code}-${action}`;
       setActionInFlight(actionKey);
 
+      const normalizedStatus = normalizeStatusKey(committee.status);
+      const actionLabel =
+        action === "ADMIN_UNLOCK"
+          ? normalizedStatus === "LOCKED"
+            ? "Mở phiên"
+            : "Mở chốt điểm"
+          : "Mở lại phiên";
+
       try {
+        const reason = window.prompt(
+          action === "ADMIN_UNLOCK"
+            ? normalizedStatus === "LOCKED"
+              ? `Nhập lý do mở phiên hội đồng ${committee.code}:`
+              : `Nhập lý do mở chốt điểm hội đồng ${committee.code}:`
+            : `Nhập lý do mở lại phiên hội đồng ${committee.code}:`,
+        )?.trim();
+
+        if (!reason) {
+          notifyWarning("Cần nhập lý do thực hiện.");
+          return;
+        }
+
         let response: ApiResponse<Record<string, unknown>>;
 
-        if (action === "ADMIN_REOPEN") {
-          // Admin reopen endpoint
-          const committeeId = committee.key ? Number(committee.key) : null;
-          if (!committeeId) {
+        const committeeId =
+          selectedCommitteeRows.find((row) => Number.isFinite(Number(row.committeeId)))?.committeeId ??
+          selectedCommitteeRows[0]?.committeeId ??
+          selectedCouncilNumericId ??
+          null;
+        if (!committeeId) {
             notifyError("Không thể lấy ID hội đồng.");
             return;
-          }
-          response = await fetchData<ApiResponse<Record<string, unknown>>>(
-            `/api/LecturerDefense/admin/reopen-session?committeeId=${committeeId}`,
-            { method: "POST" }
-          );
-        } else {
-          // Standard lecturer scoring actions (OPEN_SESSION, CLOSE_SESSION, LOCK_SESSION)
-          response = await fetchData<ApiResponse<Record<string, unknown>>>(
-            `/api/defense-periods/${periodId}/lecturer/scoring/actions`,
-            {
-              method: "POST",
-              body: {
-                action,
-                committeeId: committee.key ? Number(committee.key) : null,
-              },
-            }
-          );
         }
+
+        response = await fetchData<ApiResponse<Record<string, unknown>>>(
+          action === "ADMIN_UNLOCK"
+            ? `/api/LecturerDefense/admin/unlock-session`
+            : `/api/LecturerDefense/admin/reopen-session`,
+          {
+            method: "POST",
+            body: {
+              committeeId,
+              reason,
+            },
+          }
+        );
 
         const parsed = parseEnvelope(response, `Không thể thực hiện ${action}.`);
         if (!parsed.ok) {
           throw new Error("Committee action failed");
         }
 
-        const actionLabel = 
-          action === "OPEN_SESSION" ? "Mở phiên" :
-          action === "CLOSE_SESSION" ? "Đóng phiên" :
-          action === "LOCK_SESSION" ? "Khóa phiên" :
-          "Mở lại phiên";
-        
         notifySuccess(`${actionLabel} hội đồng ${committee.code} thành công.`);
         await loadOperationsSnapshot();
       } catch (error) {
-        const errorMessage = error instanceof FetchDataError ? error.message : "Không thể cập nhật trạng thái hội đồng.";
+        const errorMessage = error instanceof FetchDataError
+          ? (() => {
+              const serverData = error.data as
+                | { message?: string; Message?: string; errors?: Record<string, string[]>; Errors?: Record<string, string[]> }
+                | undefined;
+              return (
+                serverData?.message ||
+                serverData?.Message ||
+                Object.values(serverData?.errors ?? serverData?.Errors ?? {})[0]?.[0] ||
+                error.message
+              );
+            })()
+          : "Không thể cập nhật trạng thái hội đồng.";
         notifyError(errorMessage);
       } finally {
         setActionInFlight(null);
       }
     },
-    [defensePeriodBase, loadOperationsSnapshot, notifyError, notifySuccess, notifyWarning, parseEnvelope, periodId],
+    [loadOperationsSnapshot, notifyError, notifySuccess, notifyWarning, parseEnvelope, periodId],
   );
 
   const handleTopicExport = (format: ReportFormat, row: ScoringMatrixRow) => {
@@ -2552,6 +2578,9 @@ const CommitteeOperationsManagement: React.FC = () => {
     const buildSummary = (committeeCode: string, topicRows: ScoringMatrixRow[], index: number): CommitteeSummary => {
       const firstRow = topicRows[0] ?? null;
       const analyticsRecord = councilByCode.get(committeeCode) ?? councilByRoom.get(normalizeLookupKey(firstRow?.room));
+      const committeeId =
+        pickNumber(analyticsRecord, ["committeeId", "CommitteeId", "committeeID", "CommitteeID", "id", "Id"], 0) ||
+        Number(firstRow?.committeeId ?? 0);
       const totalTopics = topicRows.length || pickNumber(analyticsRecord, ["count", "Count", "totalTopics", "topicCount"], 0);
       const waitingPublicTopics = topicRows.filter((row) => !row.isLocked && (row.submittedCount != null && row.requiredCount != null && row.submittedCount >= row.requiredCount && row.requiredCount > 0)).length;
       const lockedTopics = topicRows.filter((row) => row.isLocked).length;
@@ -2570,6 +2599,7 @@ const CommitteeOperationsManagement: React.FC = () => {
       const finalLabel = scoresPublished || firstRow?.isLocked ? "Đã chốt" : scoredTopics > 0 ? "Đang xử lý" : "Sẵn sàng";
 
       return {
+        committeeId: committeeId > 0 ? committeeId : undefined,
         key: firstRow?.assignmentId != null ? `${committeeCode}-${firstRow.assignmentId}` : committeeCode,
         code: firstRow?.committeeCode ?? committeeCode,
         name: firstRow?.committeeName ?? fallbackName,
@@ -2701,8 +2731,16 @@ const CommitteeOperationsManagement: React.FC = () => {
     }
 
     const code = selectedCommittee.code.trim().toUpperCase();
+    const committeeId = selectedCommittee.committeeId != null ? String(selectedCommittee.committeeId) : "";
     return scoringMatrix
-      .filter((row) => String(row.committeeCode ?? "").trim().toUpperCase() === code || String(row.committeeId ?? "").trim().toUpperCase() === code)
+      .filter((row) => {
+        const rowCommitteeId = String(row.committeeId ?? "").trim();
+        return (
+          String(row.committeeCode ?? "").trim().toUpperCase() === code ||
+          rowCommitteeId.toUpperCase() === code ||
+          (committeeId !== "" && rowCommitteeId === committeeId)
+        );
+      })
       .sort((left, right) => String(left.topicCode ?? "").localeCompare(String(right.topicCode ?? "")));
   }, [scoringMatrix, selectedCommittee]);
 
@@ -2724,6 +2762,32 @@ const CommitteeOperationsManagement: React.FC = () => {
     const allRowsFinalized = selectedCommitteeRows.length > 0 && selectedCommitteeRows.every((row) => row.isLocked || row.finalScore != null || Number(row.finalScore ?? 0) > 0);
     return ["LOCKED", "COMPLETED", "PUBLISHED", "FINALIZED"].includes(normalized) || scoresPublished || allRowsFinalized;
   }, [scoresPublished, selectedCommittee, selectedCommitteeRows]);
+
+  const selectedCommitteeAdminAction = useMemo(() => {
+    const normalized = normalizeStatusKey(selectedCommittee?.status ?? "");
+    if (normalized === "FINALIZED" || normalized === "PUBLISHED" || normalized === "ARCHIVED") {
+      return {
+        action: "ADMIN_REOPEN" as const,
+        label: "Mở phiên làm việc",
+      };
+    }
+
+    if (normalized === "LOCKED") {
+      return {
+        action: "ADMIN_UNLOCK" as const,
+        label: "Mở phiên",
+      };
+    }
+
+    if (normalized === "COMPLETED") {
+      return {
+        action: "ADMIN_UNLOCK" as const,
+        label: "Mở chốt điểm",
+      };
+    }
+
+    return null;
+  }, [selectedCommittee?.status]);
 
   const visibleCommitteeRows = useMemo(() => {
     const query = committeeIdFilter.trim().toUpperCase();
@@ -3476,6 +3540,7 @@ const CommitteeOperationsManagement: React.FC = () => {
         const numericMatch = matchedRow.code.match(/\d+/);
         setSelectedCouncilNumericId(numericMatch ? Number(numericMatch[0]) : null);
         setSelectedCouncilRow({
+          committeeId: matchedRow.committeeId,
           code: matchedRow.code,
           name: matchedRow.name,
           room: matchedRow.room,
@@ -3496,6 +3561,7 @@ const CommitteeOperationsManagement: React.FC = () => {
       const numericMatch = committeeRow.code.match(/\d+/);
       setSelectedCouncilNumericId(numericMatch ? Number(numericMatch[0]) : null);
       setSelectedCouncilRow({
+        committeeId: committeeRow.committeeId,
         code: committeeRow.code,
         name: committeeRow.name,
         room: committeeRow.room,
@@ -4673,20 +4739,22 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                   >
                     <Download size={18} /> Xem bảng điểm HĐ
                   </button>
-                  <button 
-                    onClick={() => void submitCommitteeAction("OPEN_SESSION", selectedCommittee)}
-                    style={{
-                      background: DEEP_BLUE_PRIMARY,
-                      color: "white",
-                      border: "none",
-                      padding: "12px 24px",
-                      borderRadius: 14,
-                      fontSize: 14,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      boxShadow: "0 10px 15px -3px rgba(30, 58, 95, 0.2)"
-                    }}
-                  >Mở phiên làm việc</button>
+                  {selectedCommitteeAdminAction && (
+                    <button 
+                      onClick={() => void submitCommitteeAction(selectedCommitteeAdminAction.action, selectedCommittee)}
+                      style={{
+                        background: DEEP_BLUE_PRIMARY,
+                        color: "white",
+                        border: "none",
+                        padding: "12px 24px",
+                        borderRadius: 14,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        boxShadow: "0 10px 15px -3px rgba(30, 58, 95, 0.2)"
+                      }}
+                    >{selectedCommitteeAdminAction.label}</button>
+                  )}
                 </div>
               </div>
 
@@ -5288,6 +5356,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                 <option value="APPROVE">Phê duyệt (APPROVE)</option>
                 <option value="REJECT">Từ chối (REJECT)</option>
                 <option value="OPEN_SESSION">Mở phiên (OPEN_SESSION)</option>
+                <option value="UNLOCK_SESSION">Mở chốt điểm (UNLOCK_SESSION)</option>
                 <option value="CLOSE_SESSION">Đóng phiên (CLOSE_SESSION)</option>
               </select>
 
@@ -5373,6 +5442,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                               log.actionType === "REJECT" ? "#ffe4e6" :
                               log.actionType === "SUBMIT" ? "#dbeafe" :
                               log.actionType === "OPEN_SESSION" ? "#ecfdf5" :
+                              log.actionType === "UNLOCK_SESSION" ? "#f0fdf4" :
                               log.actionType === "CLOSE_SESSION" ? "#fef9c3" : "#f1f5f9",
                             color: 
                               log.actionType === "CREATE" ? "#15803d" : 
@@ -5384,6 +5454,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                               log.actionType === "REJECT" ? "#be123c" :
                               log.actionType === "SUBMIT" ? "#1e40af" :
                               log.actionType === "OPEN_SESSION" ? "#059669" :
+                              log.actionType === "UNLOCK_SESSION" ? "#15803d" :
                               log.actionType === "CLOSE_SESSION" ? "#a16207" : "#475569"
                           }}>{log.actionType}</span>
                         </td>
