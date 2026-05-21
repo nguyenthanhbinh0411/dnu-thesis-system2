@@ -303,7 +303,7 @@ jobs:
             -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -p "$SERVER_SSH_PORT" \
-            "$SERVER_USER@$SERVER_HOST" \
+            docker-compose.production.yml deploy_wait.sh \
             "whoami && hostname"
 
       - name: Create remote directory

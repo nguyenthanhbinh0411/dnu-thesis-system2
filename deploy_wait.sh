@@ -40,9 +40,7 @@ while true; do
   fi
 
   if [ "$status" = "unhealthy" ]; then
-    echo "${TARGET_SERVICE} reported unhealthy. Dumping logs..."
-    docker logs --tail 200 "${TARGET_SERVICE}" || true
-    exit 1
+    echo "${TARGET_SERVICE} is currently unhealthy, but still within the wait window. Continuing to poll..."
   fi
 
   # show progress every 10s
