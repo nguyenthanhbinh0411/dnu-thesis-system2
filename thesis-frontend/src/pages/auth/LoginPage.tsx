@@ -19,7 +19,7 @@ import {
   setStudentCode,
 } from "../../services/auth-session.service";
 import { normalizeRole, ROLE_LECTURER, ROLE_STUDENT } from "../../utils/role";
-import { fetchData } from "../../api/fetchData";
+import { FetchDataError, fetchData } from "../../api/fetchData";
 import type { StudentProfile } from "../../types/studentProfile";
 import type { LecturerProfile } from "../../types/lecturer-profile";
 
@@ -71,6 +71,72 @@ async function cacheRoleProfileCode(
   } catch (profileError) {
     console.warn("Failed to cache role profile code after login", profileError);
   }
+}
+
+function getLoginErrorMessage(error: unknown): string {
+  if (error instanceof FetchDataError) {
+    const serverData = error.data as
+      | {
+          message?: string;
+          Message?: string;
+          errors?: Record<string, string[]>;
+          Errors?: Record<string, string[]>;
+          code?: string | number | null;
+          Code?: string | number | null;
+        }
+      | null
+      | undefined;
+
+    const serverMessage =
+      serverData?.message ||
+      serverData?.Message ||
+      Object.values(serverData?.errors ?? serverData?.Errors ?? {})[0]?.[0] ||
+      "";
+
+    const code = String(serverData?.code ?? serverData?.Code ?? "").trim().toUpperCase();
+    const rawMessage = serverMessage || error.message || "";
+    const normalizedMessage = rawMessage.trim();
+
+    if (error.status === 400) {
+      return normalizedMessage || "Tên đăng nhập và mật khẩu không được để trống.";
+    }
+
+    if (error.status === 401) {
+      if (normalizedMessage) {
+        return normalizedMessage;
+      }
+      if (code.includes("PASSWORD")) {
+        return "Mật khẩu không đúng.";
+      }
+      if (code.includes("ACCOUNT") || code.includes("USER")) {
+        return "Tài khoản không tồn tại.";
+      }
+      return "Tên đăng nhập hoặc mật khẩu không đúng.";
+    }
+
+    if (error.status === 403) {
+      return normalizedMessage || "Tài khoản của bạn chưa được cấp quyền đăng nhập.";
+    }
+
+    if (error.status === 429) {
+      return normalizedMessage || "Hệ thống đang quá tải hoặc bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau.";
+    }
+
+    if (error.status === 408 || /aborted|timeout/i.test(normalizedMessage)) {
+      return "Yêu cầu đăng nhập bị hủy hoặc quá thời gian chờ. Vui lòng thử lại.";
+    }
+
+    return normalizedMessage || "Không thể đăng nhập lúc này. Vui lòng thử lại.";
+  }
+
+  if (error instanceof Error) {
+    if (/aborted|timeout/i.test(error.message)) {
+      return "Yêu cầu đăng nhập bị hủy hoặc quá thời gian chờ. Vui lòng thử lại.";
+    }
+    return error.message || "Không thể đăng nhập lúc này.";
+  }
+
+  return "Không thể đăng nhập lúc này.";
 }
 
 const LoginPage: React.FC = () => {
@@ -183,13 +249,7 @@ const LoginPage: React.FC = () => {
 
       setError("Không nhận được thông tin user từ server.");
     } catch (err: unknown) {
-      const error = err as {
-        response?: { data?: { message?: string } };
-        message?: string;
-      };
-      setError(
-        error?.response?.data?.message ?? error.message ?? "Lỗi kết nối",
-      );
+      setError(getLoginErrorMessage(err));
     } finally {
       if (!showRoleSelector) {
         setLoading(false);

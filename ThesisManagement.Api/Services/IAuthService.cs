@@ -5,6 +5,7 @@ namespace ThesisManagement.Api.Services
 {
     public interface IAuthService
     {
+        Task<User?> GetUserByUsernameAsync(string username);
         Task<User?> ValidateUserAsync(string username, string password);
         bool VerifyPassword(string password, string hash);
         string HashPassword(string password);
