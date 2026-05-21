@@ -398,7 +398,21 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
         public UpdateCouncilMemberItemDto? MemberUpdate { get; set; }
 
         public AddCouncilTopicItemDto? TopicAdd { get; set; }
-
         public UpdateCouncilTopicItemDto? TopicUpdate { get; set; }
+    }
+
+    public class SendReminderRequestDto
+    {
+        [Required]
+        public List<string> RecipientUserCodes { get; set; } = new();
+
+        [Required]
+        public string Message { get; set; } = string.Empty;
+
+        [Required]
+        public string Stage { get; set; } = string.Empty;
+
+        [Required]
+        public string NotifTitle { get; set; } = string.Empty;
     }
 }

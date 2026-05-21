@@ -31,6 +31,9 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using ClosedXML.Excel;
+using ThesisManagement.Api.Application.Command.Notifications;
+using ThesisManagement.Api.Services;
+using ThesisManagement.Api.DTOs.Notifications.Command;
 
 namespace ThesisManagement.Api.Controllers
 {
@@ -114,6 +117,8 @@ namespace ThesisManagement.Api.Controllers
         private readonly IUpdateDefenseTermLecturerCommand _updateDefenseTermLecturerCommand;
         private readonly IDeleteDefenseTermLecturerCommand _deleteDefenseTermLecturerCommand;
         private readonly IDefensePeriodQueryProcessor _queryProcessor;
+        private readonly ICreateNotificationCommand _createNotificationCommand;
+        private readonly ISystemActivityLogger _systemActivityLogger;
 
         public DefensePeriodsController(
             Services.IUnitOfWork uow,
@@ -185,6 +190,8 @@ namespace ThesisManagement.Api.Controllers
             IDeleteDefenseTermLecturerCommand deleteDefenseTermLecturerCommand,
             IMoveNextDefensePeriodCommand moveNextCommand,
             IDefenseModularExportService modularExportService,
+            ICreateNotificationCommand createNotificationCommand,
+            ISystemActivityLogger systemActivityLogger,
             IDefensePeriodQueryProcessor queryProcessor) : base(uow, codeGen, mapper)
         {
             _db = db;
@@ -254,6 +261,8 @@ namespace ThesisManagement.Api.Controllers
             _updateDefenseTermLecturerCommand = updateDefenseTermLecturerCommand;
             _deleteDefenseTermLecturerCommand = deleteDefenseTermLecturerCommand;
             _queryProcessor = queryProcessor;
+            _createNotificationCommand = createNotificationCommand;
+            _systemActivityLogger = systemActivityLogger;
         }
 
         private async Task<DefensePeriodSnapshotOverviewDto> BuildSnapshotOverviewAsync(int periodId, CancellationToken cancellationToken)
@@ -501,6 +510,58 @@ namespace ThesisManagement.Api.Controllers
                     action),
                 _ => BadRequest(ApiResponse<object>.Fail("Action không hợp lệ. Hỗ trợ: SYNC, START, PAUSE, RESUME, LOCK_SCORING, FINALIZE, PUBLISH, ROLLBACK, LOCK_COUNCILS, REOPEN_COUNCILS, ARCHIVE, REOPEN, CLOSE.", 400))
             };
+        }
+
+        [HttpPost("{periodId:int}/send-reminder")]
+        [Authorize(Roles = "Admin,Head")]
+        public async Task<ActionResult<ApiResponse<object>>> SendReminderAsync(
+            int periodId,
+            [FromBody] SendReminderRequestDto request)
+        {
+            var period = await _db.DefenseTerms
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.DefenseTermId == periodId);
+
+            if (period == null)
+            {
+                return FromResult(ApiResponse<object>.Fail("Đợt bảo vệ không tồn tại.", 404));
+            }
+
+            var dto = new CreateNotificationDto(
+                NotifCategory: "LIFECYCLE",
+                NotifTitle: request.NotifTitle,
+                NotifBody: request.Message,
+                NotifPriority: "HIGH",
+                ActionType: "SEND_REMINDER",
+                ActionUrl: $"/admin/defense-periods?id={periodId}",
+                ImageUrl: null,
+                RelatedEntityName: "DefensePeriod",
+                RelatedEntityCode: period.TermCode,
+                RelatedEntityID: periodId,
+                IsGlobal: false,
+                TargetUserCodes: request.RecipientUserCodes,
+                NotifChannel: "IN_APP"
+            );
+
+            var result = await _createNotificationCommand.ExecuteAsync(dto);
+            if (!result.Success)
+            {
+                return FromResult(ApiResponse<object>.Fail(result.ErrorMessage ?? "Không thể gửi thông báo.", result.StatusCode));
+            }
+
+            await _systemActivityLogger.WriteLogAsync(
+                entityName: "DefensePeriod",
+                entityId: periodId.ToString(),
+                actionType: "SEND_REMINDER",
+                actionDescription: $"Gửi thông báo nhắc nhở cập nhật trạng thái cho đợt bảo vệ {period.TermCode} ({period.Description}). Số người nhận: {request.RecipientUserCodes.Count}",
+                actorUserId: CurrentUserId,
+                module: "Defense",
+                status: "SUCCESS",
+                relatedRecordCode: period.TermCode,
+                cancellationToken: HttpContext.RequestAborted
+            );
+
+            return FromResult(ApiResponse<object>.SuccessResponse(true));
         }
 
         [HttpGet("{periodId:int}/setup/snapshot")]

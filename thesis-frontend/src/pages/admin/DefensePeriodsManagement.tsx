@@ -35,6 +35,12 @@ import {
   Sparkles,
   Shield,
   History,
+  Bell,
+  BellRing,
+  Send,
+  RotateCcw,
+  XCircle,
+  AlertOctagon,
 } from "lucide-react";
 import { fetchData, normalizeUrl } from "../../api/fetchData";
 import { useToast } from "../../context/useToast";
@@ -120,6 +126,11 @@ const defensePeriodApi = {
         rollbackReason: reason,
         idempotencyKey
       })
+    }),
+  sendReminder: (id: number, payload: { recipientUserCodes: string[]; message: string; stage: string; notifTitle: string }) =>
+    fetchData<ApiResponse<any>>(`/defense-periods/${id}/send-reminder`, {
+      method: "POST",
+      body: JSON.stringify(payload)
     }),
   snapshot: (id: number) => fetchData<ApiResponse<any>>(`/defense-periods/${id}/management/snapshot`, { method: "GET" }),
   monitoring: (id: number) => fetchData<ApiResponse<any>>(`/defense-periods/${id}/monitoring/snapshot`, { method: "GET" }),
@@ -309,6 +320,22 @@ const getStatusPresentation = (status: unknown) => {
   return STATUS_CONFIG[normalized] ?? STATUS_CONFIG.Draft;
 };
 
+const getNextStatus = (status?: DefenseTermStatus): DefenseTermStatus => {
+  if (!status) return "Draft";
+  switch (status) {
+    case "Draft": return "Registration";
+    case "Registration": return "Assignment";
+    case "Assignment": return "ProgressTracking";
+    case "ProgressTracking": return "CommitteePreparation";
+    case "CommitteePreparation": return "Running";
+    case "Running": return "ScoringLocked";
+    case "ScoringLocked": return "Finalization";
+    case "Finalization": return "Published";
+    case "Published": return "Closed";
+    default: return "Closed";
+  }
+};
+
 const getNextActionLabel = (status?: DefenseTermStatus): string => {
   if (!status) return "Tiếp tục quy trình";
   switch (status) {
@@ -393,6 +420,211 @@ const ConfirmModal: React.FC<{
           <button onClick={onClose} disabled={isLoading} style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "1px solid #e2e8f0", background: "white", fontWeight: "600", cursor: "pointer" }}>Hủy</button>
           <button onClick={onConfirm} disabled={isLoading} style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "none", background: theme.btn, color: "white", fontWeight: "600", cursor: "pointer" }}>{isLoading ? "Đang xử lý..." : confirmLabel}</button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Send Reminder Modal ---
+const SendReminderModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onSend: (selectedUserCodes: string[], message: string) => void;
+  isSending: boolean;
+  recipients: { userCode: string; name: string; role: "student" | "lecturer"; topicTitle: string }[];
+  stageName: string;
+  reminderSentCount: number;
+}> = ({ isOpen, onClose, onSend, isSending, recipients, stageName, reminderSentCount }) => {
+  const [selectedCodes, setSelectedCodes] = useState<string[]>(recipients.map(r => r.userCode));
+  const [message, setMessage] = useState(
+    `Kính gửi,\n\nĐợt đồ án tốt nghiệp hiện đang ở giai đoạn "${stageName}". Hệ thống ghi nhận đề tài của bạn chưa được cập nhật phù hợp với giai đoạn hiện tại.\n\nVui lòng truy cập hệ thống để kiểm tra và cập nhật trạng thái đề tài trong thời gian sớm nhất.\n\nTrân trọng,\nBộ phận Quản lý Đào tạo`
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedCodes(recipients.map(r => r.userCode));
+      setMessage(
+        `Kính gửi,\n\nĐợt đồ án tốt nghiệp hiện đang ở giai đoạn "${stageName}". Hệ thống ghi nhận đề tài của bạn chưa được cập nhật phù hợp với giai đoạn hiện tại.\n\nVui lòng truy cập hệ thống để kiểm tra và cập nhật trạng thái đề tài trong thời gian sớm nhất.\n\nTrân trọng,\nBộ phận Quản lý Đào tạo`
+      );
+    }
+  }, [isOpen, recipients, stageName]);
+
+  if (!isOpen) return null;
+
+  const toggleCode = (code: string) => {
+    setSelectedCodes(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
+  };
+
+  const students = recipients.filter(r => r.role === "student");
+  const lecturers = recipients.filter(r => r.role === "lecturer");
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)" }}>
+      <div style={{ background: "white", width: "90%", maxWidth: "680px", borderRadius: "24px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+        {/* Header */}
+        <div style={{ padding: "24px 28px 0 28px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+            <div style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)", color: "white", padding: "10px", borderRadius: "12px", display: "flex" }}>
+              <BellRing size={22} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "900", color: "#1e293b" }}>Gửi thông báo nhắc nhở</h3>
+              <p style={{ margin: "2px 0 0 0", fontSize: "13px", color: "#64748b" }}>
+                Nhắc nhở sinh viên/giảng viên cập nhật trạng thái đề tài — Giai đoạn: <strong style={{ color: "#1e3a5f" }}>{stageName}</strong>
+              </p>
+            </div>
+          </div>
+          {reminderSentCount > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "10px", marginTop: "12px" }}>
+              <CheckCircle size={16} color="#16a34a" />
+              <span style={{ fontSize: "13px", fontWeight: "600", color: "#15803d" }}>Đã gửi {reminderSentCount} thông báo trong lần trước.</span>
+            </div>
+          )}
+        </div>
+
+        {/* Recipient List */}
+        <div style={{ padding: "20px 28px", flex: 1, overflowY: "auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <h4 style={{ margin: 0, fontSize: "14px", fontWeight: "800", color: "#374151" }}>Danh sách người nhận ({recipients.length} người)</h4>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={() => setSelectedCodes(recipients.map(r => r.userCode))} style={{ background: "none", border: "none", color: "#3b82f6", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>Chọn tất cả</button>
+              <button onClick={() => setSelectedCodes([])} style={{ background: "none", border: "none", color: "#ef4444", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>Bỏ chọn</button>
+            </div>
+          </div>
+
+          {students.length > 0 && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontSize: "11px", fontWeight: "800", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <Users size={12} /> Sinh viên ({students.length})
+              </div>
+              <div style={{ display: "grid", gap: "6px" }}>
+                {students.map(r => (
+                  <label key={r.userCode} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "10px", background: selectedCodes.includes(r.userCode) ? "#eff6ff" : "#f8fafc", border: `1px solid ${selectedCodes.includes(r.userCode) ? "#3b82f6" : "#e2e8f0"}`, cursor: "pointer" }}>
+                    <input type="checkbox" checked={selectedCodes.includes(r.userCode)} onChange={() => toggleCode(r.userCode)} style={{ width: "16px", height: "16px", accentColor: "#3b82f6" }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "13px", fontWeight: "700", color: "#1e293b" }}>{r.name}</div>
+                      <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>Đề tài: {r.topicTitle}</div>
+                    </div>
+                    <span style={{ fontSize: "10px", background: "#dbeafe", color: "#1d4ed8", padding: "2px 8px", borderRadius: "99px", fontWeight: "700" }}>SV</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {lecturers.length > 0 && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontSize: "11px", fontWeight: "800", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <UserCheck size={12} /> Giảng viên hướng dẫn ({lecturers.length})
+              </div>
+              <div style={{ display: "grid", gap: "6px" }}>
+                {lecturers.map(r => (
+                  <label key={r.userCode} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "10px", background: selectedCodes.includes(r.userCode) ? "#fdf4ff" : "#f8fafc", border: `1px solid ${selectedCodes.includes(r.userCode) ? "#a855f7" : "#e2e8f0"}`, cursor: "pointer" }}>
+                    <input type="checkbox" checked={selectedCodes.includes(r.userCode)} onChange={() => toggleCode(r.userCode)} style={{ width: "16px", height: "16px", accentColor: "#a855f7" }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "13px", fontWeight: "700", color: "#1e293b" }}>{r.name}</div>
+                      <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>Liên quan đề tài: {r.topicTitle}</div>
+                    </div>
+                    <span style={{ fontSize: "10px", background: "#f3e8ff", color: "#7c3aed", padding: "2px 8px", borderRadius: "99px", fontWeight: "700" }}>GV</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Message editor */}
+          <div>
+            <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#374151", marginBottom: "8px" }}>Nội dung thông báo</label>
+            <textarea
+              rows={6}
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              style={{ width: "100%", padding: "12px", border: "1px solid #cbd5e1", borderRadius: "10px", fontSize: "13px", color: "#1e293b", resize: "vertical", outline: "none", lineHeight: "1.6", fontFamily: "inherit" }}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "16px 28px 24px 28px", borderTop: "1px solid #f1f5f9", display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+          <button onClick={onClose} disabled={isSending} style={{ padding: "10px 20px", borderRadius: "10px", border: "1px solid #e2e8f0", background: "white", fontWeight: "700", fontSize: "14px", cursor: "pointer", color: "#475569" }}>Đóng</button>
+          <button
+            onClick={() => onSend(selectedCodes, message)}
+            disabled={isSending || selectedCodes.length === 0}
+            style={{ padding: "10px 24px", borderRadius: "10px", border: "none", background: selectedCodes.length === 0 ? "#cbd5e1" : "linear-gradient(135deg, #3b82f6, #1d4ed8)", color: "white", fontWeight: "700", fontSize: "14px", cursor: selectedCodes.length === 0 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: "8px" }}
+          >
+            {isSending ? <RefreshCw size={16} className="animate-spin" /> : <Send size={16} />}
+            {isSending ? "Đang gửi..." : `Gửi đến ${selectedCodes.length} người`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Stale Topics Warning Banner ---
+const StaleTopicsWarningBanner: React.FC<{
+  errorCount: number;
+  nextStageLabel: string;
+  onViewDetails: () => void;
+  onSendReminder: () => void;
+  reminderSentCount: number;
+  compact?: boolean;
+}> = ({ errorCount, nextStageLabel, onViewDetails, onSendReminder, reminderSentCount, compact = false }) => {
+  if (errorCount === 0) return null;
+
+  const isDanger = errorCount >= 4;
+  const colors = isDanger
+    ? { bg: "linear-gradient(135deg, #fef2f2, #fff5f5)", border: "#fca5a5", icon: "#dc2626", iconBg: "#fee2e2", text: "#991b1b", subtext: "#b91c1c", btnBg: "#dc2626", badgeBg: "#fee2e2", badgeText: "#991b1b" }
+    : { bg: "linear-gradient(135deg, #fff7ed, #fffbeb)", border: "#fed7aa", icon: "#d97706", iconBg: "#fef3c7", text: "#92400e", subtext: "#b45309", btnBg: "#d97706", badgeBg: "#fef3c7", badgeText: "#92400e" };
+
+  return (
+    <div style={{
+      background: colors.bg,
+      border: `1.5px solid ${colors.border}`,
+      borderRadius: compact ? "12px" : "16px",
+      padding: compact ? "14px 16px" : "18px 22px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "16px",
+      flexWrap: "wrap",
+      boxShadow: `0 4px 12px ${isDanger ? "rgba(220,38,38,0.08)" : "rgba(245,158,11,0.08)"}`,
+      animation: "fadeIn 0.4s ease"
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "14px", flex: 1, minWidth: 0 }}>
+        <div style={{ background: colors.iconBg, padding: compact ? "8px" : "10px", borderRadius: "10px", color: colors.icon, display: "flex", flexShrink: 0 }}>
+          {isDanger ? <AlertOctagon size={compact ? 18 : 22} /> : <AlertTriangle size={compact ? 18 : 22} />}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: compact ? "13px" : "14px", fontWeight: "800", color: colors.text, display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            {isDanger ? "⚠️ Cảnh báo nghiêm trọng" : "⚡ Cảnh báo điều kiện giai đoạn"}
+            <span style={{ background: colors.badgeBg, color: colors.badgeText, fontSize: "11px", fontWeight: "800", padding: "2px 8px", borderRadius: "99px", border: `1px solid ${colors.border}` }}>
+              {errorCount} đề tài
+            </span>
+            {reminderSentCount > 0 && (
+              <span style={{ background: "#dcfce7", color: "#16a34a", fontSize: "11px", fontWeight: "700", padding: "2px 8px", borderRadius: "99px" }}>
+                ✓ Đã nhắc {reminderSentCount} lần
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: compact ? "11px" : "12px", color: colors.subtext, marginTop: "3px" }}>
+            {errorCount} đề tài chưa đủ điều kiện chuyển sang <strong>{nextStageLabel}</strong>. Đợt có thể vẫn được chuyển nhưng cần xác nhận.
+          </div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+        <button
+          onClick={onSendReminder}
+          style={{ background: "white", border: `1px solid ${colors.border}`, color: colors.text, borderRadius: "8px", padding: compact ? "6px 12px" : "8px 14px", fontSize: "12px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+        >
+          <Bell size={13} /> Gửi nhắc nhở
+        </button>
+        <button
+          onClick={onViewDetails}
+          style={{ background: colors.btnBg, color: "white", border: "none", borderRadius: "8px", padding: compact ? "6px 12px" : "8px 14px", fontSize: "12px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", boxShadow: `0 2px 4px ${isDanger ? "rgba(220,38,38,0.2)" : "rgba(217,119,6,0.2)"}` }}
+        >
+          <Eye size={13} /> Xem danh sách
+        </button>
       </div>
     </div>
   );
@@ -696,6 +928,17 @@ const DefensePeriodsManagement: React.FC = () => {
     currentStatus: DefenseTermStatus;
     errors: { studentName: string; studentCode: string; supervisorName: string; topicTitle: string; reason: string }[];
   } | null>(null);
+
+  // Reminder modal state
+  const [sendReminderModal, setSendReminderModal] = useState<{
+    isOpen: boolean;
+    recipients: { userCode: string; name: string; role: "student" | "lecturer"; topicTitle: string }[];
+    stage: string;
+  } | null>(null);
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [hasRolledBackThisSession, setHasRolledBackThisSession] = useState(false);
+  const [reminderSentCount, setReminderSentCount] = useState(0);
+
   const studentSectionRef = useRef<DefenseTermStudentsSectionHandle>(null);
   const lecturerSectionRef = useRef<DefenseTermLecturersSectionHandle>(null);
 
@@ -970,11 +1213,16 @@ const DefensePeriodsManagement: React.FC = () => {
     }
 
     if (action === "ROLLBACK_STAGE") {
+      // Check if already rolled back in this session or if backend says not allowed
+      if (hasRolledBackThisSession || !canRollbackStage) {
+        addToast("Rollback chỉ được phép thực hiện tối đa 1 lần cho mỗi giai đoạn. Lần rollback đã được sử dụng.", "warning");
+        return;
+      }
       setConfirmState({
         isOpen: true,
         action,
-        title: "Xác nhận quay lại bước trước",
-        message: `Bạn có chắc chắn muốn quay lại trạng thái trước của đợt "${selectedRow?.name}"? Hệ thống chỉ hỗ trợ quay lại tối đa 1 lần từ bước hiện tại.`,
+        title: "Xác nhận quay lại giai đoạn trước",
+        message: `Bạn có chắc chắn muốn quay lại trạng thái trước của đợt "${selectedRow?.name}"? Lưu ý: Hệ thống chỉ cho phép quay lại tối đa 1 lần. Sau khi rollback, tính năng này sẽ bị vô hiệu hóa cho đến lần chuyển giai đoạn tiếp theo.`,
         type: "warning"
       });
       return;
@@ -1004,7 +1252,17 @@ const DefensePeriodsManagement: React.FC = () => {
         res = await defensePeriodApi.lifecycle(selectedId, action, idempotencyKey);
       }
       if (readEnvelopeSuccess(res)) {
-        addToast(action === "ROLLBACK_STAGE" ? "Quay lại bước trước thành công." : `Thực hiện ${action} thành công.`, "success");
+        if (action === "ROLLBACK_STAGE") {
+          addToast("Quay lại giai đoạn trước thành công. Lần rollback đã được sử dụng cho giai đoạn này.", "success");
+          setHasRolledBackThisSession(true);
+        } else if (action === "NEXT") {
+          // Reset rollback tracking when moving to next stage
+          setHasRolledBackThisSession(false);
+          setReminderSentCount(0);
+          addToast("Chuyển giai đoạn thành công!", "success");
+        } else {
+          addToast(`Thực hiện ${action} thành công.`, "success");
+        }
         await loadData(true);
         await loadSnapshots();
       } else {
@@ -1016,6 +1274,65 @@ const DefensePeriodsManagement: React.FC = () => {
       setRefreshing(false);
       setConfirmState(null);
     }
+  };
+
+  const handleSendReminder = async (selectedUserCodes: string[], message: string) => {
+    if (!selectedId || !sendReminderModal) return;
+    setSendingReminder(true);
+    try {
+      const stageName = sendReminderModal.stage;
+      const notifTitle = `Nhắc nhở cập nhật đề tài — Giai đoạn ${stageName}`;
+      await defensePeriodApi.sendReminder(selectedId, {
+        recipientUserCodes: selectedUserCodes,
+        message,
+        stage: stageName,
+        notifTitle,
+      });
+      setReminderSentCount(prev => prev + selectedUserCodes.length);
+      addToast(`Đã gửi thông báo nhắc nhở đến ${selectedUserCodes.length} người thành công!`, "success");
+      setSendReminderModal(null);
+    } catch (err: any) {
+      addToast(err.message || "Gửi thông báo thất bại.", "error");
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
+  const openReminderFromErrors = (errors: { studentName: string; studentCode: string; supervisorName: string; topicTitle: string; reason: string }[], stageName: string) => {
+    // Build unique recipients from errors: students + supervisors
+    const recipientMap = new Map<string, { userCode: string; name: string; role: "student" | "lecturer"; topicTitle: string }>();
+    errors.forEach(err => {
+      if (err.studentCode && err.studentCode !== "-") {
+        if (!recipientMap.has(err.studentCode)) {
+          recipientMap.set(err.studentCode, {
+            userCode: err.studentCode,
+            name: err.studentName || err.studentCode,
+            role: "student",
+            topicTitle: err.topicTitle,
+          });
+        }
+      }
+      // Build a synthetic lecturer code from supervisor name (fallback)
+      const svKey = `lec_${err.supervisorName}`;
+      if (err.supervisorName && err.supervisorName !== "Chưa gán" && !recipientMap.has(svKey)) {
+        // Try to find lecturer code from scoringMatrix
+        const matrixRow = (snapshot?.scoringMatrix ?? []).find((r: any) =>
+          (r.studentCode === err.studentCode || r.studentName === err.studentName)
+        );
+        const lecCode = matrixRow?.supervisorLecturerCode ?? matrixRow?.supervisorCode ?? svKey;
+        recipientMap.set(lecCode, {
+          userCode: lecCode,
+          name: err.supervisorName,
+          role: "lecturer",
+          topicTitle: err.topicTitle,
+        });
+      }
+    });
+    setSendReminderModal({
+      isOpen: true,
+      recipients: Array.from(recipientMap.values()),
+      stage: stageName,
+    });
   };
 
   const handleDownloadReport = async (item: any, format: string = "xlsx", fields?: string[]) => {
@@ -1274,50 +1591,17 @@ const DefensePeriodsManagement: React.FC = () => {
         {renderTimeline()}
 
         {currentTransitionErrors.length > 0 && (
-          <div style={{
-            background: "linear-gradient(135deg, #fff7ed 0%, #fffbeb 100%)",
-            border: "1px solid #fed7aa",
-            borderRadius: "16px",
-            padding: "16px 20px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "16px",
-            boxShadow: "0 4px 6px -1px rgba(245, 158, 11, 0.05)",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <div style={{ background: "#fef3c7", padding: "8px", borderRadius: "10px", color: "#d97706", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <AlertTriangle size={20} />
-              </div>
-              <div>
-                <div style={{ fontSize: "14px", fontWeight: "800", color: "#b45309" }}>Cảnh báo điều kiện chuyển giai đoạn</div>
-                <div style={{ fontSize: "12px", color: "#d97706", marginTop: "2px" }}>
-                  Đợt hiện tại có <strong>{currentTransitionErrors.length} đề tài</strong> chưa đủ điều kiện chuyển sang giai đoạn tiếp theo ({getNextActionLabel(selectedRow?.status)}).
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => setIneligibleModal({
-                isOpen: true,
-                currentStatus: selectedRow?.status || "Draft",
-                errors: currentTransitionErrors
-              })}
-              style={{
-                background: "#d97706",
-                color: "white",
-                border: "none",
-                borderRadius: "10px",
-                padding: "8px 16px",
-                fontWeight: "700",
-                fontSize: "12px",
-                cursor: "pointer",
-                boxShadow: "0 2px 4px rgba(217, 119, 6, 0.2)",
-                transition: "all 0.2s"
-              }}
-            >
-              Xem chi tiết đề tài
-            </button>
-          </div>
+          <StaleTopicsWarningBanner
+            errorCount={currentTransitionErrors.length}
+            nextStageLabel={getStatusPresentation(getNextStatus(selectedRow?.status)).label}
+            onViewDetails={() => setIneligibleModal({
+              isOpen: true,
+              currentStatus: selectedRow?.status || "Draft",
+              errors: currentTransitionErrors
+            })}
+            onSendReminder={() => openReminderFromErrors(currentTransitionErrors, getStatusPresentation(selectedRow?.status).label)}
+            reminderSentCount={reminderSentCount}
+          />
         )}
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "16px" }}>
@@ -1478,6 +1762,20 @@ const DefensePeriodsManagement: React.FC = () => {
         {/* 1. Visual Process Integration */}
         {renderTimeline()}
 
+        {currentTransitionErrors.length > 0 && (
+          <StaleTopicsWarningBanner
+            errorCount={currentTransitionErrors.length}
+            nextStageLabel={getStatusPresentation(getNextStatus(currentStatus)).label}
+            onViewDetails={() => setIneligibleModal({
+              isOpen: true,
+              currentStatus: currentStatus,
+              errors: currentTransitionErrors
+            })}
+            onSendReminder={() => openReminderFromErrors(currentTransitionErrors, getStatusPresentation(currentStatus).label)}
+            reminderSentCount={reminderSentCount}
+          />
+        )}
+
         {/* 2. Focused Action Center */}
         <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "24px" }}>
           <div style={{ background: "#fff", padding: "32px", borderRadius: "24px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: "24px", boxShadow: "0 10px 30px rgba(0,0,0,0.04)" }}>
@@ -1561,12 +1859,22 @@ const DefensePeriodsManagement: React.FC = () => {
                   { action: "PAUSE", label: "Tạm dừng đợt", icon: <Pause size={18} />, color: "#f59e0b", disabled: currentStatus !== "Running" },
                   { action: "RESUME", label: "Tiếp tục đợt", icon: <Play size={18} />, color: "#10b981", disabled: currentStatus !== "Paused" },
                   { action: "LOCK_SCORING", label: "Khóa chấm điểm", icon: <Lock size={18} />, color: "#ef4444", disabled: currentStatus !== "Running" },
-                  { action: "ROLLBACK_STAGE", label: "Quay lại bước trước (Rollback)", icon: <History size={18} />, color: "#64748b", disabled: !canRollbackStage },
+                  {
+                    action: "ROLLBACK_STAGE",
+                    label: hasRolledBackThisSession 
+                      ? "Quay lại bước trước (Đã dùng rollback)" 
+                      : "Quay lại bước trước (Rollback)",
+                    icon: <RotateCcw size={18} />,
+                    color: "#64748b",
+                    disabled: !canRollbackStage || hasRolledBackThisSession,
+                    tooltip: hasRolledBackThisSession ? "Đã dùng lần rollback duy nhất" : undefined
+                  },
                 ].map(op => (
                   <button
                     key={op.action}
                     disabled={op.disabled || refreshing}
                     onClick={() => handleAction(op.action)}
+                    title={op.tooltip}
                     style={{
                       width: "100%", padding: "14px 16px", borderRadius: "12px", border: "1px solid #e2e8f0",
                       background: op.disabled ? "#f8fafc" : "white", color: op.disabled ? "#cbd5e1" : "#475569",
@@ -2642,7 +2950,24 @@ const DefensePeriodsManagement: React.FC = () => {
               </table>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+              <button
+                onClick={() => {
+                  if (ineligibleModal) {
+                    const currentStatusLabel = getStatusPresentation(ineligibleModal.currentStatus).label;
+                    openReminderFromErrors(ineligibleModal.errors, currentStatusLabel);
+                  }
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: "8px",
+                  background: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+                  color: "white", border: "none", borderRadius: "12px",
+                  padding: "12px 20px", fontWeight: "700", fontSize: "14px", cursor: "pointer"
+                }}
+              >
+                <BellRing size={16} /> Gửi nhắc nhở (đến {ineligibleModal?.errors.length ?? 0} đề tài)
+              </button>
+              <div style={{ display: "flex", gap: "12px" }}>
               <button
                 onClick={() => setIneligibleModal(null)}
                 style={{
@@ -2679,14 +3004,31 @@ const DefensePeriodsManagement: React.FC = () => {
               >
                 Bỏ qua cảnh báo & Tiếp tục
               </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
+      {sendReminderModal && sendReminderModal.isOpen && (
+        <SendReminderModal
+          isOpen={sendReminderModal.isOpen}
+          onClose={() => setSendReminderModal(null)}
+          onSend={handleSendReminder}
+          isSending={sendingReminder}
+          recipients={sendReminderModal.recipients}
+          stageName={sendReminderModal.stage}
+          reminderSentCount={reminderSentCount}
+        />
+      )}
+
       <style>{`
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(6px); }
           to { opacity: 1; transform: translateY(0); }
         }
         .animate-spin {

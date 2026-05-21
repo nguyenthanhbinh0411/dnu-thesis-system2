@@ -2896,6 +2896,21 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 _uow.DefenseTerms.Update(period);
 
                 await _uow.SaveChangesAsync();
+
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "DefensePeriod",
+                    entityId: periodId.ToString(),
+                    actionType: "ROLLBACK",
+                    actionDescription: $"Thực hiện rollback ({target}) cho đợt bảo vệ {period.TermCode} ({period.Description}). Trạng thái từ {beforePeriodStatus} về {period.Status}. Lý do: {request.Reason}",
+                    actorUserId: actorUserId,
+                    module: "Defense",
+                    status: "SUCCESS",
+                    relatedRecordCode: period.TermCode,
+                    oldValue: beforePeriodStatus,
+                    newValue: period.Status,
+                    comment: request.Reason,
+                    cancellationToken: cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
 
                 await AddAuditSnapshotAsync(
@@ -3056,6 +3071,20 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 period.LastUpdated = DateTime.UtcNow;
                 _uow.DefenseTerms.Update(period);
                 await _uow.SaveChangesAsync();
+
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "DefensePeriod",
+                    entityId: periodId.ToString(),
+                    actionType: "MOVE_NEXT",
+                    actionDescription: $"Chuyển tiếp đợt bảo vệ {period.TermCode} ({period.Description}) từ {config.PreviousStatus} sang {period.Status}",
+                    actorUserId: actorUserId,
+                    module: "Defense",
+                    status: "SUCCESS",
+                    relatedRecordCode: period.TermCode,
+                    oldValue: config.PreviousStatus,
+                    newValue: period.Status,
+                    cancellationToken: cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
 
                 await AddAuditSnapshotAsync("MOVE_NEXT", "SUCCESS", new { Before = currentStatus.ToString() }, new { After = nextStatus.ToString() }, new { PeriodId = periodId }, actorUserId, cancellationToken);
