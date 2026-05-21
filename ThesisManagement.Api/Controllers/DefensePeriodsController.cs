@@ -2252,18 +2252,6 @@ namespace ThesisManagement.Api.Controllers
             {
                 return Conflict(ApiResponse<object>.Fail("Tên đợt đồ án tốt nghiệp đã tồn tại.", 409));
             }
-
-            if (normalizedStatus == "Running")
-            {
-                var hasRunning = await _uow.DefenseTerms.Query().AsNoTracking()
-                    .Where(x => x.Status == "Running")
-                    .Select(x => (int?)x.DefenseTermId)
-                    .FirstOrDefaultAsync() != null;
-                if (hasRunning)
-                {
-                    return BadRequest(ApiResponse<object>.Fail("Chỉ được phép có duy nhất 1 đợt ở trạng thái RUNNING.", 400));
-                }
-            }
             
             if (string.IsNullOrWhiteSpace(request.TermCode))
             {
@@ -2287,6 +2275,11 @@ namespace ThesisManagement.Api.Controllers
 
             await _uow.DefenseTerms.AddAsync(period);
             await _uow.SaveChangesAsync();
+
+            if (IsOpenPeriodStatus(period.Status))
+            {
+                await CloseOtherOpenPeriodsAsync(period.DefenseTermId, HttpContext.RequestAborted);
+            }
 
             var dto = new DefensePeriodDetailDto
             {
@@ -2361,18 +2354,6 @@ namespace ThesisManagement.Api.Controllers
                 return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt đồ án tốt nghiệp.", 404));
             }
 
-            if (normalizedStatus == "Running" && period.Status != "Running")
-            {
-                var hasRunning = await _uow.DefenseTerms.Query().AsNoTracking()
-                    .Where(x => x.Status == "Running" && x.DefenseTermId != periodId)
-                    .Select(x => (int?)x.DefenseTermId)
-                    .FirstOrDefaultAsync() != null;
-                if (hasRunning)
-                {
-                    return BadRequest(ApiResponse<object>.Fail("Chỉ được phép có duy nhất 1 đợt ở trạng thái RUNNING.", 400));
-                }
-            }
-
             var duplicatedName = await _uow.DefenseTerms.Query().AsNoTracking()
                 .Where(x => x.DefenseTermId != periodId && x.Name.ToUpper() == request.Name.Trim().ToUpper())
                 .Select(x => (int?)x.DefenseTermId)
@@ -2394,6 +2375,11 @@ namespace ThesisManagement.Api.Controllers
 
             _uow.DefenseTerms.Update(period);
             await _uow.SaveChangesAsync();
+
+            if (IsOpenPeriodStatus(period.Status))
+            {
+                await CloseOtherOpenPeriodsAsync(period.DefenseTermId, HttpContext.RequestAborted);
+            }
 
             var councilIds = await GetPeriodCouncilIdsAsync(period);
             var assignmentCount = 0;
@@ -2461,6 +2447,11 @@ namespace ThesisManagement.Api.Controllers
             if (period == null)
             {
                 return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt đồ án tốt nghiệp.", 404));
+            }
+
+            if (IsOpenPeriodStatus(period.Status))
+            {
+                return Conflict(ApiResponse<object>.Fail("Không thể xóa đợt đang mở. Hãy kết thúc hoặc lưu trữ đợt trước.", 409));
             }
 
             var councilIds = await GetPeriodCouncilIdsAsync(period);
@@ -5384,6 +5375,35 @@ namespace ThesisManagement.Api.Controllers
                 "ARCHIVED" => "Archived",
                 _ => throw new ArgumentException("Status không hợp lệ.")
             };
+        }
+
+        private static bool IsOpenPeriodStatus(string? status)
+        {
+            return !string.Equals(status, "Closed", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(status, "Archived", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<int> CloseOtherOpenPeriodsAsync(int periodId, CancellationToken cancellationToken)
+        {
+            var otherOpenPeriods = await _uow.DefenseTerms.Query()
+                .Where(x => x.DefenseTermId != periodId && x.Status != "Closed" && x.Status != "Archived")
+                .ToListAsync(cancellationToken);
+
+            if (otherOpenPeriods.Count == 0)
+            {
+                return 0;
+            }
+
+            var now = DateTime.UtcNow;
+            foreach (var otherPeriod in otherOpenPeriods)
+            {
+                otherPeriod.Status = "Closed";
+                otherPeriod.LastUpdated = now;
+                _uow.DefenseTerms.Update(otherPeriod);
+            }
+
+            await _uow.SaveChangesAsync();
+            return otherOpenPeriods.Count;
         }
 
         private async Task<HashSet<int>> GetPeriodCouncilIdsAsync(Models.DefenseTerm period)

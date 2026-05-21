@@ -1190,27 +1190,11 @@ namespace ThesisManagement.Api.Controllers
                 return (false, 404, "Không tìm thấy hồ sơ giảng viên tương ứng với tài khoản hiện tại.", "DEFENSE_PERIOD_PROFILE_NOT_FOUND", null);
             }
 
-            var profileLecturerCode = profile.LecturerCode?.Trim() ?? string.Empty;
-            var profileUserCode = string.IsNullOrWhiteSpace(profile.UserCode) ? null : profile.UserCode.Trim();
-
-            var periodIds = await _uow.DefenseTermLecturers.Query().AsNoTracking()
-                .Where(x =>
-                    x.LecturerProfileID == profile.LecturerProfileID
-                    || x.LecturerCode == profileLecturerCode
-                    || (!string.IsNullOrWhiteSpace(profileUserCode) && x.UserCode == profileUserCode)
-                    || (!string.IsNullOrWhiteSpace(requestUserCode) && (x.UserCode == requestUserCode || x.LecturerCode == requestUserCode)))
-                .Select(x => x.DefenseTermId)
-                .Distinct()
-                .ToListAsync(cancellationToken);
-
-            if (periodIds.Count == 0)
-            {
-                return (false, 404, "Giảng viên chưa được gán vào đợt đồ án tốt nghiệp nào.", "DEFENSE_PERIOD_MAPPING_NOT_FOUND", null);
-            }
-
             var periods = await _uow.DefenseTerms.Query().AsNoTracking()
-                .Where(x => periodIds.Contains(x.DefenseTermId))
-                .OrderByDescending(x => x.StartDate)
+                .Where(x => !string.Equals(x.Status, "Closed", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(x.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(x => x.Status == "Running")
+                .ThenByDescending(x => x.StartDate)
                 .ThenByDescending(x => x.DefenseTermId)
                 .Select(x => new CurrentDefenseTermContextDto
                 {
@@ -1222,22 +1206,23 @@ namespace ThesisManagement.Api.Controllers
                 })
                 .ToListAsync(cancellationToken);
 
-            var activePeriods = periods
-                .Where(x => !string.Equals(x.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+            if (periods.Count == 0)
+            {
+                return (false, 404, "Hệ thống chưa có đợt đồ án tốt nghiệp đang hoạt động.", "DEFENSE_PERIOD_NOT_FOUND", null);
+            }
+
+            var runningPeriods = periods
+                .Where(x => x.Status == "Running")
                 .ToList();
 
-            if (activePeriods.Count == 0)
+            if (runningPeriods.Count > 1)
             {
-                return (false, 404, "Giảng viên chưa được gán vào đợt đồ án tốt nghiệp đang hoạt động.", "DEFENSE_PERIOD_ACTIVE_MAPPING_NOT_FOUND", null);
+                var runningPeriodIds = string.Join(", ", runningPeriods.Select(x => x.DefenseTermId));
+                return (false, 409, $"Phát hiện nhiều đợt đồ án tốt nghiệp đang chạy cùng lúc ({runningPeriodIds}).", "DEFENSE_PERIOD_AMBIGUOUS", null);
             }
 
-            if (activePeriods.Count > 1)
-            {
-                var activePeriodIds = string.Join(", ", activePeriods.Select(x => x.DefenseTermId));
-                return (false, 409, $"Phát hiện nhiều đợt đồ án tốt nghiệp đang hoạt động cho giảng viên hiện tại ({activePeriodIds}).", "DEFENSE_PERIOD_AMBIGUOUS", null);
-            }
-
-            return (true, 200, null, null, activePeriods[0]);
+            var selectedPeriod = runningPeriods.Count == 1 ? runningPeriods[0] : periods[0];
+            return (true, 200, null, null, selectedPeriod);
         }
 
         private ActionResult<ApiResponse<DefenseTermLecturerReadDto>> MapLecturerResult(OperationResult<DefenseTermLecturerReadDto> result)

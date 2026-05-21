@@ -153,6 +153,38 @@ public class DefensePeriodEndToEndFlowTests
         Assert.Equal("Preparing", term.Status);
     }
 
+    [Fact]
+    public async Task StartAsync_ShouldCloseOtherOpenPeriodsBeforeActivatingTargetPeriod()
+    {
+        await using var db = CreateDbContext();
+        var uow = new UnitOfWork(db);
+
+        SeedPeriodAndMasterData(db);
+        db.DefenseTerms.Add(new DefenseTerm
+        {
+            DefenseTermId = 2,
+            Name = "Term 2",
+            StartDate = DateTime.UtcNow.Date.AddDays(1),
+            Status = "Draft",
+            CreatedAt = DateTime.UtcNow,
+            LastUpdated = DateTime.UtcNow,
+            ConfigJson = "{}"
+        });
+        db.SaveChanges();
+
+        var (processor, _) = BuildProcessor(db, uow);
+
+        var startResult = await processor.StartAsync(2, actorUserId: 1001, idempotencyKey: "start-switch-test");
+
+        Assert.True(startResult.Success, startResult.Message ?? "Start failed");
+
+        var firstTerm = await db.DefenseTerms.AsNoTracking().FirstAsync(x => x.DefenseTermId == 1);
+        var secondTerm = await db.DefenseTerms.AsNoTracking().FirstAsync(x => x.DefenseTermId == 2);
+
+        Assert.Equal("Closed", firstTerm.Status);
+        Assert.Equal("Running", secondTerm.Status);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
