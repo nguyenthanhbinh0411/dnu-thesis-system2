@@ -3030,19 +3030,11 @@ namespace ThesisManagement.Api.Controllers
                 },
                 new()
                 {
-                    StepKey = "PUBLISH_SCORES",
-                    StepName = "Công bố kết quả",
-                    Completed = state.ScoresPublished,
-                    Enabled = state.AllowedActions.Contains("PUBLISH", StringComparer.OrdinalIgnoreCase),
-                    BlockedReason = state.ScoresPublished ? null : "Cần finalize trước khi publish điểm."
-                },
-                new()
-                {
                     StepKey = "ARCHIVE_PERIOD",
-                    StepName = "Đóng đợt",
+                    StepName = "Đóng & Lưu trữ",
                     Completed = isArchived,
-                    Enabled = !isArchived && state.ScoresPublished,
-                    BlockedReason = isArchived ? null : "Chỉ đóng đợt sau khi đã publish."
+                    Enabled = !isArchived && (state.Finalized || state.ScoresPublished),
+                    BlockedReason = isArchived ? null : "Chỉ đóng và lưu trữ đợt sau khi đã chốt danh sách đồ án tốt nghiệp."
                 }
             };
 
@@ -3124,10 +3116,18 @@ namespace ThesisManagement.Api.Controllers
                 return StatusCode(stateFailure.HttpStatusCode, stateFailure);
             }
 
-            if (!request.ForceArchiveWithoutPublish && !stateResult.Data.ScoresPublished && !string.Equals(period.Status, "Draft", StringComparison.OrdinalIgnoreCase))
+            var isFinalizedOrFinalization = string.Equals(period.Status, "Finalized", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(period.Status, "Finalization", StringComparison.OrdinalIgnoreCase)
+                || stateResult.Data.Finalized;
+
+            if (!request.ForceArchiveWithoutPublish 
+                && !stateResult.Data.ScoresPublished 
+                && !string.Equals(period.Status, "Closed", StringComparison.OrdinalIgnoreCase) 
+                && !string.Equals(period.Status, "Draft", StringComparison.OrdinalIgnoreCase)
+                && !isFinalizedOrFinalization)
             {
                 var conflict = ApiResponse<DefensePeriodStatusTransitionResponseDto>.Fail(
-                    "Chỉ được đóng đợt sau khi đã publish điểm. Có thể dùng ForceArchiveWithoutPublish nếu được phân quyền nội bộ.",
+                    "Chỉ được lưu trữ đợt sau khi đã tổng kết, đóng hoặc công bố điểm. Có thể dùng ForceArchiveWithoutPublish nếu được phân quyền nội bộ.",
                     409);
 
                 await SaveLifecycleResponseAsync("ARCHIVE_PERIOD", periodId, request.IdempotencyKey, requestHash, conflict);

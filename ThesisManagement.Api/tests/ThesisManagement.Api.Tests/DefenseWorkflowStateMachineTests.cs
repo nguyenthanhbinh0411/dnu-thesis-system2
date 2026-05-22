@@ -42,10 +42,10 @@ public class DefenseWorkflowStateMachineTests
     }
 
     [Theory]
-    [InlineData(DefenseTermStatus.Draft, "Nháp")]
+    [InlineData(DefenseTermStatus.Draft, "Soạn thảo")]
     [InlineData(DefenseTermStatus.Registration, "Đăng ký")]
-    [InlineData(DefenseTermStatus.Running, "Đang chạy")]
-    [InlineData(DefenseTermStatus.Archived, "Đã lưu trữ")]
+    [InlineData(DefenseTermStatus.Running, "Bảo vệ")]
+    [InlineData(DefenseTermStatus.Archived, "Đóng & Lưu trữ")]
     public void GetStatusLabel_ShouldReturnExpectedLabel(DefenseTermStatus status, string expected)
     {
         var result = DefenseWorkflowStateMachine.GetStatusLabel(status);

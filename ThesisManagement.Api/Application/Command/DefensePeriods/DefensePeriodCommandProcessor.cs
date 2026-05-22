@@ -3070,12 +3070,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 var period = await EnsurePeriodAsync(periodId, cancellationToken);
                 var currentStatus = DefenseWorkflowStateMachine.ParsePeriodStatus(period.Status);
                 
-                if (currentStatus == DefenseTermStatus.Closed)
+                if (!DefenseWorkflowStateMachine.AllowedPeriodTransitions.TryGetValue(currentStatus, out var nextStates) || nextStates.Count == 0)
                 {
                     throw new BusinessRuleException("Đợt đồ án đã kết thúc, không thể chuyển tiếp.", "UC2.NEXT.ALREADY_CLOSED");
                 }
-
-                var nextStatus = (DefenseTermStatus)((int)currentStatus + 1);
+                var nextStatus = nextStates[0];
                 
                 // Special handling for jumps if needed, but for now strictly sequential
                 DefenseWorkflowStateMachine.EnsurePeriodTransition(currentStatus, nextStatus, "UC2.NEXT.INVALID_TRANSITION");

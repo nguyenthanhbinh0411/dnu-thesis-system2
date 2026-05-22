@@ -87,17 +87,17 @@ interface MilestoneTemplate {
 const STATUS_CONFIG: Record<DefenseTermStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   Draft: { label: "Soạn thảo", color: "#64748b", bg: "#f1f5f9", icon: <Edit size={14} /> },
   Registration: { label: "Đăng ký đề tài", color: "#0ea5e9", bg: "#f0f9ff", icon: <FileDown size={14} /> },
-  Assignment: { label: "Phân công", color: "#6366f1", bg: "#eef2ff", icon: <Users size={14} /> },
+  Assignment: { label: "Phân công giảng viên", color: "#6366f1", bg: "#eef2ff", icon: <Users size={14} /> },
   ProgressTracking: { label: "Theo dõi tiến độ", color: "#f59e0b", bg: "#fffbeb", icon: <Activity size={14} /> },
-  CommitteePreparation: { label: "Chuẩn bị hội đồng", color: "#8b5cf6", bg: "#f5f3ff", icon: <Settings size={14} /> },
-  Running: { label: "Đang bảo vệ", color: "#166534", bg: "#dcfce7", icon: <Play size={14} /> },
+  CommitteePreparation: { label: "Phân công hội đồng", color: "#8b5cf6", bg: "#f5f3ff", icon: <Settings size={14} /> },
+  Running: { label: "Bảo vệ", color: "#166534", bg: "#dcfce7", icon: <Play size={14} /> },
   Paused: { label: "Tạm dừng", color: "#92400e", bg: "#fef3c7", icon: <Pause size={14} /> },
   ScoringLocked: { label: "Khóa điểm", color: "#991b1b", bg: "#fee2e2", icon: <Lock size={14} /> },
-  Finalization: { label: "Tổng kết", color: "#3730a3", bg: "#e0e7ff", icon: <CheckCircle size={14} /> },
-  Finalized: { label: "Đã tổng kết", color: "#3730a3", bg: "#e0e7ff", icon: <CheckCircle size={14} /> },
+  Finalization: { label: "Hậu bảo vệ", color: "#3730a3", bg: "#e0e7ff", icon: <CheckCircle size={14} /> },
+  Finalized: { label: "Hậu bảo vệ", color: "#3730a3", bg: "#e0e7ff", icon: <CheckCircle size={14} /> },
   Published: { label: "Công bố", color: "#15803d", bg: "#f0fdf4", icon: <Zap size={14} /> },
-  Closed: { label: "Đã đóng", color: "#1e293b", bg: "#f8fafc", icon: <Archive size={14} /> },
-  Archived: { label: "Lưu trữ", color: "#475569", bg: "#f1f5f9", icon: <Archive size={14} /> },
+  Closed: { label: "Đóng & Lưu trữ", color: "#1e293b", bg: "#f8fafc", icon: <Archive size={14} /> },
+  Archived: { label: "Đóng & Lưu trữ", color: "#475569", bg: "#f1f5f9", icon: <Archive size={14} /> },
 };
 
 const DEEP_BLUE_PRIMARY = "#1e3a5f";
@@ -283,19 +283,19 @@ const mapStatus = (status: any): DefenseTermStatus => {
   if (s === "7") return "Closed";
 
   // Vietnamese Label Mapping
-  if (s === "soạn thảo") return "Draft";
+  if (s === "soạn thảo" || s === "nháp") return "Draft";
   if (s === "đăng ký đề tài" || s === "đăng ký") return "Registration";
   if (s === "phân công") return "Assignment";
-  if (s === "theo dõi tiến độ") return "ProgressTracking";
-  if (s === "chuẩn bị hội đồng") return "CommitteePreparation";
-  if (s === "đang bảo vệ" || s === "đang diễn ra" || s === "bảo vệ") return "Running";
+  if (s === "theo dõi tiến độ" || s === "tiến độ") return "ProgressTracking";
+  if (s === "chuẩn bị hội đồng" || s === "hội đồng") return "CommitteePreparation";
+  if (s === "đang bảo vệ" || s === "đang diễn ra" || s === "bảo vệ" || s === "đang chạy") return "Running";
   if (s === "tạm dừng") return "Paused";
   if (s === "khóa điểm") return "ScoringLocked";
-  if (s === "tổng kết") return "Finalization";
+  if (s === "tổng kết" || s === "hậu bảo vệ" || s === "hoàn tất") return "Finalization";
   if (s === "đã tổng kết") return "Finalized";
-  if (s === "công bố") return "Published";
-  if (s === "đã đóng" || s === "kết thúc") return "Closed";
-  if (s === "lưu trữ") return "Archived";
+  if (s === "công bố" || s === "đã công bố") return "Published";
+  if (s === "đã đóng" || s === "kết thúc" || s === "đóng") return "Closed";
+  if (s === "lưu trữ" || s === "đóng & lưu trữ") return "Archived";
 
   // String mapping
   if (s === "draft") return "Draft";
@@ -329,11 +329,15 @@ const getNextStatus = (status?: DefenseTermStatus): DefenseTermStatus => {
     case "Assignment": return "ProgressTracking";
     case "ProgressTracking": return "CommitteePreparation";
     case "CommitteePreparation": return "Running";
-    case "Running": return "ScoringLocked";
+    case "Running": return "Finalization";
+    case "Paused": return "Running";
+    case "Finalization": return "Archived";
+    case "Finalized": return "Archived";
+    // Legacy support cases:
     case "ScoringLocked": return "Finalization";
-    case "Finalization": return "Published";
-    case "Published": return "Closed";
-    default: return "Closed";
+    case "Published": return "Archived";
+    case "Closed": return "Archived";
+    default: return "Archived";
   }
 };
 
@@ -345,12 +349,14 @@ const getNextActionLabel = (status?: DefenseTermStatus): string => {
     case "Assignment": return "Theo dõi tiến độ";
     case "ProgressTracking": return "Chuẩn bị hội đồng";
     case "CommitteePreparation": return "Bắt đầu bảo vệ";
-    case "Running": return "Khóa điểm bảo vệ";
+    case "Running": return "Chốt & Tổng kết đợt";
+    case "Paused": return "Tiếp tục đợt";
+    case "Finalization": return "Đóng & Lưu trữ";
+    case "Finalized": return "Đóng & Lưu trữ";
+    // Legacy support cases:
     case "ScoringLocked": return "Tổng kết đợt";
-    case "Finalization": return "Công bố điểm";
-    case "Finalized": return "Công bố điểm";
-    case "Published": return "Đóng đợt";
-    case "Closed": return "Lưu trữ";
+    case "Published": return "Đóng & Lưu trữ";
+    case "Closed": return "Đóng & Lưu trữ";
     default: return "Tiếp tục quy trình";
   }
 };
@@ -813,7 +819,8 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
         style={{
           display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px",
           background: "white", border: "1px solid #cbd5e1", borderRadius: "10px",
-          cursor: "pointer", fontWeight: "600", transition: "all 0.2s"        }}
+          cursor: "pointer", fontWeight: "600", transition: "all 0.2s"
+        }}
       >
         <CalendarIcon size={16} color="#64748b" />
         <span style={{ flex: 1, color: "#1e293b", fontSize: "14px" }}>{formatDisplay(value)}</span>
@@ -836,7 +843,7 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
             >
               <CalendarIcon size={12} /> Ngày
             </button>
-            <button 
+            <button
               onClick={(e) => { e.stopPropagation(); setIsTimeMode(true); }}
               style={{ flex: 1, border: "none", background: isTimeMode ? "white" : "none", padding: "6px", fontSize: "12px", fontWeight: "700", borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", color: isTimeMode ? "#1e3a5f" : "#64748b", boxShadow: isTimeMode ? "0 2px 4px rgba(0,0,0,0.05)" : "none" }}
             >
@@ -847,9 +854,9 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
           {!isTimeMode ? (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <button style={{ border: "none", background: "none", cursor: "pointer", padding: "4px" }} onClick={(e) => { e.stopPropagation(); setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1)); }}><ChevronLeft size={16}/></button>
+                <button style={{ border: "none", background: "none", cursor: "pointer", padding: "4px" }} onClick={(e) => { e.stopPropagation(); setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1)); }}><ChevronLeft size={16} /></button>
                 <div style={{ fontWeight: "800", color: "#0f172a", fontSize: "14px" }}>Tháng {viewDate.getMonth() + 1}, {viewDate.getFullYear()}</div>
-                <button style={{ border: "none", background: "none", cursor: "pointer", padding: "4px" }} onClick={(e) => { e.stopPropagation(); setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1)); }}><ChevronRight size={16}/></button>
+                <button style={{ border: "none", background: "none", cursor: "pointer", padding: "4px" }} onClick={(e) => { e.stopPropagation(); setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1)); }}><ChevronRight size={16} /></button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", fontSize: "10px", fontWeight: "800", color: "#94a3b8", textAlign: "center", marginBottom: "8px" }}>
                 {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map(d => <span key={d}>{d}</span>)}
@@ -860,8 +867,8 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
                   const d = i + 1;
                   const isSelected = selectedDate.getDate() === d && selectedDate.getMonth() === viewDate.getMonth() && selectedDate.getFullYear() === viewDate.getFullYear();
                   return (
-                    <div 
-                      key={d} 
+                    <div
+                      key={d}
                       onClick={(e) => { e.stopPropagation(); handleSelectDay(d); }}
                       style={{ aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: "600", cursor: "pointer", borderRadius: "8px", background: isSelected ? "#1e3a5f" : "none", color: isSelected ? "white" : "#475569" }}
                     >
@@ -891,7 +898,7 @@ const CustomDatePicker: React.FC<CustomPickerProps> = ({ value, onChange, label,
               </div>
             </div>
           )}
-          <button 
+          <button
             onClick={(e) => { e.stopPropagation(); onToggle(false); }}
             style={{ width: "100%", marginTop: "12px", background: "#1e3a5f", color: "white", border: "none", padding: "8px", borderRadius: "10px", fontWeight: "700", cursor: "pointer", fontSize: "13px" }}
           >
@@ -1043,19 +1050,19 @@ const DefensePeriodsManagement: React.FC = () => {
     try {
       for (let i = 0; i < milestones.length - 1; i++) {
         const current = new Date(milestones[i].deadline!);
-        const next = new Date(milestones[i+1].deadline!);
+        const next = new Date(milestones[i + 1].deadline!);
         if (current >= next) {
           addToast(`Hạn nộp mốc ${i + 1} phải trước mốc ${i + 2}.`, "warning");
-          setMilestonesSaving(false); 
+          setMilestonesSaving(false);
           return;
         }
       }
-      const promises = milestones.map(m => 
-        milestoneApi.update(m.milestoneTemplateID, { 
-          name: m.name, 
-          description: m.description, 
-          deadline: m.deadline, 
-          ordinal: m.ordinal 
+      const promises = milestones.map(m =>
+        milestoneApi.update(m.milestoneTemplateID, {
+          name: m.name,
+          description: m.description,
+          deadline: m.deadline,
+          ordinal: m.ordinal
         })
       );
       const results = await Promise.all(promises);
@@ -1065,11 +1072,11 @@ const DefensePeriodsManagement: React.FC = () => {
       } else {
         addToast("Cập nhật thất bại.", "error");
       }
-    } catch (err: any) { 
+    } catch (err: any) {
       const errMsg = err.data?.message || err.data?.Message || err.message || "Lỗi hệ thống khi cập nhật lộ trình.";
-      addToast(errMsg, "error"); 
-    } finally { 
-      setMilestonesSaving(false); 
+      addToast(errMsg, "error");
+    } finally {
+      setMilestonesSaving(false);
     }
   };
 
@@ -1231,9 +1238,9 @@ const DefensePeriodsManagement: React.FC = () => {
       }
     }
 
-    if (action === "CLOSE") {
-      if (currentStatus !== "Finalized" && currentStatus !== "Published") {
-        addToast("Đợt đồ án phải được Tổng kết hoặc Công bố trước khi Đóng.", "warning");
+    if (action === "ARCHIVE" || action === "CLOSE") {
+      if (currentStatus !== "Finalization" && currentStatus !== "Finalized" && currentStatus !== "Published" && currentStatus !== "Closed") {
+        addToast("Đợt đồ án phải được Tổng kết trước khi Đóng & Lưu trữ.", "warning");
         return;
       }
     }
@@ -1259,12 +1266,28 @@ const DefensePeriodsManagement: React.FC = () => {
       return;
     }
 
+    const actionLabel = action === "NEXT"
+      ? nextAction
+      : action === "CLOSE"
+        ? "Đóng đợt"
+        : action === "ARCHIVE"
+          ? "Đóng & Lưu trữ"
+          : action === "PAUSE"
+            ? "Tạm dừng đợt"
+            : action === "RESUME"
+              ? "Tiếp tục đợt"
+              : action === "SYNC"
+                ? "Đồng bộ dữ liệu"
+                : action === "LOCK_SCORING"
+                  ? "Khóa chấm điểm"
+                  : action;
+
     setConfirmState({
       isOpen: true,
       action,
-      title: `Xác nhận điều hành: ${action === "NEXT" ? nextAction : action}`,
-      message: `Hệ thống sẽ thực hiện lệnh ${action} cho đợt "${selectedRow?.name}". Hành động này sẽ chuyển trạng thái quy trình, kích hoạt lộ trình thời gian và cập nhật quyền hạn truy cập của sinh viên, giảng viên.`,
-      type: action === "FINALIZE" || action === "CLOSE" ? "warning" : "info"
+      title: `Xác nhận điều hành: ${actionLabel}`,
+      message: `Hệ thống sẽ thực hiện lệnh "${actionLabel}" cho đợt "${selectedRow?.name}". Hành động này sẽ chuyển trạng thái quy trình và cập nhật quyền hạn truy cập của sinh viên, giảng viên.`,
+      type: action === "FINALIZE" || action === "CLOSE" || action === "ARCHIVE" ? "warning" : "info"
     });
   };
 
@@ -1291,8 +1314,18 @@ const DefensePeriodsManagement: React.FC = () => {
           setHasRolledBackThisSession(false);
           setReminderSentCount(0);
           addToast("Chuyển giai đoạn thành công!", "success");
-        } else {
-          addToast(`Thực hiện ${action} thành công.`, "success");
+        } else if (action === "CLOSE") {
+          addToast("Đóng đợt đồ án thành công!", "success");
+        } else if (action === "ARCHIVE") {
+          addToast("Đóng & Lưu trữ đợt đồ án thành công!", "success");
+        } else if (action === "PAUSE") {
+          addToast("Tạm dừng đợt đồ án thành công!", "success");
+        } else if (action === "RESUME") {
+          addToast("Tiếp tục đợt đồ án thành công!", "success");
+        } else if (action === "LOCK_SCORING") {
+          addToast("Khóa chấm điểm thành công!", "success");
+        } else if (action === "SYNC") {
+          addToast("Đồng bộ dữ liệu đợt đồ án thành công!", "success");
         }
 
         // Reset active period state if it was closed or archived
@@ -1587,13 +1620,12 @@ const DefensePeriodsManagement: React.FC = () => {
     const steps = [
       { key: "Draft", label: "Soạn thảo", desc: "Khởi tạo đợt đồ án" },
       { key: "Registration", label: "Đăng ký", desc: "Mở đăng ký đề tài" },
-      { key: "Assignment", label: "Phân công", desc: "Gán giảng viên hướng dẫn" },
+      { key: "Assignment", label: "Phân công", desc: "Gán GV hướng dẫn" },
       { key: "ProgressTracking", label: "Tiến độ", desc: "Theo dõi thực hiện" },
-      { key: "EligibilityCheck", label: "Chốt bảo vệ", desc: "Xác nhận đủ điều kiện" },
-      { key: "CommitteePreparation", label: "Hội đồng", desc: "Sinh HĐ & xếp lịch" },
+      { key: "CommitteePreparation", label: "Hội đồng", desc: "Chuẩn bị hội đồng" },
       { key: "Running", label: "Bảo vệ", desc: "Chấm điểm & biên bản" },
-      { key: "Finalization", label: "Hậu bảo vệ", desc: "Nộp lại & duyệt sửa" },
-      { key: "Closed", label: "Kết thúc", desc: "Khóa hồ sơ & lưu trữ" },
+      { key: "Finalization", label: "Hậu bảo vệ", desc: "Tổng kết & Nộp lại" },
+      { key: "Archived", label: "Đóng & Lưu trữ", desc: "Kết thúc & Lưu trữ" },
     ];
 
     const currentStatus = selectedRow?.status || "Draft";
@@ -1602,19 +1634,62 @@ const DefensePeriodsManagement: React.FC = () => {
       registration: 1,
       assignment: 2,
       progresstracking: 3,
-      committeepreparation: 5,
-      running: 6,
-      paused: 6,
-      scoringlocked: 7,
-      finalization: 7,
-      finalized: 7,
-      published: 7,
-      closed: 8,
-      archived: 8
+      committeepreparation: 4,
+      running: 5,
+      paused: 5,
+      scoringlocked: 6,
+      finalization: 6,
+      finalized: 6,
+      published: 6,
+      closed: 7,
+      archived: 7
     };
 
     const normalizedKey = String(currentStatus).toLowerCase().trim();
     const currentIndex = statusOrder[normalizedKey] ?? 0;
+
+    const formatStepDate = (dateStr?: string | null) => {
+      if (!dateStr) return null;
+      try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return null;
+        return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+      } catch {
+        return null;
+      }
+    };
+
+    const getStepDate = (key: string) => {
+      if (!selectedRow) return null;
+      switch (key) {
+        case "Draft":
+          return formatStepDate(selectedRow.createdAt);
+        case "Registration": {
+          const m = milestones.find(item => item.ordinal === 1);
+          return formatStepDate(m?.deadline);
+        }
+        case "Assignment":
+          return null;
+        case "ProgressTracking": {
+          const m = milestones.find(item => item.ordinal === 2);
+          return formatStepDate(m?.deadline);
+        }
+        case "CommitteePreparation": {
+          const m = milestones.find(item => item.ordinal === 3);
+          return formatStepDate(m?.deadline);
+        }
+        case "Running": {
+          const m = milestones.find(item => item.ordinal === 4);
+          return formatStepDate(m?.deadline);
+        }
+        case "Finalization":
+          return formatStepDate(selectedRow.endDate);
+        case "Archived":
+          return selectedRow.status === "Archived" ? formatStepDate(selectedRow.lastUpdated) : null;
+        default:
+          return null;
+      }
+    };
 
     return (
       <div style={{ background: "#fff", padding: "24px", borderRadius: "16px", border: "1px solid #e2e8f0", marginBottom: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
@@ -1629,9 +1704,15 @@ const DefensePeriodsManagement: React.FC = () => {
         </div>
         <div style={{ display: "flex", position: "relative", padding: "0 10px" }}>
           {steps.map((step, idx) => {
-            const isCompleted = idx < currentIndex;
-            const isActive = idx === currentIndex;
-            const color = isCompleted ? "#10b981" : (isActive ? DEEP_BLUE_PRIMARY : "#cbd5e1");
+            const isCompleted = idx < currentIndex || (currentStatus === "Archived" && idx === 7);
+            const isActive = idx === currentIndex && currentStatus !== "Archived";
+
+            const isPausedActive = isActive && currentStatus === "Paused";
+            const color = isCompleted
+              ? "#10b981"
+              : (isActive
+                ? (isPausedActive ? "#f59e0b" : DEEP_BLUE_PRIMARY)
+                : "#cbd5e1");
 
             return (
               <React.Fragment key={step.key}>
@@ -1641,10 +1722,25 @@ const DefensePeriodsManagement: React.FC = () => {
                     border: `2.5px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center",
                     boxShadow: isActive ? `0 0 0 4px ${color}20` : "none", transition: "all 0.3s ease"
                   }}>
-                    {isCompleted ? <CheckCircle size={20} color="#10b981" /> : (isActive ? <Play size={20} fill={DEEP_BLUE_PRIMARY} color={DEEP_BLUE_PRIMARY} /> : <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#cbd5e1" }} />)}
+                    {isCompleted ? (
+                      <CheckCircle size={20} color="#10b981" />
+                    ) : isActive ? (
+                      isPausedActive ? (
+                        <Pause size={20} fill="#f59e0b" color="#f59e0b" />
+                      ) : (
+                        <Play size={20} fill={DEEP_BLUE_PRIMARY} color={DEEP_BLUE_PRIMARY} />
+                      )
+                    ) : (
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#cbd5e1" }} />
+                    )}
                   </div>
                   <div style={{ marginTop: "14px", textAlign: "center" }}>
                     <div style={{ fontSize: "13px", fontWeight: "800", color: isActive ? DEEP_BLUE_PRIMARY : (isCompleted ? "#1e293b" : "#94a3b8") }}>{step.label}</div>
+                    {getStepDate(step.key) && (
+                      <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px", fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "3px" }}>
+                        <CalendarIcon size={10} style={{ opacity: 0.8 }} /> {getStepDate(step.key)}
+                      </div>
+                    )}
                     <div style={{ fontSize: "10px", color: isActive ? DEEP_BLUE_PRIMARY : "#94a3b8", marginTop: "3px", fontWeight: isActive ? "700" : "500" }}>{step.desc}</div>
                   </div>
                 </div>
@@ -1655,7 +1751,7 @@ const DefensePeriodsManagement: React.FC = () => {
                     top: "18px",
                     width: `${100 / steps.length}%`,
                     height: "2px",
-                    background: idx < currentIndex ? "#10b981" : "#e2e8f0",
+                    background: idx < currentIndex || (currentStatus === "Archived" && idx < 7) ? "#10b981" : "#e2e8f0",
                     zIndex: 1,
                     transition: "all 0.5s ease"
                   }} />
@@ -1754,7 +1850,18 @@ const DefensePeriodsManagement: React.FC = () => {
             <div style={{ display: "grid", gap: "10px", marginTop: "24px" }}>
               {selectedRow && (
                 <button
-                  onClick={() => handleAction(selectedRow.status === "Closed" ? "ARCHIVE" : "NEXT")}
+                  onClick={() => {
+                    const status = selectedRow.status;
+                    if (status === "Paused") {
+                      handleAction("RESUME");
+                    } else if (status === "Closed") {
+                      handleAction("ARCHIVE");
+                    } else if (status === "Finalization" || status === "Finalized" || status === "Published") {
+                      handleAction("ARCHIVE");
+                    } else {
+                      handleAction("NEXT");
+                    }
+                  }}
                   style={{ background: "#10b981", color: "#fff", border: "none", borderRadius: "10px", padding: "12px", fontWeight: "700", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
                   disabled={selectedRow.status === "Archived"}
                 >
@@ -1839,7 +1946,7 @@ const DefensePeriodsManagement: React.FC = () => {
   const renderOperations = () => {
     const currentStatus = selectedRow?.status || "Draft";
     const nextAction = getNextActionLabel(currentStatus);
-    
+
     // Find matching milestone for current stage
     const currentMilestone = milestones.find(m => {
       if (currentStatus === "Registration") return m.ordinal === 1;
@@ -1890,7 +1997,7 @@ const DefensePeriodsManagement: React.FC = () => {
                 {currentStatus === "CommitteePreparation" && "Thiết lập lịch bảo vệ chi tiết, gán phòng và thời gian cho từng hội đồng."}
                 {currentStatus === "Running" && "Hội đồng đang thực hiện chấm điểm. Điểm số sẽ được cập nhật thời gian thực vào hệ thống."}
                 {currentStatus === "ScoringLocked" && "Điểm số đã được khóa. Bạn cần phê duyệt các báo cáo hậu bảo vệ (nếu có) trước khi tổng kết."}
-                {currentStatus === "Finalization" && "Tính toán kết quả cuối cùng và chuẩn bị công bố điểm cho sinh viên."}
+                {currentStatus === "Finalization" && "Tính toán kết quả cuối cùng và chuẩn bị đóng đợt để khóa hồ sơ bảo vệ."}
               </div>
             </div>
 
@@ -1901,7 +2008,7 @@ const DefensePeriodsManagement: React.FC = () => {
                   <div style={{ fontSize: "13px", fontWeight: "800", color: "#92400e" }}>Hạn chót Giai đoạn {currentMilestone.ordinal}: {currentMilestone.name}</div>
                   <div style={{ fontSize: "12px", color: "#b45309" }}>{currentMilestone.deadline ? `Hết hạn vào: ${new Date(currentMilestone.deadline).toLocaleString("vi-VN")}` : "Chưa thiết lập hạn nộp bài"}</div>
                 </div>
-                <button 
+                <button
                   onClick={() => setActiveTab("milestones")}
                   style={{ background: "white", border: "1px solid #fef3c7", padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "700", color: "#f59e0b", cursor: "pointer" }}
                 >
@@ -1913,7 +2020,17 @@ const DefensePeriodsManagement: React.FC = () => {
             <div style={{ marginTop: "auto", paddingTop: "24px", borderTop: "1px solid #f1f5f9" }}>
               <button
                 disabled={refreshing || currentStatus === "Archived" || (nextAction === "Tổng kết đợt" && !isScoringComplete)}
-                onClick={() => handleAction("NEXT")}
+                onClick={() => {
+                  if (currentStatus === "Paused") {
+                    handleAction("RESUME");
+                  } else if (currentStatus === "Closed") {
+                    handleAction("ARCHIVE");
+                  } else if (currentStatus === "Finalization" || currentStatus === "Finalized" || currentStatus === "Published") {
+                    handleAction("ARCHIVE");
+                  } else {
+                    handleAction("NEXT");
+                  }
+                }}
                 title={nextAction === "Tổng kết đợt" && !isScoringComplete ? "Cần chốt điểm toàn bộ đề tài trước khi tổng kết đợt." : undefined}
                 style={{
                   width: "100%", padding: "18px", borderRadius: "16px", border: "none",
@@ -1932,7 +2049,7 @@ const DefensePeriodsManagement: React.FC = () => {
               </button>
               {currentStatus === "Draft" && (
                 <div style={{ textAlign: "center", marginTop: "12px" }}>
-                  <button 
+                  <button
                     onClick={() => setActiveTab("milestones")}
                     style={{ background: "none", border: "none", color: DEEP_BLUE_PRIMARY, fontSize: "13px", fontWeight: "700", cursor: "pointer", textDecoration: "underline" }}
                   >
@@ -1956,8 +2073,8 @@ const DefensePeriodsManagement: React.FC = () => {
                   { action: "LOCK_SCORING", label: "Khóa chấm điểm", icon: <Lock size={18} />, color: "#ef4444", disabled: currentStatus !== "Running" },
                   {
                     action: "ROLLBACK_STAGE",
-                    label: hasRolledBackThisSession 
-                      ? "Quay lại bước trước (Đã dùng rollback)" 
+                    label: hasRolledBackThisSession
+                      ? "Quay lại bước trước (Đã dùng rollback)"
                       : "Quay lại bước trước (Rollback)",
                     icon: <RotateCcw size={18} />,
                     color: "#64748b",
@@ -1992,9 +2109,9 @@ const DefensePeriodsManagement: React.FC = () => {
                 <div>
                   <div style={{ fontSize: "14px", fontWeight: "800", color: "#991b1b" }}>Vùng nguy hiểm</div>
                   <p style={{ margin: "4px 0 16px 0", fontSize: "12px", color: "#b91c1c", lineHeight: "1.5" }}>Các thao tác này sẽ ảnh hưởng vĩnh viễn đến dữ liệu và điểm số.</p>
-                  <button 
-                    onClick={() => handleAction("CLOSE")}
-                    disabled={currentStatus !== "Finalized" && currentStatus !== "Published"}
+                  <button
+                    onClick={() => handleAction("ARCHIVE")}
+                    disabled={currentStatus !== "Finalization" && currentStatus !== "Finalized" && currentStatus !== "Published"}
                     style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #fca5a5", background: "white", color: "#b91c1c", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}
                   >
                     Đóng & Lưu trữ đợt
@@ -2737,7 +2854,7 @@ const DefensePeriodsManagement: React.FC = () => {
               }}>
                 Quản lý <span style={{ color: "#38bdf8" }}>Đợt đồ án tốt nghiệp</span>
               </h1>
-              
+
               <p style={{
                 fontSize: 15,
                 color: "rgba(255, 255, 255, 0.8)",
@@ -2880,7 +2997,7 @@ const DefensePeriodsManagement: React.FC = () => {
                 </div>
               )}
             </div>
-            
+
             <p style={{
               fontSize: 16,
               color: "rgba(255, 255, 255, 0.7)",
@@ -2973,7 +3090,7 @@ const DefensePeriodsManagement: React.FC = () => {
               </button>
             </div>
           </div>
-  
+
           {/* Tab Content Area */}
           <div style={{ padding: "32px", background: "#fff" }}>
             {activeTab === "overview" && renderOverview()}
@@ -3106,42 +3223,42 @@ const DefensePeriodsManagement: React.FC = () => {
                 <BellRing size={16} /> Gửi nhắc nhở (đến {ineligibleModal?.errors.length ?? 0} đề tài)
               </button>
               <div style={{ display: "flex", gap: "12px" }}>
-              <button
-                onClick={() => setIneligibleModal(null)}
-                style={{
-                  background: "#e2e8f0",
-                  color: "#475569",
-                  border: "none",
-                  borderRadius: "12px",
-                  padding: "12px 24px",
-                  fontWeight: "700",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  transition: "all 0.2s"
-                }}
-              >
-                Hủy bỏ
-              </button>
-              <button
-                onClick={() => {
-                  setIneligibleModal(null);
-                  void handleAction("NEXT", true);
-                }}
-                style={{
-                  background: "#dc2626",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "12px",
-                  padding: "12px 24px",
-                  fontWeight: "700",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  boxShadow: "0 4px 6px rgba(220, 38, 38, 0.2)",
-                  transition: "all 0.2s"
-                }}
-              >
-                Bỏ qua cảnh báo & Tiếp tục
-              </button>
+                <button
+                  onClick={() => setIneligibleModal(null)}
+                  style={{
+                    background: "#e2e8f0",
+                    color: "#475569",
+                    border: "none",
+                    borderRadius: "12px",
+                    padding: "12px 24px",
+                    fontWeight: "700",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  onClick={() => {
+                    setIneligibleModal(null);
+                    void handleAction("NEXT", true);
+                  }}
+                  style={{
+                    background: "#dc2626",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "12px",
+                    padding: "12px 24px",
+                    fontWeight: "700",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    boxShadow: "0 4px 6px rgba(220, 38, 38, 0.2)",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  Bỏ qua cảnh báo & Tiếp tục
+                </button>
               </div>
             </div>
           </div>
