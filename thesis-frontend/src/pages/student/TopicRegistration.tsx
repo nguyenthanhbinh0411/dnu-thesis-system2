@@ -646,6 +646,32 @@ const TopicRegistration: React.FC = () => {
     }
   };
 
+  const handleDownloadTemplate = async (templateName: string) => {
+    try {
+      const arrayBuffer = await fetchData<ArrayBuffer>(
+        `/Templates/download?fileName=${encodeURIComponent(templateName)}`,
+        { method: "GET" }
+      );
+      
+      const blob = new Blob([arrayBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", templateName);
+      document.body.appendChild(link);
+      link.click();
+      
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Lỗi khi tải file mẫu:", err);
+      alert("Không thể tải file mẫu. Vui lòng thử lại sau.");
+    }
+  };
+
 
   useEffect(() => {
     void loadInitialData();
@@ -1908,8 +1934,17 @@ const TopicRegistration: React.FC = () => {
                   >
                     <MessageCircle size={18} /> NHẮN TIN TRAO ĐỔI
                   </button>
-                  <button className="w-full py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-black text-[13px] tracking-wide flex items-center justify-center gap-3 hover:bg-slate-50 transition-all">
-                    <FileText size={18} /> TẢI BIỂU MẪU
+                  <button
+                    onClick={() => handleDownloadTemplate("mẫu đề cương DATN.docx")}
+                    className="w-full py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-black text-[13px] tracking-wide flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"
+                  >
+                    <FileText size={18} /> TẢI MẪU ĐỀ CƯƠNG
+                  </button>
+                  <button
+                    onClick={() => handleDownloadTemplate("Mẫu báo cáo ĐATN.docx")}
+                    className="w-full py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-black text-[13px] tracking-wide flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"
+                  >
+                    <FileText size={18} /> TẢI MẪU BÁO CÁO
                   </button>
                 </div>
               </div>
