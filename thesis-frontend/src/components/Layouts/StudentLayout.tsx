@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import StudentNav from "../SideNavs/StudentNav";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import {
   LogOut,
@@ -11,6 +11,7 @@ import {
   KeyRound,
   Pin,
   PinOff,
+  BookOpen,
 } from "lucide-react";
 import { fetchData, getAvatarUrl } from "../../api/fetchData";
 import type { ApiResponse } from "../../types/api";
@@ -20,12 +21,67 @@ import NotificationBell from "../notifications/NotificationBell";
 import {
   getActiveDefensePeriodId,
   setActiveDefensePeriodId,
+  useActiveDefensePeriodId,
 } from "../../utils/defensePeriod";
 import { fetchCurrentDefensePeriod } from "../../services/current-defense-period.service";
+
+const NoPeriodPlaceholder: React.FC = () => (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: "60vh",
+      textAlign: "center",
+      padding: "40px 24px",
+    }}
+  >
+    <div
+      style={{
+        width: 80,
+        height: 80,
+        borderRadius: "50%",
+        background: "linear-gradient(135deg, rgba(243,112,33,0.12) 0%, rgba(243,112,33,0.04) 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 24,
+      }}
+    >
+      <BookOpen size={36} color="#f37021" strokeWidth={1.5} />
+    </div>
+    <h2
+      style={{
+        fontSize: 22,
+        fontWeight: 700,
+        color: "#1a2736",
+        marginBottom: 10,
+        letterSpacing: "-0.3px",
+      }}
+    >
+      Chưa có đợt bảo vệ đang hoạt động
+    </h2>
+    <p
+      style={{
+        fontSize: 15,
+        color: "#6B7280",
+        maxWidth: 440,
+        lineHeight: 1.6,
+        margin: 0,
+      }}
+    >
+      Hệ thống hiện chưa mở đợt bảo vệ đồ án tốt nghiệp nào.
+      Vui lòng quay lại sau hoặc liên hệ khoa / phòng đào tạo để biết thêm thông tin.
+    </p>
+  </div>
+);
 
 const StudentLayout: React.FC = () => {
   const auth = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const reactivePeriodId = useActiveDefensePeriodId();
   const [studentImage, setStudentImage] = useState<string | null>(null);
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -53,7 +109,7 @@ const StudentLayout: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarPinned, setIsSidebarPinned] = useState(false);
   const sidebarWidth = isSidebarCollapsed ? 84 : 260;
-  
+
   const collapseSidebarOnActivity = () => {
     if (window.innerWidth > 768 && !isSidebarPinned) {
       setIsSidebarCollapsed(true);
@@ -124,51 +180,51 @@ const StudentLayout: React.FC = () => {
         }
 
         if (result.ok) {
-        const periodName = result.period.name || `Đợt ${result.period.periodId}`;
-        setActiveDefensePeriodId(result.period.periodId);
-        setHeaderPeriod({
-          label: `${periodName} (#${result.period.periodId})`,
-          tone: "normal",
-          tooltip: `Đợt hiện tại: ${periodName} (#${result.period.periodId})`,
-        });
-        return;
-      }
+          const periodName = result.period.name || `Đợt ${result.period.periodId}`;
+          setActiveDefensePeriodId(result.period.periodId);
+          setHeaderPeriod({
+            label: `${periodName} (#${result.period.periodId})`,
+            tone: "normal",
+            tooltip: `Đợt hiện tại: ${periodName} (#${result.period.periodId})`,
+          });
+          return;
+        }
 
-      if (result.code === "NOT_MAPPED") {
-        setActiveDefensePeriodId(null);
-        setHeaderPeriod({
-          label: "Chưa có mapping đợt",
-          tone: "warning",
-          tooltip: result.message,
-        });
-        return;
-      }
+        if (result.code === "NOT_MAPPED") {
+          setActiveDefensePeriodId(null);
+          setHeaderPeriod({
+            label: "Chưa có mapping đợt",
+            tone: "warning",
+            tooltip: result.message,
+          });
+          return;
+        }
 
-      if (result.code === "AMBIGUOUS" || result.code === "INVALID_CONTRACT") {
-        setActiveDefensePeriodId(null);
+        if (result.code === "AMBIGUOUS" || result.code === "INVALID_CONTRACT") {
+          setActiveDefensePeriodId(null);
+          setHeaderPeriod({
+            label: result.code === "AMBIGUOUS" ? "Dữ liệu đợt mơ hồ" : "Snapshot đợt không hợp lệ",
+            tone: "error",
+            tooltip: result.message,
+          });
+          return;
+        }
+
+        const cachedPeriodId = getActiveDefensePeriodId();
+        if (cachedPeriodId) {
+          setHeaderPeriod({
+            label: `Đợt #${cachedPeriodId} (cache)`,
+            tone: "warning",
+            tooltip: result.message,
+          });
+          return;
+        }
+
         setHeaderPeriod({
-          label: result.code === "AMBIGUOUS" ? "Dữ liệu đợt mơ hồ" : "Snapshot đợt không hợp lệ",
+          label: "Không xác định đợt",
           tone: "error",
           tooltip: result.message,
         });
-        return;
-      }
-
-      const cachedPeriodId = getActiveDefensePeriodId();
-      if (cachedPeriodId) {
-        setHeaderPeriod({
-          label: `Đợt #${cachedPeriodId} (cache)`,
-          tone: "warning",
-          tooltip: result.message,
-        });
-        return;
-      }
-
-      setHeaderPeriod({
-        label: "Không xác định đợt",
-        tone: "error",
-        tooltip: result.message,
-      });
       } catch (error) {
         if (cancelled) return;
 
@@ -190,24 +246,24 @@ const StudentLayout: React.FC = () => {
   const headerPeriodStyle =
     headerPeriod.tone === "error"
       ? {
-          borderColor: "rgba(220, 38, 38, 0.25)",
-          backgroundColor: "rgba(220, 38, 38, 0.08)",
-          textColor: "#b91c1c",
-          dotColor: "#dc2626",
-        }
+        borderColor: "rgba(220, 38, 38, 0.25)",
+        backgroundColor: "rgba(220, 38, 38, 0.08)",
+        textColor: "#b91c1c",
+        dotColor: "#dc2626",
+      }
       : headerPeriod.tone === "warning"
         ? {
-            borderColor: "rgba(245, 158, 11, 0.35)",
-            backgroundColor: "rgba(245, 158, 11, 0.12)",
-            textColor: "#92400e",
-            dotColor: "#f59e0b",
-          }
+          borderColor: "rgba(245, 158, 11, 0.35)",
+          backgroundColor: "rgba(245, 158, 11, 0.12)",
+          textColor: "#92400e",
+          dotColor: "#f59e0b",
+        }
         : {
-            borderColor: "rgba(243, 112, 33, 0.2)",
-            backgroundColor: "rgba(243, 112, 33, 0.1)",
-            textColor: "#f37021",
-            dotColor: "#f37021",
-          };
+          borderColor: "rgba(243, 112, 33, 0.2)",
+          backgroundColor: "rgba(243, 112, 33, 0.1)",
+          textColor: "#f37021",
+          dotColor: "#f37021",
+        };
 
   return (
     <div
@@ -986,7 +1042,11 @@ const StudentLayout: React.FC = () => {
           }}
           onPointerUpCapture={collapseSidebarOnActivity}
         >
-          <Outlet />
+          {reactivePeriodId != null || /\/(profile|change-password)$/.test(location.pathname) ? (
+            <Outlet />
+          ) : (
+            <NoPeriodPlaceholder />
+          )}
         </div>
       </main>
     </div>

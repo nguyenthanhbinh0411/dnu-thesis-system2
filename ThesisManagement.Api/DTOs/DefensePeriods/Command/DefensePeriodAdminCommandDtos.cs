@@ -348,6 +348,10 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
 
         public DefensePeriodArchiveRequestDto? Archive { get; set; }
 
+        // Fallback when FE sends archive fields at root level instead of nested Archive object.
+        public bool? ForceArchiveWithoutPublish { get; set; }
+        public string? Reason { get; set; }
+
         public DefensePeriodReopenRequestDto? Reopen { get; set; }
     }
 
@@ -414,5 +418,14 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
 
         [Required]
         public string NotifTitle { get; set; } = string.Empty;
+    }
+
+    public class AdminSessionActionRequestDto
+    {
+        [Range(1, int.MaxValue)]
+        public int CommitteeId { get; set; }
+
+        [Required(AllowEmptyStrings = false)]
+        public string Reason { get; set; } = string.Empty;
     }
 }

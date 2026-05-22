@@ -665,21 +665,21 @@ namespace ThesisManagement.Api.Controllers
             if (action == "LOCK_SESSION")
             {
                 return WrapAsObject(
-                    await LockSession(periodId, request.CommitteeId, request.IdempotencyKey),
+                    await LockSession(periodId, request.CommitteeId, request.Reason, request.IdempotencyKey),
                     action);
             }
 
             if (action == "OPEN_SESSION")
             {
                 return WrapAsObject(
-                    await OpenSession(periodId, request.CommitteeId, request.IdempotencyKey),
+                    await OpenSession(periodId, request.CommitteeId, request.Reason, request.IdempotencyKey),
                     action);
             }
 
             if (action == "CLOSE_SESSION" || action == "CLOSE")
             {
                 return WrapAsObject(
-                    await CloseSession(periodId, request.CommitteeId, request.IdempotencyKey),
+                    await CloseSession(periodId, request.CommitteeId, request.Reason, request.IdempotencyKey),
                     action);
             }
 
@@ -710,22 +710,55 @@ namespace ThesisManagement.Api.Controllers
 
         [HttpPost("/api/LecturerDefense/admin/reopen-session")]
         [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<ApiResponse<object>>> AdminReopenSession([FromQuery] int committeeId)
+        public async Task<ActionResult<ApiResponse<object>>> AdminReopenSession([FromBody] AdminSessionActionRequestDto request)
         {
-            if (committeeId <= 0)
+            if (request == null || request.CommitteeId <= 0)
             {
-                return BadRequest(ApiResponse<object>.Fail("Thiếu committeeId hợp lệ.", 400));
+                return BadRequest(ApiResponse<object>.Fail("Thiếu thông tin yêu cầu hợp lệ.", 400));
             }
 
             var actorUserId = CurrentUserId;
             try
             {
-                await _scoreWorkflowService.ReopenFinalizedSessionAsync(committeeId, actorUserId, HttpContext.RequestAborted);
-                return Ok(ApiResponse<object>.SuccessResponse(new { CommitteeId = committeeId, Reopened = true }));
+                await _scoreWorkflowService.ReopenFinalizedSessionAsync(request.CommitteeId, actorUserId, request.Reason, HttpContext.RequestAborted);
+                return Ok(ApiResponse<object>.SuccessResponse(new { CommitteeId = request.CommitteeId, Reopened = true }));
             }
             catch (BusinessRuleException ex)
             {
                 return StatusCode(400, ApiResponse<object>.Fail(ex.Message ?? "Không thể mở lại hội đồng.", 400, code: ex.Code));
+            }
+        }
+
+        [HttpPost("/api/LecturerDefense/admin/unlock-session")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<ApiResponse<object>>> AdminUnlockSession([FromBody] AdminSessionActionRequestDto request)
+        {
+            if (request == null || request.CommitteeId <= 0)
+            {
+                return BadRequest(ApiResponse<object>.Fail("Thiếu thông tin yêu cầu hợp lệ.", 400));
+            }
+
+            var actorUserId = CurrentUserId;
+            try
+            {
+                var response = await _openSessionCommand.ExecuteAsync(
+                    committeeId: request.CommitteeId,
+                    lecturerCode: "ADMIN",
+                    actorUserId: actorUserId,
+                    reason: request.Reason,
+                    isAdmin: true,
+                    cancellationToken: HttpContext.RequestAborted);
+
+                if (!response.Success)
+                {
+                    return StatusCode(response.HttpStatusCode == 0 ? 400 : response.HttpStatusCode, response);
+                }
+
+                return Ok(ApiResponse<object>.SuccessResponse(new { CommitteeId = request.CommitteeId, Unlocked = true }));
+            }
+            catch (BusinessRuleException ex)
+            {
+                return StatusCode(400, ApiResponse<object>.Fail(ex.Message ?? "Không thể mở chốt điểm hội đồng.", 400, code: ex.Code));
             }
         }
 
@@ -1157,27 +1190,11 @@ namespace ThesisManagement.Api.Controllers
                 return (false, 404, "Không tìm thấy hồ sơ giảng viên tương ứng với tài khoản hiện tại.", "DEFENSE_PERIOD_PROFILE_NOT_FOUND", null);
             }
 
-            var profileLecturerCode = profile.LecturerCode?.Trim() ?? string.Empty;
-            var profileUserCode = string.IsNullOrWhiteSpace(profile.UserCode) ? null : profile.UserCode.Trim();
-
-            var periodIds = await _uow.DefenseTermLecturers.Query().AsNoTracking()
-                .Where(x =>
-                    x.LecturerProfileID == profile.LecturerProfileID
-                    || x.LecturerCode == profileLecturerCode
-                    || (!string.IsNullOrWhiteSpace(profileUserCode) && x.UserCode == profileUserCode)
-                    || (!string.IsNullOrWhiteSpace(requestUserCode) && (x.UserCode == requestUserCode || x.LecturerCode == requestUserCode)))
-                .Select(x => x.DefenseTermId)
-                .Distinct()
-                .ToListAsync(cancellationToken);
-
-            if (periodIds.Count == 0)
-            {
-                return (false, 404, "Giảng viên chưa được gán vào đợt đồ án tốt nghiệp nào.", "DEFENSE_PERIOD_MAPPING_NOT_FOUND", null);
-            }
-
             var periods = await _uow.DefenseTerms.Query().AsNoTracking()
-                .Where(x => periodIds.Contains(x.DefenseTermId))
-                .OrderByDescending(x => x.StartDate)
+                .Where(x => !string.Equals(x.Status, "Closed", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(x.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(x => x.Status == "Running")
+                .ThenByDescending(x => x.StartDate)
                 .ThenByDescending(x => x.DefenseTermId)
                 .Select(x => new CurrentDefenseTermContextDto
                 {
@@ -1189,22 +1206,23 @@ namespace ThesisManagement.Api.Controllers
                 })
                 .ToListAsync(cancellationToken);
 
-            var activePeriods = periods
-                .Where(x => !string.Equals(x.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+            if (periods.Count == 0)
+            {
+                return (false, 404, "Hệ thống chưa có đợt đồ án tốt nghiệp đang hoạt động.", "DEFENSE_PERIOD_NOT_FOUND", null);
+            }
+
+            var runningPeriods = periods
+                .Where(x => x.Status == "Running")
                 .ToList();
 
-            if (activePeriods.Count == 0)
+            if (runningPeriods.Count > 1)
             {
-                return (false, 404, "Giảng viên chưa được gán vào đợt đồ án tốt nghiệp đang hoạt động.", "DEFENSE_PERIOD_ACTIVE_MAPPING_NOT_FOUND", null);
+                var runningPeriodIds = string.Join(", ", runningPeriods.Select(x => x.DefenseTermId));
+                return (false, 409, $"Phát hiện nhiều đợt đồ án tốt nghiệp đang chạy cùng lúc ({runningPeriodIds}).", "DEFENSE_PERIOD_AMBIGUOUS", null);
             }
 
-            if (activePeriods.Count > 1)
-            {
-                var activePeriodIds = string.Join(", ", activePeriods.Select(x => x.DefenseTermId));
-                return (false, 409, $"Phát hiện nhiều đợt đồ án tốt nghiệp đang hoạt động cho giảng viên hiện tại ({activePeriodIds}).", "DEFENSE_PERIOD_AMBIGUOUS", null);
-            }
-
-            return (true, 200, null, null, activePeriods[0]);
+            var selectedPeriod = runningPeriods.Count == 1 ? runningPeriods[0] : periods[0];
+            return (true, 200, null, null, selectedPeriod);
         }
 
         private ActionResult<ApiResponse<DefenseTermLecturerReadDto>> MapLecturerResult(OperationResult<DefenseTermLecturerReadDto> result)
@@ -1303,7 +1321,7 @@ namespace ThesisManagement.Api.Controllers
             return FromResult(result);
         }
 
-        private async Task<ActionResult<ApiResponse<bool>>> OpenSession(int periodId, int id, [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey = null)
+        private async Task<ActionResult<ApiResponse<bool>>> OpenSession(int periodId, int id, string? reason, string? idempotencyKey = null)
         {
             var guard = await _getMinutesQuery.ExecuteAsync(id, periodId);
             if (!guard.Success)
@@ -1312,7 +1330,14 @@ namespace ThesisManagement.Api.Controllers
             }
 
             var lecturerCode = GetRequestUserCode() ?? string.Empty;
-            var result = await _openSessionCommand.ExecuteAsync(id, lecturerCode, CurrentUserId, idempotencyKey);
+            var result = await _openSessionCommand.ExecuteAsync(
+                committeeId: id,
+                lecturerCode: lecturerCode,
+                actorUserId: CurrentUserId,
+                reason: reason,
+                isAdmin: false,
+                idempotencyKey: idempotencyKey,
+                cancellationToken: HttpContext.RequestAborted);
             return FromResult(result);
         }
 
@@ -1329,7 +1354,7 @@ namespace ThesisManagement.Api.Controllers
             return FromResult(result);
         }
 
-        private async Task<ActionResult<ApiResponse<bool>>> LockSession(int periodId, int id, [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey = null)
+        private async Task<ActionResult<ApiResponse<bool>>> LockSession(int periodId, int id, string? reason, string? idempotencyKey = null)
         {
             var guard = await _getMinutesQuery.ExecuteAsync(id, periodId);
             if (!guard.Success)
@@ -1338,11 +1363,18 @@ namespace ThesisManagement.Api.Controllers
             }
 
             var lecturerCode = GetRequestUserCode() ?? string.Empty;
-            var result = await _lockSessionCommand.ExecuteAsync(id, lecturerCode, CurrentUserId, idempotencyKey);
+            var result = await _lockSessionCommand.ExecuteAsync(
+                committeeId: id,
+                lecturerCode: lecturerCode,
+                actorUserId: CurrentUserId,
+                reason: reason,
+                isAdmin: false,
+                idempotencyKey: idempotencyKey,
+                cancellationToken: HttpContext.RequestAborted);
             return FromResult(result);
         }
 
-        private async Task<ActionResult<ApiResponse<bool>>> CloseSession(int periodId, int id, [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey = null)
+        private async Task<ActionResult<ApiResponse<bool>>> CloseSession(int periodId, int id, string? reason, string? idempotencyKey = null)
         {
             var guard = await _getMinutesQuery.ExecuteAsync(id, periodId);
             if (!guard.Success)
@@ -1351,7 +1383,14 @@ namespace ThesisManagement.Api.Controllers
             }
 
             var lecturerCode = GetRequestUserCode() ?? string.Empty;
-            var result = await _closeSessionCommand.ExecuteAsync(id, lecturerCode, CurrentUserId, idempotencyKey);
+            var result = await _closeSessionCommand.ExecuteAsync(
+                committeeId: id,
+                lecturerCode: lecturerCode,
+                actorUserId: CurrentUserId,
+                reason: reason,
+                isAdmin: false,
+                idempotencyKey: idempotencyKey,
+                cancellationToken: HttpContext.RequestAborted);
             return FromResult(result);
         }
 

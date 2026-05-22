@@ -61,7 +61,7 @@ namespace ThesisManagement.Api.Services.Reports
             try
             {
                 using var wordDoc = WordprocessingDocument.Open(ms, false);
-                var body = wordDoc.MainDocumentPart?.Document.Body;
+                var body = wordDoc.MainDocumentPart?.Document?.Body;
                 return body?.InnerText ?? string.Empty;
             }
             catch { return string.Empty; }

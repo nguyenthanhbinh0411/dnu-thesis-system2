@@ -23,15 +23,17 @@ namespace ThesisManagement.Api.Application.Common
             { DefenseTermStatus.Assignment, new[] { DefenseTermStatus.ProgressTracking } },
             { DefenseTermStatus.ProgressTracking, new[] { DefenseTermStatus.CommitteePreparation } },
             { DefenseTermStatus.CommitteePreparation, new[] { DefenseTermStatus.Running } },
-            { DefenseTermStatus.Running, new[] { DefenseTermStatus.ScoringLocked } },
+            { DefenseTermStatus.Running, new[] { DefenseTermStatus.Finalization } },
+            { DefenseTermStatus.Finalization, new[] { DefenseTermStatus.Archived } },
+            // Legacy transitions for backwards compatibility:
             { DefenseTermStatus.ScoringLocked, new[] { DefenseTermStatus.Finalization } },
-            { DefenseTermStatus.Finalization, new[] { DefenseTermStatus.Published, DefenseTermStatus.Closed } },
-            { DefenseTermStatus.Published, new[] { DefenseTermStatus.Closed, DefenseTermStatus.Archived } },
+            { DefenseTermStatus.Published, new[] { DefenseTermStatus.Archived } },
             { DefenseTermStatus.Closed, new[] { DefenseTermStatus.Archived } },
             { DefenseTermStatus.Archived, Array.Empty<DefenseTermStatus>() }
         };
 
         public static IReadOnlyDictionary<CommitteeStatus, IReadOnlyList<CommitteeStatus>> AllowedCommitteeTransitions => CommitteeTransitions;
+        public static IReadOnlyDictionary<DefenseTermStatus, IReadOnlyList<DefenseTermStatus>> AllowedPeriodTransitions => DefenseTermTransitions;
 
         public static Dictionary<string, List<string>> GetCommitteeTransitionMap()
         {
@@ -46,6 +48,15 @@ namespace ThesisManagement.Api.Application.Common
             if (Enum.TryParse<CommitteeStatus>(value, true, out var status))
             {
                 return status;
+            }
+
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? string.Empty
+                : value.Trim().ToUpperInvariant().Replace("Đ", "D").Replace("đ", "d");
+
+            if (normalized is "DA_KHOA" or "KHOA" or "KHOA_DIEM" or "KHOA_CHAM_DIEM" or "LOCKED")
+            {
+                return CommitteeStatus.Completed;
             }
 
             return CommitteeStatus.Draft;
@@ -107,6 +118,7 @@ namespace ThesisManagement.Api.Application.Common
             var normalized = value.Trim().ToUpperInvariant();
             if (normalized == "FINALIZED") return DefenseTermStatus.Finalization;
             if (normalized == "ARCHIVED") return DefenseTermStatus.Archived;
+            if (normalized == "PAUSED") return DefenseTermStatus.Running;
 
             return DefenseTermStatus.Draft;
         }
@@ -147,7 +159,7 @@ namespace ThesisManagement.Api.Application.Common
 
             return value.Trim().ToUpperInvariant() switch
             {
-                "DRAFT" => "Nháp",
+                "DRAFT" => "Soạn thảo",
                 "READY" => "Sẵn sàng",
                 "ONGOING" => "Đang diễn ra",
                 "COMPLETED" => "Hoàn thành",
@@ -155,14 +167,14 @@ namespace ThesisManagement.Api.Application.Common
                 "PUBLISHED" => "Đã công bố",
                 "REGISTRATION" => "Đăng ký",
                 "ASSIGNMENT" => "Phân công",
-                "PROGRESSTRACKING" => "Theo dõi tiến độ",
-                "COMMITTEEPREPARATION" => "Chuẩn bị hội đồng",
-                "RUNNING" => "Đang chạy",
+                "PROGRESSTRACKING" => "Tiến độ",
+                "COMMITTEEPREPARATION" => "Hội đồng",
+                "RUNNING" => "Bảo vệ",
                 "PAUSED" => "Tạm dừng",
                 "SCORINGLOCKED" => "Khóa chấm điểm",
-                "FINALIZATION" => "Hoàn tất",
+                "FINALIZATION" => "Hậu bảo vệ",
                 "CLOSED" => "Đã đóng",
-                "ARCHIVED" => "Đã lưu trữ",
+                "ARCHIVED" => "Đóng & Lưu trữ",
                 "PENDING" => "Chờ xử lý",
                 "SUBMITTED" => "Đã nộp",
                 "LOCKED" => "Đã khóa",

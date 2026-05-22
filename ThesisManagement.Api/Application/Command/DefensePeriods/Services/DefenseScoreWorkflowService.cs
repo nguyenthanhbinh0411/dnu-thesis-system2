@@ -14,10 +14,10 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
     public interface IDefenseScoreWorkflowService
     {
         Task SubmitIndependentScoreAsync(int committeeId, LecturerScoreSubmitDto request, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default);
-        Task OpenSessionAsync(int committeeId, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default);
-        Task LockSessionAsync(int committeeId, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default);
-        Task CloseSessionAsync(int committeeId, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default);
-        Task ReopenFinalizedSessionAsync(int committeeId, int actorUserId, CancellationToken cancellationToken = default);
+        Task OpenSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default);
+        Task LockSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default);
+        Task CloseSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default);
+        Task ReopenFinalizedSessionAsync(int committeeId, int actorUserId, string? reason = null, CancellationToken cancellationToken = default);
     }
 
     public sealed class DefenseScoreWorkflowService : IDefenseScoreWorkflowService
@@ -231,21 +231,51 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             await tx.CommitAsync(cancellationToken);
         }
 
-        public async Task OpenSessionAsync(int committeeId, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default)
+        public async Task OpenSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default)
         {
-            await using var tx = await _uow.BeginTransactionAsync(cancellationToken);
-
-            var member = await _db.CommitteeMembers.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.CommitteeID == committeeId && x.MemberLecturerCode == lecturerCode, cancellationToken);
-            if (member == null || NormalizeRole(member.Role) != "CT")
+            if (string.IsNullOrWhiteSpace(reason))
             {
-                throw new BusinessRuleException("Chỉ Chủ tịch hội đồng (CT) được mở ca đồ án tốt nghiệp.");
+                throw new BusinessRuleException("Lý do thực hiện không được để trống.", "UC3.INVALID_REASON");
             }
+
+            await using var tx = await _uow.BeginTransactionAsync(cancellationToken);
 
             var committee = await _db.Committees.FirstOrDefaultAsync(x => x.CommitteeID == committeeId, cancellationToken);
             if (committee == null)
             {
                 throw new BusinessRuleException("Không tìm thấy hội đồng.");
+            }
+
+            var rawCommitteeStatus = (committee.Status ?? string.Empty).Trim().ToUpperInvariant();
+            var committeeStatus = DefenseWorkflowStateMachine.ParseCommitteeStatus(committee.Status);
+            var isAdminLockedSession = isAdmin && rawCommitteeStatus == "LOCKED";
+
+            if (!isAdmin)
+            {
+                var member = await _db.CommitteeMembers.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.CommitteeID == committeeId && x.MemberLecturerCode == lecturerCode, cancellationToken);
+
+                if (committeeStatus == CommitteeStatus.Ready)
+                {
+                    if (member == null || NormalizeRole(member.Role) != "UVTK")
+                    {
+                        throw new BusinessRuleException("Chỉ Thư ký hội đồng (UVTK) mới có quyền mở phiên bảo vệ.");
+                    }
+                }
+                else if (committeeStatus == CommitteeStatus.Completed)
+                {
+                    if (member == null || NormalizeRole(member.Role) != "CT")
+                    {
+                        throw new BusinessRuleException("Chỉ Chủ tịch hội đồng (CT) mới có quyền mở chốt điểm.");
+                    }
+                }
+                else
+                {
+                    if (member == null)
+                    {
+                        throw new BusinessRuleException("Giảng viên không phải thành viên hội đồng.");
+                    }
+                }
             }
 
             if (committee.DefenseTermId.HasValue)
@@ -270,8 +300,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             }
 
             var beforeSnapshot = new { committee.Status, committee.LastUpdated };
-            var committeeStatus = DefenseWorkflowStateMachine.ParseCommitteeStatus(committee.Status);
-            if (committeeStatus == CommitteeStatus.Draft)
+            if (committeeStatus == CommitteeStatus.Draft && !isAdminLockedSession)
             {
                 throw new BusinessRuleException("Hội đồng đang ở trạng thái Draft. Không thể mở ca đồ án tốt nghiệp.", "UC3.4.INVALID_COMMITTEE_STATE");
             }
@@ -282,7 +311,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             }
 
             var now = DateTime.UtcNow;
-            if (committeeStatus == CommitteeStatus.Ready || committeeStatus == CommitteeStatus.Completed)
+            if (committeeStatus == CommitteeStatus.Ready || committeeStatus == CommitteeStatus.Completed || isAdminLockedSession)
             {
                 committee.Status = DefenseWorkflowStateMachine.ToValue(CommitteeStatus.Ongoing);
             }
@@ -321,15 +350,30 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 "SUCCESS",
                 beforeSnapshot,
                 new { committee.Status, committee.LastUpdated },
-                new { CommitteeId = committeeId, LecturerCode = lecturerCode },
+                new { CommitteeId = committeeId, LecturerCode = lecturerCode, Reason = reason, IsAdmin = isAdmin },
                 actorUserId,
                 cancellationToken);
+
+            string actionDesc;
+            string logReason = !string.IsNullOrWhiteSpace(reason) ? $" [Lý do: {reason}]" : "";
+            if (committeeStatus == CommitteeStatus.Ready || isAdminLockedSession)
+            {
+                actionDesc = isAdmin 
+                    ? $"[OPEN_SESSION]{logReason} Quản trị viên mở phiên bảo vệ hội đồng {committee.CommitteeCode}"
+                    : $"[OPEN_SESSION]{logReason} Thư ký {lecturerCode} mở phiên bảo vệ hội đồng {committee.CommitteeCode}";
+            }
+            else
+            {
+                actionDesc = isAdmin
+                    ? $"[UNLOCK_SESSION]{logReason} Quản trị viên mở chốt điểm bảo vệ hội đồng {committee.CommitteeCode}"
+                    : $"[UNLOCK_SESSION]{logReason} Chủ tịch {lecturerCode} mở chốt điểm bảo vệ hội đồng {committee.CommitteeCode}";
+            }
 
             await _systemActivityLogger.WriteLogAsync(
                 entityName: "Committee",
                 entityId: committeeId.ToString(),
-                actionType: "OPEN_SESSION",
-                actionDescription: $"Chủ tịch {lecturerCode} mở phiên bảo vệ hội đồng {committee.CommitteeCode}",
+                actionType: committeeStatus == CommitteeStatus.Completed ? "UNLOCK_SESSION" : "OPEN_SESSION",
+                actionDescription: actionDesc,
                 actorUserId: actorUserId,
                 module: "Defense",
                 status: "SUCCESS",
@@ -342,14 +386,22 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             }, cancellationToken);
         }
 
-        public async Task CloseSessionAsync(int committeeId, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default)
+        public async Task CloseSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default)
         {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new BusinessRuleException("Lý do thực hiện không được để trống.", "UC3.INVALID_REASON");
+            }
+
             await using var tx = await _uow.BeginTransactionAsync(cancellationToken);
 
-            var chair = await _db.CommitteeMembers.AsNoTracking().FirstOrDefaultAsync(x => x.CommitteeID == committeeId && x.MemberLecturerCode == lecturerCode && x.Role != null && x.Role.ToUpper().Contains("CT"), cancellationToken);
-            if (chair == null)
+            if (!isAdmin)
             {
-                throw new BusinessRuleException("Chỉ Chủ tịch hội đồng (CT) được đóng phiên đồ án tốt nghiệp.");
+                var secretary = await _db.CommitteeMembers.AsNoTracking().FirstOrDefaultAsync(x => x.CommitteeID == committeeId && x.MemberLecturerCode == lecturerCode, cancellationToken);
+                if (secretary == null || NormalizeRole(secretary.Role) != "UVTK")
+                {
+                    throw new BusinessRuleException("Chỉ Thư ký hội đồng (UVTK) mới có quyền đóng phiên bảo vệ vĩnh viễn.");
+                }
             }
 
             var committee = await _db.Committees.FirstOrDefaultAsync(x => x.CommitteeID == committeeId, cancellationToken);
@@ -378,15 +430,20 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 "SUCCESS",
                 new { CommitteeId = committeeId, BeforeStatus = CommitteeStatus.Completed },
                 new { CommitteeId = committeeId, AfterStatus = CommitteeStatus.Finalized },
-                new { CommitteeId = committeeId, LecturerCode = lecturerCode },
+                new { CommitteeId = committeeId, LecturerCode = lecturerCode, Reason = reason, IsAdmin = isAdmin },
                 actorUserId,
                 cancellationToken);
+
+            string logReason = !string.IsNullOrWhiteSpace(reason) ? $" [Lý do: {reason}]" : "";
+            string actionDesc = isAdmin
+                ? $"[CLOSE_SESSION]{logReason} Quản trị viên đóng phiên bảo vệ hội đồng {committee.CommitteeCode} vĩnh viễn"
+                : $"[CLOSE_SESSION]{logReason} Thư ký {lecturerCode} đóng phiên bảo vệ hội đồng {committee.CommitteeCode} vĩnh viễn";
 
             await _systemActivityLogger.WriteLogAsync(
                 entityName: "Committee",
                 entityId: committeeId.ToString(),
                 actionType: "CLOSE_SESSION",
-                actionDescription: $"Chủ tịch {lecturerCode} đóng phiên bảo vệ hội đồng {committee.CommitteeCode}",
+                actionDescription: actionDesc,
                 actorUserId: actorUserId,
                 module: "Defense",
                 status: "SUCCESS",
@@ -399,8 +456,13 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             }, cancellationToken);
         }
 
-        public async Task ReopenFinalizedSessionAsync(int committeeId, int actorUserId, CancellationToken cancellationToken = default)
+        public async Task ReopenFinalizedSessionAsync(int committeeId, int actorUserId, string? reason = null, CancellationToken cancellationToken = default)
         {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new BusinessRuleException("Lý do thực hiện không được để trống.", "UC3.INVALID_REASON");
+            }
+
             await using var tx = await _uow.BeginTransactionAsync(cancellationToken);
 
             var committee = await _db.Committees.FirstOrDefaultAsync(x => x.CommitteeID == committeeId, cancellationToken);
@@ -447,11 +509,23 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             await _auditTrail.WriteAsync(
                 "ADMIN_REOPEN_SESSION",
                 "SUCCESS",
-                new { CommitteeId = committeeId, BeforeStatus = CommitteeStatus.Finalized },
+                new { CommitteeId = committeeId, BeforeStatus = CommitteeStatus.Finalized, Reason = reason },
                 new { CommitteeId = committeeId, AfterStatus = CommitteeStatus.Ongoing },
                 new { CommitteeId = committeeId },
                 actorUserId,
                 cancellationToken);
+
+            string logReason = !string.IsNullOrWhiteSpace(reason) ? $" [Lý do: {reason}]" : "";
+            await _systemActivityLogger.WriteLogAsync(
+                entityName: "Committee",
+                entityId: committeeId.ToString(),
+                actionType: "REOPEN_SESSION",
+                actionDescription: $"[REOPEN_SESSION]{logReason} Quản trị viên mở lại phiên bảo vệ hội đồng {committee.CommitteeCode} (sau khi đã đóng vĩnh viễn)",
+                actorUserId: actorUserId,
+                module: "Defense",
+                status: "SUCCESS",
+                relatedRecordCode: committee.CommitteeCode,
+                cancellationToken: cancellationToken);
 
             await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
             {
@@ -459,14 +533,22 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             }, cancellationToken);
         }
 
-        public async Task LockSessionAsync(int committeeId, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default)
+        public async Task LockSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default)
         {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new BusinessRuleException("Lý do thực hiện không được để trống.", "UC3.INVALID_REASON");
+            }
+
             await using var tx = await _uow.BeginTransactionAsync(cancellationToken);
 
-            var chair = await _db.CommitteeMembers.AsNoTracking().FirstOrDefaultAsync(x => x.CommitteeID == committeeId && x.MemberLecturerCode == lecturerCode && x.Role != null && x.Role.ToUpper().Contains("CT"), cancellationToken);
-            if (chair == null)
+            if (!isAdmin)
             {
-                throw new BusinessRuleException("Chỉ Chủ tịch hội đồng (CT) được khóa ca đồ án tốt nghiệp.");
+                var chair = await _db.CommitteeMembers.AsNoTracking().FirstOrDefaultAsync(x => x.CommitteeID == committeeId && x.MemberLecturerCode == lecturerCode && x.Role != null && x.Role.ToUpper().Contains("CT"), cancellationToken);
+                if (chair == null)
+                {
+                    throw new BusinessRuleException("Chỉ Chủ tịch hội đồng (CT) được khóa ca đồ án tốt nghiệp.");
+                }
             }
 
             var committee = await _db.Committees.FirstOrDefaultAsync(x => x.CommitteeID == committeeId, cancellationToken);
@@ -774,11 +856,16 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
 
             await _uow.SaveChangesAsync();
 
+            string logReason = !string.IsNullOrWhiteSpace(reason) ? $" [Lý do: {reason}]" : "";
+            string actionDesc = isAdmin
+                ? $"[LOCK_SESSION]{logReason} Quản trị viên chốt/khóa điểm ca bảo vệ hội đồng {committee.CommitteeCode}"
+                : $"[LOCK_SESSION]{logReason} Chủ tịch hội đồng {committee.CommitteeCode} chốt/khóa điểm ca bảo vệ";
+
             await _systemActivityLogger.WriteLogAsync(
                 entityName: "Committee",
                 entityId: committeeId.ToString(),
                 actionType: "LOCK",
-                actionDescription: $"Chủ tịch hội đồng {committee.CommitteeCode} khóa điểm ca bảo vệ",
+                actionDescription: actionDesc,
                 actorUserId: actorUserId,
                 module: "Defense",
                 status: "SUCCESS",
@@ -790,7 +877,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             await _auditTrail.WriteAsync(
                 "LOCK_SESSION",
                 "SUCCESS",
-                new { CommitteeId = committeeId, ResultStates = beforeStatuses },
+                new { CommitteeId = committeeId, ResultStates = beforeStatuses, Reason = reason, IsAdmin = isAdmin },
                 new { CommitteeId = committeeId, LockedAll = true, CommitteeStatus = committee?.Status },
                 new { LecturerCode = lecturerCode },
                 actorUserId,

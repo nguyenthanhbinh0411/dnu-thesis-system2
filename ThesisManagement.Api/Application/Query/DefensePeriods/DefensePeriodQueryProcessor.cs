@@ -341,8 +341,8 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                 ["canReopenCouncils"] = config.CouncilListLocked && !config.Finalized && !config.ScoresPublished,
                 ["canPublish"] = config.Finalized && !config.ScoresPublished,
                 ["canRollbackPublish"] = config.ScoresPublished,
-                ["canRollbackFinalize"] = config.Finalized && !config.ScoresPublished,
-                ["canArchive"] = !isArchived && config.ScoresPublished,
+                ["canRollbackFinalize"] = config.Finalized && !config.ScoresPublished && !isArchived,
+                ["canArchive"] = !isArchived && (config.Finalized || config.ScoresPublished),
                 ["canReopen"] = isArchived
             };
 

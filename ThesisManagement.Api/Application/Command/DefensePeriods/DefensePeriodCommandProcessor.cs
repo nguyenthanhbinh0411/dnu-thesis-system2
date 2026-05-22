@@ -57,8 +57,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
         Task<ApiResponse<bool>> SaveLecturerMinuteAsync(int committeeId, UpdateLecturerMinutesDto request, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default);
         Task<ApiResponse<bool>> SubmitIndependentScoreAsync(int committeeId, LecturerScoreSubmitDto request, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
-        Task<ApiResponse<bool>> OpenSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
-        Task<ApiResponse<bool>> LockSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
+        Task<ApiResponse<bool>> OpenSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
+        Task<ApiResponse<bool>> LockSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
         Task<ApiResponse<bool>> ApproveRevisionAsync(int revisionId, string? reason, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
         Task<ApiResponse<bool>> RejectRevisionAsync(int revisionId, string reason, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
 
@@ -2485,6 +2485,33 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     throw new BusinessRuleException("Cần chốt danh sách hội đồng trước khi finalize.", "UC2.4.COUNCIL_LIST_NOT_LOCKED");
                 }
 
+                var assignments = await GetPeriodAssignmentsAsync(periodId, config, cancellationToken);
+                var assignmentIds = assignments.Select(x => x.AssignmentID).ToList();
+                var scoredAssignmentIds = await _db.DefenseResults.AsNoTracking()
+                    .Where(x => assignmentIds.Contains(x.AssignmentId) && x.FinalScoreNumeric.HasValue)
+                    .Select(x => x.AssignmentId)
+                    .Distinct()
+                    .ToListAsync(cancellationToken);
+
+                if (assignmentIds.Count == 0)
+                {
+                    throw new BusinessRuleException("Đợt đồ án tốt nghiệp chưa có đề tài nào để finalize.", "UC2.4.NO_ASSIGNMENTS");
+                }
+
+                if (scoredAssignmentIds.Count != assignmentIds.Count)
+                {
+                    var scoredSet = scoredAssignmentIds.ToHashSet();
+                    var missingAssignments = assignments
+                        .Where(x => !scoredSet.Contains(x.AssignmentID))
+                        .Select(x => x.AssignmentCode)
+                        .ToList();
+
+                    throw new BusinessRuleException(
+                        "Cần chốt điểm toàn bộ đề tài trước khi finalize đợt.",
+                        "UC2.4.INCOMPLETE_SCORING",
+                        new { MissingAssignments = missingAssignments });
+                }
+
                 var councils = await GetPeriodCommitteesAsync(periodId, config, cancellationToken);
                 var warnings = new List<string>();
                 foreach (var committee in councils)
@@ -2804,6 +2831,23 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                         throw new BusinessRuleException("Không thể rollback trạng thái. Chỉ được phép rollback tối đa 1 lần sau khi chuyển tiếp và không thể rollback liên tục.", "UC2.ROLLBACK.DISABLED");
                     }
 
+                    var assignments = await GetPeriodAssignmentsAsync(periodId, config, cancellationToken);
+                    var assignmentIds = assignments.Select(x => x.AssignmentID).ToList();
+                    var hasAnyScore = assignmentIds.Count > 0 && await _db.DefenseScores.AsNoTracking()
+                        .AnyAsync(x => assignmentIds.Contains(x.AssignmentID) && x.IsSubmitted, cancellationToken);
+
+                    if (config.CouncilListLocked || hasAnyScore)
+                    {
+                        throw new BusinessRuleException(
+                            "Không thể quay lại giai đoạn trước sau khi đã chốt danh sách hội đồng hoặc đã có điểm.",
+                            "UC2.ROLLBACK.BLOCKED_BY_COUNCILS_OR_SCORES",
+                            new
+                            {
+                                CouncilListLocked = config.CouncilListLocked,
+                                HasAnyScore = hasAnyScore
+                            });
+                    }
+
                     var currentStatus = period.Status;
                     var targetStatus = config.PreviousStatus;
 
@@ -2978,15 +3022,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             try
             {
                 var period = await EnsurePeriodAsync(periodId, cancellationToken);
-                
-                var anyRunning = await _db.DefenseTerms.AsNoTracking()
-                    .Where(x => x.Status == "Running" && x.DefenseTermId != periodId)
-                    .Select(x => (int?)x.DefenseTermId)
-                    .FirstOrDefaultAsync(cancellationToken) != null;
-                if (anyRunning)
-                {
-                    throw new BusinessRuleException("Đã có đợt đồ án tốt nghiệp khác đang chạy. Vui lòng tạm dừng hoặc kết thúc đợt đó trước.", "UC2.START.ALREADY_RUNNING");
-                }
+
+                await CloseOtherOpenPeriodsAsync(periodId, cancellationToken);
 
                 if (period.Status == "Running")
                 {
@@ -3033,12 +3070,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 var period = await EnsurePeriodAsync(periodId, cancellationToken);
                 var currentStatus = DefenseWorkflowStateMachine.ParsePeriodStatus(period.Status);
                 
-                if (currentStatus == DefenseTermStatus.Closed)
+                if (!DefenseWorkflowStateMachine.AllowedPeriodTransitions.TryGetValue(currentStatus, out var nextStates) || nextStates.Count == 0)
                 {
                     throw new BusinessRuleException("Đợt đồ án đã kết thúc, không thể chuyển tiếp.", "UC2.NEXT.ALREADY_CLOSED");
                 }
-
-                var nextStatus = (DefenseTermStatus)((int)currentStatus + 1);
+                var nextStatus = nextStates[0];
                 
                 // Special handling for jumps if needed, but for now strictly sequential
                 DefenseWorkflowStateMachine.EnsurePeriodTransition(currentStatus, nextStatus, "UC2.NEXT.INVALID_TRANSITION");
@@ -3046,14 +3082,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 // Business logic validations for specific steps
                 if (nextStatus == DefenseTermStatus.Running)
                 {
-                    var anyRunning = await _db.DefenseTerms.AsNoTracking()
-                        .Where(x => x.Status == "Running" && x.DefenseTermId != periodId)
-                        .Select(x => (int?)x.DefenseTermId)
-                        .FirstOrDefaultAsync(cancellationToken) != null;
-                    if (anyRunning)
-                    {
-                        throw new BusinessRuleException("Đã có đợt đồ án tốt nghiệp khác đang chạy. Vui lòng tạm dừng hoặc kết thúc đợt đó trước.", "UC2.NEXT.ALREADY_RUNNING");
-                    }
+                    await CloseOtherOpenPeriodsAsync(periodId, cancellationToken);
                 }
 
                 // If moving to Registration, deploy the roadmap
@@ -3228,14 +3257,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     throw new BusinessRuleException("Chỉ có thể tiếp tục đợt đồ án tốt nghiệp đang tạm dừng.", "UC2.RESUME.INVALID_STATE");
                 }
 
-                var anyRunning = await _db.DefenseTerms.AsNoTracking()
-                    .Where(x => x.Status == "Running" && x.DefenseTermId != periodId)
-                    .Select(x => (int?)x.DefenseTermId)
-                    .FirstOrDefaultAsync(cancellationToken) != null;
-                if (anyRunning)
-                {
-                    throw new BusinessRuleException("Đã có đợt đồ án tốt nghiệp khác đang chạy. Không thể resume đợt này.", "UC2.RESUME.ALREADY_RUNNING");
-                }
+                await CloseOtherOpenPeriodsAsync(periodId, cancellationToken);
 
                 var config = ReadConfig(period);
                 config.PreviousStatus = period.Status;
@@ -3257,6 +3279,33 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 return Fail<bool>(ex.Message, 400, ResolveUcCode(ex.Code, "UC2.RESUME"), ex.Details);
             }
         }
+
+        private async Task<int> CloseOtherOpenPeriodsAsync(int periodId, CancellationToken cancellationToken)
+        {
+            var otherOpenPeriods = await _db.DefenseTerms
+                .Where(x => x.DefenseTermId != periodId && x.Status != "Closed" && x.Status != "Archived")
+                .ToListAsync(cancellationToken);
+
+            if (otherOpenPeriods.Count == 0)
+            {
+                return 0;
+            }
+
+            var now = DateTime.UtcNow;
+            foreach (var otherPeriod in otherOpenPeriods)
+            {
+                otherPeriod.Status = "Closed";
+                otherPeriod.LastUpdated = now;
+                _uow.DefenseTerms.Update(otherPeriod);
+            }
+
+            await _uow.SaveChangesAsync();
+            return otherOpenPeriods.Count;
+        }
+
+        private static bool IsOpenPeriodStatus(string? status)
+            => !string.Equals(status, "Closed", StringComparison.OrdinalIgnoreCase)
+               && !string.Equals(status, "Archived", StringComparison.OrdinalIgnoreCase);
 
         public async Task<ApiResponse<bool>> LockScoringAsync(int periodId, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default)
         {
@@ -3303,7 +3352,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 var period = await EnsurePeriodAsync(periodId, cancellationToken);
                 var config = ReadConfig(period);
 
-                if (!config.Finalized && !config.ScoresPublished)
+                if (!config.Finalized && !config.ScoresPublished && !string.Equals(period.Status, "Draft", StringComparison.OrdinalIgnoreCase))
                 {
                     throw new BusinessRuleException("Cần finalize đợt đồ án tốt nghiệp trước khi đóng.", "UC2.CLOSE.NOT_FINALIZED");
                 }
@@ -3683,7 +3732,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             return response;
         }
 
-        public async Task<ApiResponse<bool>> OpenSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+        public async Task<ApiResponse<bool>> OpenSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default)
         {
             var requestHash = ComputeRequestHash("UC3.OPEN_SESSION", committeeId, lecturerCode);
             var replay = await TryReplayResponseAsync<bool>("OPEN_SESSION", committeeId, idempotencyKey, requestHash, cancellationToken);
@@ -3695,7 +3744,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             ApiResponse<bool> response;
             try
             {
-                await _scoreWorkflowService.OpenSessionAsync(committeeId, lecturerCode, actorUserId, cancellationToken);
+                await _scoreWorkflowService.OpenSessionAsync(committeeId, lecturerCode, actorUserId, reason, isAdmin, cancellationToken);
                 response = ApiResponse<bool>.SuccessResponse(true, code: DefenseUcErrorCodes.Scoring.OpenSuccess);
             }
             catch (BusinessRuleException ex)
@@ -3707,7 +3756,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             return response;
         }
 
-        public async Task<ApiResponse<bool>> LockSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+        public async Task<ApiResponse<bool>> LockSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default)
         {
             var requestHash = ComputeRequestHash("UC3.LOCK_SESSION", committeeId, lecturerCode);
             var replay = await TryReplayResponseAsync<bool>("LOCK_SESSION", committeeId, idempotencyKey, requestHash, cancellationToken);
@@ -3719,7 +3768,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             ApiResponse<bool> response;
             try
             {
-                await _scoreWorkflowService.LockSessionAsync(committeeId, lecturerCode, actorUserId, cancellationToken);
+                await _scoreWorkflowService.LockSessionAsync(committeeId, lecturerCode, actorUserId, reason, isAdmin, cancellationToken);
                 response = ApiResponse<bool>.SuccessResponse(true, code: DefenseUcErrorCodes.Scoring.LockSuccess);
             }
             catch (BusinessRuleException ex)

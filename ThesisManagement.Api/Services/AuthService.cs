@@ -14,7 +14,7 @@ namespace ThesisManagement.Api.Services
             _uow = uow;
         }
 
-        public async Task<User?> ValidateUserAsync(string username, string password)
+        public async Task<User?> GetUserByUsernameAsync(string username)
         {
             var normalizedUsername = username?.Trim().ToUpperInvariant();
             if (string.IsNullOrWhiteSpace(normalizedUsername))
@@ -22,8 +22,13 @@ namespace ThesisManagement.Api.Services
                 return null;
             }
 
-            var user = await _uow.Users.Query()
+            return await _uow.Users.Query()
                 .FirstOrDefaultAsync(u => u.UserCode != null && u.UserCode.ToUpper() == normalizedUsername);
+        }
+
+        public async Task<User?> ValidateUserAsync(string username, string password)
+        {
+            var user = await GetUserByUsernameAsync(username);
 
             if (user == null || !VerifyPassword(password, user.PasswordHash))
                 return null;

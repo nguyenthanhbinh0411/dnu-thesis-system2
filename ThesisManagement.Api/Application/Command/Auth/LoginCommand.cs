@@ -38,9 +38,12 @@ namespace ThesisManagement.Api.Application.Command.Auth
             if (!string.IsNullOrWhiteSpace(validationError))
                 return OperationResult<LoginCommandResponse>.Failed(validationError, 400);
 
-            var user = await _authService.ValidateUserAsync(loginDto.Username, loginDto.Password);
+            var user = await _authService.GetUserByUsernameAsync(loginDto.Username);
             if (user == null)
-                return OperationResult<LoginCommandResponse>.Failed("Tên đăng nhập hoặc mật khẩu không đúng", 401);
+                return OperationResult<LoginCommandResponse>.Failed("Tài khoản không tồn tại.", 401);
+
+            if (!_authService.VerifyPassword(loginDto.Password, user.PasswordHash))
+                return OperationResult<LoginCommandResponse>.Failed("Mật khẩu không đúng.", 401);
 
             _currentUserService.SetCurrentUser(user.UserID, user.UserCode, user.Role);
 

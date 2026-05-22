@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import {
+  BookOpen,
   Building2,
   CalendarDays,
   CheckCircle2,
@@ -51,6 +52,7 @@ import {
   getActiveDefensePeriodId,
   normalizeDefensePeriodId,
   setActiveDefensePeriodId,
+  useActiveDefensePeriodId,
 } from "../../utils/defensePeriod";
 import { getRoleClaimFromAccessToken } from "../../services/auth-session.service";
 
@@ -1140,9 +1142,11 @@ const CommitteeManagement: React.FC = () => {
   const councilCenterRef = useRef<HTMLDivElement | null>(null);
   const [searchParams] = useSearchParams();
   const queryPeriodId = normalizeDefensePeriodId(searchParams.get("periodId"));
+  const activePeriodId = useActiveDefensePeriodId();
   const [defensePeriodId, setDefensePeriodId] = useState<number | null>(
     () => queryPeriodId ?? getActiveDefensePeriodId(),
   );
+  const [periods, setPeriods] = useState<any[]>([]);
 
   const [students, setStudents] = useState<EligibleStudent[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -1340,33 +1344,44 @@ const CommitteeManagement: React.FC = () => {
   }, [defensePeriodId, queryPeriodId]);
 
   useEffect(() => {
+    if (activePeriodId !== defensePeriodId) {
+      setDefensePeriodId(activePeriodId);
+    }
+  }, [activePeriodId]);
+
+  useEffect(() => {
     setActiveDefensePeriodId(defensePeriodId);
   }, [defensePeriodId]);
 
   useEffect(() => {
-    if (defensePeriodId != null) {
-      return;
-    }
-
     let cancelled = false;
 
-    const resolvePeriod = async () => {
+    const loadPeriodsList = async () => {
       try {
-        const response = await fetchData<ApiResponse<unknown>>("/defense-periods", {
+        const response = await fetchData<ApiResponse<any[]>>("/defense-periods", {
           method: "GET",
         });
-        const payload = readEnvelopeData<unknown>(response);
-        const fallbackPeriodId = extractDefensePeriodId(payload);
-        if (!cancelled && fallbackPeriodId != null) {
-          setDefensePeriodId(fallbackPeriodId);
-          setActiveDefensePeriodId(fallbackPeriodId);
+        const list = readEnvelopeData<any[]>(response) || [];
+        if (!cancelled) {
+          setPeriods(list);
+          
+          const activePeriod = list.find((p: any) => {
+            const s = String(p.status ?? "").trim().toLowerCase();
+            return s !== "closed" && s !== "archived" && s !== "7" && s !== "8" && s !== "đã đóng" && s !== "kết thúc" && s !== "lưu trữ";
+          });
+          
+          const targetId = activePeriod ? activePeriod.defenseTermId : null;
+          if (defensePeriodId !== targetId) {
+            setDefensePeriodId(targetId);
+            setActiveDefensePeriodId(targetId);
+          }
         }
-      } catch {
-        // Ignore fallback resolution errors and keep UI in explicit warning state.
+      } catch (err) {
+        console.error("Error loading defense periods list:", err);
       }
     };
 
-    void resolvePeriod();
+    void loadPeriodsList();
 
     return () => {
       cancelled = true;
@@ -8927,16 +8942,31 @@ const CommitteeManagement: React.FC = () => {
                 Quản lý <span style={{ color: "#f37021" }}>Hội đồng bảo vệ</span>
               </h1>
               
-              <p style={{
+              <div style={{
                 fontSize: 16,
                 color: "rgba(255, 255, 255, 0.7)",
                 marginTop: 12,
                 maxWidth: 600,
                 fontWeight: 500,
-                animation: "fadeIn 0.8s ease"
+                animation: "fadeIn 0.8s ease",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap"
               }}>
-                Điều phối quản trị hội đồng theo chuẩn vận hành FIT DNU: đồng bộ dữ liệu, cấu hình đợt, phân công và chốt danh sách trước điều hành.
-              </p>
+                <span>Quản lý hội đồng bảo vệ đồ án tốt nghiệp cho đợt:</span>
+                <span style={{
+                  background: "rgba(255, 255, 255, 0.15)",
+                  border: "1px solid rgba(255, 255, 255, 0.3)",
+                  borderRadius: "10px",
+                  padding: "4px 12px",
+                  color: "white",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                }}>
+                  {periods.find((p) => p.defenseTermId === defensePeriodId)?.name || "Chưa có đợt bảo vệ hiện hành"}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -8948,6 +8978,61 @@ const CommitteeManagement: React.FC = () => {
           position: "relative",
           zIndex: 10
         }}>
+          {!defensePeriodId ? (
+            <div style={{
+              background: "white",
+              borderRadius: 28,
+              padding: "60px 40px",
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 10px 30px rgba(15,23,42,0.06)",
+              textAlign: "center",
+              maxWidth: 600,
+              margin: "40px auto"
+            }}>
+              <div style={{
+                width: 80,
+                height: 80,
+                borderRadius: "50%",
+                background: "#eff6ff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 24px auto",
+                color: "#1e3a5f"
+              }}>
+                <BookOpen size={40} />
+              </div>
+              <h2 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", marginBottom: "12px" }}>
+                Chưa có đợt bảo vệ hiện hành
+              </h2>
+              <p style={{ fontSize: "15px", color: "#64748b", lineHeight: 1.6, marginBottom: "28px" }}>
+                Hệ thống chưa ghi nhận đợt đồ án tốt nghiệp hiện hành nào đang diễn ra. Vui lòng tạo đợt mới hoặc kích hoạt đợt tại module Quản lý đợt.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <a
+                  href="/admin/defense-periods"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "48px",
+                    borderRadius: "14px",
+                    background: "#1e3a5f",
+                    color: "white",
+                    fontSize: "15px",
+                    fontWeight: 700,
+                    textDecoration: "none",
+                    transition: "background 0.2s"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "#12253f"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "#1e3a5f"}
+                >
+                  Quản lý đợt bảo vệ
+                </a>
+              </div>
+            </div>
+          ) : (
+            <>
           <section style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
@@ -9569,8 +9654,10 @@ const CommitteeManagement: React.FC = () => {
             )}
 
           </section>
-
         </div>
+      </>
+    )}
+  </div>
 
         {showEligibleTopicsModal &&
           typeof document !== "undefined" &&
@@ -11648,7 +11735,6 @@ const CommitteeManagement: React.FC = () => {
 
         </div>
       </div>
-    </div>
   );
 };
 

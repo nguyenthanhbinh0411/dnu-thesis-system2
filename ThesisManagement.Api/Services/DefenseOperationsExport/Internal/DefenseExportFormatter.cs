@@ -48,7 +48,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport.Internal
                 "PUBLISHED" => "ĐÃ CÔNG BỐ",
                 "COUNCIL_LOCKED" => "ĐÃ CHỐT HỘI ĐỒNG",
                 "READY" => "SẴN SÀNG",
-                "DRAFT" => "NHÁP",
+                "DRAFT" => "SOẠN THẢO",
                 "SCORED" => "Đã chấm",
                 "WAITING" => "Đang chờ",
                 "ALERT" => "Lệch điểm",

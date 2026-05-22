@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import LecturerNav from "../SideNavs/LecturerNav";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import {
   LogOut,
@@ -13,6 +13,7 @@ import {
   PinOff,
   KeyRound,
   Shield,
+  BookOpen,
 } from "lucide-react";
 import { fetchData, getAvatarUrl } from "../../api/fetchData";
 import type { ApiResponse } from "../../types/api";
@@ -22,12 +23,67 @@ import NotificationBell from "../notifications/NotificationBell";
 import {
   getActiveDefensePeriodId,
   setActiveDefensePeriodId,
+  useActiveDefensePeriodId,
 } from "../../utils/defensePeriod";
 import { fetchCurrentLecturerDefenseAccess } from "../../services/current-defense-period.service";
+
+const LecturerNoPeriodPlaceholder: React.FC = () => (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: "60vh",
+      textAlign: "center",
+      padding: "40px 24px",
+    }}
+  >
+    <div
+      style={{
+        width: 80,
+        height: 80,
+        borderRadius: "50%",
+        background: "linear-gradient(135deg, rgba(0,40,85,0.1) 0%, rgba(0,40,85,0.03) 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 24,
+      }}
+    >
+      <BookOpen size={36} color="#002855" strokeWidth={1.5} />
+    </div>
+    <h2
+      style={{
+        fontSize: 22,
+        fontWeight: 700,
+        color: "#1a2736",
+        marginBottom: 10,
+        letterSpacing: "-0.3px",
+      }}
+    >
+      Chưa có đợt bảo vệ đang hoạt động
+    </h2>
+    <p
+      style={{
+        fontSize: 15,
+        color: "#6B7280",
+        maxWidth: 440,
+        lineHeight: 1.6,
+        margin: 0,
+      }}
+    >
+      Hệ thống hiện chưa mở đợt bảo vệ đồ án tốt nghiệp nào.
+      Vui lòng quay lại sau hoặc liên hệ quản trị viên để biết thêm thông tin.
+    </p>
+  </div>
+);
 
 const LecturerLayout: React.FC = () => {
   const auth = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const reactivePeriodId = useActiveDefensePeriodId();
   const [profile, setProfile] = useState<LecturerProfile | null>(null);
   const [lecturerImage, setLecturerImage] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -209,7 +265,7 @@ const LecturerLayout: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reactivePeriodId]);
 
   const headerPeriodStyle =
     headerPeriod.tone === "error"
@@ -1113,7 +1169,11 @@ const LecturerLayout: React.FC = () => {
           }}
           onPointerUpCapture={collapseSidebarOnActivity}
         >
-          <Outlet />
+          {reactivePeriodId != null || /\/(profile|change-password|notifications)$/.test(location.pathname) ? (
+            <Outlet />
+          ) : (
+            <LecturerNoPeriodPlaceholder />
+          )}
         </div>
 
         <footer

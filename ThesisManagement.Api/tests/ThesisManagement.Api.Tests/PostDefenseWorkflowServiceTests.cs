@@ -45,7 +45,7 @@ public class PostDefenseWorkflowServiceTests
 
         (await db.DefenseRevisions.CountAsync(x => x.AssignmentId == 101)).Should().Be(0);
 
-        await scoreService.LockSessionAsync(committeeId: 10, lecturerCode: "L001", actorUserId: 9001);
+        await scoreService.LockSessionAsync(committeeId: 10, lecturerCode: "L001", actorUserId: 9001, reason: "Test lock");
 
         var score = await db.DefenseScores.SingleAsync(x => x.AssignmentID == 101 && x.MemberLecturerCode == "L001");
         score.IsSubmitted.Should().BeTrue();
@@ -83,7 +83,7 @@ public class PostDefenseWorkflowServiceTests
             lecturerCode: "L001",
             actorUserId: 9001);
 
-        await scoreService.LockSessionAsync(committeeId: 10, lecturerCode: "L001", actorUserId: 9001);
+        await scoreService.LockSessionAsync(committeeId: 10, lecturerCode: "L001", actorUserId: 9001, reason: "Test lock");
 
         var fileBytes = new byte[] { 1, 2, 3, 4 };
         await using var stream = new MemoryStream(fileBytes);
@@ -140,12 +140,12 @@ public class PostDefenseWorkflowServiceTests
             lecturerCode: "L001",
             actorUserId: 9001);
 
-        await scoreService.LockSessionAsync(committeeId: 10, lecturerCode: "L001", actorUserId: 9001);
+        await scoreService.LockSessionAsync(committeeId: 10, lecturerCode: "L001", actorUserId: 9001, reason: "Test lock");
 
         (await db.DefenseRevisions.CountAsync(x => x.AssignmentId == 101)).Should().Be(1);
 
         // Reopen and submit without revision
-        await scoreService.OpenSessionAsync(committeeId: 10, lecturerCode: "L001", actorUserId: 9001);
+        await scoreService.OpenSessionAsync(committeeId: 10, lecturerCode: "L001", actorUserId: 9001, reason: "Test reopen");
 
         await scoreService.SubmitIndependentScoreAsync(
             committeeId: 10,
@@ -159,7 +159,7 @@ public class PostDefenseWorkflowServiceTests
             actorUserId: 9001);
 
         // Lock again
-        await scoreService.LockSessionAsync(committeeId: 10, lecturerCode: "L001", actorUserId: 9001);
+        await scoreService.LockSessionAsync(committeeId: 10, lecturerCode: "L001", actorUserId: 9001, reason: "Test lock");
 
         // Old revision should be deleted completely
         (await db.DefenseRevisions.CountAsync(x => x.AssignmentId == 101)).Should().Be(0);
