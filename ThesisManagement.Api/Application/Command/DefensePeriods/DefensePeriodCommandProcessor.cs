@@ -3353,7 +3353,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 var period = await EnsurePeriodAsync(periodId, cancellationToken);
                 var config = ReadConfig(period);
 
-                if (!config.Finalized && !config.ScoresPublished)
+                if (!config.Finalized && !config.ScoresPublished && !string.Equals(period.Status, "Draft", StringComparison.OrdinalIgnoreCase))
                 {
                     throw new BusinessRuleException("Cần finalize đợt đồ án tốt nghiệp trước khi đóng.", "UC2.CLOSE.NOT_FINALIZED");
                 }

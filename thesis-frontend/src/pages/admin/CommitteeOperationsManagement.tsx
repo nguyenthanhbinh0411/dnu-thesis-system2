@@ -82,6 +82,7 @@ import {
   getActiveDefensePeriodId,
   normalizeDefensePeriodId,
   setActiveDefensePeriodId,
+  useActiveDefensePeriodId,
 } from "../../utils/defensePeriod";
 type RevisionStatus = "all" | "pending" | "approved" | "rejected";
 type LifecycleAction = "PUBLISH" | "ROLLBACK" | "ARCHIVE" | "REOPEN";
@@ -1151,9 +1152,11 @@ const CommitteeOperationsManagement: React.FC = () => {
   const { addToast } = useToast();
   const [searchParams] = useSearchParams();
   const queryPeriodId = normalizeDefensePeriodId(searchParams.get("periodId"));
+  const activePeriodId = useActiveDefensePeriodId();
   const [periodId, setPeriodId] = useState<number | null>(
     () => queryPeriodId ?? getActiveDefensePeriodId(),
   );
+  const [periods, setPeriods] = useState<any[]>([]);
   const defensePeriodBase = periodId ? `/defense-periods/${periodId}` : "";
   const missingPeriodWarningRef = useRef(false);
   const commandBarRef = useRef<HTMLDivElement | null>(null);
@@ -1582,33 +1585,44 @@ const CommitteeOperationsManagement: React.FC = () => {
   }, [periodId, queryPeriodId]);
 
   useEffect(() => {
+    if (activePeriodId !== periodId) {
+      setPeriodId(activePeriodId);
+    }
+  }, [activePeriodId]);
+
+  useEffect(() => {
     setActiveDefensePeriodId(periodId);
   }, [periodId]);
 
   useEffect(() => {
-    if (periodId != null) {
-      return;
-    }
-
     let cancelled = false;
 
-    const resolvePeriod = async () => {
+    const loadPeriodsList = async () => {
       try {
-        const response = await fetchData<ApiResponse<unknown>>("/defense-periods", {
+        const response = await fetchData<ApiResponse<any[]>>("/defense-periods", {
           method: "GET",
         });
-        const payload = readEnvelopeData<unknown>(response);
-        const fallbackPeriodId = extractDefensePeriodId(payload);
-        if (!cancelled && fallbackPeriodId != null) {
-          setPeriodId(fallbackPeriodId);
-          setActiveDefensePeriodId(fallbackPeriodId);
+        const list = readEnvelopeData<any[]>(response) || [];
+        if (!cancelled) {
+          setPeriods(list);
+          
+          const activePeriod = list.find((p: any) => {
+            const s = String(p.status ?? "").trim().toLowerCase();
+            return s !== "closed" && s !== "archived" && s !== "7" && s !== "8" && s !== "đã đóng" && s !== "kết thúc" && s !== "lưu trữ";
+          });
+          
+          const targetId = activePeriod ? activePeriod.defenseTermId : null;
+          if (periodId !== targetId) {
+            setPeriodId(targetId);
+            setActiveDefensePeriodId(targetId);
+          }
         }
-      } catch {
-        // Keep explicit warning state when no period can be resolved.
+      } catch (err) {
+        console.error("Error loading defense periods list:", err);
       }
     };
 
-    void resolvePeriod();
+    void loadPeriodsList();
 
     return () => {
       cancelled = true;
@@ -2334,7 +2348,7 @@ const CommitteeOperationsManagement: React.FC = () => {
   const submitCommitteeAction = useCallback(
     async (action: "ADMIN_UNLOCK" | "ADMIN_REOPEN", committee: CommitteeSummary | null) => {
       if (!periodId) {
-        notifyWarning("Chưa chọn đợt bảo vệ. Vui lòng chọn đợt tại module Quản lý đợt.");
+        notifyWarning("Chưa có đợt bảo vệ hiện hành. Vui lòng tạo đợt tại module Quản lý đợt.");
         return;
       }
       if (!committee) {
@@ -3078,8 +3092,11 @@ const CommitteeOperationsManagement: React.FC = () => {
     const elapsedMinutes = startDate ? Math.max(0, (currentTimestamp - startDate.getTime()) / 60000) : 0;
     const countdownLabel = daysRemaining == null ? "-" : `${Math.max(0, daysRemaining)} ngày`;
 
+    const matchedPeriodObj = periods.find(p => p.defenseTermId === periodId);
+    const resolvedName = matchedPeriodObj?.name || pickText(record, ["termCode","TermCode","term_code","Term_Code","termName","TermName","term_name","Term_Name","periodName","PeriodName","period_name","Period_Name","code","Code","name","Name","title","Title"], periodId ? `Đợt ${periodId}` : "Chưa xác định");
+
     return {
-      name: pickText(record, ["termCode","TermCode","term_code","Term_Code","termName","TermName","term_name","Term_Name","periodName","PeriodName","period_name","Period_Name","code","Code","name","Name","title","Title"], periodId ? `Đợt ${periodId}` : "Chưa xác định"),
+      name: resolvedName,
       status: statusValue,
       startDate: startDateText,
       endDate: endDateText,
@@ -3087,7 +3104,7 @@ const CommitteeOperationsManagement: React.FC = () => {
       elapsedLabel: formatCompactDuration(elapsedMinutes),
       countdownLabel,
     };
-  }, [currentTimestamp, periodId, pipeline?.overallCompletionPercent, snapshot?.monitoring?.period, snapshot?.monitoring?.tags]);
+  }, [currentTimestamp, periodId, periods, pipeline?.overallCompletionPercent, snapshot?.monitoring?.period, snapshot?.monitoring?.tags]);
 
   const dashboardHasSnapshotContent = useMemo(
     () =>
@@ -6460,16 +6477,31 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               Điều hành <span style={{ color: "#f37021" }}>hội đồng</span>
             </h1>
             
-            <p style={{
+            <div style={{
               fontSize: 16,
               color: "rgba(255, 255, 255, 0.7)",
               marginTop: 12,
               maxWidth: 600,
               fontWeight: 500,
-              animation: "fadeIn 0.8s ease"
+              animation: "fadeIn 0.8s ease",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap"
             }}>
-              Điều hành, chấm điểm và quản lý hồ sơ bảo vệ cho đợt: <strong style={{ color: "white" }}>{periodInfo.name}</strong>
-            </p>
+              <span>Điều hành, chấm điểm và quản lý hồ sơ bảo vệ cho đợt:</span>
+              <span style={{
+                background: "rgba(255, 255, 255, 0.15)",
+                border: "1px solid rgba(255, 255, 255, 0.3)",
+                borderRadius: "10px",
+                padding: "4px 12px",
+                color: "white",
+                fontSize: "14px",
+                fontWeight: 700,
+              }}>
+                {periods.find((p) => p.defenseTermId === periodId)?.name || "Chưa có đợt bảo vệ hiện hành"}
+              </span>
+            </div>
           </div>
 
           <div style={{
@@ -6534,85 +6566,142 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
         position: "relative",
         zIndex: 10
       }}>
-        {/* 2.1 Tab Navigation (Sticky) */}
-        <div style={{
-          background: "rgba(255, 255, 255, 0.95)",
-          backdropFilter: "blur(16px)",
-          borderRadius: 20,
-          padding: "8px",
-          display: "flex",
-          gap: 4,
-          boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.1)",
-          marginBottom: 24,
-          position: "sticky",
-          top: 16,
-          zIndex: 100,
-          border: "1px solid rgba(255, 255, 255, 0.8)"
-        }}>
-          {[
-            { key: "overview", label: "Điều hành Dashboard", icon: <LayoutDashboard size={18} />, badge: null },
-            { key: "analytics", label: "Phân tích & Thống kê", icon: <Activity size={18} />, badge: null },
-            { key: "committee", label: "Danh sách Hội đồng", icon: <Users size={18} />, badge: snapshot?.committees?.length ? String(snapshot.committees.length) : null },
-            { key: "post-defense", label: "Hồ sơ Sau bảo vệ", icon: <Archive size={18} />, badge: snapshot?.postDefense?.items?.length ? String(snapshot.postDefense.items.length) : null },
-            { key: "export", label: "Xuất bản Báo cáo", icon: <Download size={18} />, badge: null },
-            { key: "audit", label: "Nhật ký Hoạt động", icon: <ShieldCheck size={18} />, badge: null },
-          ].map((tab) => {
-            const isActive = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key as any)}
+        {!periodId ? (
+          <div style={{
+            background: "white",
+            borderRadius: 28,
+            padding: "60px 40px",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 10px 30px rgba(15,23,42,0.06)",
+            textAlign: "center",
+            maxWidth: 600,
+            margin: "40px auto"
+          }}>
+            <div style={{
+              width: 80,
+              height: 80,
+              borderRadius: "50%",
+              background: "#eff6ff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 24px auto",
+              color: "#1e3a5f"
+            }}>
+              <BookOpen size={40} />
+            </div>
+            <h2 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", marginBottom: "12px" }}>
+              Chưa có đợt bảo vệ hiện hành
+            </h2>
+            <p style={{ fontSize: "15px", color: "#64748b", lineHeight: 1.6, marginBottom: "28px" }}>
+              Hệ thống chưa ghi nhận đợt đồ án tốt nghiệp hiện hành nào đang diễn ra. Vui lòng tạo đợt mới hoặc kích hoạt đợt tại module Quản lý đợt.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <a
+                href="/admin/defense-periods"
                 style={{
-                  flex: 1,
-                  display: "flex",
+                  display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 10,
-                  padding: "10px 14px",
-                  borderRadius: 14,
-                  border: "none",
-                  background: isActive ? DEEP_BLUE_PRIMARY : "transparent",
-                  color: isActive ? "white" : "#64748b",
-                  fontSize: 13,
+                  height: "48px",
+                  borderRadius: "14px",
+                  background: "#1e3a5f",
+                  color: "white",
+                  fontSize: "15px",
                   fontWeight: 700,
-                  whiteSpace: "nowrap",
-                  minWidth: 120,
-                  cursor: "pointer",
-                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                  position: "relative"
+                  textDecoration: "none",
+                  transition: "background 0.2s"
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#12253f"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "#1e3a5f"}
               >
-                {tab.icon}
-                {tab.label}
-                {tab.badge && (
-                  <span style={{
-                    background: isActive ? "#f37021" : "#e2e8f0",
-                    color: isActive ? "white" : "#475569",
-                    padding: "2px 8px",
-                    borderRadius: 8,
-                    fontSize: 11,
-                    fontWeight: 800
-                  }}>
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+                Quản lý đợt bảo vệ
+              </a>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* 2.1 Tab Navigation (Sticky) */}
+            <div style={{
+              background: "rgba(255, 255, 255, 0.95)",
+              backdropFilter: "blur(16px)",
+              borderRadius: 20,
+              padding: "8px",
+              display: "flex",
+              gap: 4,
+              boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.1)",
+              marginBottom: 24,
+              position: "sticky",
+              top: 16,
+              zIndex: 100,
+              border: "1px solid rgba(255, 255, 255, 0.8)"
+            }}>
+              {[
+                { key: "overview", label: "Điều hành Dashboard", icon: <LayoutDashboard size={18} />, badge: null },
+                { key: "analytics", label: "Phân tích & Thống kê", icon: <Activity size={18} />, badge: null },
+                { key: "committee", label: "Danh sách Hội đồng", icon: <Users size={18} />, badge: snapshot?.committees?.length ? String(snapshot.committees.length) : null },
+                { key: "post-defense", label: "Hồ sơ Sau bảo vệ", icon: <Archive size={18} />, badge: snapshot?.postDefense?.items?.length ? String(snapshot.postDefense.items.length) : null },
+                { key: "export", label: "Xuất bản Báo cáo", icon: <Download size={18} />, badge: null },
+                { key: "audit", label: "Nhật ký Hoạt động", icon: <ShieldCheck size={18} />, badge: null },
+              ].map((tab) => {
+                const isActive = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key as any)}
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 10,
+                      padding: "10px 14px",
+                      borderRadius: 14,
+                      border: "none",
+                      background: isActive ? DEEP_BLUE_PRIMARY : "transparent",
+                      color: isActive ? "white" : "#64748b",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      whiteSpace: "nowrap",
+                      minWidth: 120,
+                      cursor: "pointer",
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      position: "relative"
+                    }}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                    {tab.badge && (
+                      <span style={{
+                        background: isActive ? "#f37021" : "#e2e8f0",
+                        color: isActive ? "white" : "#475569",
+                        padding: "2px 8px",
+                        borderRadius: 8,
+                        fontSize: 11,
+                        fontWeight: 800
+                      }}>
+                        {tab.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
-        {/* 2.2 Dynamic Content Area */}
-        <div style={{
-          animation: "fadeIn 0.4s ease",
-          minHeight: 600
-        }}>
-          {activeTab === "overview" && renderOverviewTab()}
-          {activeTab === "analytics" && renderAnalyticsTab()}
-          {activeTab === "committee" && renderCommitteeTab()}
-          {activeTab === "post-defense" && renderPostDefenseTab()}
-          {activeTab === "export" && renderExportTab()}
-          {activeTab === "audit" && renderSystemLogsTab()}
-        </div>
+            {/* 2.2 Dynamic Content Area */}
+            <div style={{
+              animation: "fadeIn 0.4s ease",
+              minHeight: 600
+            }}>
+              {activeTab === "overview" && renderOverviewTab()}
+              {activeTab === "analytics" && renderAnalyticsTab()}
+              {activeTab === "committee" && renderCommitteeTab()}
+              {activeTab === "post-defense" && renderPostDefenseTab()}
+              {activeTab === "export" && renderExportTab()}
+              {activeTab === "audit" && renderSystemLogsTab()}
+            </div>
+          </>
+        )}
 
         {/* Global Modals Area */}
         {topicDetailModalOpen && renderTopicDetailModal()}

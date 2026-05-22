@@ -1,4 +1,7 @@
+import { useState, useEffect } from "react";
+
 const ACTIVE_DEFENSE_PERIOD_ID_KEY = "activeDefensePeriodId";
+const EVENT_NAME = "activeDefensePeriodChanged";
 
 const DEFENSE_PERIOD_ID_KEYS = ["defenseTermId", "periodId", "id"];
 
@@ -115,10 +118,46 @@ export const setActiveDefensePeriodId = (periodId: number | null): void => {
   }
 
   const normalized = normalizeDefensePeriodId(periodId);
+  const oldVal = getActiveDefensePeriodId();
   if (normalized) {
     window.localStorage.setItem(ACTIVE_DEFENSE_PERIOD_ID_KEY, String(normalized));
-    return;
+  } else {
+    window.localStorage.removeItem(ACTIVE_DEFENSE_PERIOD_ID_KEY);
   }
 
-  window.localStorage.removeItem(ACTIVE_DEFENSE_PERIOD_ID_KEY);
+  const newVal = getActiveDefensePeriodId();
+  if (oldVal !== newVal) {
+    window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: newVal }));
+  }
+};
+
+export const useActiveDefensePeriodId = (): number | null => {
+  const [periodId, setPeriodId] = useState<number | null>(() => getActiveDefensePeriodId());
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleCustomEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<number | null>;
+      setPeriodId(customEvent.detail);
+    };
+
+    const handleStorageEvent = (event: StorageEvent) => {
+      if (event.key === ACTIVE_DEFENSE_PERIOD_ID_KEY) {
+        setPeriodId(normalizeDefensePeriodId(event.newValue));
+      }
+    };
+
+    window.addEventListener(EVENT_NAME, handleCustomEvent);
+    window.addEventListener("storage", handleStorageEvent);
+
+    return () => {
+      window.removeEventListener(EVENT_NAME, handleCustomEvent);
+      window.removeEventListener("storage", handleStorageEvent);
+    };
+  }, []);
+
+  return periodId;
 };

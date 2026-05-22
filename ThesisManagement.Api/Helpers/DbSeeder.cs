@@ -13,6 +13,26 @@ public static class DbSeeder
         var db = scope.ServiceProvider
             .GetRequiredService<ApplicationDbContext>();
 
+        // Clean up duplicate open periods: only keep the newest one open
+        var openPeriods = await db.DefenseTerms
+            .Where(x => x.Status != "Closed" && x.Status != "Archived")
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        if (openPeriods.Count > 1)
+        {
+            var keepActive = openPeriods.First();
+            var now = DateTime.UtcNow;
+            foreach (var oldPeriod in openPeriods.Skip(1))
+            {
+                oldPeriod.Status = "Closed";
+                oldPeriod.LastUpdated = now;
+                db.DefenseTerms.Update(oldPeriod);
+            }
+            await db.SaveChangesAsync();
+            Console.WriteLine($"[Seeder] Cleaned up {openPeriods.Count - 1} duplicate open defense periods.");
+        }
+
         const string adminUserCode = "admin";
 
         // Seed only the specific admin account; other existing users should not block this.

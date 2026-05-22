@@ -386,6 +386,29 @@ namespace ThesisManagement.Api.Controllers
             return UpdatePeriod(periodId, request);
         }
 
+        [HttpDelete("{periodId:int}")]
+        [Authorize(Roles = "Admin,Head")]
+        public Task<ActionResult<ApiResponse<object>>> DeletePeriodCompact(int periodId)
+        {
+            return DeletePeriod(periodId);
+        }
+
+        [HttpGet("current")]
+        public async Task<ActionResult<ApiResponse<DefensePeriodDetailDto>>> GetCurrentPeriodCompact()
+        {
+            var period = await _uow.DefenseTerms.Query()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Status != "Closed" && x.Status != "Archived", HttpContext.RequestAborted);
+
+            if (period == null)
+            {
+                return Ok(ApiResponse<DefensePeriodDetailDto>.SuccessResponse(null));
+            }
+
+            var detailAction = await GetPeriodDetail(period.DefenseTermId);
+            return detailAction;
+        }
+
         [HttpPost("{periodId:int}/lifecycle")]
         [Authorize(Roles = "Admin,Head")]
         public async Task<ActionResult<ApiResponse<object>>> HandleLifecycleAction(int periodId, [FromBody] DefensePeriodLifecycleActionRequestDto request)
@@ -438,6 +461,14 @@ namespace ThesisManagement.Api.Controllers
             rollbackRequest.Reason = string.IsNullOrWhiteSpace(rollbackRequest.Reason) ? "Lifecycle rollback" : rollbackRequest.Reason;
 
             var archiveRequest = request.Archive ?? new DefensePeriodArchiveRequestDto();
+            if (request.ForceArchiveWithoutPublish.HasValue)
+            {
+                archiveRequest.ForceArchiveWithoutPublish = request.ForceArchiveWithoutPublish.Value;
+            }
+            if (!string.IsNullOrWhiteSpace(request.Reason))
+            {
+                archiveRequest.Reason = request.Reason;
+            }
             if (string.IsNullOrWhiteSpace(archiveRequest.IdempotencyKey))
             {
                 archiveRequest.IdempotencyKey = request.IdempotencyKey;
@@ -2225,6 +2256,13 @@ namespace ThesisManagement.Api.Controllers
 
         private async Task<ActionResult<ApiResponse<DefensePeriodDetailDto>>> CreatePeriod([FromBody] DefensePeriodCreateDto request)
         {
+            var hasUnfinishedPeriod = await _uow.DefenseTerms.Query().AsNoTracking()
+                .AnyAsync(x => x.Status != "Closed" && x.Status != "Archived", HttpContext.RequestAborted);
+            if (hasUnfinishedPeriod)
+            {
+                return Conflict(ApiResponse<object>.Fail("Không thể tạo đợt mới khi đang tồn tại một đợt chưa kết thúc (đợt cũ chưa đóng hoặc chưa lưu trữ).", 409));
+            }
+
             try
             {
                 ValidatePeriodWindow(request.StartDate, request.EndDate);
@@ -2354,6 +2392,16 @@ namespace ThesisManagement.Api.Controllers
                 return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt đồ án tốt nghiệp.", 404));
             }
 
+            if (IsOpenPeriodStatus(normalizedStatus))
+            {
+                var otherUnfinishedExists = await _uow.DefenseTerms.Query().AsNoTracking()
+                    .AnyAsync(x => x.DefenseTermId != periodId && x.Status != "Closed" && x.Status != "Archived", HttpContext.RequestAborted);
+                if (otherUnfinishedExists)
+                {
+                    return Conflict(ApiResponse<object>.Fail("Không thể chuyển đợt này sang trạng thái mở khi đang tồn tại một đợt chưa kết thúc khác.", 409));
+                }
+            }
+
             var duplicatedName = await _uow.DefenseTerms.Query().AsNoTracking()
                 .Where(x => x.DefenseTermId != periodId && x.Name.ToUpper() == request.Name.Trim().ToUpper())
                 .Select(x => (int?)x.DefenseTermId)
@@ -2449,7 +2497,7 @@ namespace ThesisManagement.Api.Controllers
                 return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt đồ án tốt nghiệp.", 404));
             }
 
-            if (IsOpenPeriodStatus(period.Status))
+            if (IsOpenPeriodStatus(period.Status) && !string.Equals(period.Status, "Draft", StringComparison.OrdinalIgnoreCase))
             {
                 return Conflict(ApiResponse<object>.Fail("Không thể xóa đợt đang mở. Hãy kết thúc hoặc lưu trữ đợt trước.", 409));
             }
@@ -3076,7 +3124,7 @@ namespace ThesisManagement.Api.Controllers
                 return StatusCode(stateFailure.HttpStatusCode, stateFailure);
             }
 
-            if (!request.ForceArchiveWithoutPublish && !stateResult.Data.ScoresPublished)
+            if (!request.ForceArchiveWithoutPublish && !stateResult.Data.ScoresPublished && !string.Equals(period.Status, "Draft", StringComparison.OrdinalIgnoreCase))
             {
                 var conflict = ApiResponse<DefensePeriodStatusTransitionResponseDto>.Fail(
                     "Chỉ được đóng đợt sau khi đã publish điểm. Có thể dùng ForceArchiveWithoutPublish nếu được phân quyền nội bộ.",

@@ -42,7 +42,8 @@ import {
   XCircle,
   AlertOctagon,
 } from "lucide-react";
-import { fetchData, normalizeUrl } from "../../api/fetchData";
+import { fetchData, normalizeUrl, FetchDataError } from "../../api/fetchData";
+import { getActiveDefensePeriodId, setActiveDefensePeriodId } from "../../utils/defensePeriod";
 import { useToast } from "../../context/useToast";
 import type { ApiResponse } from "../../types/api";
 import { readEnvelopeData, readEnvelopeSuccess } from "../../utils/api-envelope";
@@ -110,11 +111,11 @@ const defensePeriodApi = {
   create: (data: Partial<DefensePeriod>) => fetchData<ApiResponse<DefensePeriod>>("/defense-periods", { method: "POST", body: JSON.stringify(data) }),
   update: (id: number, data: Partial<DefensePeriod>) => fetchData<ApiResponse<DefensePeriod>>(`/defense-periods/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   delete: (id: number) => fetchData<ApiResponse<boolean>>(`/defense-periods/${id}`, { method: "DELETE" }),
-  lifecycle: (id: number, action: string, idempotencyKey?: string) =>
+  lifecycle: (id: number, action: string, idempotencyKey?: string, extra?: Record<string, any>) =>
     fetchData<ApiResponse<boolean>>(`/defense-periods/${id}/lifecycle`, {
       method: "POST",
       headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
-      body: JSON.stringify({ action, idempotencyKey })
+      body: JSON.stringify({ action, idempotencyKey, ...extra })
     }),
   rollbackStage: (id: number, reason: string, idempotencyKey?: string) =>
     fetchData<ApiResponse<boolean>>(`/defense-periods/${id}/lifecycle`, {
@@ -946,6 +947,7 @@ const DefensePeriodsManagement: React.FC = () => {
   const canManage = userRole === "ADMIN" || userRole === "STUDENTSERVICE" || userRole === "HEAD";
 
   const selectedRow = useMemo(() => rows.find(r => r.defenseTermId === selectedId), [rows, selectedId]);
+  const hasUnfinishedPeriod = useMemo(() => rows.some(r => r.status !== "Closed" && r.status !== "Archived"), [rows]);
 
   const parsedConfig = useMemo(() => {
     if (!selectedRow?.configJson) return null;
@@ -973,13 +975,26 @@ const DefensePeriodsManagement: React.FC = () => {
         status: mapStatus(r.status)
       }));
       setRows(data);
-      if (data.length > 0 && (!selectedId || !data.find(r => r.defenseTermId === selectedId))) {
-        // Auto select running period if exists, otherwise first one
-        const running = data.find((r: DefensePeriod) => r.status === "Running");
-        setSelectedId(running?.defenseTermId || data[0].defenseTermId);
+      // Auto select the active (unfinished) period if it exists.
+      const unfinished = data.find((r: DefensePeriod) => r.status !== "Closed" && r.status !== "Archived");
+      if (unfinished) {
+        setSelectedId(unfinished.defenseTermId);
+        setActiveDefensePeriodId(unfinished.defenseTermId);
+        window.dispatchEvent(new Event("storage"));
+      } else {
+        // If there's no active period, keep the currently selectedId if it's a valid past period,
+        // otherwise set to null.
+        if (selectedId && data.find(r => r.defenseTermId === selectedId)) {
+          // Keep current selection (historical period being viewed)
+        } else {
+          setSelectedId(null);
+          setActiveDefensePeriodId(null);
+          window.dispatchEvent(new Event("storage"));
+        }
       }
-    } catch (err) {
-      addToast("Không thể tải danh sách đợt đồ án tốt nghiệp.", "error");
+    } catch (err: any) {
+      const errMsg = err.data?.message || err.data?.Message || err.message || "Không thể tải danh sách đợt đồ án tốt nghiệp.";
+      addToast(errMsg, "error");
     } finally {
       if (!isSilent) setLoading(false);
     }
@@ -1015,8 +1030,9 @@ const DefensePeriodsManagement: React.FC = () => {
       if (data) {
         setMilestones([...data].sort((a, b) => a.ordinal - b.ordinal));
       }
-    } catch (err) {
-      addToast("Không thể tải lộ trình.", "error");
+    } catch (err: any) {
+      const errMsg = err.data?.message || err.data?.Message || err.message || "Không thể tải lộ trình.";
+      addToast(errMsg, "error");
     } finally {
       setMilestonesLoading(false);
     }
@@ -1049,8 +1065,9 @@ const DefensePeriodsManagement: React.FC = () => {
       } else {
         addToast("Cập nhật thất bại.", "error");
       }
-    } catch (err) { 
-      addToast("Lỗi hệ thống khi cập nhật lộ trình.", "error"); 
+    } catch (err: any) { 
+      const errMsg = err.data?.message || err.data?.Message || err.message || "Lỗi hệ thống khi cập nhật lộ trình.";
+      addToast(errMsg, "error"); 
     } finally { 
       setMilestonesSaving(false); 
     }
@@ -1277,13 +1294,59 @@ const DefensePeriodsManagement: React.FC = () => {
         } else {
           addToast(`Thực hiện ${action} thành công.`, "success");
         }
+
+        // Reset active period state if it was closed or archived
+        if (action === "CLOSE" || action === "ARCHIVE") {
+          if (getActiveDefensePeriodId() === selectedId) {
+            setActiveDefensePeriodId(null);
+            window.dispatchEvent(new Event("storage"));
+          }
+          setSelectedId(null);
+        }
+
         await loadData(true);
         await loadSnapshots();
       } else {
         addToast(readEnvelopeData<string>(res) || "Thao tác thất bại.", "error");
       }
     } catch (err: any) {
-      addToast(err.message || "Lỗi hệ thống khi thực hiện lệnh.", "error");
+      if (err instanceof FetchDataError && err.status === 409 && action === "ARCHIVE") {
+        const confirmForce = window.confirm("Đợt bảo vệ chưa công bố điểm. Bạn có muốn lưu trữ cưỡng bức (Force Archive) không?");
+        if (confirmForce) {
+          const reason = window.prompt("Vui lòng nhập lý do lưu trữ cưỡng bức:", "Đóng đợt đặc biệt");
+          if (reason !== null) {
+            try {
+              const retryIdempotencyKey = safeRandomUUID();
+              const retryRes = await defensePeriodApi.lifecycle(selectedId, "ARCHIVE", retryIdempotencyKey, {
+                forceArchiveWithoutPublish: true,
+                reason: reason || "Đóng đợt đặc biệt"
+              });
+              if (readEnvelopeSuccess(retryRes)) {
+                addToast("Lưu trữ cưỡng bức đợt thành công.", "success");
+
+                // Clear active period state if it was the archived one
+                if (getActiveDefensePeriodId() === selectedId) {
+                  setActiveDefensePeriodId(null);
+                  window.dispatchEvent(new Event("storage"));
+                }
+                setSelectedId(null);
+
+                await loadData(true);
+                await loadSnapshots();
+              } else {
+                const errMsg = readEnvelopeData<string>(retryRes) || "Lưu trữ cưỡng bức thất bại.";
+                addToast(errMsg, "error");
+              }
+            } catch (retryErr: any) {
+              const errMsg = retryErr.data?.message || retryErr.data?.Message || retryErr.message || "Lỗi hệ thống khi lưu trữ cưỡng bức.";
+              addToast(errMsg, "error");
+            }
+          }
+        }
+      } else {
+        const errMsg = err.data?.message || err.data?.Message || err.message || "Lỗi hệ thống khi thực hiện lệnh.";
+        addToast(errMsg, "error");
+      }
     } finally {
       setRefreshing(false);
       setConfirmState(null);
@@ -1306,7 +1369,8 @@ const DefensePeriodsManagement: React.FC = () => {
       addToast(`Đã gửi thông báo nhắc nhở đến ${selectedUserCodes.length} người thành công!`, "success");
       setSendReminderModal(null);
     } catch (err: any) {
-      addToast(err.message || "Gửi thông báo thất bại.", "error");
+      const errMsg = err.data?.message || err.data?.Message || err.message || "Gửi thông báo thất bại.";
+      addToast(errMsg, "error");
     } finally {
       setSendingReminder(false);
     }
@@ -1412,7 +1476,8 @@ const DefensePeriodsManagement: React.FC = () => {
       window.URL.revokeObjectURL(downloadUrl);
       addToast(`Đã tải xuống: ${item.label} (${format.toUpperCase()})`, "success");
     } catch (err: any) {
-      addToast(err.message || "Không thể tải báo cáo. Vui lòng thử lại sau.", "error");
+      const errMsg = err.data?.message || err.data?.Message || err.message || "Không thể tải báo cáo. Vui lòng thử lại sau.";
+      addToast(errMsg, "error");
     } finally {
       setRefreshing(false);
     }
@@ -1442,7 +1507,12 @@ const DefensePeriodsManagement: React.FC = () => {
           const newPeriod = readEnvelopeData<DefensePeriod>(res);
           addToast(mode === "create" ? "Khởi tạo đợt đồ án tốt nghiệp mới thành công." : "Nhân bản đợt đồ án tốt nghiệp thành công.", "success");
           await loadData(true);
-          if (newPeriod) setSelectedId(newPeriod.defenseTermId);
+          if (newPeriod) {
+            setSelectedId(newPeriod.defenseTermId);
+            // Set as active defense period and notify layouts
+            setActiveDefensePeriodId(newPeriod.defenseTermId);
+            window.dispatchEvent(new Event("storage"));
+          }
           setPeriodModal(null);
         } else {
           addToast("Không thể tạo đợt đồ án tốt nghiệp.", "error");
@@ -1458,13 +1528,21 @@ const DefensePeriodsManagement: React.FC = () => {
         const res = await defensePeriodApi.delete(data);
         if (readEnvelopeSuccess(res)) {
           addToast("Đã xóa đợt đồ án tốt nghiệp.", "success");
+
+          // Clear active period state if it was the deleted one
+          if (getActiveDefensePeriodId() === data) {
+            setActiveDefensePeriodId(null);
+            window.dispatchEvent(new Event("storage"));
+          }
+
           await loadData(true);
           if (selectedId === data) setSelectedId(null);
           setConfirmState(null);
         }
       }
     } catch (err: any) {
-      addToast(err.message || "Thao tác thất bại.", "error");
+      const errMsg = err.data?.message || err.data?.Message || err.message || "Thao tác thất bại.";
+      addToast(errMsg, "error");
     } finally {
       setRefreshing(false);
     }
@@ -2164,7 +2242,9 @@ const DefensePeriodsManagement: React.FC = () => {
           maxWidth: 640
         }}>
           <div style={{ fontSize: "14px", color: "#1e3a5f", fontWeight: 700, marginBottom: "16px" }}>
-            Hiện chưa có đợt đồ án tốt nghiệp nào được khởi tạo trong hệ thống.
+            {rows.length > 0
+              ? "Hiện tại không có đợt đồ án tốt nghiệp nào đang chạy. Bạn có thể khởi tạo đợt mới hoặc xem lịch sử các đợt ở bên dưới."
+              : "Hiện chưa có đợt đồ án tốt nghiệp nào được khởi tạo trong hệ thống."}
           </div>
           <button
             onClick={() => setPeriodModal({ isOpen: true, mode: "create" })}
@@ -2197,6 +2277,76 @@ const DefensePeriodsManagement: React.FC = () => {
             <Plus size={18} /> Khởi tạo đợt đồ án tốt nghiệp
           </button>
         </div>
+
+        {/* Lịch sử các đợt đồ án tốt nghiệp */}
+        {rows.length > 0 && (
+          <div style={{ background: "white", padding: "24px", borderRadius: "16px", border: "1px solid #e2e8f0", marginTop: "32px", textAlign: "left" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: DEEP_BLUE_PRIMARY, display: "flex", alignItems: "center", gap: "8px" }}>
+                <History size={18} /> Lịch sử các đợt đồ án tốt nghiệp
+              </h3>
+              <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "700" }}>Tổng số: {rows.length} đợt</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
+              {rows.map((row) => (
+                <div
+                  key={row.defenseTermId}
+                  onClick={() => setSelectedId(row.defenseTermId)}
+                  style={{
+                    padding: "16px",
+                    borderRadius: "12px",
+                    border: `1px solid ${selectedId === row.defenseTermId ? "#f37021" : "#e2e8f0"}`,
+                    background: selectedId === row.defenseTermId ? "#fffaf5" : "#f8fafc",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    gap: "12px"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.05)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                      <span style={{ fontSize: "12px", fontWeight: "700", color: DEEP_BLUE_PRIMARY, background: "#eff6ff", padding: "4px 8px", borderRadius: "6px" }}>
+                        {row.termCode || `DT-${row.defenseTermId}`}
+                      </span>
+                      <span style={{
+                        fontSize: "11px",
+                        fontWeight: "700",
+                        padding: "4px 8px",
+                        borderRadius: "6px",
+                        background: getStatusPresentation(row.status).bg,
+                        color: getStatusPresentation(row.status).color
+                      }}>
+                        {getStatusPresentation(row.status).label}
+                      </span>
+                    </div>
+                    <h4 style={{ fontSize: "14px", fontWeight: "800", color: "#1e293b", margin: "10px 0 4px 0", lineHeight: "1.4" }}>
+                      {row.name}
+                    </h4>
+                    <p style={{ fontSize: "12px", color: "#64748b", margin: 0 }}>
+                      {row.academicYear || "--"} • {row.semester || "--"}
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px dashed #e2e8f0", paddingTop: "8px", fontSize: "11px", color: "#64748b" }}>
+                    <span>Bắt đầu: {row.startDate ? new Date(row.startDate).toLocaleDateString() : "--"}</span>
+                    <span style={{ fontWeight: "700", color: DEEP_BLUE_PRIMARY }}>
+                      Xem thông tin →
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -2234,9 +2384,7 @@ const DefensePeriodsManagement: React.FC = () => {
                 <FilterIcon size={16} /> Lọc trạng thái
               </button>
             </div>
-            <button onClick={() => setPeriodModal({ isOpen: true, mode: "create" })} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "12px 20px", borderRadius: "14px", border: "none", background: DEEP_BLUE_PRIMARY, color: "white", fontSize: "14px", fontWeight: "700", cursor: "pointer", boxShadow: "0 4px 6px -1px rgba(30, 58, 95, 0.2)" }}>
-              <PlusCircle size={18} /> Tạo đợt đồ án tốt nghiệp
-            </button>
+
           </div>
 
           <div style={{ overflowX: "auto" }}>
@@ -2503,7 +2651,7 @@ const DefensePeriodsManagement: React.FC = () => {
     );
   }
 
-  if (rows.length === 0) {
+  if (rows.length === 0 || (!hasUnfinishedPeriod && !selectedId)) {
     return (
       <div style={{
         minHeight: "100vh",
@@ -2747,66 +2895,39 @@ const DefensePeriodsManagement: React.FC = () => {
           </div>
 
           <div style={{ display: "flex", gap: "12px", alignItems: "center", animation: "fadeIn 0.8s ease" }}>
-            <select
-              value={selectedId || ""}
-              onChange={(e) => setSelectedId(Number(e.target.value))}
-              style={{
-                padding: "12px 20px",
-                borderRadius: "14px",
-                border: "1px solid rgba(255, 255, 255, 0.2)",
-                background: "rgba(255, 255, 255, 0.1)",
-                backdropFilter: "blur(8px)",
-                fontWeight: "700",
-                fontSize: "14px",
-                color: "white",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                outline: "none",
-                cursor: "pointer",
-                transition: "all 0.2s"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)";
-                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)";
-                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)";
-              }}
-            >
-              {rows.map(r => (
-                <option key={r.defenseTermId} value={r.defenseTermId} style={{ color: "#0f172a" }}>
-                  {r.name} ({getStatusPresentation(r.status).label})
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() => setPeriodModal({ isOpen: true, mode: "create" })}
-              style={{
-                padding: "12px 24px",
-                borderRadius: "14px",
-                background: "#f37021",
-                color: "#fff",
-                border: "none",
-                fontWeight: "700",
-                fontSize: "14px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                boxShadow: "0 4px 12px rgba(243, 112, 33, 0.3)",
-                transition: "all 0.2s"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-1px)";
-                e.currentTarget.style.boxShadow = "0 6px 16px rgba(243, 112, 33, 0.4)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 12px rgba(243, 112, 33, 0.3)";
-              }}
-            >
-              <Plus size={18} /> Tạo đợt mới
-            </button>
+            {!hasUnfinishedPeriod && selectedId && (
+              <button
+                onClick={() => setSelectedId(null)}
+                style={{
+                  padding: "12px 20px",
+                  borderRadius: "14px",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                  background: "rgba(255, 255, 255, 0.1)",
+                  backdropFilter: "blur(8px)",
+                  fontWeight: "700",
+                  fontSize: "14px",
+                  color: "white",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  outline: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)";
+                  e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)";
+                  e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)";
+                }}
+              >
+                <ArrowLeft size={16} /> Quay lại trang chủ
+              </button>
+            )}
+
           </div>
         </div>
       </div>
