@@ -131,6 +131,7 @@ const Reports: React.FC = () => {
   const [newLinkName, setNewLinkName] = useState("");
   const [reportTitle, setReportTitle] = useState("");
   const [reportDescription, setReportDescription] = useState("");
+  const [lateReason, setLateReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -199,6 +200,7 @@ const Reports: React.FC = () => {
     const sorted = [...milestoneTemplates].sort((a, b) => a.ordinal - b.ordinal);
     const currentOrdinal = currentMilestone?.ordinal ?? -1;
     const currentState = currentMilestone?.state;
+    const now = new Date();
 
     return sorted.map((m) => {
       const isCompleted =
@@ -206,9 +208,61 @@ const Reports: React.FC = () => {
         (m.ordinal === currentOrdinal && (currentState === "COMPLETED" || currentState === "WaitingForCommittee"));
       const isCurrent =
         m.ordinal === currentOrdinal && currentState !== "COMPLETED" && currentState !== "WaitingForCommittee";
-      return { ...m, isCompleted, isCurrent };
+      // Phát hiện quá hạn ngay phía client: mốc đang thực hiện mà deadline đã qua
+      const isOverdue = isCurrent && !!m.deadline && new Date(m.deadline) < now;
+      return { ...m, isCompleted, isCurrent, isOverdue };
     });
   }, [milestoneTemplates, currentMilestone]);
+
+  const isOverdue = useMemo(() => {
+    if (!currentMilestone?.deadline) return false;
+    const isCompleted =
+      currentMilestone.state === "Hoàn thành" ||
+      currentMilestone.state === "COMPLETED" ||
+      currentMilestone.state === "WaitingForCommittee";
+    if (isCompleted) return false;
+    return new Date(currentMilestone.deadline) < new Date();
+  }, [currentMilestone]);
+
+  const isLateRequest = useMemo(() => {
+    return isOverdue && currentMilestone?.allowLateSubmit !== true;
+  }, [isOverdue, currentMilestone]);
+
+  const getSubmitButtonText = () => {
+    if (submitting) {
+      if (isOverdue) {
+        return currentMilestone?.allowLateSubmit === true
+          ? "Đang gửi báo cáo..."
+          : "Đang gửi yêu cầu...";
+      }
+      return "Đang gửi...";
+    }
+    
+    if (isOverdue) {
+      return currentMilestone?.allowLateSubmit === true
+        ? "Gửi báo cáo (Nộp muộn)"
+        : "Gửi yêu cầu xin nộp muộn";
+    }
+    return "Gửi báo cáo ngay";
+  };
+
+  const getConfirmButtonText = () => {
+    if (submitting) {
+      if (isOverdue) {
+        return currentMilestone?.allowLateSubmit === true
+          ? "Đang gửi báo cáo..."
+          : "Đang gửi yêu cầu...";
+      }
+      return "Đang gửi báo cáo...";
+    }
+
+    if (isOverdue) {
+      return currentMilestone?.allowLateSubmit === true
+        ? "Xác nhận & Gửi nộp muộn"
+        : "Xác nhận & Gửi yêu cầu";
+    }
+    return "Xác nhận & Gửi ngay";
+  };
 
   const formatBytes = (bytes: number, decimals = 2) => {
     if (bytes === 0) return "0 Bytes";
@@ -319,8 +373,14 @@ const Reports: React.FC = () => {
     if (!auth.user?.userCode) {
       addToast("Vui lòng đăng nhập.", "warning"); return;
     }
-    if (selectedFiles.length === 0 && links.length === 0) {
-      addToast("Vui lòng chọn ít nhất một file báo cáo hoặc thêm một liên kết tài liệu.", "warning"); return;
+    if (isLateRequest) {
+      if (!lateReason.trim()) {
+        addToast("Vui lòng nhập lý do giải trình xin nộp muộn.", "warning"); return;
+      }
+    } else {
+      if (selectedFiles.length === 0 && links.length === 0) {
+        addToast("Vui lòng chọn ít nhất một file báo cáo hoặc thêm một liên kết tài liệu.", "warning"); return;
+      }
     }
     setShowConfirmModal(true);
   };
@@ -328,30 +388,72 @@ const Reports: React.FC = () => {
   const performSubmit = async () => {
     setSubmitting(true);
     try {
+      const finalTitle = isLateRequest
+        ? `Đơn xin nộp muộn mốc ${currentMilestone?.milestoneCode || ""}`
+        : reportTitle.trim();
+
+      const finalDescription = isLateRequest
+        ? lateReason.trim()
+        : reportDescription.trim();
+
       const formData = new FormData();
       formData.append("topicCode", topic?.topicCode || "");
       formData.append("milestoneCode", currentMilestone?.milestoneCode || "");
       formData.append("studentUserCode", auth.user?.userCode || "");
       formData.append("lecturerCode", lecturerProfile?.lecturerCode || "");
-      formData.append("reportTitle", reportTitle.trim());
-      formData.append("reportDescription", reportDescription.trim());
+      formData.append("reportTitle", finalTitle);
+      formData.append("reportDescription", finalDescription);
       
-      if (selectedFiles.length > 0) {
+      if (!isLateRequest && selectedFiles.length > 0) {
         selectedFiles.forEach((file) => {
           formData.append("files", file);
         });
       }
-      if (links.length > 0) {
+      if (!isLateRequest && links.length > 0) {
         formData.append("externalLinks", JSON.stringify(links));
       }
       const res = (await fetchData("/reports/student/progress-submit", { method: "POST", body: formData })) as ApiResponse<any>;
       if (res.success) {
-        addToast("Nộp báo cáo thành công", "success");
-        setReportTitle(""); setReportDescription(""); setSelectedFiles([]); setLinks([]);
+        if (isLateRequest) {
+          addToast("Gửi yêu cầu xin nộp muộn thành công! Vui lòng chờ giảng viên phê duyệt.", "success");
+        } else {
+          addToast("Nộp báo cáo thành công", "success");
+        }
+        setReportTitle(""); setReportDescription(""); setLateReason(""); setSelectedFiles([]); setLinks([]);
         setShowConfirmModal(false);
-        if (auth.user?.userCode) await loadProgressHistory(auth.user.userCode);
+        if (auth.user?.userCode) {
+          await Promise.all([
+            loadStudentDashboard(auth.user.userCode),
+            loadProgressHistory(auth.user.userCode)
+          ]);
+        }
       }
-    } catch (err) { addToast("Lỗi khi nộp báo cáo", "error"); } finally { setSubmitting(false); }
+    } catch (err: any) {
+      const errMsg = err?.data?.message || err?.data?.Message || err?.data?.errorMessage || err?.message || "Lỗi khi nộp báo cáo";
+      
+      // If it's a late request, the backend returns a 409 Conflict to prevent actual submission, 
+      // but successfully sends a notification to the lecturer. We treat this 409 error as a SUCCESSFUL request dispatch on UI.
+      if (isLateRequest && (err?.status === 409 || errMsg.toLowerCase().includes("yêu cầu nộp muộn") || errMsg.toLowerCase().includes("đã được gửi"))) {
+        addToast("Gửi yêu cầu xin nộp muộn thành công! Vui lòng chờ giảng viên phê duyệt.", "success");
+        setLateReason("");
+        setReportTitle("");
+        setReportDescription("");
+        setSelectedFiles([]);
+        setLinks([]);
+        setShowConfirmModal(false);
+        if (auth.user?.userCode) {
+          await Promise.all([
+            loadStudentDashboard(auth.user.userCode),
+            loadProgressHistory(auth.user.userCode)
+          ]);
+        }
+      } else {
+        addToast(errMsg, "error");
+        setShowConfirmModal(false);
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const getStatusText = (s?: string) => {
@@ -380,8 +482,9 @@ const Reports: React.FC = () => {
     }
   };
 
-  const getMilestoneTone = (isCompleted: boolean, isCurrent: boolean, state?: string) => {
+  const getMilestoneTone = (isCompleted: boolean, isCurrent: boolean, isOverdue: boolean, state?: string) => {
     if (isCompleted || state === "WaitingForCommittee") return { bg: "#ecfdf5", color: "#10b981", border: "#10b981", dot: "#10B981" };
+    if (isOverdue) return { bg: "#fef2f2", color: "#dc2626", border: "#fecaca", dot: "#dc2626" };
     if (isCurrent) return { bg: "#fff7ed", color: "#F37021", border: "#fdba74", dot: "#F37021" };
     return { bg: "#f8fafc", color: "#64748b", border: "#cbd5e1", dot: "#e2e8f0" };
   };
@@ -430,25 +533,62 @@ const Reports: React.FC = () => {
                <h3 className="text-xl font-black text-slate-900">{reports[0] ? getFeedbackLevelText(reports[0].feedbackLevel) : "Chưa có"}</h3>
             </div>
          </div>
-         <div className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100 flex items-center gap-5 group hover:shadow-md transition-all">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform"><Target size={24} /></div>
-            <div>
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hạn chót tiếp theo</p>
-               <h3 className="text-xl font-black text-slate-900">{currentMilestone?.deadline ? new Date(currentMilestone.deadline).toLocaleDateString('vi-VN') : "Không có"}</h3>
-            </div>
-         </div>
+         {/* Stat card Hạn chót — đỏ khi overdue */}
+         {(() => {
+           const isCurrentOverdue = !!currentMilestone?.deadline && new Date(currentMilestone.deadline) < new Date();
+           return (
+             <div className={`p-5 rounded-[24px] shadow-sm flex items-center gap-5 group hover:shadow-md transition-all ${
+               isCurrentOverdue
+                 ? "bg-red-50 border-2 border-red-200"
+                 : "bg-white border border-slate-100"
+             }`}>
+               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+                 isCurrentOverdue ? "bg-red-100 text-red-500" : "bg-emerald-50 text-emerald-500"
+               }`}>
+                 {isCurrentOverdue ? <AlertCircle size={24} /> : <Target size={24} />}
+               </div>
+               <div>
+                 <p className={`text-[10px] font-black uppercase tracking-widest ${
+                   isCurrentOverdue ? "text-red-400" : "text-slate-400"
+                 }`}>
+                   {isCurrentOverdue ? "⚠️ Đã quá hạn" : "Hạn chót tiếp theo"}
+                 </p>
+                 <h3 className={`text-xl font-black ${
+                   isCurrentOverdue ? "text-red-600" : "text-slate-900"
+                 }`}>
+                   {currentMilestone?.deadline ? new Date(currentMilestone.deadline).toLocaleDateString('vi-VN') : "Không có"}
+                 </h3>
+               </div>
+             </div>
+           );
+         })()}
       </div>
 
       {/* --- MAXIMUM STRETCH ROADMAP --- */}
       <div className="bg-white p-10 lg:p-12 rounded-[24px] shadow-sm border border-slate-100 relative overflow-hidden">
+         {/* Banner cảnh báo overdue — hiện ngay dưới roadmap */}
+         {milestoneViews.some(m => m.isOverdue) && (
+           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
+             <div className="flex-shrink-0 mt-0.5"><AlertCircle size={18} className="text-red-500" /></div>
+             <div>
+               <p className="text-sm font-black text-red-600 mb-0.5">⚠️ Cảnh báo: Mốc tiến độ đã quá hạn!</p>
+               <p className="text-xs font-bold text-red-400">
+                 Mốc <strong>{milestoneViews.find(m => m.isOverdue)?.name}</strong> đã qua deadline{" "}
+                 <strong>{milestoneViews.find(m => m.isOverdue)?.deadline ? new Date(milestoneViews.find(m => m.isOverdue)!.deadline!).toLocaleDateString('vi-VN') : ""}</strong>.
+                 Hệ thống sẽ tự động đánh dấu thất bại. Vui lòng liên hệ giảng viên hướng dẫn ngay.
+               </p>
+             </div>
+           </div>
+         )}
          <div className="flex justify-between items-start relative px-8">
             {milestoneViews.map((m, idx) => {
-               const tone = getMilestoneTone(m.isCompleted, m.isCurrent, m.ordinal === currentMilestone?.ordinal ? currentMilestone?.state : undefined);
+               const tone = getMilestoneTone(m.isCompleted, m.isCurrent, m.isOverdue, m.ordinal === currentMilestone?.ordinal ? currentMilestone?.state : undefined);
                const nextMilestone = milestoneViews[idx + 1] || null;
                
                let lineColor = "#E2E8F0";
                if (nextMilestone) {
                   if (nextMilestone.isCompleted) lineColor = "#10B981";
+                  else if (nextMilestone.isOverdue) lineColor = "#dc2626";
                   else if (nextMilestone.isCurrent) lineColor = "#F37021";
                }
 
@@ -459,23 +599,30 @@ const Reports: React.FC = () => {
                      )}
 
                      <div className={`w-12 h-12 rounded-full flex items-center justify-center border-4 transition-all duration-300 bg-white z-10
-                        ${m.isCompleted || m.isCurrent ? 'scale-110 shadow-lg' : ''}`}
+                        ${m.isCompleted || m.isCurrent || m.isOverdue ? 'scale-110 shadow-lg' : ''}`}
                         style={{ borderColor: tone.dot, color: tone.dot }}>
-                        {m.isCompleted ? <CheckCircle size={24} /> : <span className="font-black text-sm">{idx + 1}</span>}
+                        {m.isCompleted
+                          ? <CheckCircle size={24} />
+                          : m.isOverdue
+                            ? <AlertCircle size={24} />
+                            : <span className="font-black text-sm">{idx + 1}</span>}
                      </div>
 
                      <div className="mt-7 text-center px-2">
-                        <p className={`text-[12px] font-black mb-1 transition-colors ${m.isCurrent || m.isCompleted ? 'text-slate-900' : 'text-slate-400'}`}>
+                        <p className={`text-[12px] font-black mb-1 transition-colors ${m.isCurrent || m.isCompleted || m.isOverdue ? 'text-slate-900' : 'text-slate-400'}`}>
                            {m.name}
                         </p>
-                        <span className="text-[10px] font-bold text-slate-400 block mb-2">
+                        <span className={`text-[10px] font-bold block mb-2 ${m.isOverdue ? 'text-red-400 font-black' : 'text-slate-400'}`}>
                            {m.deadline ? new Date(m.deadline).toLocaleDateString('vi-VN') : "Đang cập nhật"}
                         </span>
                         <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider"
                            style={{ background: tone.bg, color: tone.color, border: `1px solid ${tone.border}` }}>
-                           {m.ordinal === 4 && currentMilestone?.state === "WaitingForCommittee" 
-                              ? "Chờ hội đồng & bảo vệ" 
-                              : m.isCompleted ? "Hoàn thành" : m.isCurrent ? "Đang thực hiện" : "Sắp tới"}
+                           {m.ordinal === 4 && currentMilestone?.state === "WaitingForCommittee"
+                              ? "Chờ hội đồng & bảo vệ"
+                              : m.isCompleted ? "Hoàn thành"
+                              : m.isOverdue ? "⚠️ Quá hạn"
+                              : m.isCurrent ? "Đang thực hiện"
+                              : "Sắp tới"}
                         </span>
                      </div>
                   </div>
@@ -485,27 +632,161 @@ const Reports: React.FC = () => {
       </div>
 
       <div className="unified-workspace">
-        {/* --- LEFT: SUBMISSION FORM --- */}
-        <div className="bg-white rounded-[24px] shadow-sm border border-slate-100 p-6 lg:p-10 flex flex-col gap-8 h-full">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2"><Upload size={24} className="text-[#F37021]" />Nộp báo cáo tiến độ</h2>
+        {/* --- LEFT: SUBMISSION OR LATE REQUEST PORTAL --- */}
+        {(!canSubmit || currentMilestone?.state === "WaitingForCommittee") ? (
+          <div className="bg-white rounded-[24px] shadow-sm border border-slate-100 p-6 lg:p-10 flex flex-col gap-8 h-full">
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2"><Upload size={24} className="text-[#F37021]" />Nộp báo cáo tiến độ</h2>
+              </div>
+              {!canSubmit && <div className="px-4 py-2 bg-orange-50 border border-orange-100 rounded-xl text-orange-600 text-[10px] font-black uppercase">Cổng đang đóng</div>}
             </div>
-            {!canSubmit && <div className="px-4 py-2 bg-orange-50 border border-orange-100 rounded-xl text-orange-600 text-[10px] font-black uppercase">Cổng đang đóng</div>}
-          </div>
-          {(!canSubmit || currentMilestone?.state === "WaitingForCommittee") ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-4 py-10">
-               <div className={`w-16 h-16 rounded-full flex items-center justify-center ${currentMilestone?.state === "WaitingForCommittee" ? "bg-emerald-50 text-emerald-500" : "bg-slate-50 text-slate-300"}`}>
-                  {currentMilestone?.state === "WaitingForCommittee" ? <CheckCircle size={32} /> : <Clock size={32} />}
-               </div>
-               <p className={`${currentMilestone?.state === "WaitingForCommittee" ? "text-emerald-600" : "text-slate-400"} font-bold text-sm max-w-xs text-center`}>
-                  {currentMilestone?.state === "WaitingForCommittee" 
-                    ? "Bạn đã hoàn thành tất cả các mốc báo cáo. Vui lòng chờ nhà trường sắp xếp hội đồng bảo vệ." 
-                    : (submitMessage || "Hiện tại không trong thời gian nộp bài.")}
-               </p>
+               {/* Case 1: Waiting for committee */}
+               {currentMilestone?.state === "WaitingForCommittee" && (
+                 <>
+                   <div className="w-16 h-16 rounded-full flex items-center justify-center bg-emerald-50 text-emerald-500">
+                     <CheckCircle size={32} />
+                   </div>
+                   <p className="text-emerald-600 font-bold text-sm max-w-xs text-center">
+                     Bạn đã hoàn thành tất cả các mốc báo cáo. Vui lòng chờ nhà trường sắp xếp hội đồng bảo vệ.
+                   </p>
+                 </>
+               )}
+               {/* Case 2: Milestone FAILED */}
+               {!canSubmit && submitMessage?.includes("that bai") && currentMilestone?.state !== "WaitingForCommittee" && (
+                 <>
+                   <div className="w-16 h-16 rounded-full flex items-center justify-center bg-red-50 text-red-500">
+                     <XCircle size={32} />
+                   </div>
+                   <div className="max-w-sm text-center space-y-2">
+                     <p className="text-red-600 font-black text-sm">Mốc tiến độ đã thất bại</p>
+                     <p className="text-red-500 font-bold text-xs">
+                       {submitMessage?.includes("ABSENT") || submitMessage?.includes("khong nop")
+                         ? "Bạn không nộp báo cáo trước deadline."
+                         : "Bạn không nộp lại sau khi giảng viên yêu cầu sửa đổi."}
+                     </p>
+                     <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-xl text-[10px] font-bold text-red-400 text-left">
+                       ⚠️ Vui lòng liên hệ giảng viên hướng dẫn để được xem xét gia hạn (EXTEND_DEADLINE) hoặc miễn trừ (EXEMPT) mốc này.
+                     </div>
+                   </div>
+                 </>
+               )}
+               {/* Case 3: Sequential guard - mốc trước chưa xong */}
+               {!canSubmit && submitMessage?.includes("moc truoc") && currentMilestone?.state !== "WaitingForCommittee" && (
+                 <>
+                   <div className="w-16 h-16 rounded-full flex items-center justify-center bg-amber-50 text-amber-500">
+                     <Clock size={32} />
+                   </div>
+                   <div className="max-w-sm text-center space-y-2">
+                     <p className="text-amber-600 font-black text-sm">Chưa hoàn thành mốc trước</p>
+                     <p className="text-amber-500 font-bold text-xs">
+                       Bạn cần hoàn thành mốc tiến độ trước đó trước khi nộp mốc này.
+                     </p>
+                   </div>
+                 </>
+               )}
+               {/* Case 4: Pending review hoặc các lý do khác */}
+               {!canSubmit && !submitMessage?.includes("that bai") && !submitMessage?.includes("moc truoc") && currentMilestone?.state !== "WaitingForCommittee" && (
+                 <>
+                   <div className="w-16 h-16 rounded-full flex items-center justify-center bg-slate-50 text-slate-300">
+                     <Clock size={32} />
+                   </div>
+                   <p className="text-slate-400 font-bold text-sm max-w-xs text-center">
+                     {submitMessage || "Hiện tại không trong thời gian nộp bài."}
+                   </p>
+                 </>
+               )}
             </div>
-          ) : (
+          </div>
+        ) : isOverdue && currentMilestone?.allowLateSubmit !== true ? (
+          /* --- COMPONENT A: LATE REQUEST PORTAL --- */
+          <div className="bg-gradient-to-br from-white to-amber-50/10 rounded-[24px] shadow-sm border border-amber-200/60 p-6 lg:p-10 flex flex-col gap-8 h-full">
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-black text-amber-800 flex items-center gap-2">
+                  <Clock size={24} className="text-amber-500 animate-pulse" />
+                  Đơn xin nộp muộn mốc tiến độ
+                </h2>
+                <p className="text-xs font-bold text-amber-600 mt-1">Gửi giải trình tới giảng viên hướng dẫn để xin phép mở cổng nộp bài trễ hạn</p>
+              </div>
+              <div className="px-4 py-2 bg-amber-50 border border-amber-100 rounded-xl text-amber-600 text-[10px] font-black uppercase">⚠️ Đã quá hạn</div>
+            </div>
+
+            <form onSubmit={handleOpenConfirm} className="flex-1 flex flex-col gap-6">
+              <div className="p-5 bg-amber-50/60 border border-amber-200 rounded-[20px] flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                  <AlertCircle size={20} className="text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-black text-amber-800 mb-0.5">Mốc tiến độ: {currentMilestone?.milestoneCode}</h4>
+                  <p className="text-xs font-bold text-amber-700 leading-relaxed">
+                    Hạn chót của mốc tiến độ này đã qua ({currentMilestone?.deadline ? new Date(currentMilestone.deadline).toLocaleString('vi-VN') : ""}). Cổng nộp báo cáo chính thức đã đóng. Vui lòng nhập lý do giải trình bên dưới để xin giảng viên cấp phép nộp muộn.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-[20px] border border-amber-200/80 flex flex-col gap-4 shadow-sm">
+                <label className="text-[10px] font-black text-amber-800 uppercase tracking-widest block">Lý do xin nộp muộn (Giải trình lý do quá hạn)</label>
+                <textarea 
+                  value={lateReason} 
+                  onChange={(e) => setLateReason(e.target.value)}
+                  required
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-50 transition-all resize-none min-h-[180px]"
+                  placeholder="Ví dụ: Gặp vấn đề sức khỏe có giấy xác nhận, sự cố hỏng thiết bị phần cứng đột xuất, hoặc cần thêm thời gian để thu thập dữ liệu thử nghiệm..." 
+                />
+                <div className="text-[10px] font-bold text-amber-600 leading-relaxed">
+                  💡 <strong>Lưu ý:</strong> Khi bạn gửi, hệ thống sẽ chuyển ngay đơn giải trình này dưới dạng thông báo khẩn cấp tới Giảng viên hướng dẫn. Bạn không cần đính kèm tệp tin tài liệu hay liên kết ở bước xin phép này. Hãy điền chi tiết lý do để được duyệt nhanh chóng.
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-amber-100 flex items-center justify-between mt-auto">
+                <div className="flex flex-col gap-1">
+                  <p className="text-[10px] font-black text-amber-600 uppercase flex items-center gap-1.5">
+                    <AlertCircle size={14} /> Điền lý do giải trình để gửi yêu cầu
+                  </p>
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={submitting || !lateReason.trim()}
+                  className={`px-12 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] transition-all
+                    ${(submitting || !lateReason.trim()) 
+                      ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                      : "bg-amber-500 text-white shadow-xl shadow-amber-100 hover:bg-amber-600"}`}
+                >
+                  {submitting ? "Đang gửi yêu cầu..." : "Gửi yêu cầu xin nộp muộn"}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : (
+          /* --- COMPONENT B: REGULAR / APPROVED LATE SUBMISSION FORM --- */
+          <div className="bg-white rounded-[24px] shadow-sm border border-slate-100 p-6 lg:p-10 flex flex-col gap-8 h-full">
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+                  <Upload size={24} className={isOverdue ? "text-emerald-500" : "text-[#F37021]"} />
+                  Nộp báo cáo tiến độ {isOverdue && "(Nộp muộn)"}
+                </h2>
+              </div>
+            </div>
+
             <form onSubmit={handleOpenConfirm} className="flex-1 flex flex-col gap-8">
+              {/* Overdue Banner when allowLateSubmit is true */}
+              {isOverdue && currentMilestone?.allowLateSubmit === true && (
+                <div className="p-5 bg-emerald-50/80 border-2 border-emerald-200 rounded-[20px] flex items-start gap-4 shadow-sm animate-in fade-in slide-in-from-top-3 duration-300">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0 animate-in fade-in zoom-in-75 duration-300">
+                    <CheckCircle2 size={20} className="text-emerald-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-emerald-800 mb-0.5">Đã được cấp phép nộp muộn</h4>
+                    <p className="text-xs font-bold text-emerald-600 leading-relaxed">
+                      Giảng viên hướng dẫn đã đồng ý và cho phép nộp báo cáo muộn cho mốc tiến độ này. Bạn có thể tiến hành gửi báo cáo chính thức ngay bây giờ. Quyền nộp muộn chỉ có giá trị cho một lần nộp duy nhất.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 flex-1">
                  <div className="flex flex-col gap-6 h-full">
                      <div>
@@ -615,97 +896,112 @@ const Reports: React.FC = () => {
                               />
                            </div>
                         </div>
-                     </div>
-                     <div className="flex-1 flex flex-col min-h-[160px]">
-                        <div className="flex justify-between items-center mb-2">
-                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Danh sách tài nguyên nộp</span>
-                           {(selectedFiles.length > 0 || links.length > 0) && (
-                              <span className="text-[8px] font-black text-[#003D82] uppercase bg-blue-50/80 px-2 py-0.5 rounded-md tracking-wider">
-                                 📂 {selectedFiles.length} file • 🔗 {links.length} link
-                              </span>
-                           )}
-                        </div>
-                        
-                        {selectedFiles.length === 0 && links.length === 0 ? (
-                           <div className="h-[175px] flex flex-col items-center justify-center border border-slate-100 rounded-[20px] bg-slate-50/50 p-6 text-center">
-                              <span className="text-slate-300 mb-1"><FileText size={20} /></span>
-                              <p className="text-[9px] font-bold text-slate-400">Chưa có tài liệu hoặc liên kết nào được đính kèm</p>
-                           </div>
-                        ) : (
-                           <div className="space-y-1.5 max-h-[175px] overflow-y-auto pr-1">
-                              {/* selectedFiles List Cards */}
-                              {selectedFiles.map((file, idx) => (
-                                 <div key={`file-${idx}`} className="flex items-center justify-between p-2.5 bg-emerald-50/40 border border-emerald-100/50 rounded-xl animate-in fade-in slide-in-from-bottom-1 duration-200">
-                                    <div className="flex items-center gap-2.5 min-w-0">
-                                       <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
-                                          <FileText size={14} />
-                                       </div>
-                                       <div className="min-w-0">
-                                          <p className="text-[10px] font-black text-slate-800 truncate leading-tight" title={file.name}>{file.name}</p>
-                                          <p className="text-[8px] font-bold text-slate-400 leading-none">{formatBytes(file.size)}</p>
-                                       </div>
-                                    </div>
-                                    <button 
-                                      type="button" 
-                                      onClick={() => removeFile(idx)}
-                                      className="p-1 hover:bg-emerald-100/60 rounded-md text-emerald-600/50 hover:text-red-500 transition-all border border-transparent shadow-sm"
-                                    >
-                                       <X size={10} />
-                                    </button>
-                                 </div>
-                              ))}
+                      </div>
+                      <div className="flex-1 flex flex-col min-h-[160px]">
+                         <div className="flex justify-between items-center mb-2">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Danh sách tài nguyên nộp</span>
+                            {(selectedFiles.length > 0 || links.length > 0) && (
+                               <span className="text-[8px] font-black text-[#003D82] uppercase bg-blue-50/80 px-2 py-0.5 rounded-md tracking-wider">
+                                  📂 {selectedFiles.length} file • 🔗 {links.length} link
+                               </span>
+                            )}
+                         </div>
+                         
+                         {selectedFiles.length === 0 && links.length === 0 ? (
+                            <div className="h-[175px] flex flex-col items-center justify-center border border-slate-100 rounded-[20px] bg-slate-50/50 p-6 text-center">
+                               <span className="text-slate-300 mb-1"><FileText size={20} /></span>
+                               <p className="text-[9px] font-bold text-slate-400">Chưa có tài liệu hoặc liên kết nào được đính kèm</p>
+                            </div>
+                         ) : (
+                            <div className="space-y-1.5 max-h-[175px] overflow-y-auto pr-1">
+                               {/* selectedFiles List Cards */}
+                               {selectedFiles.map((file, idx) => (
+                                  <div key={`file-${idx}`} className="flex items-center justify-between p-2.5 bg-emerald-50/40 border border-emerald-100/50 rounded-xl animate-in fade-in slide-in-from-bottom-1 duration-200">
+                                     <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                                           <FileText size={14} />
+                                        </div>
+                                        <div className="min-w-0">
+                                           <p className="text-[10px] font-black text-slate-800 truncate leading-tight" title={file.name}>{file.name}</p>
+                                           <p className="text-[8px] font-bold text-slate-400 leading-none">{formatBytes(file.size)}</p>
+                                        </div>
+                                     </div>
+                                     <button 
+                                       type="button" 
+                                       onClick={() => removeFile(idx)}
+                                       className="p-1 hover:bg-emerald-100/60 rounded-md text-emerald-600/50 hover:text-red-500 transition-all border border-transparent shadow-sm"
+                                     >
+                                        <X size={10} />
+                                     </button>
+                                  </div>
+                               ))}
 
-                              {/* links List Cards */}
-                              {links.map((link, idx) => {
-                                 const isGithub = link.name?.toLowerCase().includes("github") || link.url?.toLowerCase().includes("github");
-                                 const isDrive = link.name?.toLowerCase().includes("drive") || link.url?.toLowerCase().includes("drive") || link.name?.toLowerCase().includes("video");
-                                 const isSlide = link.name?.toLowerCase().includes("slide");
-                                 
-                                 let cardBg = "bg-blue-50/40 border-blue-100/50 text-blue-600";
-                                 let iconBg = "bg-blue-50 text-blue-600";
-                                 if (isGithub) { cardBg = "bg-slate-50 border-slate-200/60 text-slate-800"; iconBg = "bg-slate-100 text-slate-800"; }
-                                 else if (isDrive) { cardBg = "bg-amber-50/40 border-amber-100/50 text-amber-600"; iconBg = "bg-amber-50 text-amber-600"; }
-                                 else if (isSlide) { cardBg = "bg-orange-50/40 border-orange-100/50 text-orange-600"; iconBg = "bg-orange-50 text-orange-600"; }
+                               {/* links List Cards */}
+                               {links.map((link, idx) => {
+                                  const isGithub = link.name?.toLowerCase().includes("github") || link.url?.toLowerCase().includes("github");
+                                  const isDrive = link.name?.toLowerCase().includes("drive") || link.url?.toLowerCase().includes("drive") || link.name?.toLowerCase().includes("video");
+                                  const isSlide = link.name?.toLowerCase().includes("slide");
+                                  
+                                  let cardBg = "bg-blue-50/40 border-blue-100/50 text-blue-600";
+                                  let iconBg = "bg-blue-50 text-blue-600";
+                                  if (isGithub) { cardBg = "bg-slate-50 border-slate-200/60 text-slate-800"; iconBg = "bg-slate-100 text-slate-800"; }
+                                  else if (isDrive) { cardBg = "bg-amber-50/40 border-amber-100/50 text-amber-600"; iconBg = "bg-amber-50 text-amber-600"; }
+                                  else if (isSlide) { cardBg = "bg-orange-50/40 border-orange-100/50 text-orange-600"; iconBg = "bg-orange-50 text-orange-600"; }
 
-                                 return (
-                                    <div key={`link-${idx}`} className={`flex items-center justify-between p-2.5 ${cardBg} border rounded-xl animate-in fade-in slide-in-from-bottom-1 duration-200`}>
-                                       <div className="flex items-center gap-2.5 min-w-0">
-                                          <div className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0`}>
-                                             <ExternalLink size={12} />
-                                          </div>
-                                          <div className="min-w-0">
-                                             <p className="text-[10px] font-black text-slate-800 truncate leading-tight" title={link.name}>{link.name}</p>
-                                             <p className="text-[8px] font-bold text-slate-400 truncate leading-none" title={link.url}>{link.url}</p>
-                                          </div>
-                                       </div>
-                                       <button 
-                                         type="button" 
-                                         onClick={() => removeLink(idx)}
-                                         className="p-1 hover:bg-white rounded-md text-slate-400 hover:text-red-500 transition-all border border-transparent shadow-sm"
-                                       >
-                                          <X size={10} />
-                                       </button>
-                                    </div>
-                                 );
-                              })}
-                           </div>
-                        )}
-                     </div>
+                                  return (
+                                     <div key={`link-${idx}`} className={`flex items-center justify-between p-2.5 ${cardBg} border rounded-xl animate-in fade-in slide-in-from-bottom-1 duration-200`}>
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                           <div className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0`}>
+                                              <ExternalLink size={12} />
+                                           </div>
+                                           <div className="min-w-0">
+                                              <p className="text-[10px] font-black text-slate-800 truncate leading-tight" title={link.name}>{link.name}</p>
+                                              <p className="text-[8px] font-bold text-slate-400 truncate leading-none" title={link.url}>{link.url}</p>
+                                           </div>
+                                        </div>
+                                        <button 
+                                          type="button" 
+                                          onClick={() => removeLink(idx)}
+                                          className="p-1 hover:bg-white rounded-md text-slate-400 hover:text-red-500 transition-all border border-transparent shadow-sm"
+                                        >
+                                           <X size={10} />
+                                        </button>
+                                     </div>
+                                  );
+                               })}
+                            </div>
+                         )}
+                      </div>
                   </div>
-               </div>
-               <div className="pt-8 border-t border-slate-100 flex items-center justify-between">
-                  <div className="flex flex-col gap-1">
-                     <p className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-1.5"><AlertCircle size={14} /> Định dạng: PDF, DOC, DOCX (Tối đa 10MB / tệp)</p>
-                  </div>
-                  <button type="submit" disabled={submitting || (selectedFiles.length === 0 && links.length === 0)}
-                    className={`px-12 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] transition-all
-                      ${submitting || (selectedFiles.length === 0 && links.length === 0) ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-[#F37021] text-white shadow-xl shadow-orange-100 hover:bg-orange-600"}`}>
-                    {submitting ? "Đang xử lý..." : "Gửi báo cáo ngay"}
-                  </button>
-               </div>
+              </div>
+
+              <div className="pt-8 border-t border-slate-100 flex items-center justify-between">
+                 <div className="flex flex-col gap-1">
+                    <p className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-1.5">
+                       <AlertCircle size={14} /> Định dạng: PDF, DOC, DOCX (Tối đa 10MB / tệp)
+                    </p>
+                 </div>
+                 {(() => {
+                    const isSubmitDisabled = submitting || (selectedFiles.length === 0 && links.length === 0);
+                    return (
+                       <button 
+                          type="submit" 
+                          disabled={isSubmitDisabled}
+                          className={`px-12 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] transition-all
+                            ${isSubmitDisabled 
+                              ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                              : isLateRequest 
+                                ? "bg-amber-500 text-white shadow-xl shadow-amber-100 hover:bg-amber-600"
+                                : "bg-[#F37021] text-white shadow-xl shadow-orange-100 hover:bg-orange-600"}`}
+                       >
+                          {getSubmitButtonText()}
+                       </button>
+                    );
+                 })()}
+              </div>
             </form>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* --- RIGHT: HISTORY TABLE --- */}
         <div className="bg-white rounded-[24px] shadow-sm border border-slate-100 flex flex-col overflow-hidden h-full max-h-[800px]">
@@ -901,115 +1197,195 @@ const Reports: React.FC = () => {
            
            {/* Modal Box */}
            <div className="bg-white rounded-[32px] overflow-hidden shadow-2xl border border-slate-100 w-full max-w-2xl relative z-10 animate-in zoom-in-95 duration-200 flex flex-col">
-              {/* Header */}
-              <div className="p-8 pb-4 text-center">
-                 <div className="w-14 h-14 bg-orange-50 text-[#F37021] rounded-2xl flex items-center justify-center mx-auto mb-4 animate-bounce">
-                    <Send size={24} />
-                 </div>
-                 <h3 className="text-lg font-black text-slate-800 tracking-tight uppercase">Xác nhận gửi báo cáo</h3>
-                 <p className="text-[11px] font-bold text-slate-400 mt-1">Vui lòng rà soát lại thông tin báo cáo dưới đây thật kỹ trước khi gửi tới Giảng viên hướng dẫn.</p>
-              </div>
+              {isLateRequest ? (
+                /* --- LATE REQUEST CONFIRMATION --- */
+                <>
+                  {/* Header */}
+                  <div className="p-8 pb-4 text-center">
+                     <div className="w-14 h-14 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-bounce">
+                        <Clock size={24} />
+                     </div>
+                     <h3 className="text-lg font-black text-amber-800 tracking-tight uppercase">
+                        Gửi yêu cầu xin nộp muộn
+                     </h3>
+                     <p className="text-[11px] font-bold text-slate-400 mt-1">
+                        Vui lòng rà soát lại lý do xin nộp muộn dưới đây thật kỹ trước khi gửi tới Giảng viên hướng dẫn.
+                     </p>
+                  </div>
 
-              {/* Content Review Area */}
-              <div className="px-8 py-2 space-y-5 flex-1 overflow-y-auto max-h-[360px]">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {/* Left Panel: Report Text Info */}
-                    <div className="space-y-4">
-                       <div className="flex items-center gap-2">
-                         <ClipboardList size={14} />
-                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nội dung báo cáo</span>
-                       </div>
-                       <div className="space-y-3">
-                          <div>
-                             <span className="text-[8px] font-black text-slate-400 uppercase">Tiêu đề</span>
-                             <p className="text-xs font-black text-slate-800 leading-tight truncate">{reportTitle || "Chưa nhập tiêu đề"}</p>
-                          </div>
-                          <div>
-                             <span className="text-[8px] font-black text-slate-400 uppercase">Nội dung chi tiết</span>
-                             <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-[11px] text-slate-600 font-bold leading-relaxed max-h-[140px] overflow-y-auto mt-1 whitespace-pre-wrap">
-                                {reportDescription || "Không có mô tả chi tiết."}
-                             </div>
-                          </div>
-                       </div>
-                    </div>
+                  {/* Content Review Area */}
+                  <div className="px-8 py-2 space-y-5 flex-1 overflow-y-auto max-h-[360px]">
+                     <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <ClipboardList size={14} className="text-amber-500" />
+                          <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest">Nội dung yêu cầu</span>
+                        </div>
+                        <div className="bg-amber-50/50 border border-amber-100 p-5 rounded-2xl space-y-3">
+                           <div className="grid grid-cols-2 gap-4 border-b border-amber-100/50 pb-3">
+                              <div>
+                                 <span className="text-[8px] font-black text-amber-600 uppercase block">Mốc tiến độ</span>
+                                 <span className="text-xs font-black text-amber-800">{currentMilestone?.milestoneCode}</span>
+                              </div>
+                              <div className="text-right">
+                                 <span className="text-[8px] font-black text-amber-600 uppercase block">Giảng viên nhận</span>
+                                 <span className="text-xs font-black text-amber-800">{lecturerProfile?.fullName || "Chưa phân công"}</span>
+                              </div>
+                           </div>
+                           <div>
+                              <span className="text-[8px] font-black text-amber-600 uppercase block mb-1">Lý do xin nộp muộn</span>
+                              <div className="bg-white border border-amber-200 p-4 rounded-xl text-xs text-slate-700 font-bold leading-relaxed max-h-[140px] overflow-y-auto whitespace-pre-wrap">
+                                 {lateReason}
+                              </div>
+                           </div>
+                        </div>
+                     </div>
 
-                    {/* Right Panel: Resources Info */}
-                    <div className="space-y-4">
-                       <div className="flex justify-between items-center">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">🔗 Tài nguyên đính kèm</span>
-                          <span className="text-[8px] font-black text-[#003D82] uppercase bg-blue-50/80 px-2 py-0.5 rounded-md tracking-wider">
-                             📂 {selectedFiles.length} file • 🔗 {links.length} link
-                          </span>
-                       </div>
-                       
-                       <div className="space-y-1.5 max-h-[190px] overflow-y-auto pr-1">
-                          {selectedFiles.map((file, idx) => (
-                             <div key={`confirm-file-${idx}`} className="flex items-center gap-2.5 p-2 bg-emerald-50/40 border border-emerald-100/50 rounded-xl">
-                                <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
-                                   <FileText size={12} />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                   <p className="text-[9px] font-black text-slate-800 truncate leading-tight" title={file.name}>{file.name}</p>
-                                   <p className="text-[7px] font-bold text-slate-400 leading-none">{formatBytes(file.size)}</p>
-                                </div>
-                             </div>
-                          ))}
+                     <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-100 rounded-2xl">
+                        <AlertCircle size={14} className="text-red-600 mt-0.5 flex-shrink-0 animate-pulse" />
+                        <p className="text-[10px] font-bold text-red-700 leading-normal">
+                           <strong>⚠️ Lưu ý gửi yêu cầu:</strong> Hệ thống sẽ gửi thông báo khẩn cấp tới Giảng viên hướng dẫn trực tiếp. Bạn cần đợi giảng viên đồng ý mở cổng thì mới có thể tiến hành nộp file báo cáo chính thức.
+                        </p>
+                     </div>
+                  </div>
 
-                          {links.map((link, idx) => {
-                             const isGithub = link.name?.toLowerCase().includes("github") || link.url?.toLowerCase().includes("github");
-                             const isDrive = link.name?.toLowerCase().includes("drive") || link.url?.toLowerCase().includes("drive");
-                             const isSlide = link.name?.toLowerCase().includes("slide");
-                             
-                             let cardBg = "bg-blue-50/40 border-blue-100/50 text-blue-600";
-                             let iconBg = "bg-blue-50 text-blue-600";
-                             if (isGithub) { cardBg = "bg-slate-50 border-slate-200/60 text-slate-800"; iconBg = "bg-slate-100 text-slate-800"; }
-                             else if (isDrive) { cardBg = "bg-amber-50/40 border-amber-100/50 text-amber-600"; iconBg = "bg-amber-50 text-amber-600"; }
-                             else if (isSlide) { cardBg = "bg-orange-50/40 border-orange-100/50 text-orange-600"; iconBg = "bg-orange-50 text-orange-600"; }
+                  {/* Action Buttons */}
+                  <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                     <button 
+                       type="button"
+                       onClick={() => setShowConfirmModal(false)}
+                       disabled={submitting}
+                       className="px-6 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[11px] uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all disabled:opacity-50"
+                     >
+                        Quay lại
+                     </button>
+                     <button 
+                       type="button"
+                       onClick={performSubmit}
+                       disabled={submitting}
+                       className="px-10 py-4 bg-amber-500 text-white shadow-xl shadow-amber-100 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-amber-600 transition-all flex items-center gap-2 disabled:bg-slate-300 disabled:shadow-none"
+                     >
+                        {submitting ? "Đang gửi yêu cầu..." : "Xác nhận & Gửi yêu cầu"}
+                     </button>
+                  </div>
+                </>
+              ) : (
+                /* --- REGULAR REPORT SUBMISSION CONFIRMATION --- */
+                <>
+                  {/* Header */}
+                  <div className="p-8 pb-4 text-center">
+                     <div className="w-14 h-14 bg-orange-50 text-[#F37021] rounded-2xl flex items-center justify-center mx-auto mb-4 animate-bounce">
+                        <Send size={24} />
+                     </div>
+                     <h3 className="text-lg font-black text-slate-800 tracking-tight uppercase">
+                        Xác nhận gửi báo cáo
+                     </h3>
+                     <p className="text-[11px] font-bold text-slate-400 mt-1">
+                        Vui lòng rà soát lại thông tin báo cáo dưới đây thật kỹ trước khi gửi tới Giảng viên hướng dẫn.
+                     </p>
+                  </div>
 
-                             return (
-                                <div key={`confirm-link-${idx}`} className={`flex items-center gap-2.5 p-2 ${cardBg} border rounded-xl`}>
-                                   <div className={`w-6 h-6 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0`}>
-                                      <ExternalLink size={10} />
-                                   </div>
-                                   <div className="min-w-0 flex-1">
-                                      <p className="text-[9px] font-black text-slate-800 truncate leading-tight" title={link.name}>{link.name}</p>
-                                      <p className="text-[7px] font-bold text-slate-400 truncate leading-none" title={link.url}>{link.url}</p>
-                                   </div>
-                                </div>
-                             );
-                          })}
-                       </div>
-                    </div>
-                 </div>
+                  {/* Content Review Area */}
+                  <div className="px-8 py-2 space-y-5 flex-1 overflow-y-auto max-h-[360px]">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {/* Left Panel: Report Text Info */}
+                        <div className="space-y-4">
+                           <div className="flex items-center gap-2">
+                             <ClipboardList size={14} />
+                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nội dung báo cáo</span>
+                           </div>
+                           <div className="space-y-3">
+                              <div>
+                                 <span className="text-[8px] font-black text-slate-400 uppercase">Tiêu đề</span>
+                                 <p className="text-xs font-black text-slate-800 leading-tight truncate">{reportTitle || "Chưa nhập tiêu đề"}</p>
+                              </div>
+                              <div>
+                                 <span className="text-[8px] font-black text-slate-400 uppercase">Nội dung chi tiết</span>
+                                 <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-[11px] text-slate-600 font-bold leading-relaxed max-h-[140px] overflow-y-auto mt-1 whitespace-pre-wrap">
+                                    {reportDescription || "Không có mô tả chi tiết."}
+                                 </div>
+                              </div>
+                           </div>
+                        </div>
 
-                 {/* Warning Banner */}
-                 <div className="flex items-start gap-2.5 p-3.5 bg-amber-50/70 border border-amber-100/50 rounded-2xl">
-                    <AlertCircle size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
-                    <p className="text-[10px] font-bold text-amber-700 leading-normal">
-                       <strong>Lưu ý quan trọng:</strong> Sau khi gửi, bạn sẽ không thể tự ý sửa đổi hoặc xóa tài nguyên của mốc này trừ khi Giảng viên hướng dẫn đánh giá "Cần sửa" và mở quyền nộp lại.
-                    </p>
-                 </div>
-              </div>
+                        {/* Right Panel: Resources Info */}
+                        <div className="space-y-4">
+                           <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">🔗 Tài nguyên đính kèm</span>
+                              <span className="text-[8px] font-black text-[#003D82] uppercase bg-blue-50/80 px-2 py-0.5 rounded-md tracking-wider">
+                                 📂 {selectedFiles.length} file • 🔗 {links.length} link
+                              </span>
+                           </div>
+                           
+                           <div className="space-y-1.5 max-h-[190px] overflow-y-auto pr-1">
+                              {selectedFiles.map((file, idx) => (
+                                 <div key={`confirm-file-${idx}`} className="flex items-center gap-2.5 p-2 bg-emerald-50/40 border border-emerald-100/50 rounded-xl">
+                                    <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                                       <FileText size={12} />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                       <p className="text-[9px] font-black text-slate-800 truncate leading-tight" title={file.name}>{file.name}</p>
+                                       <p className="text-[7px] font-bold text-slate-400 leading-none">{formatBytes(file.size)}</p>
+                                    </div>
+                                 </div>
+                              ))}
 
-              {/* Action Buttons */}
-              <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
-                 <button 
-                   type="button"
-                   onClick={() => setShowConfirmModal(false)}
-                   disabled={submitting}
-                   className="px-6 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[11px] uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all disabled:opacity-50"
-                 >
-                    Quay lại kiểm tra
-                 </button>
-                 <button 
-                   type="button"
-                   onClick={performSubmit}
-                   disabled={submitting}
-                   className="px-10 py-4 bg-[#F37021] text-white shadow-xl shadow-orange-100 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-orange-600 transition-all flex items-center gap-2 disabled:bg-slate-300 disabled:shadow-none"
-                 >
-                    {submitting ? "Đang gửi báo cáo..." : "Xác nhận & Gửi ngay"}
-                 </button>
-              </div>
+                              {links.map((link, idx) => {
+                                 const isGithub = link.name?.toLowerCase().includes("github") || link.url?.toLowerCase().includes("github");
+                                 const isDrive = link.name?.toLowerCase().includes("drive") || link.url?.toLowerCase().includes("drive");
+                                 const isSlide = link.name?.toLowerCase().includes("slide");
+                                 
+                                 let cardBg = "bg-blue-50/40 border-blue-100/50 text-blue-600";
+                                 let iconBg = "bg-blue-50 text-blue-600";
+                                 if (isGithub) { cardBg = "bg-slate-50 border-slate-200/60 text-slate-800"; iconBg = "bg-slate-100 text-slate-800"; }
+                                 else if (isDrive) { cardBg = "bg-amber-50/40 border-amber-100/50 text-amber-600"; iconBg = "bg-amber-50 text-amber-600"; }
+                                 else if (isSlide) { cardBg = "bg-orange-50/40 border-orange-100/50 text-orange-600"; iconBg = "bg-orange-50 text-orange-600"; }
+
+                                 return (
+                                    <div key={`confirm-link-${idx}`} className={`flex items-center gap-2.5 p-2 ${cardBg} border rounded-xl`}>
+                                       <div className={`w-6 h-6 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0`}>
+                                          <ExternalLink size={10} />
+                                       </div>
+                                       <div className="min-w-0 flex-1">
+                                          <p className="text-[9px] font-black text-slate-800 truncate leading-tight" title={link.name}>{link.name}</p>
+                                          <p className="text-[7px] font-bold text-slate-400 truncate leading-none" title={link.url}>{link.url}</p>
+                                       </div>
+                                    </div>
+                                 );
+                              })}
+                           </div>
+                        </div>
+                     </div>
+
+                     {/* Warning Banner */}
+                     <div className="flex items-start gap-2.5 p-3.5 bg-amber-50/70 border border-amber-100/50 rounded-2xl">
+                        <AlertCircle size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-[10px] font-bold text-amber-700 leading-normal">
+                           <strong>Lưu ý quan trọng:</strong> Sau khi gửi, bạn sẽ không thể tự ý sửa đổi hoặc xóa tài nguyên của mốc này trừ khi Giảng viên hướng dẫn đánh giá "Cần sửa" và mở quyền nộp lại.
+                        </p>
+                     </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                     <button 
+                       type="button"
+                       onClick={() => setShowConfirmModal(false)}
+                       disabled={submitting}
+                       className="px-6 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[11px] uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all disabled:opacity-50"
+                     >
+                        Quay lại kiểm tra
+                     </button>
+                     <button 
+                       type="button"
+                       onClick={performSubmit}
+                       disabled={submitting}
+                       className="px-10 py-4 bg-[#F37021] text-white shadow-xl shadow-orange-100 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-orange-600 transition-all flex items-center gap-2 disabled:bg-slate-300 disabled:shadow-none"
+                     >
+                        {submitting ? "Đang gửi báo cáo..." : "Xác nhận & Gửi ngay"}
+                     </button>
+                  </div>
+                </>
+              )}
            </div>
         </div>
       )}

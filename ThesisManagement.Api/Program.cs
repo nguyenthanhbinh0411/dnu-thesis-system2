@@ -84,6 +84,7 @@ using ThesisManagement.Api.Services.FileStorage;
 using ThesisManagement.Api.Services.DefenseDocuments;
 using ThesisManagement.Api.Services.TopicRenameRequests;
 using ThesisManagement.Api.Services.Reports;
+using ThesisManagement.Api.Services.MilestoneOverdue;
 using ThesisManagement.Api.Application.Command.TopicRenameRequests;
 using ThesisManagement.Api.Application.Query.TopicRenameRequests;
 using ThesisManagement.Api.Mappings;
@@ -197,6 +198,8 @@ builder.Services.Configure<DefenseResiliencePolicyOptions>(
     builder.Configuration.GetSection("DefenseResiliencePolicy"));
 builder.Services.Configure<FileStorageOptions>(
     builder.Configuration.GetSection("Mega"));
+builder.Services.Configure<MilestoneOverdueOptions>(
+    builder.Configuration.GetSection("MilestoneOverdue"));
 
 // EF Core
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -390,6 +393,10 @@ builder.Services.AddScoped<IGetProgressMilestoneUpdateQuery, GetProgressMileston
 builder.Services.AddScoped<ICreateProgressMilestoneCommand, CreateProgressMilestoneCommand>();
 builder.Services.AddScoped<IUpdateProgressMilestoneCommand, UpdateProgressMilestoneCommand>();
 builder.Services.AddScoped<IDeleteProgressMilestoneCommand, DeleteProgressMilestoneCommand>();
+builder.Services.AddScoped<IOverrideMilestoneFailureCommand, OverrideMilestoneFailureCommand>();
+// MilestoneOverdueJob registered as Singleton so it can be injected into controllers for manual trigger
+builder.Services.AddSingleton<MilestoneOverdueJob>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<MilestoneOverdueJob>());
 builder.Services.AddScoped<IGetProgressSubmissionsListQuery, GetProgressSubmissionsListQuery>();
 builder.Services.AddScoped<IGetProgressSubmissionDetailQuery, GetProgressSubmissionDetailQuery>();
 builder.Services.AddScoped<IGetProgressSubmissionCreateQuery, GetProgressSubmissionCreateQuery>();

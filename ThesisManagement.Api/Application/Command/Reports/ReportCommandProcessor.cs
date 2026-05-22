@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ThesisManagement.Api.Application.Command.ProgressSubmissions;
 using ThesisManagement.Api.Application.Command.Notifications;
 using ThesisManagement.Api.Application.Common;
@@ -10,6 +12,7 @@ using ThesisManagement.Api.DTOs.Reports.Query;
 using ThesisManagement.Api.Models;
 using ThesisManagement.Api.Services;
 using ThesisManagement.Api.Services.FileStorage;
+using ThesisManagement.Api.Services.MilestoneOverdue;
 
 namespace ThesisManagement.Api.Application.Command.Reports
 {
@@ -26,19 +29,25 @@ namespace ThesisManagement.Api.Application.Command.Reports
         private readonly IUpdateProgressSubmissionCommand _updateProgressSubmissionCommand;
         private readonly INotificationEventPublisher _notificationEventPublisher;
         private readonly IFileStorageService _storageService;
+        private readonly MilestoneOverdueOptions _overdueOptions;
+        private readonly ILogger<ReportCommandProcessor> _logger;
 
         public ReportCommandProcessor(
             IUnitOfWork uow,
             ApplicationDbContext db,
             IUpdateProgressSubmissionCommand updateProgressSubmissionCommand,
             INotificationEventPublisher notificationEventPublisher,
-            IFileStorageService storageService)
+            IFileStorageService storageService,
+            IOptions<MilestoneOverdueOptions> overdueOptions,
+            ILogger<ReportCommandProcessor> logger)
         {
             _uow = uow;
             _db = db;
             _updateProgressSubmissionCommand = updateProgressSubmissionCommand;
             _notificationEventPublisher = notificationEventPublisher;
             _storageService = storageService;
+            _overdueOptions = overdueOptions.Value;
+            _logger = logger;
         }
 
         public async Task<OperationResult<StudentProgressSubmitResultDto>> SubmitStudentProgressAsync(StudentProgressSubmitFormDto payload, IReadOnlyList<IFormFile> files)
@@ -56,6 +65,80 @@ namespace ThesisManagement.Api.Application.Command.Reports
             var milestone = await _uow.ProgressMilestones.Query().FirstOrDefaultAsync(x => x.MilestoneCode == payload.MilestoneCode && x.TopicCode == payload.TopicCode);
             if (milestone == null)
                 return OperationResult<StudentProgressSubmitResultDto>.Failed("Milestone not found", 404);
+
+            // ── Guard 1: Chặn nộp khi milestone đã bị FAILED (và chưa được EXEMPTED) ──
+            if (string.Equals(milestone.State, "FAILED", StringComparison.OrdinalIgnoreCase))
+            {
+                var failureReason = milestone.FailureReason ?? "";
+                if (!failureReason.StartsWith("EXEMPTED", StringComparison.OrdinalIgnoreCase))
+                {
+                    return OperationResult<StudentProgressSubmitResultDto>.Failed(
+                        "Mốc tiến độ này đã bị đánh dấu thất bại do quá hạn. " +
+                        "Vui lòng liên hệ giảng viên hướng dẫn để được xem xét gia hạn hoặc miễn trừ.", 409);
+                }
+            }
+
+            // ── Guard 2: Chặn nộp mốc N khi mốc N-1 chưa được duyệt (sequential guard) ──
+            if (_overdueOptions.EnableSequentialSubmissionGuard)
+            {
+                var currentOrdinal = milestone.Ordinal ?? 1;
+                if (currentOrdinal > 1)
+                {
+                    var previousCompleted = IsOrdinalCompleted(milestone, currentOrdinal - 1);
+                    if (!previousCompleted)
+                    {
+                        var prevLabel = GetMilestoneLabel(currentOrdinal - 1);
+                        return OperationResult<StudentProgressSubmitResultDto>.Failed(
+                            $"Bạn chưa hoàn thành mốc trước ({prevLabel}). " +
+                            "Vui lòng chờ giảng viên duyệt báo cáo của mốc trước trước khi nộp mốc này.", 409);
+                    }
+                }
+            }
+
+            // ── Guard 3: Chặn nộp khi đã quá deadline mà chưa được GV cấp phép nộp muộn ──
+            if (milestone.Deadline.HasValue && milestone.Deadline.Value < DateTime.UtcNow)
+            {
+                if (!milestone.AllowLateSubmit)
+                {
+                    // Gửi notification yêu cầu GV xem xét cấp phép nộp muộn (best-effort)
+                    if (!string.IsNullOrWhiteSpace(topic.SupervisorLecturerCode))
+                    {
+                        var supervisorUser = await _uow.LecturerProfiles.Query()
+                            .FirstOrDefaultAsync(x => x.LecturerCode == topic.SupervisorLecturerCode);
+                        if (!string.IsNullOrWhiteSpace(supervisorUser?.UserCode))
+                        {
+                            try
+                            {
+                                await _notificationEventPublisher.PublishAsync(new NotificationEventRequest(
+                                    NotifCategory: "LATE_SUBMIT_REQUEST",
+                                    NotifTitle: "Sinh viên yêu cầu nộp muộn",
+                                    NotifBody: $"Sinh viên {payload.StudentUserCode} xin nộp muộn cho mốc {milestone.MilestoneCode} (deadline: {milestone.Deadline.Value:dd/MM/yyyy}). " +
+                                               $"Lý do: {(string.IsNullOrWhiteSpace(payload.ReportDescription) ? "(Không có lý do giải trình)" : payload.ReportDescription)}. " +
+                                               "Vào trang quản lý sinh viên để cấp phép nộp muộn nếu đồng ý.",
+                                    NotifPriority: "HIGH",
+                                    ActionType: "OPEN_STUDENT_MILESTONE",
+                                    ActionUrl: $"/lecturer/students?milestoneId={milestone.MilestoneID}",
+                                    RelatedEntityName: "PROGRESS_MILESTONE",
+                                    RelatedEntityCode: milestone.MilestoneCode,
+                                    RelatedEntityID: milestone.MilestoneID,
+                                    IsGlobal: false,
+                                    TargetUserCodes: new List<string> { supervisorUser.UserCode }));
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Failed to send late-submit notification for milestone {MilestoneID}", milestone.MilestoneID);
+                            }
+                        }
+                    }
+
+                    return OperationResult<StudentProgressSubmitResultDto>.Failed(
+                        $"Đã quá hạn nộp báo cáo cho mốc này (deadline: {milestone.Deadline.Value:dd/MM/yyyy HH:mm} UTC). " +
+                        "Yêu cầu nộp muộn đã được gửi đến giảng viên hướng dẫn. " +
+                        "Vui lòng chờ giảng viên cấp phép trước khi nộp.", 409);
+                }
+                // AllowLateSubmit = true: cho qua, sẽ reset sau khi lưu thành công
+                _logger.LogInformation("Late submit allowed for milestone {MilestoneID} by {GrantedBy}", milestone.MilestoneID, milestone.LateSubmitGrantedBy);
+            }
 
             var latestSubmissionForMilestone = await _uow.ProgressSubmissions.Query()
                 .Where(x => x.StudentUserCode == payload.StudentUserCode && x.MilestoneID == milestone.MilestoneID)
@@ -185,6 +268,16 @@ namespace ThesisManagement.Api.Application.Command.Reports
                 }
 
                 await transaction.CommitAsync();
+
+                // Reset AllowLateSubmit sau khi SV đã nộp thành công (chỉ dùng 1 lần)
+                if (milestone.AllowLateSubmit)
+                {
+                    milestone.AllowLateSubmit = false;
+                    milestone.LastUpdated = DateTime.UtcNow;
+                    _uow.ProgressMilestones.Update(milestone);
+                    await _uow.SaveChangesAsync();
+                    _logger.LogInformation("AllowLateSubmit reset for milestone {MilestoneID} after successful late submission", milestone.MilestoneID);
+                }
 
                 if (!string.IsNullOrWhiteSpace(lecturerProfile.UserCode))
                 {
@@ -337,8 +430,28 @@ namespace ThesisManagement.Api.Application.Command.Reports
                 var topic = await _uow.Topics.GetByIdAsync(topicId);
                 if (topic != null)
                 {
+                    // ── Guard 3: Kiểm tra tất cả mốc trước đã hoàn thành trước khi cấp điều kiện bảo vệ ──
+                    var allPriorCompleted =
+                        currentMilestone.CompletedAt1 != null &&
+                        currentMilestone.CompletedAt2 != null &&
+                        currentMilestone.CompletedAt3 != null &&
+                        currentMilestone.CompletedAt4 != null;
+
+                    if (!allPriorCompleted)
+                    {
+                        _logger.LogWarning(
+                            "[ReportCommandProcessor] Topic {TopicCode}: Cannot grant defense eligibility. " +
+                            "Not all prior milestones completed. CompletedAt1={C1}, CompletedAt2={C2}, CompletedAt3={C3}, CompletedAt4={C4}",
+                            topic.TopicCode,
+                            currentMilestone.CompletedAt1, currentMilestone.CompletedAt2,
+                            currentMilestone.CompletedAt3, currentMilestone.CompletedAt4);
+                        // Vẫn để tiếp tục nhưng không grant eligible
+                    }
+                    else
+                    {
                     topic.Score = dto.Score ?? topic.Score;
-                    topic.Status = "Đủ điều kiện bảo vệ";
+                    if (allPriorCompleted)
+                        topic.Status = "Đủ điều kiện bảo vệ";
                     topic.LastUpdated = DateTime.UtcNow;
                     topic.LecturerComment = submission.LecturerComment ?? topic.LecturerComment;
 
@@ -362,6 +475,7 @@ namespace ThesisManagement.Api.Application.Command.Reports
                     topic.NumForeignReferences = dto.NumForeignReferences ?? topic.NumForeignReferences;
 
                     _uow.Topics.Update(topic);
+                    } // end allPriorCompleted check
                 }
             }
             // 3. Handle transition to next milestone within the SAME record
@@ -384,6 +498,28 @@ namespace ThesisManagement.Api.Application.Command.Reports
 
             await _uow.SaveChangesAsync();
         }
+
+        // ── Static helpers for sequential guard ──
+
+        private static bool IsOrdinalCompleted(ProgressMilestone m, int ordinal) => ordinal switch
+        {
+            1 => m.CompletedAt1 != null,
+            2 => m.CompletedAt2 != null,
+            3 => m.CompletedAt3 != null,
+            4 => m.CompletedAt4 != null,
+            5 => m.CompletedAt5 != null,
+            _ => false
+        };
+
+        private static string GetMilestoneLabel(int ordinal) => ordinal switch
+        {
+            1 => "Đăng ký đề tài (Mốc 1)",
+            2 => "Báo cáo tiến độ lần 1 (Mốc 2)",
+            3 => "Báo cáo tiến độ lần 2 (Mốc 3)",
+            4 => "Hoàn thiện khóa luận (Mốc 4)",
+            5 => "Bảo vệ luận văn (Mốc 5)",
+            _ => $"Mốc {ordinal}"
+        };
 
         private async Task<int> GetNextProgressMilestoneIdAsync()
         {

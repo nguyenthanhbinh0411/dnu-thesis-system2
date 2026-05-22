@@ -2656,6 +2656,10 @@ namespace ThesisManagement.Api.Migrations
 
                     OraclePropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("MilestoneID"));
 
+                    b.Property<bool>("AllowLateSubmit")
+                        .HasColumnType("BOOLEAN")
+                        .HasColumnName("ALLOWLATESUBMIT");
+
                     b.Property<DateTime?>("CompletedAt1")
                         .HasColumnType("TIMESTAMP(7)")
                         .HasColumnName("COMPLETEDAT1");
@@ -2686,11 +2690,27 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnType("TIMESTAMP(7)")
                         .HasColumnName("DEADLINE");
 
+                    b.Property<DateTime?>("FailedAt")
+                        .HasColumnType("TIMESTAMP(7)")
+                        .HasColumnName("FAILEDAT");
+
+                    b.Property<string>("FailureReason")
+                        .HasColumnType("NVARCHAR2(2000)")
+                        .HasColumnName("FAILUREREASON");
+
                     b.Property<DateTime>("LastUpdated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TIMESTAMP(7)")
                         .HasColumnName("LASTUPDATED")
                         .HasDefaultValueSql("SYSTIMESTAMP");
+
+                    b.Property<DateTime?>("LateSubmitGrantedAt")
+                        .HasColumnType("TIMESTAMP(7)")
+                        .HasColumnName("LATESUBMITGRANTEDAT");
+
+                    b.Property<string>("LateSubmitGrantedBy")
+                        .HasColumnType("NVARCHAR2(2000)")
+                        .HasColumnName("LATESUBMITGRANTEDBY");
 
                     b.Property<string>("MilestoneCode")
                         .IsRequired()

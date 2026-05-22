@@ -48,7 +48,8 @@ namespace ThesisManagement.Api.DTOs.Reports.Query
         DateTime? CompletedAt2,
         DateTime? CompletedAt3,
         DateTime? CompletedAt4,
-        DateTime? CompletedAt5);
+        DateTime? CompletedAt5,
+        bool AllowLateSubmit = false);
 
     public record ReportSupervisorDto(
         int LecturerProfileID,

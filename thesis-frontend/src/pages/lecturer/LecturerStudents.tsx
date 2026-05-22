@@ -25,6 +25,9 @@ import {
   TrendingUp,
   RotateCcw,
   Bell,
+  ShieldAlert,
+  CalendarClock,
+  ShieldCheck,
 } from "lucide-react";
 import { fetchData, getAvatarUrl, normalizeUrl } from "../../api/fetchData";
 import type { Topic } from "../../types/topic";
@@ -32,6 +35,7 @@ import type { StudentProfile } from "../../types/studentProfile";
 import type { ProgressMilestone } from "../../types/progressMilestone";
 import type { ProgressSubmission } from "../../types/progressSubmission";
 import type { SubmissionFile } from "../../types/submissionFile";
+import type { MilestoneTemplate } from "../../types/milestoneTemplate";
 import { useAuth } from "../../hooks/useAuth";
 
 interface Student {
@@ -72,6 +76,176 @@ const LecturerStudents: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"name" | "progress" | "date">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  /** Milestone templates - dùng để lấy deadline thực của từng mốc */
+  const [milestoneTemplates, setMilestoneTemplates] = useState<MilestoneTemplate[]>([]);
+
+  // ---- Override Failure Modal state ----
+  const [overrideModal, setOverrideModal] = useState<{
+    isOpen: boolean;
+    milestoneId?: number;
+    milestoneName?: string;
+    studentName?: string;
+    /** Lý do thất bại từ FAILED milestone */
+    failureReason?: string | null;
+    /** Thời điểm bị FAILED */
+    failedAt?: string | null;
+    /** Deadline gốc của mốc */
+    originalDeadline?: string | null;
+    /** Ordinal của mốc hiện tại */
+    currentOrdinal?: number | null;
+  }>({ isOpen: false });
+  const [overrideAction, setOverrideAction] = useState<"EXTEND_DEADLINE" | "EXEMPT" | "MARK_INELIGIBLE">("EXTEND_DEADLINE");
+  const [overrideNewDeadline, setOverrideNewDeadline] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
+  const [overriding, setOverriding] = useState(false);
+
+  /**
+   * Tìm ordinal mốc hiện tại mà SV đang cần hoàn thành.
+   * Dựa trên completedAt1⊒4: tìm completedAtđầu tiên == null.
+   */
+  const getCurrentOrdinal = (m: ProgressMilestone): number => {
+    if (!m.completedAt1) return 1;
+    if (!m.completedAt2) return 2;
+    if (!m.completedAt3) return 3;
+    if (!m.completedAt4) return 4;
+    return 4; // all done
+  };
+
+  /**
+   * Phát hiện SV quá hạn dựa trên deadline thực tế từ MilestoneTemplate.
+   * Logic: tìm ordinal hiện tại, lấy template tương ứng, kiểm tra deadline.
+   */
+  const isStudentOverdue = (s: Student): boolean => {
+    if (!s.milestones || s.milestones.length === 0) return false;
+    const m = s.milestones[0];
+    // Trường hợp rõ ràng: đã bị FAILED
+    if (m.state?.toUpperCase() === "FAILED") return true;
+    // Không kiểm tra nếu đã hoàn tất hoặc exempted
+    if (m.state === "WaitingForCommittee" || m.state?.toUpperCase() === "EXEMPTED") return false;
+    // Dùng template deadlines nếu có
+    if (milestoneTemplates.length > 0) {
+      const ordinal = getCurrentOrdinal(m);
+      const template = milestoneTemplates.find(t => t.ordinal === ordinal);
+      if (template?.deadline && new Date(template.deadline) < new Date()) return true;
+    } else {
+      // Fallback: dùng deadline trong milestone record nếu chưa load templates
+      if (m.deadline && new Date(m.deadline) < new Date()) {
+        const completedAll = !!m.completedAt1 && !!m.completedAt2 && !!m.completedAt3 && !!m.completedAt4;
+        if (!completedAll) return true;
+      }
+    }
+    return false;
+  };
+
+  /** Trả về thông tin context quá hạn để hiển thị trong modal */
+  const getOverdueContext = (s: Student) => {
+    if (!s.milestones || s.milestones.length === 0) return null;
+    const m = s.milestones[0];
+    const ordinal = getCurrentOrdinal(m);
+    const template = milestoneTemplates.find(t => t.ordinal === ordinal);
+    return {
+      ordinal,
+      milestoneName: template?.name ?? `Mốc ${ordinal}`,
+      originalDeadline: template?.deadline ?? m.deadline ?? null,
+      failureReason: m.state?.toUpperCase() === "FAILED" ? (m.failureReason ?? null) : null,
+      failedAt: m.state?.toUpperCase() === "FAILED" ? (m.failedAt ?? null) : null,
+      milestoneId: m.milestoneID,
+      isFailed: m.state?.toUpperCase() === "FAILED",
+      isDeadlinePassed: !!template?.deadline && new Date(template.deadline) < new Date(),
+    };
+  };
+
+  /** GV c\u1ea5p ph\u00e9p ho\u1eb7c thu h\u1ed3i ph\u00e9p n\u1ed9p mu\u1ed9n */
+  const handleAllowLateSubmit = async (milestoneId: number, allow: boolean, studentName: string) => {
+    if (!user?.userCode) return;
+    const confirmed = window.confirm(
+      allow
+        ? `Cấp phép nộp muộn cho ${studentName}?\nSinh viên sẽ được nộp báo cáo 1 lần dù đã quá deadline. Phép sẽ tự hết sau khi nộp.`
+        : `Thu hồi phép nộp muộn của ${studentName}?`
+    );
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`/api/ProgressMilestones/allow-late-submit/${milestoneId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+        },
+        body: JSON.stringify({ allow, grantedByUserCode: user.userCode, note: null }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const updatedMilestone = data?.data;
+        // Cập nhật state local — không reload trang, giữ modal mở
+        setStudents(prev => prev.map(s => {
+          if (!s.milestones) return s;
+          const idx = s.milestones.findIndex(m => m.milestoneID === milestoneId);
+          if (idx === -1) return s;
+          const newMilestones = [...s.milestones];
+          newMilestones[idx] = updatedMilestone ?? {
+            ...newMilestones[idx],
+            allowLateSubmit: allow,
+            lateSubmitGrantedBy: allow ? user.userCode : null,
+            lateSubmitGrantedAt: allow ? new Date().toISOString() : null,
+          };
+          return { ...s, milestones: newMilestones };
+        }));
+        // Cập nhật luôn detailModal nếu đang mở
+        setDetailModal(prev => {
+          if (!prev.student) return prev;
+          const idx = prev.student.milestones?.findIndex(m => m.milestoneID === milestoneId) ?? -1;
+          if (idx === -1) return prev;
+          const newMilestones = [...(prev.student.milestones ?? [])];
+          newMilestones[idx] = updatedMilestone ?? {
+            ...newMilestones[idx],
+            allowLateSubmit: allow,
+            lateSubmitGrantedBy: allow ? user.userCode : null,
+            lateSubmitGrantedAt: allow ? new Date().toISOString() : null,
+          };
+          return { ...prev, student: { ...prev.student, milestones: newMilestones } };
+        });
+      } else {
+        const err = await res.json();
+        alert(`Lỗi: ${err?.message || "Không thể cập nhật."}`);
+      }
+    } catch {
+      alert("Lỗi kết nối. Vui lòng thử lại.");
+    }
+  };
+
+  const handleOverrideSubmit = async () => {
+    if (!overrideModal.milestoneId || !user?.userCode) return;
+    if (overrideAction === "EXTEND_DEADLINE" && !overrideNewDeadline) return;
+    setOverriding(true);
+    try {
+      const body: Record<string, unknown> = {
+        action: overrideAction,
+        reason: overrideReason || null,
+        overriddenByUserCode: user.userCode,
+        newDeadline: overrideAction === "EXTEND_DEADLINE" ? new Date(overrideNewDeadline).toISOString() : null,
+      };
+      const res = await fetch(`/api/ProgressMilestones/override-failure/${overrideModal.milestoneId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        alert(`Đã xử lý thành công! Mốc tiến độ đã được ${ overrideAction === "EXTEND_DEADLINE" ? "gia hạn" : "miễn trừ" }.`);
+        setOverrideModal({ isOpen: false });
+        setOverrideReason("");
+        setOverrideNewDeadline("");
+        // Reload data
+        window.location.reload();
+      } else {
+        const err = await res.json();
+        alert(`Lỗi: ${err?.message || "Không thể xử lý. Vui lòng thử lại."} `);
+      }
+    } catch {
+      alert("Lỗi kết nối. Vui lòng thử lại.");
+    } finally {
+      setOverriding(false);
+    }
+  };
 
   const openDetailModal = async (student: Student) => {
     setDetailModal({ isOpen: true, student });
@@ -222,11 +396,14 @@ const LecturerStudents: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        // Fetch topics supervised by lecturer
-        const topicsResponse: { data: Topic[] } = await fetchData(
-          `/Topics/get-list?SupervisorUserCode=${user.userCode}`,
-        );
+        // Fetch topics supervised by lecturer + milestone templates (song song)
+        const [topicsResponse, templatesResponse] = await Promise.all([
+          fetchData<{ data: Topic[] }>(`/Topics/get-list?SupervisorUserCode=${user.userCode}`),
+          fetchData<{ data: MilestoneTemplate[] }>(`/MilestoneTemplates/get-list?Page=1&PageSize=50`),
+        ]);
         const topics: Topic[] = topicsResponse.data || [];
+        // Lưu templates vào state để isStudentOverdue có thể dùng deadline thực của từng mốc
+        setMilestoneTemplates((templatesResponse as { data: MilestoneTemplate[] }).data || []);
 
         // Process each topic to get student data and progress
         const studentsData: Student[] = await Promise.all(
@@ -362,7 +539,11 @@ const LecturerStudents: React.FC = () => {
         student.topicTitle.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus =
-        statusFilter === "all" || student.status === statusFilter;
+        statusFilter === "all"
+          ? true
+          : statusFilter === "overdue"
+            ? isStudentOverdue(student)
+            : student.status === statusFilter;
 
       return matchesSearch && matchesStatus;
     })
@@ -592,7 +773,8 @@ const LecturerStudents: React.FC = () => {
                       background: "white",
                     }}
                   >
-                    <option value="all">Tất cả trạng thái</option>
+                  <option value="all">Tất cả trạng thái</option>
+                    <option value="overdue">⚠️ Quá hạn / Trễ tiến độ</option>
                     <option value="pending">Đang chờ duyệt</option>
                     <option value="approved">Đã duyệt</option>
                     <option value="defense-ready">Đủ điều kiện bảo vệ</option>
@@ -668,7 +850,7 @@ const LecturerStudents: React.FC = () => {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               gap: "24px",
               marginBottom: "32px",
             }}
@@ -686,6 +868,33 @@ const LecturerStudents: React.FC = () => {
                 </div>
               </div>
               <div style={{ height: "4px", background: "#F37021", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
+            </div>
+
+            {/* Thẻ đỏ: Đang trễ tiến độ */}
+            <div
+              className="premium-card"
+              style={{
+                cursor: "pointer",
+                borderColor: students.some(isStudentOverdue) ? "#fecaca" : undefined,
+                background: students.some(isStudentOverdue) ? "linear-gradient(135deg, #fff5f5 0%, #fee2e2 100%)" : undefined,
+              }}
+              onClick={() => setStatusFilter(statusFilter === "overdue" ? "all" : "overdue")}
+            >
+              <div>
+                <div className="stat-icon-wrapper" style={{ background: "rgba(220,38,38,0.1)" }}>
+                  <ShieldAlert size={24} color="#dc2626" />
+                </div>
+                <div style={{ fontSize: "14px", color: students.some(isStudentOverdue) ? "#dc2626" : "#64748b", fontWeight: "700", marginBottom: "4px" }}>
+                  ⚠️ Đang trễ tiến độ
+                </div>
+                <div style={{ fontSize: "32px", fontWeight: "800", color: students.some(isStudentOverdue) ? "#dc2626" : "#1e293b" }}>
+                  {students.filter(isStudentOverdue).length}
+                </div>
+                {statusFilter === "overdue" && (
+                  <div style={{ fontSize: "10px", color: "#dc2626", fontWeight: "700", marginTop: "4px" }}>ĐANG LỌC ▼</div>
+                )}
+              </div>
+              <div style={{ height: "4px", background: "#dc2626", borderRadius: "2px", width: students.some(isStudentOverdue) ? "40%" : "0%", marginTop: "12px", transition: "width 0.4s" }} />
             </div>
 
             <div className="premium-card">
@@ -737,28 +946,45 @@ const LecturerStudents: React.FC = () => {
           {/* Students List */}
           {viewMode === "card" ? (
             <div style={{ display: "grid", gap: "16px" }}>
-              {filteredAndSortedStudents.map((student) => (
+              {filteredAndSortedStudents.map((student) => {
+                const overdue = isStudentOverdue(student);
+                return (
                 <div
                   key={student.studentCode}
                   style={{
-                    background: "white",
-                    border: "1px solid #E5E7EB",
+                    background: overdue ? "linear-gradient(135deg, #fff5f5 0%, #fff 60%)" : "white",
+                    border: overdue ? "2px solid #fecaca" : "1px solid #E5E7EB",
                     borderRadius: "12px",
                     padding: "24px",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                    boxShadow: overdue ? "0 2px 12px rgba(220,38,38,0.08)" : "0 2px 8px rgba(0,0,0,0.05)",
                     transition: "all 0.2s ease",
+                    position: "relative",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = "translateY(-2px)";
-                    e.currentTarget.style.boxShadow =
-                      "0 8px 24px rgba(0,0,0,0.1)";
+                    e.currentTarget.style.boxShadow = overdue
+                      ? "0 8px 24px rgba(220,38,38,0.15)"
+                      : "0 8px 24px rgba(0,0,0,0.1)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow =
-                      "0 2px 8px rgba(0,0,0,0.05)";
+                    e.currentTarget.style.boxShadow = overdue
+                      ? "0 2px 12px rgba(220,38,38,0.08)"
+                      : "0 2px 8px rgba(0,0,0,0.05)";
                   }}
                 >
+                  {/* Badge quá hạn */}
+                  {overdue && (
+                    <div style={{
+                      position: "absolute", top: "12px", right: "12px",
+                      background: "#dc2626", color: "white",
+                      fontSize: "10px", fontWeight: "800", padding: "3px 10px",
+                      borderRadius: "20px", letterSpacing: "0.05em",
+                      display: "flex", alignItems: "center", gap: "4px",
+                    }}>
+                      <AlertCircle size={10} /> QUÁ HẠN
+                    </div>
+                  )}
                   <div
                     style={{
                       display: "grid",
@@ -1015,7 +1241,7 @@ const LecturerStudents: React.FC = () => {
                         gap: "8px",
                       }}
                     >
-                      <button
+                       <button
                         style={{
                           padding: "8px 16px",
                           background: "#F37021",
@@ -1037,6 +1263,89 @@ const LecturerStudents: React.FC = () => {
                       >
                         Xem chi tiết
                       </button>
+                      {/* Nút xử lý quá hạn — hiện khi overdue (kể cả chưa FAILED nhưng deadline đã qua) */}
+                      {overdue && (() => {
+                        const ctx = getOverdueContext(student);
+                        if (!ctx) return null;
+                        return (
+                          <button
+                            style={{
+                              padding: "8px 16px",
+                              background: "#fef2f2",
+                              color: "#dc2626",
+                              border: "1px solid #fecaca",
+                              borderRadius: "6px",
+                              fontSize: "12px",
+                              fontWeight: "700",
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                            }}
+                            onClick={() => {
+                              setOverrideModal({
+                                isOpen: true,
+                                milestoneId: ctx.milestoneId,
+                                milestoneName: ctx.milestoneName,
+                                studentName: student.studentName,
+                                failureReason: ctx.failureReason,
+                                failedAt: ctx.failedAt,
+                                originalDeadline: ctx.originalDeadline,
+                                currentOrdinal: ctx.ordinal,
+                              });
+                              setOverrideAction("EXTEND_DEADLINE");
+                              setOverrideReason("");
+                              setOverrideNewDeadline("");
+                            }}
+                          >
+                            <ShieldAlert size={12} /> Xử lý quá hạn
+                          </button>
+                        );
+                      })()}
+                      {/* Nút cấp phép nộp muộn — hiện khi overdue */}
+                      {overdue && (() => {
+                        const ctx = getOverdueContext(student);
+                        if (!ctx) return null;
+                        const milestoneData = student.milestones?.[0];
+                        const alreadyAllowed = milestoneData?.allowLateSubmit === true;
+                        return alreadyAllowed ? (
+                          <button
+                            style={{
+                              padding: "8px 16px",
+                              background: "#f0fdf4",
+                              color: "#16a34a",
+                              border: "1px solid #bbf7d0",
+                              borderRadius: "6px",
+                              fontSize: "12px",
+                              fontWeight: "700",
+                              cursor: "pointer",
+                              display: "flex", alignItems: "center", gap: "6px",
+                            }}
+                            title="GV đã cấp phép — click để thu hồi"
+                            onClick={() => handleAllowLateSubmit(ctx.milestoneId, false, student.studentName)}
+                          >
+                            ✅ Đã cho phép nộp muộn
+                          </button>
+                        ) : (
+                          <button
+                            style={{
+                              padding: "8px 16px",
+                              background: "#dcfce7",
+                              color: "#15803d",
+                              border: "1px solid #86efac",
+                              borderRadius: "6px",
+                              fontSize: "12px",
+                              fontWeight: "700",
+                              cursor: "pointer",
+                              display: "flex", alignItems: "center", gap: "6px",
+                            }}
+                            onClick={() => handleAllowLateSubmit(ctx.milestoneId, true, student.studentName)}
+                          >
+                            ⏰ Cho phép nộp muộn
+                          </button>
+                        );
+                      })()}
                       <button
                         style={{
                           padding: "8px 16px",
@@ -1061,7 +1370,8 @@ const LecturerStudents: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             // Table View
@@ -2195,9 +2505,342 @@ const LecturerStudents: React.FC = () => {
                         </div>
                       ))}
                     </div>
+
+                    {/* === Quản lý nộp muộn === */}
+                    {detailModal.student.milestones && detailModal.student.milestones.length > 0 && (() => {
+                      const ms = detailModal.student.milestones![0];
+                      const deadline = ms.deadline ? new Date(ms.deadline) : null;
+                      const isOverdue = deadline ? deadline < new Date() : false;
+                      const alreadyAllowed = ms.allowLateSubmit === true;
+                      return (
+                        <div style={{
+                          backgroundColor: "white", borderRadius: "16px",
+                          border: isOverdue ? "2px solid #fecaca" : "1px solid #e2e8f0",
+                          overflow: "hidden", marginBottom: "16px",
+                        }}>
+                          <div style={{
+                            padding: "12px 16px",
+                            background: isOverdue
+                              ? "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)"
+                              : "#f8fafc",
+                            borderBottom: "1px solid #f1f5f9",
+                            display: "flex", alignItems: "center", gap: "8px",
+                          }}>
+                            <span style={{ fontSize: "15px" }}>{isOverdue ? "⏰" : "📋"}</span>
+                            <span style={{ fontWeight: "800", fontSize: "12px", color: isOverdue ? "#b91c1c" : "#0f172a" }}>
+                              QUẢN LÝ NỘP MUỘN
+                            </span>
+                            {alreadyAllowed && (
+                              <span style={{ marginLeft: "auto", fontSize: "10px", fontWeight: "800", background: "#16a34a", color: "white", padding: "2px 8px", borderRadius: "20px" }}>
+                                ĐÃ CẤP PHÉP
+                              </span>
+                            )}
+                            {isOverdue && !alreadyAllowed && (
+                              <span style={{ marginLeft: "auto", fontSize: "10px", fontWeight: "800", background: "#dc2626", color: "white", padding: "2px 8px", borderRadius: "20px" }}>
+                                QUÁ HẠN
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ padding: "14px 16px" }}>
+                            <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "10px" }}>
+                              <b>Deadline:</b>{" "}
+                              {deadline
+                                ? <span style={{ color: isOverdue ? "#dc2626" : "#16a34a", fontWeight: "700" }}>
+                                    {deadline.toLocaleDateString("vi-VN")}{isOverdue ? " (Quá hạn)" : ""}
+                                  </span>
+                                : <span style={{ color: "#94a3b8" }}>Chưa có</span>
+                              }
+                            </div>
+                            {alreadyAllowed ? (
+                              <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "8px", padding: "10px", marginBottom: "10px", fontSize: "11px", color: "#15803d" }}>
+                                ✅ Đã cấp phép — SV có thể nộp 1 lần dù quá deadline.
+                                {ms.lateSubmitGrantedBy && <span> Cấp bởi <b>{ms.lateSubmitGrantedBy}</b>{ms.lateSubmitGrantedAt ? ` ngày ${new Date(ms.lateSubmitGrantedAt).toLocaleDateString("vi-VN")}` : ""}.</span>}
+                                <div style={{ marginTop: "4px", color: "#16a34a" }}>Phép tự reset sau khi SV nộp báo cáo.</div>
+                              </div>
+                            ) : isOverdue ? (
+                              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "8px", padding: "10px", marginBottom: "10px", fontSize: "11px", color: "#92400e" }}>
+                                ⏳ SV hiện không thể nộp báo cáo vì đã quá deadline. Cấp phép để cho phép nộp 1 lần.
+                              </div>
+                            ) : (
+                              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "10px", marginBottom: "10px", fontSize: "11px", color: "#64748b" }}>
+                                Deadline chưa qua — SV có thể nộp bình thường.
+                              </div>
+                            )}
+                            <button
+                              style={{
+                                width: "100%", padding: "10px 0",
+                                background: alreadyAllowed
+                                  ? "#fef2f2" : "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
+                                color: alreadyAllowed ? "#dc2626" : "white",
+                                border: alreadyAllowed ? "1px solid #fecaca" : "none",
+                                borderRadius: "10px", fontSize: "12px", fontWeight: "700", cursor: "pointer",
+                              }}
+                              onClick={() => handleAllowLateSubmit(
+                                ms.milestoneID,
+                                !alreadyAllowed,
+                                detailModal.student!.studentName
+                              )}
+                            >
+                              {alreadyAllowed ? "❌ Thu hồi phép nộp muộn" : "✅ Cấp phép nộp muộn"}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================
+          OVERRIDE FAILURE MODAL — Xử lý mốc bị FAILED
+      ============================================================ */}
+      {overrideModal.isOpen && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 200,
+          background: "rgba(15,23,42,0.65)", backdropFilter: "blur(6px)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: "16px",
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: "24px", width: "100%", maxWidth: "520px",
+            boxShadow: "0 25px 60px rgba(0,0,0,0.2)", overflow: "hidden",
+            animation: "fadeInUp 0.25s ease",
+          }}>
+            {/* Header */}
+            <div style={{
+              background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
+              padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "white" }}>
+                  <ShieldAlert size={20} />
+                  <span style={{ fontWeight: "800", fontSize: "16px" }}>Xử lý mốc tiến độ thất bại</span>
+                </div>
+                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.8)", marginTop: "4px" }}>
+                  SV: <strong>{overrideModal.studentName}</strong> — {overrideModal.milestoneName}
+                </div>
+              </div>
+              <button onClick={() => setOverrideModal({ isOpen: false })}
+                style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "8px", padding: "6px", cursor: "pointer", color: "white" }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
+              {/* === Context panel: T\u00ecnh tr\u1ea1ng SV === */}
+              <div style={{
+                background: "#fef2f2", border: "1px solid #fecaca",
+                borderRadius: "12px", padding: "14px 16px",
+              }}>
+                <div style={{ fontSize: "11px", fontWeight: "800", color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "10px" }}>
+                  📋 T\u00ecnh tr\u1ea1ng hi\u1ec7n t\u1ea1i
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  <div>
+                    <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", marginBottom: "2px" }}>M\u1ed1c ti\u1ebfn \u0111\u1ed9</div>
+                    <div style={{ fontSize: "13px", fontWeight: "800", color: "#1e293b" }}>
+                      {overrideModal.milestoneName}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", marginBottom: "2px" }}>Deadline g\u1ed1c</div>
+                    <div style={{ fontSize: "13px", fontWeight: "800", color: "#dc2626" }}>
+                      {overrideModal.originalDeadline
+                        ? new Date(overrideModal.originalDeadline).toLocaleDateString("vi-VN")
+                        : "Kh\u00f4ng r\u00f5"}
+                      {overrideModal.originalDeadline && new Date(overrideModal.originalDeadline) < new Date() && (
+                        <span style={{ fontSize: "10px", color: "#ef4444", marginLeft: "6px" }}>
+                          ({Math.floor((new Date().getTime() - new Date(overrideModal.originalDeadline).getTime()) / 86400000)} ng\u00e0y tr\u01b0\u1edbc)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", marginBottom: "2px" }}>Tr\u1ea1ng th\u00e1i</div>
+                    <div style={{ fontSize: "12px", fontWeight: "700" }}>
+                      {overrideModal.failureReason
+                        ? <span style={{ color: "#dc2626" }}>❌ \u0110\u00e3 b\u1ecb \u0111\u00e1nh d\u1ea5u FAILED</span>
+                        : <span style={{ color: "#f59e0b" }}>⚠\ufe0f Qu\u00e1 deadline (ch\u01b0a FAILED)</span>}
+                    </div>
+                  </div>
+                  {overrideModal.failedAt && (
+                    <div>
+                      <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", marginBottom: "2px" }}>Th\u1eddi \u0111i\u1ec3m FAILED</div>
+                      <div style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>
+                        {new Date(overrideModal.failedAt).toLocaleString("vi-VN")}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {overrideModal.failureReason && (
+                  <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid #fecaca" }}>
+                    <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", marginBottom: "4px" }}>L\u00dd DO TH\u1ea4T B\u1ea0I</div>
+                    <div style={{
+                      fontSize: "12px", fontWeight: "700", color: "#b91c1c",
+                      background: "#fff", padding: "6px 10px", borderRadius: "6px", border: "1px solid #fecaca",
+                    }}>
+                      {overrideModal.failureReason.includes("ABSENT")
+                        ? "🚫 Sinh vi\u00ean b\u1ecf kh\u00f4ng n\u1ed9p b\u00e1o c\u00e1o (Absent)"
+                        : overrideModal.failureReason.includes("ABANDONED_REVISION")
+                          ? "🔄 Sinh vi\u00ean b\u1ecf kh\u00f4ng s\u1eeda b\u00e1o c\u00e1o sau khi b\u1ecb y\u00eau c\u1ea7u ch\u1ec9nh s\u1eeda"
+                          : overrideModal.failureReason}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Ch\u1ecdn h\u00e0nh \u0111\u1ed9ng */}
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "8px" }}>
+                  Hành động xử lý *
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+                  <button
+                    onClick={() => setOverrideAction("EXTEND_DEADLINE")}
+                    style={{
+                      padding: "12px 10px", borderRadius: "12px", border: "2px solid",
+                      borderColor: overrideAction === "EXTEND_DEADLINE" ? "#F37021" : "#e2e8f0",
+                      background: overrideAction === "EXTEND_DEADLINE" ? "#fff7ed" : "#f8fafc",
+                      cursor: "pointer", textAlign: "left", transition: "all 0.2s",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                      <CalendarClock size={14} color={overrideAction === "EXTEND_DEADLINE" ? "#F37021" : "#94a3b8"} />
+                      <span style={{ fontWeight: "800", fontSize: "12px", color: overrideAction === "EXTEND_DEADLINE" ? "#F37021" : "#64748b" }}>Gia hạn</span>
+                    </div>
+                    <p style={{ fontSize: "10px", color: "#94a3b8", margin: 0 }}>Reset deadline, SV nộp lại</p>
+                  </button>
+                  <button
+                    onClick={() => setOverrideAction("EXEMPT")}
+                    style={{
+                      padding: "12px 10px", borderRadius: "12px", border: "2px solid",
+                      borderColor: overrideAction === "EXEMPT" ? "#10b981" : "#e2e8f0",
+                      background: overrideAction === "EXEMPT" ? "#f0fdf4" : "#f8fafc",
+                      cursor: "pointer", textAlign: "left", transition: "all 0.2s",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                      <ShieldCheck size={14} color={overrideAction === "EXEMPT" ? "#10b981" : "#94a3b8"} />
+                      <span style={{ fontWeight: "800", fontSize: "12px", color: overrideAction === "EXEMPT" ? "#10b981" : "#64748b" }}>Miễn trừ</span>
+                    </div>
+                    <p style={{ fontSize: "10px", color: "#94a3b8", margin: 0 }}>Bỏ qua mốc, pipeline tiếp tục</p>
+                  </button>
+                  <button
+                    onClick={() => setOverrideAction("MARK_INELIGIBLE")}
+                    style={{
+                      padding: "12px 10px", borderRadius: "12px", border: "2px solid",
+                      borderColor: overrideAction === "MARK_INELIGIBLE" ? "#7c3aed" : "#e2e8f0",
+                      background: overrideAction === "MARK_INELIGIBLE" ? "#f5f3ff" : "#f8fafc",
+                      cursor: "pointer", textAlign: "left", transition: "all 0.2s",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                      <ShieldAlert size={14} color={overrideAction === "MARK_INELIGIBLE" ? "#7c3aed" : "#94a3b8"} />
+                      <span style={{ fontWeight: "800", fontSize: "12px", color: overrideAction === "MARK_INELIGIBLE" ? "#7c3aed" : "#64748b" }}>Không đủ ĐKBV</span>
+                    </div>
+                    <p style={{ fontSize: "10px", color: "#94a3b8", margin: 0 }}>Xét không đủ điều kiện bảo vệ</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Deadline mới — chỉ hiện khi EXTEND_DEADLINE */}
+              {overrideAction === "EXTEND_DEADLINE" && (
+                <div>
+                  <label style={{ fontSize: "12px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "8px" }}>
+                    Deadline mới *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={overrideNewDeadline}
+                    onChange={(e) => setOverrideNewDeadline(e.target.value)}
+                    min={new Date().toISOString().slice(0, 16)}
+                    style={{
+                      width: "100%", padding: "10px 14px", border: "2px solid #e2e8f0",
+                      borderRadius: "10px", fontSize: "14px", fontWeight: "600", outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = "#F37021"; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; }}
+                  />
+                  <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "6px" }}>Phải là thời điểm trong tương lai. SV sẽ được nộp báo cáo lại.</p>
+                </div>
+              )}
+
+              {/* Lý do */}
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "8px" }}>
+                  Lý do / Ghi chú
+                </label>
+                <textarea
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  placeholder="Nhập lý do xử lý để lưu vào audit trail..."
+                  rows={3}
+                  style={{
+                    width: "100%", padding: "10px 14px", border: "2px solid #e2e8f0",
+                    borderRadius: "10px", fontSize: "13px", resize: "vertical", outline: "none",
+                    boxSizing: "border-box", fontFamily: "inherit",
+                  }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = "#F37021"; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; }}
+                />
+              </div>
+
+              {/* Info box */}
+              <div style={{
+                padding: "12px 14px",
+                background: overrideAction === "MARK_INELIGIBLE" ? "#fdf4ff" : "#fef3c7",
+                border: `1px solid ${overrideAction === "MARK_INELIGIBLE" ? "#e9d5ff" : "#fde68a"}`,
+                borderRadius: "10px", fontSize: "12px",
+                color: overrideAction === "MARK_INELIGIBLE" ? "#6b21a8" : "#92400e",
+              }}>
+                {overrideAction === "MARK_INELIGIBLE"
+                  ? "🔒 Hành động này sẽ đánh dấu đề tài là KHÔNG ĐỦ ĐIỀU KIỆN BẢO VỆ. SV sẽ không thể tiếp tục nộp báo cáo. Có thể đảo ngược bằng Gia hạn."
+                  : "\u26a0\ufe0f Hành động này sẽ được ghi nhận vào lịch sử audit với tên giảng viên thực hiện."}
+                {overrideAction === "EXEMPT" && " SV được miễn trừ sẽ được tính là hoàn thành mốc này."}
+                {overrideAction === "EXTEND_DEADLINE" && " Mốc sẽ reset về trạng thái Pending với deadline mới."}
+              </div>
+
+              {/* Buttons */}
+              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setOverrideModal({ isOpen: false })}
+                  disabled={overriding}
+                  style={{
+                    padding: "10px 20px", background: "#f1f5f9", color: "#64748b",
+                    border: "none", borderRadius: "10px", fontWeight: "700", cursor: "pointer",
+                  }}
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleOverrideSubmit}
+                  disabled={overriding || (overrideAction === "EXTEND_DEADLINE" && !overrideNewDeadline)}
+                  style={{
+                    padding: "10px 24px",
+                    background: overrideAction === "EXEMPT" ? "#10b981"
+                      : overrideAction === "MARK_INELIGIBLE" ? "#7c3aed"
+                      : "#F37021",
+                    color: "white", border: "none", borderRadius: "10px",
+                    fontWeight: "800", fontSize: "13px", cursor: "pointer",
+                    opacity: (overriding || (overrideAction === "EXTEND_DEADLINE" && !overrideNewDeadline)) ? 0.5 : 1,
+                    display: "flex", alignItems: "center", gap: "6px",
+                  }}
+                >
+                  {overrideAction === "EXEMPT" ? <ShieldCheck size={14} />
+                    : overrideAction === "MARK_INELIGIBLE" ? <ShieldAlert size={14} />
+                    : <CalendarClock size={14} />}
+                  {overriding ? "Đang xử lý..."
+                    : overrideAction === "EXEMPT" ? "Xác nhận Miễn trừ"
+                    : overrideAction === "MARK_INELIGIBLE" ? "Xác nhận Không đủ ĐKBV"
+                    : "Xác nhận Gia hạn"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
