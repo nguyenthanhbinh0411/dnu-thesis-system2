@@ -37,6 +37,7 @@ import type { ProgressSubmission } from "../../types/progressSubmission";
 import type { SubmissionFile } from "../../types/submissionFile";
 import type { MilestoneTemplate } from "../../types/milestoneTemplate";
 import { useAuth } from "../../hooks/useAuth";
+import { useActiveDefensePeriodId } from "../../utils/defensePeriod";
 
 interface Student {
   studentCode: string;
@@ -63,6 +64,7 @@ interface Student {
 
 const LecturerStudents: React.FC = () => {
   const { user } = useAuth();
+  const activeDefenseTermId = useActiveDefensePeriodId();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -392,13 +394,22 @@ const LecturerStudents: React.FC = () => {
     const fetchStudentsData = async () => {
       if (!user?.userCode) return;
 
+      // Nếu chưa có đợt active, không tải dữ liệu — tránh hiển thị lẫn đợt cũ
+      if (activeDefenseTermId == null) {
+        setStudents([]);
+        setLoading(false);
+        setError("Chưa xác định được đợt bảo vệ hiện tại. Vui lòng chờ quản trị viên thiết lập đợt.");
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
 
         // Fetch topics supervised by lecturer + milestone templates (song song)
+        // Lọc theo DefenseTermId để chỉ lấy đề tài của đợt hiện tại
         const [topicsResponse, templatesResponse] = await Promise.all([
-          fetchData<{ data: Topic[] }>(`/Topics/get-list?SupervisorUserCode=${user.userCode}`),
+          fetchData<{ data: Topic[] }>(`/Topics/get-list?SupervisorUserCode=${user.userCode}&DefenseTermId=${activeDefenseTermId}`),
           fetchData<{ data: MilestoneTemplate[] }>(`/MilestoneTemplates/get-list?Page=1&PageSize=50`),
         ]);
         const topics: Topic[] = topicsResponse.data || [];
@@ -477,7 +488,7 @@ const LecturerStudents: React.FC = () => {
     };
 
     fetchStudentsData();
-  }, [user?.userCode]);
+  }, [user?.userCode, activeDefenseTermId]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {

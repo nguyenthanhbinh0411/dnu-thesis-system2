@@ -16,5 +16,7 @@ namespace ThesisManagement.Api.DTOs.LecturerProfiles.Query
         public IEnumerable<string>? TagCodes { get; set; }
         public string? Tags { get; set; }
         public int? ExcludeDefenseTermId { get; set; }
+        /// <summary>Lọc giảng viên theo đợt bảo vệ đã được import vào. Null = trả về tất cả.</summary>
+        public int? DefenseTermId { get; set; }
     }
 }

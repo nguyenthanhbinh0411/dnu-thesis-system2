@@ -37,6 +37,19 @@ namespace ThesisManagement.Api.Application.Command.LecturerProfiles
             if (user == null)
                 return OperationResult<LecturerProfileReadDto>.Failed("User not found", 400);
 
+            // Upsert: nếu LecturerProfile đã tồn tại theo UserCode thì chỉ cập nhật DefenseTermId
+            var existing = await _uow.LecturerProfiles.Query()
+                .FirstOrDefaultAsync(x => x.UserCode == dto.UserCode);
+            if (existing != null)
+            {
+                if (dto.DefenseTermId.HasValue)
+                    existing.DefenseTermId = dto.DefenseTermId;
+                existing.LastUpdated = DateTime.UtcNow;
+                _uow.LecturerProfiles.Update(existing);
+                await _uow.SaveChangesAsync();
+                return OperationResult<LecturerProfileReadDto>.Succeeded(_mapper.Map<LecturerProfileReadDto>(existing));
+            }
+
             Department? department = null;
             if (!string.IsNullOrWhiteSpace(dto.DepartmentCode))
             {
@@ -63,6 +76,7 @@ namespace ThesisManagement.Api.Application.Command.LecturerProfiles
                 Address = dto.Address,
                 Notes = dto.Notes,
                 FullName = dto.FullName,
+                DefenseTermId = dto.DefenseTermId,
                 CreatedAt = DateTime.UtcNow,
                 LastUpdated = DateTime.UtcNow
             };

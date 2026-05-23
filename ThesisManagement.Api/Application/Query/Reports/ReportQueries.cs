@@ -5,7 +5,7 @@ namespace ThesisManagement.Api.Application.Query.Reports
 {
     public interface IGetStudentDashboardQuery
     {
-        Task<OperationResult<StudentDashboardDto>> ExecuteAsync(string userCode);
+        Task<OperationResult<StudentDashboardDto>> ExecuteAsync(string userCode, int? defenseTermId = null);
     }
 
     public interface IGetStudentProgressHistoryQuery
@@ -27,8 +27,8 @@ namespace ThesisManagement.Api.Application.Query.Reports
             _processor = processor;
         }
 
-        public Task<OperationResult<StudentDashboardDto>> ExecuteAsync(string userCode)
-            => _processor.GetStudentDashboardAsync(userCode);
+        public Task<OperationResult<StudentDashboardDto>> ExecuteAsync(string userCode, int? defenseTermId = null)
+            => _processor.GetStudentDashboardAsync(userCode, defenseTermId);
     }
 
     public class GetStudentProgressHistoryQuery : IGetStudentProgressHistoryQuery

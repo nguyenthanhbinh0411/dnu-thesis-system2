@@ -29,9 +29,13 @@ namespace ThesisManagement.Api.Models
         public DateTime? CreatedAt { get; set; }
         public DateTime? LastUpdated { get; set; }
 
+        /// <summary>Đợt bảo vệ mà sinh viên này được import vào. Null = chưa gán đợt.</summary>
+        public int? DefenseTermId { get; set; }
+
         public User? User { get; set; }
         public Department? Department { get; set; }
         public Class? Class { get; set; }
+        public DefenseTerm? DefenseTerm { get; set; }
         // Navigation collections removed to avoid EF creating shadow properties
         // public ICollection<Topic>? ProposedTopics { get; set; }
         // public ICollection<ProgressSubmission>? ProgressSubmissions { get; set; }

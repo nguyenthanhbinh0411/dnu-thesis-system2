@@ -1859,6 +1859,10 @@ namespace ThesisManagement.Api.Migrations
                         .HasDefaultValue(8)
                         .HasColumnName("DEFENSEQUOTA");
 
+                    b.Property<int?>("DefenseTermId")
+                        .HasColumnType("NUMBER(10)")
+                        .HasColumnName("DEFENSETERMID");
+
                     b.Property<string>("Degree")
                         .HasMaxLength(50)
                         .HasColumnType("NVARCHAR2(50)")
@@ -1938,6 +1942,8 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnName("USERID");
 
                     b.HasKey("LecturerProfileID");
+
+                    b.HasIndex("DefenseTermId");
 
                     b.HasIndex("DepartmentCode");
 
@@ -2948,6 +2954,10 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnType("date")
                         .HasColumnName("DATEOFBIRTH");
 
+                    b.Property<int?>("DefenseTermId")
+                        .HasColumnType("NUMBER(10)")
+                        .HasColumnName("DEFENSETERMID");
+
                     b.Property<string>("DepartmentCode")
                         .HasColumnType("NVARCHAR2(2000)")
                         .HasColumnName("DEPARTMENTCODE");
@@ -3031,6 +3041,8 @@ namespace ThesisManagement.Api.Migrations
                     b.HasKey("StudentProfileID");
 
                     b.HasIndex("ClassID");
+
+                    b.HasIndex("DefenseTermId");
 
                     b.HasIndex("DepartmentID");
 
@@ -4548,6 +4560,11 @@ namespace ThesisManagement.Api.Migrations
 
             modelBuilder.Entity("ThesisManagement.Api.Models.LecturerProfile", b =>
                 {
+                    b.HasOne("ThesisManagement.Api.Models.DefenseTerm", "DefenseTerm")
+                        .WithMany("LecturerProfiles")
+                        .HasForeignKey("DefenseTermId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ThesisManagement.Api.Models.Department", "Department")
                         .WithMany("LecturerProfiles")
                         .HasForeignKey("DepartmentCode")
@@ -4557,6 +4574,8 @@ namespace ThesisManagement.Api.Migrations
                         .WithOne("LecturerProfile")
                         .HasForeignKey("ThesisManagement.Api.Models.LecturerProfile", "UserCode")
                         .HasPrincipalKey("ThesisManagement.Api.Models.User", "UserCode");
+
+                    b.Navigation("DefenseTerm");
 
                     b.Navigation("Department");
 
@@ -4745,6 +4764,11 @@ namespace ThesisManagement.Api.Migrations
                         .HasForeignKey("ClassID")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("ThesisManagement.Api.Models.DefenseTerm", "DefenseTerm")
+                        .WithMany("StudentProfiles")
+                        .HasForeignKey("DefenseTermId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ThesisManagement.Api.Models.Department", "Department")
                         .WithMany()
                         .HasForeignKey("DepartmentID")
@@ -4757,6 +4781,8 @@ namespace ThesisManagement.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Class");
+
+                    b.Navigation("DefenseTerm");
 
                     b.Navigation("Department");
 
@@ -4969,6 +4995,10 @@ namespace ThesisManagement.Api.Migrations
                     b.Navigation("DefenseTermLecturers");
 
                     b.Navigation("DefenseTermStudents");
+
+                    b.Navigation("LecturerProfiles");
+
+                    b.Navigation("StudentProfiles");
 
                     b.Navigation("Topics");
                 });

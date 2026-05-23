@@ -7,28 +7,28 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
 {
     public interface IDashboardQueryProcessor
     {
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerOverviewAsync(string? lecturerCode);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerReviewQueueAsync(string? lecturerCode, int limit);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerScoringProgressAsync(string? lecturerCode, int limit);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerDeadlineRiskAsync(string? lecturerCode, int limit);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerDefenseScheduleAsync(string? lecturerCode, int limit);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerCommitteesAsync(string? lecturerCode, int limit);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerProgressStatusBreakdownAsync(string? lecturerCode);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerOverdueTrendAsync(string? lecturerCode, int days);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerTopicTypeBreakdownAsync(string? lecturerCode);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerReviewStatusBreakdownAsync(string? lecturerCode);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerOverviewAsync(string? lecturerCode, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerReviewQueueAsync(string? lecturerCode, int limit, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerScoringProgressAsync(string? lecturerCode, int limit, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerDeadlineRiskAsync(string? lecturerCode, int limit, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerDefenseScheduleAsync(string? lecturerCode, int limit, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerCommitteesAsync(string? lecturerCode, int limit, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerProgressStatusBreakdownAsync(string? lecturerCode, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerOverdueTrendAsync(string? lecturerCode, int days, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerTopicTypeBreakdownAsync(string? lecturerCode, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerReviewStatusBreakdownAsync(string? lecturerCode, int? defenseTermId = null);
 
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceOverviewAsync();
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceAtRiskAsync(int limit);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceBacklogAsync();
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceDepartmentBreakdownAsync();
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceOverviewAsync(int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceAtRiskAsync(int limit, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceBacklogAsync(int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceDepartmentBreakdownAsync(int? defenseTermId = null);
 
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminOverviewAsync();
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminPeriodFunnelAsync(int limit);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminCouncilCapacityAsync(int limit);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminScoreQualityAsync();
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminSlaBottleneckAsync(int days);
-        Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminSecurityAuditAsync(int days, int limit);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminOverviewAsync(int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminPeriodFunnelAsync(int limit, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminCouncilCapacityAsync(int limit, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminScoreQualityAsync(int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminSlaBottleneckAsync(int days, int? defenseTermId = null);
+        Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminSecurityAuditAsync(int days, int limit, int? defenseTermId = null);
 
         Task<IReadOnlyList<Dictionary<string, object?>>> GetDailyKpiByRoleAsync(string? roleName, int days);
         Task<IReadOnlyList<Dictionary<string, object?>>> GetPeriodSnapshotAsync(int days);
@@ -47,7 +47,7 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
             _currentUserService = currentUserService;
         }
 
-        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerOverviewAsync(string? lecturerCode)
+        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerOverviewAsync(string? lecturerCode, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
             var sql = @"
@@ -60,18 +60,22 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
                 FROM VW_DASH_LECTURER_OVERVIEW v
                 LEFT JOIN V_LECTURER_DASHBOARD d ON v.LECTURERCODE = d.LECTURERCODE";
             var parameters = new List<(string Name, object? Value)>();
+            var conditions = new List<string>();
 
             if (!string.IsNullOrWhiteSpace(effectiveLecturerCode))
             {
-                sql += " WHERE v.LECTURERCODE = :P_LECTURER_CODE";
+                conditions.Add("v.LECTURERCODE = :P_LECTURER_CODE");
                 parameters.Add(("P_LECTURER_CODE", effectiveLecturerCode));
             }
+
+            if (conditions.Count > 0)
+                sql += " WHERE " + string.Join(" AND ", conditions);
 
             sql += " ORDER BY v.LECTURERCODE";
             return await QueryRowsAsync(sql, parameters);
         }
 
-        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerReviewQueueAsync(string? lecturerCode, int limit)
+        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerReviewQueueAsync(string? lecturerCode, int limit, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
             var innerSql = @"
@@ -94,12 +98,22 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
                 LEFT JOIN TOPICS t ON m.TOPICID = t.TOPICID
                 LEFT JOIN MILESTONETEMPLATES mt ON m.MILESTONETEMPLATECODE = mt.MILESTONETEMPLATECODE";
             var parameters = new List<(string Name, object? Value)>();
+            var conditions = new List<string>();
 
             if (!string.IsNullOrWhiteSpace(effectiveLecturerCode))
             {
-                innerSql += " WHERE s.LECTURERCODE = :P_LECTURER_CODE";
+                conditions.Add("s.LECTURERCODE = :P_LECTURER_CODE");
                 parameters.Add(("P_LECTURER_CODE", effectiveLecturerCode));
             }
+
+            if (defenseTermId.HasValue)
+            {
+                conditions.Add("t.DEFENSETERMID = :P_DEFENSE_TERM_ID");
+                parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
+            }
+
+            if (conditions.Count > 0)
+                innerSql += " WHERE " + string.Join(" AND ", conditions);
 
             innerSql += " ORDER BY (CASE WHEN UPPER(s.LECTURERSTATE) = 'PENDING' THEN 0 ELSE 1 END), s.SUBMITTEDAT DESC";
             parameters.Add(("P_LIMIT", ClampLimit(limit, 10)));
@@ -108,16 +122,22 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
             return await QueryRowsAsync(sql, parameters);
         }
 
-        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerScoringProgressAsync(string? lecturerCode, int limit)
+        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerScoringProgressAsync(string? lecturerCode, int limit, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
-            var innerSql = "SELECT * FROM VW_DASH_LECTURER_SCORING_PROGRESS";
+            var innerSql = "SELECT * FROM VW_DASH_LECTURER_SCORING_PROGRESS WHERE 1=1";
             var parameters = new List<(string Name, object? Value)>();
 
             if (!string.IsNullOrWhiteSpace(effectiveLecturerCode))
             {
-                innerSql += " WHERE LECTURERCODE = :P_LECTURER_CODE";
+                innerSql += " AND LECTURERCODE = :P_LECTURER_CODE";
                 parameters.Add(("P_LECTURER_CODE", effectiveLecturerCode));
+            }
+
+            if (defenseTermId.HasValue)
+            {
+                innerSql += " AND DEFENSETERMID = :P_DEFENSE_TERM_ID";
+                parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
             }
 
             innerSql += " ORDER BY PENDING_COUNT DESC, OVERDUE_COUNT DESC";
@@ -127,7 +147,7 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
             return await QueryRowsAsync(sql, parameters);
         }
 
-        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerDeadlineRiskAsync(string? lecturerCode, int limit)
+        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerDeadlineRiskAsync(string? lecturerCode, int limit, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
             var innerSql = @"
@@ -140,12 +160,22 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
                 LEFT JOIN TOPICS t ON v.TOPICCODE = t.TOPICCODE
                 LEFT JOIN STUDENTPROFILES st ON t.PROPOSERSTUDENTCODE = st.STUDENTCODE";
             var parameters = new List<(string Name, object? Value)>();
+            var conditions = new List<string>();
 
             if (!string.IsNullOrWhiteSpace(effectiveLecturerCode))
             {
-                innerSql += " WHERE v.LECTURERCODE = :P_LECTURER_CODE";
+                conditions.Add("v.LECTURERCODE = :P_LECTURER_CODE");
                 parameters.Add(("P_LECTURER_CODE", effectiveLecturerCode));
             }
+
+            if (defenseTermId.HasValue)
+            {
+                conditions.Add("t.DEFENSETERMID = :P_DEFENSE_TERM_ID");
+                parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
+            }
+
+            if (conditions.Count > 0)
+                innerSql += " WHERE " + string.Join(" AND ", conditions);
 
             innerSql += " ORDER BY CASE v.RISK_LEVEL WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3 END, v.HOURS_OVERDUE DESC";
             parameters.Add(("P_LIMIT", ClampLimit(limit, 100)));
@@ -154,7 +184,7 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
             return await QueryRowsAsync(sql, parameters);
         }
 
-        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerDefenseScheduleAsync(string? lecturerCode, int limit)
+        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerDefenseScheduleAsync(string? lecturerCode, int limit, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
             var innerSql = @"
@@ -171,12 +201,22 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
                 JOIN TOPICS t ON da.TOPICID = t.TOPICID
                 LEFT JOIN STUDENTPROFILES st ON t.PROPOSERSTUDENTCODE = st.STUDENTCODE";
             var parameters = new List<(string Name, object? Value)>();
+            var conditions = new List<string>();
 
             if (!string.IsNullOrWhiteSpace(effectiveLecturerCode))
             {
-                innerSql += " WHERE cm.MEMBERLECTURERCODE = :P_LECTURER_CODE";
+                conditions.Add("cm.MEMBERLECTURERCODE = :P_LECTURER_CODE");
                 parameters.Add(("P_LECTURER_CODE", effectiveLecturerCode));
             }
+
+            if (defenseTermId.HasValue)
+            {
+                conditions.Add("c.DEFENSETERMID = :P_DEFENSE_TERM_ID");
+                parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
+            }
+
+            if (conditions.Count > 0)
+                innerSql += " WHERE " + string.Join(" AND ", conditions);
 
             innerSql += " ORDER BY c.DEFENSEDATE ASC";
             parameters.Add(("P_LIMIT", ClampLimit(limit, 100)));
@@ -185,7 +225,7 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
             return await QueryRowsAsync(sql, parameters);
         }
 
-        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerCommitteesAsync(string? lecturerCode, int limit)
+        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerCommitteesAsync(string? lecturerCode, int limit, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
             var innerSql = @"
@@ -198,12 +238,22 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
                 FROM COMMITTEEMEMBERS cm
                 JOIN COMMITTEES c ON cm.COMMITTEEID = c.COMMITTEEID";
             var parameters = new List<(string Name, object? Value)>();
+            var conditions = new List<string>();
 
             if (!string.IsNullOrWhiteSpace(effectiveLecturerCode))
             {
-                innerSql += " WHERE cm.MEMBERLECTURERCODE = :P_LECTURER_CODE";
+                conditions.Add("cm.MEMBERLECTURERCODE = :P_LECTURER_CODE");
                 parameters.Add(("P_LECTURER_CODE", effectiveLecturerCode));
             }
+
+            if (defenseTermId.HasValue)
+            {
+                conditions.Add("c.DEFENSETERMID = :P_DEFENSE_TERM_ID");
+                parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
+            }
+
+            if (conditions.Count > 0)
+                innerSql += " WHERE " + string.Join(" AND ", conditions);
 
             innerSql += " ORDER BY c.DEFENSEDATE DESC";
             parameters.Add(("P_LIMIT", ClampLimit(limit, 100)));
@@ -212,44 +262,44 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
             return await QueryRowsAsync(sql, parameters);
         }
 
-        public Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceOverviewAsync()
+        public Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceOverviewAsync(int? defenseTermId = null)
             => QueryRowsAsync("SELECT * FROM VW_DASH_STUDENT_SERVICE_OVERVIEW", Array.Empty<(string Name, object? Value)>());
 
-        public Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceAtRiskAsync(int limit)
+        public Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceAtRiskAsync(int limit, int? defenseTermId = null)
             => QueryRowsAsync(
                 "SELECT * FROM (SELECT * FROM VW_DASH_STUDENT_SERVICE_AT_RISK ORDER BY RISK_SCORE DESC, OVERDUE_REVIEW_COUNT DESC) WHERE ROWNUM <= :P_LIMIT",
                 new[] { ("P_LIMIT", (object?)ClampLimit(limit, 200)) });
 
-        public Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceBacklogAsync()
+        public Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceBacklogAsync(int? defenseTermId = null)
             => QueryRowsAsync("SELECT * FROM VW_DASH_STUDENT_SERVICE_BACKLOG ORDER BY MODULE_NAME", Array.Empty<(string Name, object? Value)>());
 
-        public Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceDepartmentBreakdownAsync()
+        public Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceDepartmentBreakdownAsync(int? defenseTermId = null)
             => QueryRowsAsync(
                 "SELECT * FROM VW_DASH_STUDENT_SERVICE_DEPARTMENT_BREAKDOWN ORDER BY DEPARTMENTCODE",
                 Array.Empty<(string Name, object? Value)>());
 
-        public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminOverviewAsync()
+        public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminOverviewAsync(int? defenseTermId = null)
             => QueryRowsAsync("SELECT * FROM VW_DASH_ADMIN_OVERVIEW", Array.Empty<(string Name, object? Value)>());
 
-        public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminPeriodFunnelAsync(int limit)
+        public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminPeriodFunnelAsync(int limit, int? defenseTermId = null)
             => QueryRowsAsync(
                 "SELECT * FROM (SELECT * FROM VW_DASH_ADMIN_PERIOD_FUNNEL ORDER BY STARTDATE DESC NULLS LAST, DEFENSETERMID DESC) WHERE ROWNUM <= :P_LIMIT",
                 new[] { ("P_LIMIT", (object?)ClampLimit(limit, 200)) });
 
-        public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminCouncilCapacityAsync(int limit)
+        public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminCouncilCapacityAsync(int limit, int? defenseTermId = null)
             => QueryRowsAsync(
                 "SELECT * FROM (SELECT * FROM VW_DASH_ADMIN_COUNCIL_CAPACITY ORDER BY LOAD_RATIO DESC NULLS LAST, ASSIGNMENT_COUNT DESC) WHERE ROWNUM <= :P_LIMIT",
                 new[] { ("P_LIMIT", (object?)ClampLimit(limit, 200)) });
 
-        public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminScoreQualityAsync()
+        public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminScoreQualityAsync(int? defenseTermId = null)
             => QueryRowsAsync("SELECT * FROM VW_DASH_ADMIN_SCORE_QUALITY", Array.Empty<(string Name, object? Value)>());
 
-        public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminSlaBottleneckAsync(int days)
+        public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminSlaBottleneckAsync(int days, int? defenseTermId = null)
             => QueryRowsAsync(
                 "SELECT * FROM VW_DASH_ADMIN_SLA_BOTTLENECK WHERE METRIC_DATE >= (TRUNC(SYSDATE) - :P_DAYS) ORDER BY METRIC_DATE DESC, MODULE_NAME",
                 new[] { ("P_DAYS", (object?)ClampDays(days)) });
 
-        public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminSecurityAuditAsync(int days, int limit)
+        public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminSecurityAuditAsync(int days, int limit, int? defenseTermId = null)
             => QueryRowsAsync(
                 "SELECT * FROM (SELECT * FROM VW_DASH_ADMIN_SECURITY_AUDIT WHERE METRIC_DATE >= (TRUNC(SYSDATE) - :P_DAYS) ORDER BY METRIC_DATE DESC, FAILED_COUNT DESC) WHERE ROWNUM <= :P_LIMIT",
                 new[]
@@ -299,9 +349,12 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
             return await QueryRowsAsync(sql, parameters);
         }
 
-        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerProgressStatusBreakdownAsync(string? lecturerCode)
+        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerProgressStatusBreakdownAsync(string? lecturerCode, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
+            var termCondition = defenseTermId.HasValue
+                ? $" AND m.TOPICID IN (SELECT TOPICID FROM TOPICS WHERE DEFENSETERMID = {defenseTermId.Value})"
+                : string.Empty;
             var sql = @"
                 SELECT 
                     'NOT_SUBMITTED' as STATUS,
@@ -317,6 +370,8 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
                 parameters.Add(("P_LECTURER_CODE", effectiveLecturerCode));
             }
 
+            sql += termCondition;
+
             sql += @"
                 UNION ALL
                 SELECT 
@@ -330,6 +385,9 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
                 sql += " AND s.LECTURERCODE = :P_LECTURER_CODE";
                 // Note: parameter already added above if needed
             }
+
+            if (defenseTermId.HasValue)
+                sql += $" AND s.MILESTONEID IN (SELECT m2.MILESTONEID FROM PROGRESSMILESTONES m2 JOIN TOPICS t2 ON m2.TOPICID = t2.TOPICID WHERE t2.DEFENSETERMID = {defenseTermId.Value})";
 
             sql += @"
                 UNION ALL
@@ -349,6 +407,9 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
                 sql += " AND s.LECTURERCODE = :P_LECTURER_CODE";
             }
 
+            if (defenseTermId.HasValue)
+                sql += $" AND s.MILESTONEID IN (SELECT m2.MILESTONEID FROM PROGRESSMILESTONES m2 JOIN TOPICS t2 ON m2.TOPICID = t2.TOPICID WHERE t2.DEFENSETERMID = {defenseTermId.Value})";
+
             sql += @" GROUP BY CASE 
                         WHEN UPPER(s.LECTURERSTATE) = 'PENDING' THEN 'PENDING_REVIEW'
                         WHEN UPPER(s.LECTURERSTATE) = 'APPROVED' THEN 'APPROVED'
@@ -359,7 +420,7 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
             return await QueryRowsAsync(sql, parameters);
         }
 
-        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerOverdueTrendAsync(string? lecturerCode, int days)
+        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerOverdueTrendAsync(string? lecturerCode, int days, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
             var sql = @"
@@ -369,6 +430,7 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
                     COUNT(*) AS TOTAL_COUNT
                 FROM PROGRESSSUBMISSIONS s
                 LEFT JOIN PROGRESSMILESTONES m ON s.MILESTONEID = m.MILESTONEID
+                LEFT JOIN TOPICS t ON m.TOPICID = t.TOPICID
                 WHERE s.SUBMITTEDAT >= (TRUNC(SYSDATE) - :P_DAYS)";
             var parameters = new List<(string Name, object? Value)> { ("P_DAYS", ClampDays(days)) };
 
@@ -378,12 +440,18 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
                 parameters.Add(("P_LECTURER_CODE", effectiveLecturerCode));
             }
 
+            if (defenseTermId.HasValue)
+            {
+                sql += " AND t.DEFENSETERMID = :P_DEFENSE_TERM_ID";
+                parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
+            }
+
             sql += @" GROUP BY TRUNC(s.SUBMITTEDAT)
                 ORDER BY TRUNC(s.SUBMITTEDAT) DESC";
             return await QueryRowsAsync(sql, parameters);
         }
 
-        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerTopicTypeBreakdownAsync(string? lecturerCode)
+        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerTopicTypeBreakdownAsync(string? lecturerCode, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
             var sql = @"
@@ -401,12 +469,18 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
                 parameters.Add(("P_LECTURER_CODE", effectiveLecturerCode));
             }
 
+            if (defenseTermId.HasValue)
+            {
+                sql += " AND t.DEFENSETERMID = :P_DEFENSE_TERM_ID";
+                parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
+            }
+
             sql += @" GROUP BY t.""Type"", t.STATUS
                 ORDER BY t.""Type"", t.STATUS";
             return await QueryRowsAsync(sql, parameters);
         }
 
-        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerReviewStatusBreakdownAsync(string? lecturerCode)
+        public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerReviewStatusBreakdownAsync(string? lecturerCode, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
             var sql = @"
@@ -421,6 +495,8 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
                     COUNT(*) as COUNT,
                     ROUND(AVG(CASE WHEN s.SUBMITTEDAT IS NOT NULL THEN SYSDATE - CAST(s.SUBMITTEDAT AS DATE) ELSE NULL END), 2) as AVG_DAYS_WAITING
                 FROM PROGRESSSUBMISSIONS s
+                LEFT JOIN PROGRESSMILESTONES m ON s.MILESTONEID = m.MILESTONEID
+                LEFT JOIN TOPICS t ON m.TOPICID = t.TOPICID
                 WHERE 1=1";
             var parameters = new List<(string Name, object? Value)>();
 
@@ -428,6 +504,12 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
             {
                 sql += " AND s.LECTURERCODE = :P_LECTURER_CODE";
                 parameters.Add(("P_LECTURER_CODE", effectiveLecturerCode));
+            }
+
+            if (defenseTermId.HasValue)
+            {
+                sql += " AND t.DEFENSETERMID = :P_DEFENSE_TERM_ID";
+                parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
             }
 
             sql += @" GROUP BY CASE 

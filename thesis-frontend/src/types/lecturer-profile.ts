@@ -17,4 +17,5 @@ export interface LecturerProfile {
   address: string;
   notes: string;
   fullName: string;
+  defenseTermId?: number | null;
 }

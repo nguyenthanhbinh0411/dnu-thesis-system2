@@ -23,5 +23,6 @@ namespace ThesisManagement.Api.DTOs.StudentProfiles.Query
         string? Notes,
         string? FullName,
         DateTime? CreatedAt,
-        DateTime? LastUpdated);
+        DateTime? LastUpdated,
+        int? DefenseTermId);
 }

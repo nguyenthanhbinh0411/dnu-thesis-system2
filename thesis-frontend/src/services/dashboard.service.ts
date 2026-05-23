@@ -22,6 +22,8 @@ export interface DashboardQueryParams {
   departmentCode?: string;
   status?: string;
   search?: string;
+  /** Lọc theo đợt bảo vệ tốt nghiệp hiện tại */
+  defenseTermId?: number | string;
 }
 
 export interface DashboardResponseEnvelope<TRecord = DashboardRecord> {
@@ -151,6 +153,9 @@ export function buildDashboardQuery(params: DashboardQueryParams = {}): string {
   if (params.departmentCode) query.set("departmentCode", params.departmentCode);
   if (params.status) query.set("status", params.status);
   if (params.search) query.set("search", params.search);
+  if (params.defenseTermId !== undefined && params.defenseTermId !== null && params.defenseTermId !== "") {
+    query.set("defenseTermId", String(params.defenseTermId));
+  }
 
   const queryString = query.toString();
   return queryString ? `?${queryString}` : "";

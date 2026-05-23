@@ -9,7 +9,7 @@ namespace ThesisManagement.Api.Application.Query.Reports
 {
     public interface IReportQueryProcessor
     {
-        Task<OperationResult<StudentDashboardDto>> GetStudentDashboardAsync(string userCode);
+        Task<OperationResult<StudentDashboardDto>> GetStudentDashboardAsync(string userCode, int? defenseTermId = null);
         Task<OperationResult<StudentProgressHistoryDto>> GetStudentProgressHistoryAsync(StudentProgressHistoryFilterDto filter);
         Task<OperationResult<LecturerSubmissionListDto>> GetLecturerSubmissionListAsync(LecturerSubmissionFilterDto filter);
     }
@@ -25,13 +25,19 @@ namespace ThesisManagement.Api.Application.Query.Reports
             _db = db;
         }
 
-        public async Task<OperationResult<StudentDashboardDto>> GetStudentDashboardAsync(string userCode)
+        public async Task<OperationResult<StudentDashboardDto>> GetStudentDashboardAsync(string userCode, int? defenseTermId = null)
         {
             if (string.IsNullOrWhiteSpace(userCode))
                 return OperationResult<StudentDashboardDto>.Failed("userCode is required", 400);
 
-            var topic = await _uow.Topics.Query()
-                .Where(x => x.ProposerUserCode == userCode)
+            var topicQuery = _uow.Topics.Query()
+                .Where(x => x.ProposerUserCode == userCode);
+
+            // Lọc theo đợt bảo vệ hiện tại nếu được chỉ định
+            if (defenseTermId.HasValue)
+                topicQuery = topicQuery.Where(x => x.DefenseTermId == defenseTermId.Value);
+
+            var topic = await topicQuery
                 .OrderByDescending(x => x.LastUpdated ?? x.CreatedAt)
                 .ThenByDescending(x => x.TopicID)
                 .FirstOrDefaultAsync();
@@ -162,6 +168,13 @@ namespace ThesisManagement.Api.Application.Query.Reports
 
             var query = _uow.ProgressSubmissions.Query().Where(x => x.StudentUserCode == filter.UserCode);
 
+            // Lọc submission theo đợt bảo vệ (qua Milestone → Topic.DefenseTermId)
+            if (filter.DefenseTermId.HasValue)
+                query = query.Where(x =>
+                    x.Milestone != null &&
+                    x.Milestone.Topic != null &&
+                    x.Milestone.Topic.DefenseTermId == filter.DefenseTermId.Value);
+
             if (!string.IsNullOrWhiteSpace(filter.State))
                 query = query.Where(x => x.LecturerState == filter.State);
 
@@ -231,6 +244,13 @@ namespace ThesisManagement.Api.Application.Query.Reports
             var pageSize = filter.PageSize <= 0 ? 20 : Math.Min(filter.PageSize, 100);
 
             var query = _uow.ProgressSubmissions.Query().Where(x => x.LecturerCode == filter.LecturerCode);
+
+            // Lọc submission theo đợt bảo vệ (qua Milestone → Topic.DefenseTermId)
+            if (filter.DefenseTermId.HasValue)
+                query = query.Where(x =>
+                    x.Milestone != null &&
+                    x.Milestone.Topic != null &&
+                    x.Milestone.Topic.DefenseTermId == filter.DefenseTermId.Value);
 
             if (!string.IsNullOrWhiteSpace(filter.State))
                 query = query.Where(x => x.LecturerState == filter.State);

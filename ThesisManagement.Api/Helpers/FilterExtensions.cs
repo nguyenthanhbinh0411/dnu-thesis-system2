@@ -194,6 +194,10 @@ namespace ThesisManagement.Api.Helpers
             if (!string.IsNullOrEmpty(filter.AcademicStanding))
                 query = query.Where(x => x.AcademicStanding == filter.AcademicStanding);
 
+            // Lọc theo đợt bảo vệ
+            if (filter.DefenseTermId.HasValue)
+                query = query.Where(x => x.DefenseTermId == filter.DefenseTermId.Value);
+
             if (filter.FromDate.HasValue)
                 query = query.Where(x => x.CreatedAt >= filter.FromDate.Value);
 
@@ -267,6 +271,10 @@ namespace ThesisManagement.Api.Helpers
                         tagCodes.Add(value);
                 }
             }
+
+            // Lọc theo đợt bảo vệ
+            if (filter.DefenseTermId.HasValue)
+                query = query.Where(x => x.DefenseTermId == filter.DefenseTermId.Value);
 
             if (filter.FromDate.HasValue)
                 query = query.Where(x => x.CreatedAt >= filter.FromDate.Value);

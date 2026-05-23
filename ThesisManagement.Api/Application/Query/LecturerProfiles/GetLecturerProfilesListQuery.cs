@@ -94,6 +94,7 @@ namespace ThesisManagement.Api.Application.Query.LecturerProfiles
                     MaxDefenseQuota = filter.MaxDefenseQuota,
                     TagCodes = null,
                     Tags = null,
+                    DefenseTermId = filter.DefenseTermId,
                     FromDate = filter.FromDate,
                     ToDate = filter.ToDate,
                     SortBy = filter.SortBy

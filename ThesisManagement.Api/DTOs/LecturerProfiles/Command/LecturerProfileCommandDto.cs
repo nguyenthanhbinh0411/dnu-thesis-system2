@@ -17,7 +17,9 @@ namespace ThesisManagement.Api.DTOs.LecturerProfiles.Command
         string? ProfileImage,
         string? Address,
         string? Notes,
-        string? FullName);
+        string? FullName,
+        /// <summary>Đợt bảo vệ mà giảng viên được import vào. Nếu LecturerCode đã tồn tại, chỉ cập nhật DefenseTermId.</summary>
+        int? DefenseTermId = null);
 
     public record LecturerProfileUpdateDto(
         string? DepartmentCode,
@@ -32,5 +34,6 @@ namespace ThesisManagement.Api.DTOs.LecturerProfiles.Command
         string? PhoneNumber,
         string? Address,
         string? Notes,
-        string? FullName);
+        string? FullName,
+        int? DefenseTermId = null);
 }

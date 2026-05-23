@@ -141,6 +141,13 @@ namespace ThesisManagement.Api.Data
                 b.Property(x => x.GraduationYear);
                 b.Property(x => x.Notes);
 
+                b.Property(x => x.DefenseTermId);
+                b.HasOne(x => x.DefenseTerm)
+                    .WithMany(x => x.StudentProfiles)
+                    .HasForeignKey(x => x.DefenseTermId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                b.HasIndex(x => x.DefenseTermId);
+
                 b.Property(x => x.CreatedAt).HasDefaultValueSql("SYSTIMESTAMP");
                 b.Property(x => x.LastUpdated).HasDefaultValueSql("SYSTIMESTAMP");
             });
@@ -188,6 +195,14 @@ namespace ThesisManagement.Api.Data
                 b.Property(x => x.Address).HasMaxLength(255);
                 b.Property(x => x.Notes);
                 b.Property(x => x.FullName).HasMaxLength(100);
+
+                b.Property(x => x.DefenseTermId);
+                b.HasOne(x => x.DefenseTerm)
+                    .WithMany(x => x.LecturerProfiles)
+                    .HasForeignKey(x => x.DefenseTermId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                b.HasIndex(x => x.DefenseTermId);
+
                 b.Property(x => x.CreatedAt).HasDefaultValueSql("SYSTIMESTAMP");
                 b.Property(x => x.LastUpdated).HasDefaultValueSql("SYSTIMESTAMP");
             });

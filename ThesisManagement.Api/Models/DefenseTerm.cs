@@ -22,5 +22,9 @@ namespace ThesisManagement.Api.Models
         public ICollection<DefenseAssignment>? DefenseAssignments { get; set; }
         public ICollection<DefenseTermStudent>? DefenseTermStudents { get; set; }
         public ICollection<DefenseTermLecturer>? DefenseTermLecturers { get; set; }
+        /// <summary>Sinh viên được import vào đợt bảo vệ này.</summary>
+        public ICollection<StudentProfile>? StudentProfiles { get; set; }
+        /// <summary>Giảng viên được import vào đợt bảo vệ này.</summary>
+        public ICollection<LecturerProfile>? LecturerProfiles { get; set; }
     }
 }

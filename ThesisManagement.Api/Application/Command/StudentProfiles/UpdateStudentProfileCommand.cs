@@ -67,6 +67,9 @@ namespace ThesisManagement.Api.Application.Command.StudentProfiles
             if (dto.FullName != null)
                 entity.FullName = dto.FullName;
 
+            if (dto.DefenseTermId.HasValue)
+                entity.DefenseTermId = dto.DefenseTermId;
+
             entity.LastUpdated = DateTime.UtcNow;
 
             _uow.StudentProfiles.Update(entity);

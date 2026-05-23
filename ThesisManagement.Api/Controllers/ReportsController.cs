@@ -47,9 +47,11 @@ namespace ThesisManagement.Api.Controllers
         }
 
         [HttpGet("student/dashboard")]
-        public async Task<IActionResult> GetStudentDashboard([FromQuery] string userCode)
+        public async Task<IActionResult> GetStudentDashboard(
+            [FromQuery] string userCode,
+            [FromQuery] int? defenseTermId = null)
         {
-            var result = await _getStudentDashboardQuery.ExecuteAsync(userCode);
+            var result = await _getStudentDashboardQuery.ExecuteAsync(userCode, defenseTermId);
             if (!result.Success)
                 return StatusCode(result.StatusCode, ApiResponse<object>.Fail(result.ErrorMessage ?? "Request failed", result.StatusCode));
 
@@ -68,6 +70,15 @@ namespace ThesisManagement.Api.Controllers
             var studentQuery = _uow.StudentProfiles.Query()
                 .AsNoTracking()
                 .Where(x => !string.IsNullOrWhiteSpace(x.UserCode));
+
+            // Lọc sinh viên thuộc đợt bảo vệ cụ thể
+            if (filter.DefenseTermId.HasValue)
+            {
+                var termStudentUserCodes = _uow.DefenseTermStudents.Query()
+                    .Where(dts => dts.DefenseTermId == filter.DefenseTermId.Value && dts.UserCode != null)
+                    .Select(dts => dts.UserCode!);
+                studentQuery = studentQuery.Where(x => x.UserCode != null && termStudentUserCodes.Contains(x.UserCode));
+            }
 
             if (!string.IsNullOrWhiteSpace(filter.Search))
             {
@@ -180,7 +191,7 @@ namespace ThesisManagement.Api.Controllers
             foreach (var studentProfile in students)
             {
                 var code = studentProfile.UserCode!;
-                var result = await _getStudentDashboardQuery.ExecuteAsync(code);
+                var result = await _getStudentDashboardQuery.ExecuteAsync(code, filter.DefenseTermId);
                 if (!result.Success)
                     return StatusCode(result.StatusCode, ApiResponse<object>.Fail($"userCode '{code}': {result.ErrorMessage}", result.StatusCode));
 
@@ -239,7 +250,8 @@ namespace ThesisManagement.Api.Controllers
             [FromQuery] string? state = null,
             [FromQuery] DateTime? fromDate = null,
             [FromQuery] DateTime? toDate = null,
-            [FromQuery] string? milestoneCode = null)
+            [FromQuery] string? milestoneCode = null,
+            [FromQuery] int? defenseTermId = null)
         {
             var filter = new StudentProgressHistoryFilterDto(
                 UserCode: userCode,
@@ -248,7 +260,8 @@ namespace ThesisManagement.Api.Controllers
                 State: state,
                 FromDate: fromDate,
                 ToDate: toDate,
-                MilestoneCode: milestoneCode);
+                MilestoneCode: milestoneCode,
+                DefenseTermId: defenseTermId);
 
             var result = await _getStudentProgressHistoryQuery.ExecuteAsync(filter);
             if (!result.Success)
@@ -312,13 +325,15 @@ namespace ThesisManagement.Api.Controllers
             [FromQuery] string lecturerCode,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20,
-            [FromQuery] string? state = null)
+            [FromQuery] string? state = null,
+            [FromQuery] int? defenseTermId = null)
         {
             var filter = new LecturerSubmissionFilterDto(
                 LecturerCode: lecturerCode,
                 Page: page,
                 PageSize: pageSize,
-                State: state);
+                State: state,
+                DefenseTermId: defenseTermId);
 
             var result = await _getLecturerSubmissionListQuery.ExecuteAsync(filter);
             if (!result.Success)
