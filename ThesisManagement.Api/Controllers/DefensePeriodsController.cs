@@ -492,10 +492,10 @@ namespace ThesisManagement.Api.Controllers
                     await StartPeriod(periodId, request.IdempotencyKey),
                     action),
                 "NEXT" => WrapAsObject<bool>(
-                    await _moveNextCommand.ExecuteAsync(periodId, CurrentUserId, request.IdempotencyKey, HttpContext.RequestAborted),
+                    await _moveNextCommand.ExecuteAsync(periodId, CurrentUserId, request.IdempotencyKey, request.BypassProgressCheck ?? false, HttpContext.RequestAborted),
                     action),
                 "NEXT_STEP" => WrapAsObject<bool>(
-                    await _moveNextCommand.ExecuteAsync(periodId, CurrentUserId, request.IdempotencyKey, HttpContext.RequestAborted),
+                    await _moveNextCommand.ExecuteAsync(periodId, CurrentUserId, request.IdempotencyKey, request.BypassProgressCheck ?? false, HttpContext.RequestAborted),
                     action),
                 "PAUSE" => WrapAsObject(
                     await PausePeriod(periodId, request.IdempotencyKey),

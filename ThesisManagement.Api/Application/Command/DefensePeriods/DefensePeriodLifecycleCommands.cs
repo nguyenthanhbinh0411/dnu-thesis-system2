@@ -15,7 +15,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
     public interface IMoveNextDefensePeriodCommand
     {
-        Task<ApiResponse<bool>> ExecuteAsync(int periodId, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
+        Task<ApiResponse<bool>> ExecuteAsync(int periodId, int actorUserId, string? idempotencyKey = null, bool bypassProgressCheck = false, CancellationToken cancellationToken = default);
     }
 
     public interface IResumeDefensePeriodCommand
@@ -77,7 +77,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
     {
         private readonly IDefensePeriodCommandProcessor _processor;
         public MoveNextDefensePeriodCommand(IDefensePeriodCommandProcessor processor) => _processor = processor;
-        public Task<ApiResponse<bool>> ExecuteAsync(int periodId, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default)
-            => _processor.MoveNextStepAsync(periodId, actorUserId, idempotencyKey, cancellationToken);
+        public Task<ApiResponse<bool>> ExecuteAsync(int periodId, int actorUserId, string? idempotencyKey = null, bool bypassProgressCheck = false, CancellationToken cancellationToken = default)
+            => _processor.MoveNextStepAsync(periodId, actorUserId, idempotencyKey, bypassProgressCheck, cancellationToken);
     }
 }

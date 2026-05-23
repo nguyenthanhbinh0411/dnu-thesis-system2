@@ -49,7 +49,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
         Task<ApiResponse<bool>> PublishScoresAsync(int periodId, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
 
         Task<ApiResponse<bool>> StartAsync(int periodId, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
-        Task<ApiResponse<bool>> MoveNextStepAsync(int periodId, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
+        Task<ApiResponse<bool>> MoveNextStepAsync(int periodId, int actorUserId, string? idempotencyKey = null, bool bypassProgressCheck = false, CancellationToken cancellationToken = default);
         Task<ApiResponse<bool>> PauseAsync(int periodId, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
         Task<ApiResponse<bool>> ResumeAsync(int periodId, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
         Task<ApiResponse<bool>> LockScoringAsync(int periodId, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
@@ -3057,7 +3057,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             }
         }
 
-        public async Task<ApiResponse<bool>> MoveNextStepAsync(int periodId, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+        public async Task<ApiResponse<bool>> MoveNextStepAsync(int periodId, int actorUserId, string? idempotencyKey = null, bool bypassProgressCheck = false, CancellationToken cancellationToken = default)
         {
             if (await IsIdempotentReplayAsync("MOVE_NEXT", periodId, idempotencyKey, cancellationToken))
             {
@@ -3080,6 +3080,46 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 DefenseWorkflowStateMachine.EnsurePeriodTransition(currentStatus, nextStatus, "UC2.NEXT.INVALID_TRANSITION");
 
                 // Business logic validations for specific steps
+                if (currentStatus == DefenseTermStatus.Registration && nextStatus == DefenseTermStatus.ProgressTracking)
+                {
+                    var studentCodes = await _db.DefenseTermStudents
+                        .Where(x => x.DefenseTermId == periodId)
+                        .Select(x => x.StudentCode)
+                        .ToListAsync(cancellationToken);
+
+                    var topicStudentCodes = await _db.Topics
+                        .Where(x => x.DefenseTermId == periodId && !string.IsNullOrEmpty(x.ProposerStudentCode))
+                        .Select(x => x.ProposerStudentCode!)
+                        .ToListAsync(cancellationToken);
+
+                    var studentsWithoutTopic = studentCodes.Except(topicStudentCodes).ToList();
+                    if (studentsWithoutTopic.Count > 0)
+                    {
+                        throw new BusinessRuleException(
+                            $"Không thể chuyển sang giai đoạn Tiến độ vì có {studentsWithoutTopic.Count} sinh viên chưa đăng ký đề tài.",
+                            "UC2.NEXT.STUDENTS_WITHOUT_TOPIC",
+                            new { StudentsWithoutTopic = studentsWithoutTopic }
+                        );
+                    }
+                }
+
+                if (currentStatus == DefenseTermStatus.ProgressTracking && nextStatus == DefenseTermStatus.CommitteePreparation)
+                {
+                    var topics = await _db.Topics
+                        .Where(x => x.DefenseTermId == periodId)
+                        .ToListAsync(cancellationToken);
+
+                    var ineligibleTopics = topics.Where(x => !IsDefenseEligibleTopicStatus(x.Status)).ToList();
+                    if (ineligibleTopics.Count > 0 && !bypassProgressCheck)
+                    {
+                        throw new BusinessRuleException(
+                            "Một số đề tài chưa Đủ điều kiện bảo vệ (vì có người bỏ làm đồ án mà). Bạn có muốn tiếp tục chuyển sang giai đoạn chuẩn bị hội đồng?",
+                            "UC2.NEXT.INELIGIBLE_TOPICS",
+                            new { IneligibleTopics = ineligibleTopics.Select(x => new { x.TopicCode, x.Title, x.Status }).ToList() }
+                        );
+                    }
+                }
+
                 if (nextStatus == DefenseTermStatus.Running)
                 {
                     await CloseOtherOpenPeriodsAsync(periodId, cancellationToken);

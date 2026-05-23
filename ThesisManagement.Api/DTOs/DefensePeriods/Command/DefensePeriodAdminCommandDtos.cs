@@ -329,6 +329,8 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
 
         public string? IdempotencyKey { get; set; }
 
+        public bool? BypassProgressCheck { get; set; }
+
         public SyncDefensePeriodRequestDto? Sync { get; set; }
 
         public FinalizeDefensePeriodDto? Finalize { get; set; }

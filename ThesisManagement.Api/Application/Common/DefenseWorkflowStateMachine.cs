@@ -19,13 +19,13 @@ namespace ThesisManagement.Api.Application.Common
             new Dictionary<DefenseTermStatus, IReadOnlyList<DefenseTermStatus>>
         {
             { DefenseTermStatus.Draft, new[] { DefenseTermStatus.Registration } },
-            { DefenseTermStatus.Registration, new[] { DefenseTermStatus.Assignment } },
-            { DefenseTermStatus.Assignment, new[] { DefenseTermStatus.ProgressTracking } },
+            { DefenseTermStatus.Registration, new[] { DefenseTermStatus.ProgressTracking } },
             { DefenseTermStatus.ProgressTracking, new[] { DefenseTermStatus.CommitteePreparation } },
             { DefenseTermStatus.CommitteePreparation, new[] { DefenseTermStatus.Running } },
             { DefenseTermStatus.Running, new[] { DefenseTermStatus.Finalization } },
             { DefenseTermStatus.Finalization, new[] { DefenseTermStatus.Archived } },
             // Legacy transitions for backwards compatibility:
+            { DefenseTermStatus.Assignment, new[] { DefenseTermStatus.ProgressTracking } },
             { DefenseTermStatus.ScoringLocked, new[] { DefenseTermStatus.Finalization } },
             { DefenseTermStatus.Published, new[] { DefenseTermStatus.Archived } },
             { DefenseTermStatus.Closed, new[] { DefenseTermStatus.Archived } },
