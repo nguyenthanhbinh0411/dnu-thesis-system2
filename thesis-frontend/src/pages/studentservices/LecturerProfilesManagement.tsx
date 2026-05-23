@@ -12,11 +12,18 @@ import {
 } from "lucide-react";
 import { fetchData, getAvatarUrl } from "../../api/fetchData";
 import ImportExportActions from "../../components/admin/ImportExportActions.tsx";
+import { useActiveDefensePeriodId } from "../../utils/defensePeriod";
 import ManagementSectionedFormBody from "../../components/admin/ManagementSectionedFormBody";
 import TablePagination from "../../components/TablePagination/TablePagination";
 import { useToast } from "../../context/useToast";
 import type { ApiResponse } from "../../types/api";
 import "./LecturerProfilesManagement.css";
+
+type DefensePeriod = {
+  defenseTermId: number;
+  name: string;
+  status: string;
+};
 
 type RecordData = Record<string, unknown>;
 type FieldType = "text" | "number" | "date" | "textarea";
@@ -400,6 +407,33 @@ function getTopicTypeLabel(type?: string): string {
 
 const LecturerProfilesManagement: React.FC = () => {
   const { addToast } = useToast();
+  const activePeriodId = useActiveDefensePeriodId();
+  const [periods, setPeriods] = useState<DefensePeriod[]>([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchPeriods = async () => {
+      try {
+        const response = await fetchData<ApiResponse<DefensePeriod[]>>(
+          "/defense-periods",
+          { method: "GET" }
+        );
+        if (response?.success && response.data) {
+          setPeriods(response.data);
+        }
+      } catch {
+        setPeriods([]);
+      }
+    };
+    void fetchPeriods();
+  }, []);
+
+  useEffect(() => {
+    if (activePeriodId) {
+      setSelectedPeriodId(activePeriodId);
+    }
+  }, [activePeriodId]);
+
   const [rows, setRows] = useState<RecordData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -440,12 +474,18 @@ const LecturerProfilesManagement: React.FC = () => {
       page,
       pageSize,
       search: searchKeyword,
+      DefenseTermId: selectedPeriodId || undefined,
       ...advancedFilters,
     }),
-    [advancedFilters, page, pageSize, searchKeyword],
+    [advancedFilters, page, pageSize, searchKeyword, selectedPeriodId],
   );
 
   const loadRows = useCallback(async () => {
+    if (!selectedPeriodId) {
+      setRows([]);
+      setTotalCount(0);
+      return;
+    }
     setIsLoading(true);
     try {
       const query = buildQuery(listQuery);
@@ -469,7 +509,7 @@ const LecturerProfilesManagement: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [addToast, listQuery]);
+  }, [addToast, listQuery, selectedPeriodId]);
 
   useEffect(() => {
     void loadRows();
@@ -574,6 +614,7 @@ const LecturerProfilesManagement: React.FC = () => {
     setActiveModal("detail");
 
     try {
+      const termFilter = selectedPeriodId ? `&DefenseTermId=${selectedPeriodId}` : "";
       const [detailResponse, dashboardResponse] = await Promise.all([
         requestApiData<RecordData>(
           `/LecturerProfiles/get-detail/${encodeURIComponent(code)}`,
@@ -581,7 +622,7 @@ const LecturerProfilesManagement: React.FC = () => {
           "Không thể tải chi tiết giảng viên.",
         ),
         requestApiData<unknown>(
-          `/reports/student/dashboard/get-list?Page=0&PageSize=10&SupervisorLecturerCode=${encodeURIComponent(code)}`,
+          `/reports/student/dashboard/get-list?Page=0&PageSize=10&SupervisorLecturerCode=${encodeURIComponent(code)}${termFilter}`,
           { method: "GET" },
           "Không thể tải danh sách sinh viên.",
         ),
@@ -605,8 +646,9 @@ const LecturerProfilesManagement: React.FC = () => {
         setSelectedRow(row);
       }
       try {
+        const termFilter = selectedPeriodId ? `&DefenseTermId=${selectedPeriodId}` : "";
         const dashboardResponse = await requestApiData<unknown>(
-          `/reports/student/dashboard/get-list?Page=0&PageSize=10&SupervisorLecturerCode=${encodeURIComponent(code)}`,
+          `/reports/student/dashboard/get-list?Page=0&PageSize=10&SupervisorLecturerCode=${encodeURIComponent(code)}${termFilter}`,
           { method: "GET" },
           "Không thể tải danh sách sinh viên.",
         );
@@ -665,6 +707,9 @@ const LecturerProfilesManagement: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (activeModal === "create") {
+        if (selectedPeriodId) {
+          payload.defenseTermId = selectedPeriodId;
+        }
         await requestApiData<RecordData>(
           "/LecturerProfiles/create",
           { method: "POST", body: payload },
@@ -730,6 +775,25 @@ const LecturerProfilesManagement: React.FC = () => {
         </div>
 
         <div className="lpm-actions-wrap">
+          <div className="lpm-period-select-wrap">
+            <select
+              value={selectedPeriodId || ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedPeriodId(val ? Number(val) : null);
+                setPage(1);
+              }}
+              className="lpm-period-select"
+            >
+              <option value="">-- Chọn đợt bảo vệ --</option>
+              {periods.map((p) => (
+                <option key={p.defenseTermId} value={p.defenseTermId}>
+                  {p.name} {p.defenseTermId === activePeriodId ? "(Hiện tại)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button
             type="button"
             className="lpm-btn lpm-btn-secondary"
