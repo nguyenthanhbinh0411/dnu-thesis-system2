@@ -1201,7 +1201,7 @@ const DefenseTermLecturersSection = forwardRef<
                                   gap: "12px",
                                 }}
                               >
-                                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(243, 112, 33, 0.1)", display: "flex", alignItems: "center", justifyCenter: "center", color: "#f37021", flexShrink: 0 }}>
+                                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(243, 112, 33, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f37021", flexShrink: 0 }}>
                                   <User size={18} style={{ margin: "auto" }} />
                                 </div>
                                 <div>
@@ -1222,7 +1222,7 @@ const DefenseTermLecturersSection = forwardRef<
                                   gap: "12px",
                                 }}
                               >
-                                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(3, 105, 161, 0.1)", display: "flex", alignItems: "center", justifyCenter: "center", color: "#0369a1", flexShrink: 0 }}>
+                                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(3, 105, 161, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#0369a1", flexShrink: 0 }}>
                                   <TrendingUp size={18} style={{ margin: "auto" }} />
                                 </div>
                                 <div>
@@ -1243,7 +1243,7 @@ const DefenseTermLecturersSection = forwardRef<
                                   gap: "12px",
                                 }}
                               >
-                                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(5, 150, 105, 0.1)", display: "flex", alignItems: "center", justifyCenter: "center", color: "#059669", flexShrink: 0 }}>
+                                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(5, 150, 105, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#059669", flexShrink: 0 }}>
                                   <CheckCircle size={18} style={{ margin: "auto" }} />
                                 </div>
                                 <div>
@@ -1264,7 +1264,7 @@ const DefenseTermLecturersSection = forwardRef<
                                   gap: "12px",
                                 }}
                               >
-                                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(220, 38, 38, 0.1)", display: "flex", alignItems: "center", justifyCenter: "center", color: "#dc2626", flexShrink: 0 }}>
+                                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(220, 38, 38, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626", flexShrink: 0 }}>
                                   <RotateCcw size={18} style={{ margin: "auto" }} />
                                 </div>
                                 <div>
