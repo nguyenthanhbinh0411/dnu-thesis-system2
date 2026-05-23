@@ -15,6 +15,9 @@ namespace ThesisManagement.Api.Models
         public string? UploadedByUserCode { get; set; }
         public int? UploadedByUserID { get; set; }
 
+        public int? DefenseTermId { get; set; }
+
         public ProgressSubmission? Submission { get; set; }
+        public DefenseTerm? DefenseTerm { get; set; }
     }
 }

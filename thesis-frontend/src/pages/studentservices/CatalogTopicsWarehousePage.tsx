@@ -9,6 +9,7 @@ import {
   Search,
   Trash2,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { fetchData, FetchDataError } from "../../api/fetchData";
 import ImportExportActions from "../../components/admin/ImportExportActions";
@@ -239,6 +240,8 @@ const CatalogTopicsWarehousePage: React.FC = () => {
   const [rows, setRows] = useState<CatalogTopicWithTagsDto[]>([]);
   const [tagLookup, setTagLookup] = useState<TagLookupDto[]>([]);
   const [isLoadingRows, setIsLoadingRows] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [hasActivePeriod, setHasActivePeriod] = useState<boolean | null>(null);
   const [isLoadingTags, setIsLoadingTags] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -402,6 +405,24 @@ const CatalogTopicsWarehousePage: React.FC = () => {
   useEffect(() => {
     void loadTags();
   }, [loadTags]);
+
+  useEffect(() => {
+    const checkActivePeriod = async () => {
+      try {
+        const response = await fetchData<ApiResponse<any>>("/defense-periods/current");
+        const data = response?.data || response;
+        if (data && (data.defenseTermId || data.periodId)) {
+          setHasActivePeriod(true);
+        } else {
+          setHasActivePeriod(false);
+        }
+      } catch (error) {
+        console.error("Error checking active period:", error);
+        setHasActivePeriod(false);
+      }
+    };
+    void checkActivePeriod();
+  }, []);
 
   const updateFilter = (key: keyof WarehouseFilters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -587,6 +608,27 @@ const CatalogTopicsWarehousePage: React.FC = () => {
     }
   };
 
+  const handleResetStatus = async () => {
+    if (!window.confirm("Bạn có chắc chắn muốn reset trạng thái của tất cả đề tài trong kho về 'Chưa giao'?")) return;
+    
+    setIsResetting(true);
+    try {
+      const response = await fetchData<ApiResponse<any>>("/CatalogTopics/reset-status", {
+        method: "POST"
+      });
+      if (response?.success) {
+        addToast(response.data?.message || "Reset trạng thái đề tài thành công.", "success");
+        void loadRows();
+      } else {
+        throw new Error(response?.message || "Reset thất bại.");
+      }
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : "Có lỗi xảy ra khi reset.", "error");
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   return (
     <div className="warehouse-module admin-dashboard">
       <div className="dashboard-header">
@@ -650,6 +692,27 @@ const CatalogTopicsWarehousePage: React.FC = () => {
               <ArrowUpWideNarrow size={14} />
             )}
             {sortDescending ? "DESC" : "ASC"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResetStatus}
+            disabled={isResetting || hasActivePeriod === true}
+            className="warehouse-btn warehouse-btn-secondary"
+            title={hasActivePeriod === true ? "Không thể reset trạng thái khi đang có đợt bảo vệ hoạt động" : undefined}
+            style={{
+              background: "#fff",
+              borderColor: "#e2e8f0",
+              color: (isResetting || hasActivePeriod === true) ? "#94a3b8" : "#ef4444",
+              cursor: (isResetting || hasActivePeriod === true) ? "not-allowed" : "pointer",
+            }}
+          >
+            {isResetting ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            Reset trạng thái
           </button>
 
           <ImportExportActions
@@ -874,7 +937,35 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                       </div>
                     </td>
                     <td>{row.departmentCode || "--"}</td>
-                    <td>{row.assignedStatus || "--"}</td>
+                    <td>
+                      {row.assignedStatus === "Assigned" || row.assignedStatus === "Đã giao" ? (
+                        <span className="badge-assigned" style={{
+                          display: "inline-block",
+                          padding: "4px 10px",
+                          borderRadius: 999,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          background: "#fee2e2",
+                          color: "#991b1b",
+                          border: "1px solid #fecaca"
+                        }}>
+                          Đã giao
+                        </span>
+                      ) : (
+                        <span className="badge-unassigned" style={{
+                          display: "inline-block",
+                          padding: "4px 10px",
+                          borderRadius: 999,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          background: "#dcfce7",
+                          color: "#166534",
+                          border: "1px solid #bbf7d0"
+                        }}>
+                          Chưa giao
+                        </span>
+                      )}
+                    </td>
                     <td>
                       {Array.isArray(row.tags) && row.tags.length > 0 ? (
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -1169,7 +1260,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                       {[
                         ["Mã đề tài", selectedTopic?.catalogTopicCode],
                         ["Khoa/Bộ môn", selectedTopic?.departmentCode],
-                        ["Trạng thái", selectedTopic?.assignedStatus],
+                        ["Trạng thái", selectedTopic?.assignedStatus || "Chưa giao"],
                         ["Assigned at", formatDateTime(selectedTopic?.assignedAt ?? null)],
                         ["Created at", formatDateTime(selectedTopic?.createdAt ?? null)],
                         ["Last updated", formatDateTime(selectedTopic?.lastUpdated ?? null)],

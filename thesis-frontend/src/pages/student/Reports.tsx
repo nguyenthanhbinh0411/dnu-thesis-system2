@@ -208,13 +208,15 @@ const Reports: React.FC = () => {
         (m.ordinal === currentOrdinal && (currentState === "COMPLETED" || currentState === "WaitingForCommittee"));
       const isCurrent =
         m.ordinal === currentOrdinal && currentState !== "COMPLETED" && currentState !== "WaitingForCommittee";
-      // Phát hiện quá hạn ngay phía client: mốc đang thực hiện mà deadline đã qua
-      const isOverdue = isCurrent && !!m.deadline && new Date(m.deadline) < now;
+      // Ẩn cảnh báo quá hạn theo yêu cầu để tránh gây hoang mang
+      const isOverdue = false;
       return { ...m, isCompleted, isCurrent, isOverdue };
     });
   }, [milestoneTemplates, currentMilestone]);
 
   const isOverdue = useMemo(() => {
+    return false; // Tạm ẩn tính năng nộp muộn phải nộp đơn để SV nộp bài bình thường
+    /*
     if (!currentMilestone?.deadline) return false;
     const isCompleted =
       currentMilestone.state === "Hoàn thành" ||
@@ -222,6 +224,7 @@ const Reports: React.FC = () => {
       currentMilestone.state === "WaitingForCommittee";
     if (isCompleted) return false;
     return new Date(currentMilestone.deadline) < new Date();
+    */
   }, [currentMilestone]);
 
   const isLateRequest = useMemo(() => {
@@ -535,7 +538,7 @@ const Reports: React.FC = () => {
          </div>
          {/* Stat card Hạn chót — đỏ khi overdue */}
          {(() => {
-           const isCurrentOverdue = !!currentMilestone?.deadline && new Date(currentMilestone.deadline) < new Date();
+           const isCurrentOverdue = false;
            return (
              <div className={`p-5 rounded-[24px] shadow-sm flex items-center gap-5 group hover:shadow-md transition-all ${
                isCurrentOverdue

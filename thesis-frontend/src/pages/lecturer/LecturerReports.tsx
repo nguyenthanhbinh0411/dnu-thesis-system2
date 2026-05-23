@@ -239,6 +239,8 @@ const LecturerReports: React.FC = () => {
   );
   const [aiLoadingId, setAiLoadingId] = useState<number | null>(null);
   const [aiResults, setAiResults] = useState<Record<number, any>>({});
+  const [defenseTerms, setDefenseTerms] = useState<any[]>([]);
+  const [selectedDefenseTermId, setSelectedDefenseTermId] = useState<number | string>("");
 
   const handleAiAnalysis = async (sub: ProgressSubmission) => {
     if (!sub.reportDescription && !sub.reportTitle) return;
@@ -316,6 +318,38 @@ const LecturerReports: React.FC = () => {
     void resolveLecturerCode();
   }, [auth.user?.userCode]);
 
+  useEffect(() => {
+    const fetchDefenseTerms = async () => {
+      try {
+        const res = await fetchData("/defense-periods");
+        const list = (res as ApiResponse<any[]>)?.data || res || [];
+        const normalizedList = Array.isArray(list) ? list : (list.items || list.Items || []);
+        
+        setDefenseTerms(normalizedList);
+
+        // Fetch active defense period to select as default
+        try {
+          const currentRes = await fetchData("/defense-periods/current");
+          const currentData = (currentRes as ApiResponse<any>)?.data || currentRes;
+          if (currentData && (currentData.defenseTermId || currentData.periodId)) {
+            setSelectedDefenseTermId(currentData.defenseTermId || currentData.periodId);
+            return;
+          }
+        } catch (currentErr) {
+          console.error("Error fetching current defense period:", currentErr);
+        }
+
+        if (normalizedList.length > 0) {
+          setSelectedDefenseTermId(normalizedList[0].defenseTermId || normalizedList[0].periodId || "");
+        }
+      } catch (err) {
+        console.error("Error fetching defense terms:", err);
+      }
+    };
+    
+    void fetchDefenseTerms();
+  }, []);
+
   const loadReports = useCallback(async () => {
     const lecturerCode = activeLecturerCode;
     if (!lecturerCode) return;
@@ -334,8 +368,9 @@ const LecturerReports: React.FC = () => {
                   ? "REVISION_REQUIRED"
                   : "PENDING",
             )}`;
+      const termParam = selectedDefenseTermId ? `&defenseTermId=${selectedDefenseTermId}` : "";
       const response = (await fetchData(
-        `/reports/lecturer/submissions?lecturerCode=${encodeURIComponent(lecturerCode)}&page=${currentPage}&pageSize=${pageSize}${stateParam}`,
+        `/reports/lecturer/submissions?lecturerCode=${encodeURIComponent(lecturerCode)}&page=${currentPage}&pageSize=${pageSize}${stateParam}${termParam}`,
       )) as ApiResponse<LecturerSubmissionAggregatePayload>;
 
       if (!response.success || !response.data) {
@@ -379,7 +414,7 @@ const LecturerReports: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeLecturerCode, filterStatus, currentPage, pageSize]);
+  }, [activeLecturerCode, filterStatus, currentPage, pageSize, selectedDefenseTermId]);
 
   useEffect(() => {
     if (activeLecturerCode) {
@@ -798,6 +833,38 @@ const LecturerReports: React.FC = () => {
 
               {/* Filter Section */}
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                {/* Đợt bảo vệ Filter */}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Calendar size={16} color="#6B7280" />
+                  <select
+                    value={selectedDefenseTermId}
+                    onChange={(e) => {
+                      setSelectedDefenseTermId(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      border: "1px solid #D1D5DB",
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      cursor: "pointer",
+                      outline: "none",
+                      background: "white",
+                      minWidth: "200px",
+                    }}
+                  >
+                    <option value="">-- Tất cả các đợt --</option>
+                    {defenseTerms.map((term) => {
+                      const id = term.defenseTermId || term.periodId;
+                      const name = term.defenseTermName || term.name || `Đợt ${term.defenseTermCode || term.code}`;
+                      return (
+                        <option key={id} value={id}>
+                          {name}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <Filter size={16} color="#6B7280" />
                   <select

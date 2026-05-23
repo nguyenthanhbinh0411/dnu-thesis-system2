@@ -1,5 +1,6 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ThesisManagement.Api.Application.Command.CatalogTopics;
 using ThesisManagement.Api.Application.Query.CatalogTopics;
 using ThesisManagement.Api.DTOs;
@@ -104,6 +105,35 @@ namespace ThesisManagement.Api.Controllers
                 return StatusCode(result.StatusCode, ApiResponse<object>.Fail(result.ErrorMessage ?? "Request failed", result.StatusCode));
 
             return Ok(ApiResponse<object>.SuccessResponse(null));
+        }
+
+        [HttpPost("reset-status")]
+        public async Task<IActionResult> ResetStatus()
+        {
+            try
+            {
+                var hasActivePeriod = await _uow.DefenseTerms.Query()
+                    .AnyAsync(x => x.Status != "Closed" && x.Status != "Archived");
+
+                if (hasActivePeriod)
+                {
+                    return BadRequest(ApiResponse<object>.Fail("Không thể reset trạng thái đề tài mẫu khi đang có đợt bảo vệ đang hoạt động.", 400));
+                }
+
+                var catalogTopics = await _uow.CatalogTopics.Query().ToListAsync();
+                foreach (var topic in catalogTopics)
+                {
+                    topic.AssignedStatus = "Chưa giao";
+                    topic.AssignedAt = null;
+                    _uow.CatalogTopics.Update(topic);
+                }
+                await _uow.SaveChangesAsync();
+                return Ok(ApiResponse<object>.SuccessResponse(new { message = "Đã reset trạng thái của tất cả đề tài trong kho về chưa giao." }));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<object>.Fail($"Lỗi khi reset trạng thái đề tài: {ex.Message}", 500));
+            }
         }
     }
 }

@@ -33,6 +33,7 @@ import type { LecturerProfile } from "../../types/lecturer-profile";
 import type { Tag, CatalogTopicTag, TopicTag } from "../../types/tag";
 import type { ApiResponse } from "../../types/api";
 import { useAuth } from "../../hooks/useAuth";
+import { useActiveDefensePeriodId } from "../../utils/defensePeriod";
 import {
   decideTopicWorkflow,
   getTopicWorkflowDetail,
@@ -74,6 +75,12 @@ interface ThesisAiAnalysisResult {
   feedbackForStudent: string;
 }
 
+interface DefensePeriod {
+  defenseTermId: number;
+  name: string;
+  status: string;
+}
+
 interface LecturerTopicReviewProps {
   currentLecturerOnly?: boolean;
 }
@@ -81,6 +88,33 @@ interface LecturerTopicReviewProps {
 const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
   currentLecturerOnly = false,
 }) => {
+  const activePeriodId = useActiveDefensePeriodId();
+  const [periods, setPeriods] = useState<DefensePeriod[]>([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchPeriods = async () => {
+      try {
+        const response = await fetchData<ApiResponse<DefensePeriod[]>>(
+          "/defense-periods",
+          { method: "GET" }
+        );
+        if (response?.success && response.data) {
+          setPeriods(response.data);
+        }
+      } catch {
+        setPeriods([]);
+      }
+    };
+    void fetchPeriods();
+  }, []);
+
+  useEffect(() => {
+    if (activePeriodId) {
+      setSelectedPeriodId(activePeriodId);
+    }
+  }, [activePeriodId]);
+
   const { user } = useAuth();
   const { addToast } = useToast();
   const [topics, setTopics] = useState<TopicDisplay[]>([]);
@@ -190,6 +224,17 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
   // Fetch stats for all topics (not filtered)
   const fetchStats = useCallback(async () => {
     try {
+      if (!selectedPeriodId) {
+        setStats({
+          total: 0,
+          approved: 0,
+          pending: 0,
+          rejected: 0,
+          revision: 0,
+        });
+        return;
+      }
+
       if (currentLecturerOnly && !currentLecturerCode) {
         setStats({
           total: 0,
@@ -209,7 +254,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
       const statsResponse = await fetchData<{
         data: Topic[];
         totalCount: number;
-      }>(`/Topics/get-list?Page=1&PageSize=1000${lecturerFilter}`); // Get a large number to count all
+      }>(`/Topics/get-list?Page=1&PageSize=1000&DefenseTermId=${selectedPeriodId}${lecturerFilter}`); // Get a large number to count all
 
       const allTopics = statsResponse.data;
       const statsData = {
@@ -233,7 +278,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
       console.warn("Failed to fetch stats:", err);
       // Keep existing stats or set to 0
     }
-  }, [currentLecturerCode, currentLecturerOnly, mapApiStatusToDisplay]);
+  }, [currentLecturerCode, currentLecturerOnly, mapApiStatusToDisplay, selectedPeriodId]);
 
   useEffect(() => {
     const resolveLecturerCode = async () => {
@@ -283,6 +328,10 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
   ): string => {
     let url = `/Topics/get-list?Page=${page}&PageSize=${size}&SortBy=createdAt&SortOrder=desc`;
 
+    if (selectedPeriodId) {
+      url += `&DefenseTermId=${selectedPeriodId}`;
+    }
+
     if (supervisorLecturerCode) {
       url += `&SupervisorLecturerCode=${encodeURIComponent(
         supervisorLecturerCode,
@@ -312,6 +361,13 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
   useEffect(() => {
     const fetchTopics = async () => {
       if (!user?.userCode) return;
+
+      if (!selectedPeriodId) {
+        setTopics([]);
+        setTotalCount(0);
+        setLoading(false);
+        return;
+      }
 
       if (currentLecturerOnly && !currentLecturerCode) {
         setTopics([]);
@@ -452,6 +508,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
     pageSize,
     mapApiStatusToDisplay,
     fetchStats,
+    selectedPeriodId,
   ]);
 
   const syncTopicFromWorkflow = useCallback(
@@ -920,7 +977,39 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
           </div>
 
           {/* Filter Section */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            {/* Bộ chọn đợt bảo vệ */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Calendar size={16} color="#6B7280" />
+              <select
+                value={selectedPeriodId || ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedPeriodId(val ? Number(val) : null);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  border: "1px solid #D1D5DB",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  outline: "none",
+                  background: "white",
+                  minWidth: "200px",
+                  color: "#1e3a5f",
+                  fontWeight: "600",
+                }}
+              >
+                <option value="">-- Chọn đợt bảo vệ --</option>
+                {periods.map((p) => (
+                  <option key={p.defenseTermId} value={p.defenseTermId}>
+                    {p.name} {p.defenseTermId === activePeriodId ? "(Hiện tại)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <Filter size={16} color="#6B7280" />
               <select

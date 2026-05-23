@@ -17,6 +17,7 @@ export type TopicRenameRequestListFilter = {
   sortDescending?: boolean;
   page?: number;
   pageSize?: number;
+  defenseTermId?: number | string;
 };
 
 export interface TopicRenameRequestListItem {

@@ -292,6 +292,42 @@ namespace ThesisManagement.Api.Services.DataExchange
                 ? await _uow.Departments.GetByCodeAsync(departmentCode)
                 : null;
 
+            var activeStatuses = new[] { "Registration", "Assignment", "ProgressTracking", "CommitteePreparation", "Running", "ScoringLocked" };
+            var activePeriod = await _uow.DefenseTerms.Query()
+                .Where(x => activeStatuses.Contains(x.Status))
+                .OrderByDescending(x => x.DefenseTermId)
+                .FirstOrDefaultAsync();
+
+            // Resolve ClassID and ClassCode from row
+            var classCode = Get(row, "classCode") ?? Get(row, "class_code") ?? Get(row, "class");
+            var classIdVal = ParseInt(Get(row, "classID")) ?? ParseInt(Get(row, "classId"));
+            Class? studentClass = null;
+
+            if (classIdVal != null)
+            {
+                studentClass = await _uow.Classes.Query().FirstOrDefaultAsync(x => x.ClassID == classIdVal.Value);
+            }
+            else if (!string.IsNullOrWhiteSpace(classCode))
+            {
+                studentClass = await _uow.Classes.Query().FirstOrDefaultAsync(x => x.ClassCode == classCode);
+            }
+
+            var finalClassId = studentClass?.ClassID;
+            var finalClassCode = studentClass?.ClassCode ?? classCode;
+
+            // Resolve DefenseTermId from row with fallback to activePeriod
+            var rowDefenseTermId = ParseInt(Get(row, "defenseTermId")) ?? ParseInt(Get(row, "defenseTermID"));
+            var targetDefenseTermId = rowDefenseTermId;
+            if (targetDefenseTermId == null && activePeriod != null)
+            {
+                targetDefenseTermId = activePeriod.DefenseTermId;
+            }
+
+            var defenseTerm = targetDefenseTermId != null
+                ? await _uow.DefenseTerms.GetByIdAsync(targetDefenseTermId.Value)
+                : null;
+            var finalDefenseTermId = defenseTerm?.DefenseTermId;
+
             StudentProfile? entity = null;
             if (!string.IsNullOrWhiteSpace(studentCode))
             {
@@ -307,6 +343,8 @@ namespace ThesisManagement.Api.Services.DataExchange
                     UserID = user.UserID,
                     DepartmentCode = department?.DepartmentCode,
                     DepartmentID = department?.DepartmentID,
+                    ClassID = finalClassId,
+                    ClassCode = finalClassCode,
                     FullName = Get(row, "fullName"),
                     StudentEmail = Get(row, "studentEmail"),
                     PhoneNumber = Get(row, "phoneNumber"),
@@ -318,34 +356,45 @@ namespace ThesisManagement.Api.Services.DataExchange
                     GPA = ParseDecimal(Get(row, "gpa")),
                     Address = Get(row, "address"),
                     Notes = Get(row, "notes"),
+                    DefenseTermId = finalDefenseTermId,
                     CreatedAt = DateTime.UtcNow,
                     LastUpdated = DateTime.UtcNow
                 };
 
                 await _uow.StudentProfiles.AddAsync(entity);
                 await _uow.SaveChangesAsync();
+
                 return UpsertAction.Created;
             }
 
-            entity.UserCode = user.UserCode;
-            entity.UserID = user.UserID;
-            entity.DepartmentCode = department?.DepartmentCode;
-            entity.DepartmentID = department?.DepartmentID;
-            entity.FullName = Get(row, "fullName") ?? entity.FullName;
-            entity.StudentEmail = Get(row, "studentEmail") ?? entity.StudentEmail;
-            entity.PhoneNumber = Get(row, "phoneNumber") ?? entity.PhoneNumber;
-            entity.Status = Get(row, "status") ?? entity.Status;
-            entity.Gender = Get(row, "gender") ?? entity.Gender;
-            entity.Address = Get(row, "address") ?? entity.Address;
-            entity.Notes = Get(row, "notes") ?? entity.Notes;
-            entity.GPA = ParseDecimal(Get(row, "gpa")) ?? entity.GPA;
-            entity.EnrollmentYear = ParseInt(Get(row, "enrollmentYear")) ?? entity.EnrollmentYear;
-            entity.GraduationYear = ParseInt(Get(row, "graduationYear")) ?? entity.GraduationYear;
-            entity.DateOfBirth = ParseDate(Get(row, "dateOfBirth")) ?? entity.DateOfBirth;
-            entity.LastUpdated = DateTime.UtcNow;
+            // Duplicate student code: only update defense term and class, and do not change other personal information
+            var hasStudentChanges = false;
 
-            _uow.StudentProfiles.Update(entity);
-            await _uow.SaveChangesAsync();
+            if (finalClassId != null && entity.ClassID != finalClassId)
+            {
+                entity.ClassID = finalClassId;
+                hasStudentChanges = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(finalClassCode) && entity.ClassCode != finalClassCode)
+            {
+                entity.ClassCode = finalClassCode;
+                hasStudentChanges = true;
+            }
+
+            if (finalDefenseTermId != null && entity.DefenseTermId != finalDefenseTermId)
+            {
+                entity.DefenseTermId = finalDefenseTermId;
+                hasStudentChanges = true;
+            }
+
+            if (hasStudentChanges || finalDefenseTermId != null)
+            {
+                entity.LastUpdated = DateTime.UtcNow;
+                _uow.StudentProfiles.Update(entity);
+                await _uow.SaveChangesAsync();
+            }
+
             return UpsertAction.Updated;
         }
 
@@ -384,6 +433,25 @@ namespace ThesisManagement.Api.Services.DataExchange
                 ? await _uow.Departments.GetByCodeAsync(departmentCode)
                 : null;
 
+            var activeStatuses = new[] { "Registration", "Assignment", "ProgressTracking", "CommitteePreparation", "Running", "ScoringLocked" };
+            var activePeriod = await _uow.DefenseTerms.Query()
+                .Where(x => activeStatuses.Contains(x.Status))
+                .OrderByDescending(x => x.DefenseTermId)
+                .FirstOrDefaultAsync();
+
+            // Resolve DefenseTermId from row with fallback to activePeriod
+            var rowDefenseTermId = ParseInt(Get(row, "defenseTermId")) ?? ParseInt(Get(row, "defenseTermID"));
+            var targetDefenseTermId = rowDefenseTermId;
+            if (targetDefenseTermId == null && activePeriod != null)
+            {
+                targetDefenseTermId = activePeriod.DefenseTermId;
+            }
+
+            var defenseTerm = targetDefenseTermId != null
+                ? await _uow.DefenseTerms.GetByIdAsync(targetDefenseTermId.Value)
+                : null;
+            var finalDefenseTermId = defenseTerm?.DefenseTermId;
+
             LecturerProfile? entity = null;
             if (!string.IsNullOrWhiteSpace(lecturerCode))
             {
@@ -412,12 +480,14 @@ namespace ThesisManagement.Api.Services.DataExchange
                     Specialties = Get(row, "specialties"),
                     Organization = Get(row, "organization"),
                     Notes = Get(row, "notes"),
+                    DefenseTermId = finalDefenseTermId,
                     CreatedAt = DateTime.UtcNow,
                     LastUpdated = DateTime.UtcNow
                 };
 
                 await _uow.LecturerProfiles.AddAsync(entity);
                 await _uow.SaveChangesAsync();
+
                 if (hasTagCodesColumn)
                 {
                     await SyncLecturerTagsAsync(entity.LecturerProfileID, entity.LecturerCode, incomingTagCodes, existingTagMap, Get(row, "assignedByUserCode"));
@@ -426,31 +496,44 @@ namespace ThesisManagement.Api.Services.DataExchange
                 return UpsertAction.Created;
             }
 
-            entity.UserCode = user.UserCode;
-            entity.UserID = user.UserID;
-            entity.DepartmentCode = department?.DepartmentCode;
-            entity.DepartmentID = department?.DepartmentID;
-            entity.FullName = Get(row, "fullName") ?? entity.FullName;
-            entity.Degree = Get(row, "degree") ?? entity.Degree;
-            entity.Email = Get(row, "email") ?? entity.Email;
-            entity.PhoneNumber = Get(row, "phoneNumber") ?? entity.PhoneNumber;
-            entity.Address = Get(row, "address") ?? entity.Address;
-            entity.Specialties = Get(row, "specialties") ?? entity.Specialties;
-            entity.Organization = Get(row, "organization") ?? entity.Organization;
-            entity.Notes = Get(row, "notes") ?? entity.Notes;
-            entity.Gender = Get(row, "gender") ?? entity.Gender;
-            entity.GuideQuota = ParseInt(Get(row, "guideQuota")) ?? entity.GuideQuota;
-            entity.DefenseQuota = ParseInt(Get(row, "defenseQuota")) ?? entity.DefenseQuota;
-            entity.CurrentGuidingCount = ParseInt(Get(row, "currentGuidingCount")) ?? entity.CurrentGuidingCount;
-            entity.DateOfBirth = ParseDate(Get(row, "dateOfBirth")) ?? entity.DateOfBirth;
-            entity.LastUpdated = DateTime.UtcNow;
-
-            _uow.LecturerProfiles.Update(entity);
-            await _uow.SaveChangesAsync();
-
-            if (hasTagCodesColumn)
+            // Duplicate lecturer code: only update the defense term and do not change personal information
+            // except for GuideQuota, DefenseQuota, and CurrentGuidingCount which are overwritten from the import file if provided.
+            var hasQuotaChanges = false;
+            
+            var guideQuotaVal = ParseInt(Get(row, "guideQuota"));
+            if (guideQuotaVal != null)
             {
-                await SyncLecturerTagsAsync(entity.LecturerProfileID, entity.LecturerCode, incomingTagCodes, existingTagMap, Get(row, "assignedByUserCode"));
+                entity.GuideQuota = guideQuotaVal.Value;
+                hasQuotaChanges = true;
+            }
+
+            var defenseQuotaVal = ParseInt(Get(row, "defenseQuota"));
+            if (defenseQuotaVal != null)
+            {
+                entity.DefenseQuota = defenseQuotaVal.Value;
+                hasQuotaChanges = true;
+            }
+
+            var currentGuidingCountVal = ParseInt(Get(row, "currentGuidingCount"));
+            if (currentGuidingCountVal != null)
+            {
+                entity.CurrentGuidingCount = currentGuidingCountVal.Value;
+                hasQuotaChanges = true;
+            }
+
+            var hasLecturerChanges = hasQuotaChanges;
+
+            if (finalDefenseTermId != null && entity.DefenseTermId != finalDefenseTermId)
+            {
+                entity.DefenseTermId = finalDefenseTermId;
+                hasLecturerChanges = true;
+            }
+
+            if (hasLecturerChanges || finalDefenseTermId != null)
+            {
+                entity.LastUpdated = DateTime.UtcNow;
+                _uow.LecturerProfiles.Update(entity);
+                await _uow.SaveChangesAsync();
             }
 
             return UpsertAction.Updated;

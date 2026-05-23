@@ -309,7 +309,16 @@ namespace ThesisManagement.Api.Helpers
                 query = query.Where(x => x.DepartmentCode == filter.DepartmentCode);
 
             if (!string.IsNullOrEmpty(filter.AssignedStatus))
-                query = query.Where(x => x.AssignedStatus == filter.AssignedStatus);
+            {
+                if (filter.AssignedStatus == "Chưa giao")
+                {
+                    query = query.Where(x => x.AssignedStatus == null || x.AssignedStatus == "" || x.AssignedStatus == "Chưa giao");
+                }
+                else
+                {
+                    query = query.Where(x => x.AssignedStatus == filter.AssignedStatus);
+                }
+            }
 
             // Filter by owner lecturer
             if (!string.IsNullOrEmpty(filter.OwnerLecturerCode))

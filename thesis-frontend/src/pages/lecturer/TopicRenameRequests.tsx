@@ -9,6 +9,7 @@ import {
   CheckCircle,
   AlertCircle,
   ArrowRight,
+  Calendar,
 } from "lucide-react";
 import TopicRenameRequestModal from "../../components/workflow/TopicRenameRequestModal";
 import TablePagination from "../../components/TablePagination/TablePagination";
@@ -16,6 +17,9 @@ import { listTopicRenameRequests } from "../../services/topic-rename-request.ser
 import type { TopicRenameRequestListItem } from "../../types/topic-rename-request";
 import { useToast } from "../../context/useToast";
 import { useAuth } from "../../hooks/useAuth";
+import { useActiveDefensePeriodId } from "../../utils/defensePeriod";
+import { fetchData } from "../../api/fetchData";
+import type { ApiResponse } from "../../types/api";
 
 type RenameRequestStatusFilter = "" | "Pending" | "Approved" | "Rejected";
 
@@ -54,9 +58,18 @@ const getStatusMeta = (status: unknown) => {
   };
 };
 
+interface DefensePeriod {
+  defenseTermId: number;
+  name: string;
+  status: string;
+}
+
 const TopicRenameRequestsPage = () => {
   const { addToast } = useToast();
   const auth = useAuth();
+  const activePeriodId = useActiveDefensePeriodId();
+  const [periods, setPeriods] = useState<DefensePeriod[]>([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
   const [requests, setRequests] = useState<TopicRenameRequestListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -102,6 +115,7 @@ const TopicRenameRequestsPage = () => {
         sortDescending: true,
         page: Math.max(0, currentPage - 1),
         pageSize,
+        defenseTermId: selectedPeriodId || undefined,
       });
 
       setRequests(response.items);
@@ -129,6 +143,7 @@ const TopicRenameRequestsPage = () => {
         sortDescending: true,
         page: 0,
         pageSize: 1000,
+        defenseTermId: selectedPeriodId || undefined,
       });
 
       const summary = response.items.reduce(
@@ -150,10 +165,33 @@ const TopicRenameRequestsPage = () => {
   };
 
   useEffect(() => {
+    const fetchPeriods = async () => {
+      try {
+        const response = await fetchData<ApiResponse<DefensePeriod[]>>(
+          "/defense-periods",
+          { method: "GET" }
+        );
+        if (response?.success && response.data) {
+          setPeriods(response.data);
+        }
+      } catch {
+        setPeriods([]);
+      }
+    };
+    void fetchPeriods();
+  }, []);
+
+  useEffect(() => {
+    if (activePeriodId) {
+      setSelectedPeriodId(activePeriodId);
+    }
+  }, [activePeriodId]);
+
+  useEffect(() => {
     void loadRequests();
     void loadSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.user?.userCode, currentPage, statusFilter, searchTerm, pageSize]);
+  }, [auth.user?.userCode, currentPage, statusFilter, searchTerm, pageSize, selectedPeriodId]);
 
   const openDetailModal = (request: TopicRenameRequestListItem) => {
     setSelectedTopic({
@@ -303,7 +341,39 @@ const TopicRenameRequestsPage = () => {
           </div>
 
           {/* Filter Section */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            {/* Bộ chọn đợt bảo vệ */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Calendar size={16} color="#6B7280" />
+              <select
+                value={selectedPeriodId || ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedPeriodId(val ? Number(val) : null);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  border: "1px solid #D1D5DB",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  outline: "none",
+                  background: "white",
+                  minWidth: "200px",
+                  color: "#F37021",
+                  fontWeight: "600",
+                }}
+              >
+                <option value="">-- Chọn đợt bảo vệ --</option>
+                {periods.map((p) => (
+                  <option key={p.defenseTermId} value={p.defenseTermId}>
+                    {p.name} {p.defenseTermId === activePeriodId ? "(Hiện tại)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <Filter size={16} color="#6B7280" />
               <select

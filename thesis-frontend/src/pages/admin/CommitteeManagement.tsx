@@ -8012,7 +8012,7 @@ const CommitteeManagement: React.FC = () => {
             justify-content: center;
             padding: 12px 16px;
             overflow-y: auto;
-            z-index: 2600;
+            z-index: 10005;
           }
           .committee-modal {
             width: min(1320px, calc(100vw - 24px));
