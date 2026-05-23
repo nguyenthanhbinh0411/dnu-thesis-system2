@@ -206,7 +206,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     // SQL Server legacy (đã chuyển sang Oracle):
     // options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
-    options.UseOracle(builder.Configuration.GetConnectionString("DefaultConnection"));
+    options.UseOracle(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        b => b.UseOracleSQLCompatibility(OracleSQLCompatibility.DatabaseVersion19));
 });
 
 // AutoMapper

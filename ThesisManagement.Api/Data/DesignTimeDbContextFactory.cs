@@ -18,7 +18,9 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<Applicatio
         var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
             ?? "User Id=dev;Password=Abcd@123;Data Source=localhost:1521/XEPDB1;";
         
-        optionsBuilder.UseOracle(connectionString);
+        optionsBuilder.UseOracle(
+            connectionString,
+            b => b.UseOracleSQLCompatibility(OracleSQLCompatibility.DatabaseVersion19));
 
         return new ApplicationDbContext(optionsBuilder.Options);
     }
