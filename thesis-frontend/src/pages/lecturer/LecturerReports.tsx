@@ -1002,12 +1002,15 @@ const LecturerReports: React.FC = () => {
                         style={{
                           borderBottom: "1px solid #F3F4F6",
                           transition: "background 0.2s ease",
+                          background: topic?.status === "Không đủ điều kiện bảo vệ" ? "#fff5f5" : "white",
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.background = "#F9FAFB";
+                          e.currentTarget.style.background = topic?.status === "Không đủ điều kiện bảo vệ"
+                            ? "#fee2e2" : "#F9FAFB";
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "white";
+                          e.currentTarget.style.background = topic?.status === "Không đủ điều kiện bảo vệ"
+                            ? "#fff5f5" : "white";
                         }}
                       >
                         <td style={{ padding: "16px" }}>
@@ -1049,15 +1052,28 @@ const LecturerReports: React.FC = () => {
                         </td>
                         <td style={{ padding: "16px" }}>
                           <div>
-                            <div
-                              style={{
-                                fontSize: "14px",
-                                fontWeight: "600",
-                                color: "#1a1a1a",
-                              }}
-                            >
-                              {studentProfile?.fullName ||
-                                report.studentUserCode}
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              <div
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: "600",
+                                  color: "#1a1a1a",
+                                }}
+                              >
+                                {studentProfile?.fullName ||
+                                  report.studentUserCode}
+                              </div>
+                              {/* Badge không đủ điều kiện bảo vệ */}
+                              {topic?.status === "Không đủ điều kiện bảo vệ" && (
+                                <span style={{
+                                  fontSize: "9px", fontWeight: "800", color: "#dc2626",
+                                  background: "#fee2e2", border: "1px solid #fecaca",
+                                  padding: "2px 6px", borderRadius: "10px", letterSpacing: "0.04em",
+                                  whiteSpace: "nowrap",
+                                }}>
+                                  ⛽ KHÔNG ĐỦ ĐKBV
+                                </span>
+                              )}
                             </div>
                             <div style={{ fontSize: "12px", color: "#666" }}>
                               {studentProfile?.studentCode ||

@@ -56,7 +56,12 @@ namespace ThesisManagement.Api.Mappings
                 .ForMember(dest => dest.CompletedAt2, opt => opt.MapFrom(src => src.CompletedAt2))
                 .ForMember(dest => dest.CompletedAt3, opt => opt.MapFrom(src => src.CompletedAt3))
                 .ForMember(dest => dest.CompletedAt4, opt => opt.MapFrom(src => src.CompletedAt4))
-                .ForMember(dest => dest.CompletedAt5, opt => opt.MapFrom(src => src.CompletedAt5));
+                .ForMember(dest => dest.CompletedAt5, opt => opt.MapFrom(src => src.CompletedAt5))
+                .ForMember(dest => dest.FailureReason, opt => opt.MapFrom(src => src.FailureReason))
+                .ForMember(dest => dest.FailedAt, opt => opt.MapFrom(src => src.FailedAt))
+                .ForMember(dest => dest.AllowLateSubmit, opt => opt.MapFrom(src => src.AllowLateSubmit))
+                .ForMember(dest => dest.LateSubmitGrantedAt, opt => opt.MapFrom(src => src.LateSubmitGrantedAt))
+                .ForMember(dest => dest.LateSubmitGrantedBy, opt => opt.MapFrom(src => src.LateSubmitGrantedBy));
             CreateMap<ProgressSubmission, ProgressSubmissionReadDto>();
             CreateMap<MilestoneTemplate, MilestoneTemplateReadDto>();
             CreateMap<SubmissionFile, SubmissionFileReadDto>();

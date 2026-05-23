@@ -1859,6 +1859,10 @@ namespace ThesisManagement.Api.Migrations
                         .HasDefaultValue(8)
                         .HasColumnName("DEFENSEQUOTA");
 
+                    b.Property<int?>("DefenseTermId")
+                        .HasColumnType("NUMBER(10)")
+                        .HasColumnName("DEFENSETERMID");
+
                     b.Property<string>("Degree")
                         .HasMaxLength(50)
                         .HasColumnType("NVARCHAR2(50)")
@@ -1938,6 +1942,8 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnName("USERID");
 
                     b.HasKey("LecturerProfileID");
+
+                    b.HasIndex("DefenseTermId");
 
                     b.HasIndex("DepartmentCode");
 
@@ -2656,6 +2662,10 @@ namespace ThesisManagement.Api.Migrations
 
                     OraclePropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("MilestoneID"));
 
+                    b.Property<bool>("AllowLateSubmit")
+                        .HasColumnType("BOOLEAN")
+                        .HasColumnName("ALLOWLATESUBMIT");
+
                     b.Property<DateTime?>("CompletedAt1")
                         .HasColumnType("TIMESTAMP(7)")
                         .HasColumnName("COMPLETEDAT1");
@@ -2686,11 +2696,27 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnType("TIMESTAMP(7)")
                         .HasColumnName("DEADLINE");
 
+                    b.Property<DateTime?>("FailedAt")
+                        .HasColumnType("TIMESTAMP(7)")
+                        .HasColumnName("FAILEDAT");
+
+                    b.Property<string>("FailureReason")
+                        .HasColumnType("NVARCHAR2(2000)")
+                        .HasColumnName("FAILUREREASON");
+
                     b.Property<DateTime>("LastUpdated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TIMESTAMP(7)")
                         .HasColumnName("LASTUPDATED")
                         .HasDefaultValueSql("SYSTIMESTAMP");
+
+                    b.Property<DateTime?>("LateSubmitGrantedAt")
+                        .HasColumnType("TIMESTAMP(7)")
+                        .HasColumnName("LATESUBMITGRANTEDAT");
+
+                    b.Property<string>("LateSubmitGrantedBy")
+                        .HasColumnType("NVARCHAR2(2000)")
+                        .HasColumnName("LATESUBMITGRANTEDBY");
 
                     b.Property<string>("MilestoneCode")
                         .IsRequired()
@@ -2928,6 +2954,10 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnType("date")
                         .HasColumnName("DATEOFBIRTH");
 
+                    b.Property<int?>("DefenseTermId")
+                        .HasColumnType("NUMBER(10)")
+                        .HasColumnName("DEFENSETERMID");
+
                     b.Property<string>("DepartmentCode")
                         .HasColumnType("NVARCHAR2(2000)")
                         .HasColumnName("DEPARTMENTCODE");
@@ -3011,6 +3041,8 @@ namespace ThesisManagement.Api.Migrations
                     b.HasKey("StudentProfileID");
 
                     b.HasIndex("ClassID");
+
+                    b.HasIndex("DefenseTermId");
 
                     b.HasIndex("DepartmentID");
 
@@ -4528,6 +4560,11 @@ namespace ThesisManagement.Api.Migrations
 
             modelBuilder.Entity("ThesisManagement.Api.Models.LecturerProfile", b =>
                 {
+                    b.HasOne("ThesisManagement.Api.Models.DefenseTerm", "DefenseTerm")
+                        .WithMany("LecturerProfiles")
+                        .HasForeignKey("DefenseTermId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ThesisManagement.Api.Models.Department", "Department")
                         .WithMany("LecturerProfiles")
                         .HasForeignKey("DepartmentCode")
@@ -4537,6 +4574,8 @@ namespace ThesisManagement.Api.Migrations
                         .WithOne("LecturerProfile")
                         .HasForeignKey("ThesisManagement.Api.Models.LecturerProfile", "UserCode")
                         .HasPrincipalKey("ThesisManagement.Api.Models.User", "UserCode");
+
+                    b.Navigation("DefenseTerm");
 
                     b.Navigation("Department");
 
@@ -4725,6 +4764,11 @@ namespace ThesisManagement.Api.Migrations
                         .HasForeignKey("ClassID")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("ThesisManagement.Api.Models.DefenseTerm", "DefenseTerm")
+                        .WithMany("StudentProfiles")
+                        .HasForeignKey("DefenseTermId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ThesisManagement.Api.Models.Department", "Department")
                         .WithMany()
                         .HasForeignKey("DepartmentID")
@@ -4737,6 +4781,8 @@ namespace ThesisManagement.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Class");
+
+                    b.Navigation("DefenseTerm");
 
                     b.Navigation("Department");
 
@@ -4949,6 +4995,10 @@ namespace ThesisManagement.Api.Migrations
                     b.Navigation("DefenseTermLecturers");
 
                     b.Navigation("DefenseTermStudents");
+
+                    b.Navigation("LecturerProfiles");
+
+                    b.Navigation("StudentProfiles");
 
                     b.Navigation("Topics");
                 });

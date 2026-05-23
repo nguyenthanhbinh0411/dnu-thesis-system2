@@ -37,6 +37,19 @@ namespace ThesisManagement.Api.Application.Command.StudentProfiles
             if (user == null)
                 return OperationResult<StudentProfileReadDto>.Failed("User not found", 400);
 
+            // Upsert: nếu StudentProfile đã tồn tại theo UserCode thì chỉ cập nhật DefenseTermId
+            var existing = await _uow.StudentProfiles.Query()
+                .FirstOrDefaultAsync(x => x.UserCode == dto.UserCode);
+            if (existing != null)
+            {
+                if (dto.DefenseTermId.HasValue)
+                    existing.DefenseTermId = dto.DefenseTermId;
+                existing.LastUpdated = DateTime.UtcNow;
+                _uow.StudentProfiles.Update(existing);
+                await _uow.SaveChangesAsync();
+                return OperationResult<StudentProfileReadDto>.Succeeded(_mapper.Map<StudentProfileReadDto>(existing));
+            }
+
             Department? department = null;
             if (!string.IsNullOrWhiteSpace(dto.DepartmentCode))
             {
@@ -65,6 +78,7 @@ namespace ThesisManagement.Api.Application.Command.StudentProfiles
                 GraduationYear = dto.GraduationYear,
                 Notes = dto.Notes,
                 FullName = dto.FullName,
+                DefenseTermId = dto.DefenseTermId,
                 CreatedAt = DateTime.UtcNow,
                 LastUpdated = DateTime.UtcNow
             };

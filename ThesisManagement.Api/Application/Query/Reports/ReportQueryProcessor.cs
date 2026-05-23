@@ -9,7 +9,7 @@ namespace ThesisManagement.Api.Application.Query.Reports
 {
     public interface IReportQueryProcessor
     {
-        Task<OperationResult<StudentDashboardDto>> GetStudentDashboardAsync(string userCode);
+        Task<OperationResult<StudentDashboardDto>> GetStudentDashboardAsync(string userCode, int? defenseTermId = null);
         Task<OperationResult<StudentProgressHistoryDto>> GetStudentProgressHistoryAsync(StudentProgressHistoryFilterDto filter);
         Task<OperationResult<LecturerSubmissionListDto>> GetLecturerSubmissionListAsync(LecturerSubmissionFilterDto filter);
     }
@@ -25,13 +25,19 @@ namespace ThesisManagement.Api.Application.Query.Reports
             _db = db;
         }
 
-        public async Task<OperationResult<StudentDashboardDto>> GetStudentDashboardAsync(string userCode)
+        public async Task<OperationResult<StudentDashboardDto>> GetStudentDashboardAsync(string userCode, int? defenseTermId = null)
         {
             if (string.IsNullOrWhiteSpace(userCode))
                 return OperationResult<StudentDashboardDto>.Failed("userCode is required", 400);
 
-            var topic = await _uow.Topics.Query()
-                .Where(x => x.ProposerUserCode == userCode)
+            var topicQuery = _uow.Topics.Query()
+                .Where(x => x.ProposerUserCode == userCode);
+
+            // Lọc theo đợt bảo vệ hiện tại nếu được chỉ định
+            if (defenseTermId.HasValue)
+                topicQuery = topicQuery.Where(x => x.DefenseTermId == defenseTermId.Value);
+
+            var topic = await topicQuery
                 .OrderByDescending(x => x.LastUpdated ?? x.CreatedAt)
                 .ThenByDescending(x => x.TopicID)
                 .FirstOrDefaultAsync();
@@ -60,12 +66,52 @@ namespace ThesisManagement.Api.Application.Query.Reports
             var canSubmit = true;
             string? blockReason = null;
 
+            // Check 1: Topic đang pending
             if (IsPendingTopic(topic.Status))
             {
                 canSubmit = false;
                 blockReason = "De tai dang cho duyet";
             }
 
+            // Check 2: Milestone hiện tại bị FAILED (và chưa được EXEMPTED/gia hạn)
+            if (canSubmit && currentMilestone != null)
+            {
+                // Lấy raw milestone để kiểm tra FailureReason
+                var rawMilestone = await _uow.ProgressMilestones.Query()
+                    .Where(x => x.MilestoneCode == currentMilestone.MilestoneCode)
+                    .FirstOrDefaultAsync();
+
+                if (rawMilestone != null &&
+                    string.Equals(rawMilestone.State, "FAILED", StringComparison.OrdinalIgnoreCase))
+                {
+                    var failureReason = rawMilestone.FailureReason ?? "";
+                    if (!failureReason.StartsWith("EXEMPTED", StringComparison.OrdinalIgnoreCase))
+                    {
+                        canSubmit = false;
+                        var reasonLabel = failureReason == "ABSENT"
+                            ? "không nộp báo cáo trước deadline"
+                            : "không nộp lại sau khi giảng viên yêu cầu sửa đổi";
+                        blockReason = $"Moc tien do da that bai do {reasonLabel}. Lien he giang vien de duoc xem xet gia han.";
+                    }
+                }
+
+                // Check 3: Mốc N-1 chưa hoàn thành (sequential guard)
+                if (canSubmit && rawMilestone != null)
+                {
+                    var currentOrdinal = rawMilestone.Ordinal ?? 1;
+                    if (currentOrdinal > 1)
+                    {
+                        var prevCompleted = IsOrdinalCompletedRaw(rawMilestone, currentOrdinal - 1);
+                        if (!prevCompleted)
+                        {
+                            canSubmit = false;
+                            blockReason = $"Ban chua hoan thanh moc truoc (Moc {currentOrdinal - 1}). Vui long cho giang vien duyet bao cao moc truoc.";
+                        }
+                    }
+                }
+            }
+
+            // Check 4: Submission mới nhất đang PENDING review
             var latestSubmission = await _uow.ProgressSubmissions.Query()
                 .Where(x => x.StudentUserCode == userCode)
                 .OrderByDescending(x => x.SubmittedAt)
@@ -98,6 +144,7 @@ namespace ThesisManagement.Api.Application.Query.Reports
                 GetCurrentMilestoneSubmissionStatus(currentMilestoneSubmission));
 
             return OperationResult<StudentDashboardDto>.Succeeded(dto);
+
         }
 
         public async Task<OperationResult<StudentProgressHistoryDto>> GetStudentProgressHistoryAsync(StudentProgressHistoryFilterDto filter)
@@ -120,6 +167,13 @@ namespace ThesisManagement.Api.Application.Query.Reports
             var currentMilestoneOrdinal = currentMilestone?.Ordinal;
 
             var query = _uow.ProgressSubmissions.Query().Where(x => x.StudentUserCode == filter.UserCode);
+
+            // Lọc submission theo đợt bảo vệ (qua Milestone → Topic.DefenseTermId)
+            if (filter.DefenseTermId.HasValue)
+                query = query.Where(x =>
+                    x.Milestone != null &&
+                    x.Milestone.Topic != null &&
+                    x.Milestone.Topic.DefenseTermId == filter.DefenseTermId.Value);
 
             if (!string.IsNullOrWhiteSpace(filter.State))
                 query = query.Where(x => x.LecturerState == filter.State);
@@ -190,6 +244,13 @@ namespace ThesisManagement.Api.Application.Query.Reports
             var pageSize = filter.PageSize <= 0 ? 20 : Math.Min(filter.PageSize, 100);
 
             var query = _uow.ProgressSubmissions.Query().Where(x => x.LecturerCode == filter.LecturerCode);
+
+            // Lọc submission theo đợt bảo vệ (qua Milestone → Topic.DefenseTermId)
+            if (filter.DefenseTermId.HasValue)
+                query = query.Where(x =>
+                    x.Milestone != null &&
+                    x.Milestone.Topic != null &&
+                    x.Milestone.Topic.DefenseTermId == filter.DefenseTermId.Value);
 
             if (!string.IsNullOrWhiteSpace(filter.State))
                 query = query.Where(x => x.LecturerState == filter.State);
@@ -315,6 +376,17 @@ namespace ThesisManagement.Api.Application.Query.Reports
             return normalized is "pending" or "cho duyet" or "chờ duyệt" or "dang cho" or "đang chờ";
         }
 
+        /// <summary>Kiểm tra ordinal N đã hoàn thành (CompletedAtN != null)</summary>
+        private static bool IsOrdinalCompletedRaw(Models.ProgressMilestone m, int ordinal) => ordinal switch
+        {
+            1 => m.CompletedAt1 != null,
+            2 => m.CompletedAt2 != null,
+            3 => m.CompletedAt3 != null,
+            4 => m.CompletedAt4 != null,
+            5 => m.CompletedAt5 != null,
+            _ => false
+        };
+
         private static string GetCurrentMilestoneSubmissionStatus(ProgressSubmission? submission)
         {
             if (submission == null)
@@ -426,7 +498,8 @@ namespace ThesisManagement.Api.Application.Query.Reports
                 milestone.CompletedAt2,
                 milestone.CompletedAt3,
                 milestone.CompletedAt4,
-                null); // CompletedAt5 removed as milestone 5 is deleted
+                null, // CompletedAt5 removed as milestone 5 is deleted
+                milestone.AllowLateSubmit);
         }
 
         private async Task<ReportSupervisorDto?> GetSupervisorAsync(string? supervisorLecturerCode, int? supervisorLecturerProfileId)

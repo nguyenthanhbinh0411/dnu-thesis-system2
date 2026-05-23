@@ -19,7 +19,9 @@ namespace ThesisManagement.Api.DTOs.StudentProfiles.Command
         string? Status,
         int? GraduationYear,
         string? Notes,
-        string? FullName);
+        string? FullName,
+        /// <summary>Đợt bảo vệ mà sinh viên được import vào. Nếu StudentCode đã tồn tại, chỉ cập nhật DefenseTermId.</summary>
+        int? DefenseTermId = null);
 
     public record StudentProfileUpdateDto(
         string? StudentCode,
@@ -38,5 +40,6 @@ namespace ThesisManagement.Api.DTOs.StudentProfiles.Command
         string? Status,
         int? GraduationYear,
         string? Notes,
-        string? FullName);
+        string? FullName,
+        int? DefenseTermId = null);
 }

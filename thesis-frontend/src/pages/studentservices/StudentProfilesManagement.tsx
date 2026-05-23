@@ -23,7 +23,14 @@ import ImportExportActions from "../../components/admin/ImportExportActions";
 import ManagementSectionedFormBody from "../../components/admin/ManagementSectionedFormBody";
 import { useToast } from "../../context/useToast";
 import type { ApiResponse } from "../../types/api";
+import { useActiveDefensePeriodId } from "../../utils/defensePeriod";
 import "./StudentProfilesManagement.css";
+
+type DefensePeriod = {
+  defenseTermId: number;
+  name: string;
+  status: string;
+};
 
 type DashboardStudent = {
   studentProfileID: number;
@@ -355,6 +362,33 @@ function getMilestoneLabel(code: string): string {
 
 const StudentProfilesManagement: React.FC = () => {
   const { addToast } = useToast();
+  const activePeriodId = useActiveDefensePeriodId();
+  const [periods, setPeriods] = useState<DefensePeriod[]>([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchPeriods = async () => {
+      try {
+        const response = await fetchData<ApiResponse<DefensePeriod[]>>(
+          "/defense-periods",
+          { method: "GET" }
+        );
+        if (response?.success && response.data) {
+          setPeriods(response.data);
+        }
+      } catch {
+        setPeriods([]);
+      }
+    };
+    void fetchPeriods();
+  }, []);
+
+  useEffect(() => {
+    if (activePeriodId) {
+      setSelectedPeriodId(activePeriodId);
+    }
+  }, [activePeriodId]);
+
   const [rows, setRows] = useState<StudentDashboardItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -419,11 +453,17 @@ const StudentProfilesManagement: React.FC = () => {
 
   useEffect(() => {
     const loadRows = async () => {
+      if (!selectedPeriodId) {
+        setRows([]);
+        setTotalCount(0);
+        return;
+      }
       setIsLoading(true);
       try {
         const query = new URLSearchParams();
         query.append("page", String(Math.max(0, page - 1)));
         query.append("pageSize", String(pageSize));
+        query.append("DefenseTermId", String(selectedPeriodId));
 
         const response = await fetchData<ApiResponse<DashboardDataPayload>>(
           `/reports/student/dashboard/get-list?${query.toString()}`,
@@ -458,7 +498,7 @@ const StudentProfilesManagement: React.FC = () => {
     };
 
     void loadRows();
-  }, [addToast, page, pageSize, refreshTick]);
+  }, [addToast, page, pageSize, refreshTick, selectedPeriodId]);
 
   const pageCount = useMemo(
     () => Math.max(1, Math.ceil(totalCount / Math.max(1, pageSize))),
@@ -505,6 +545,9 @@ const StudentProfilesManagement: React.FC = () => {
       query.append("Page", "0");
       query.append("PageSize", "10");
       query.append("StudentCode", studentCode);
+      if (selectedPeriodId) {
+        query.append("DefenseTermId", String(selectedPeriodId));
+      }
 
       const response = await fetchData<ApiResponse<DashboardDataPayload>>(
         `/reports/student/dashboard/get-list?${query.toString()}`,
@@ -535,12 +578,13 @@ const StudentProfilesManagement: React.FC = () => {
         if (resolvedUserCode) {
           setHistoryLoading(true);
           try {
+            const historyUrl = `/reports/student/progress-history?userCode=${encodeURIComponent(
+              resolvedUserCode,
+            )}&page=1&pageSize=10${selectedPeriodId ? `&defenseTermId=${selectedPeriodId}` : ""}`;
             const historyRes = await fetchData<
               ApiResponse<ProgressHistoryPayload>
             >(
-              `/reports/student/progress-history?userCode=${encodeURIComponent(
-                resolvedUserCode,
-              )}&page=1&pageSize=10`,
+              historyUrl,
               { method: "GET" },
             );
 
@@ -663,6 +707,9 @@ const StudentProfilesManagement: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (activeModal === "create") {
+        if (selectedPeriodId) {
+          payload.defenseTermId = selectedPeriodId;
+        }
         await requestApiData<unknown>(
           "/StudentProfiles/create",
           { method: "POST", body: payload },
@@ -790,6 +837,25 @@ const StudentProfilesManagement: React.FC = () => {
         </div>
 
         <div className="spm-actions-wrap">
+          <div className="spm-period-select-wrap">
+            <select
+              value={selectedPeriodId || ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedPeriodId(val ? Number(val) : null);
+                setPage(1);
+              }}
+              className="spm-period-select"
+            >
+              <option value="">-- Chọn đợt bảo vệ --</option>
+              {periods.map((p) => (
+                <option key={p.defenseTermId} value={p.defenseTermId}>
+                  {p.name} {p.defenseTermId === activePeriodId ? "(Hiện tại)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button
             type="button"
             className="spm-btn spm-btn-secondary"

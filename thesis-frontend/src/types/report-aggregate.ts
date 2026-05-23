@@ -33,6 +33,7 @@ export interface StudentReportAggregateMilestone {
   completedAt3: string | null;
   completedAt4: string | null;
   completedAt5: string | null;
+  allowLateSubmit?: boolean;
 }
 
 export interface StudentReportAggregateSupervisor {

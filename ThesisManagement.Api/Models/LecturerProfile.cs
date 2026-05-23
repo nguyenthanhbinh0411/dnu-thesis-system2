@@ -28,9 +28,13 @@ namespace ThesisManagement.Api.Models
         public DateTime? CreatedAt { get; set; }
         public DateTime? LastUpdated { get; set; }
 
+        /// <summary>Đợt bảo vệ mà giảng viên này được import vào. Null = chưa gán đợt.</summary>
+        public int? DefenseTermId { get; set; }
+
         // Navigation properties
         public User? User { get; set; }
         public Department? Department { get; set; }
+        public DefenseTerm? DefenseTerm { get; set; }
         public ICollection<TopicLecturer>? TopicLecturers { get; set; }
         public ICollection<LecturerTag>? LecturerTags { get; set; }
     }

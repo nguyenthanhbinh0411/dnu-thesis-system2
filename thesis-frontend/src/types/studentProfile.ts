@@ -18,6 +18,7 @@ export interface StudentProfile {
   graduationYear: number;
   notes: string;
   fullName: string;
+  defenseTermId?: number | null;
   createdAt: string;
   lastUpdated: string;
 }

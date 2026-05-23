@@ -57,6 +57,8 @@ namespace ThesisManagement.Api.Application.Command.LecturerProfiles
                 entity.Notes = dto.Notes;
             if (dto.FullName != null)
                 entity.FullName = dto.FullName;
+            if (dto.DefenseTermId.HasValue)
+                entity.DefenseTermId = dto.DefenseTermId;
 
             entity.LastUpdated = DateTime.UtcNow;
 

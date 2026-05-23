@@ -26,5 +26,7 @@ namespace ThesisManagement.Api.DTOs.StudentProfiles.Query
         public decimal? MaxGPA { get; set; }
         public string? AcademicStanding { get; set; }
         public int? ExcludeDefenseTermId { get; set; }
+        /// <summary>Lọc sinh viên theo đợt bảo vệ đã được import vào. Null = trả về tất cả.</summary>
+        public int? DefenseTermId { get; set; }
     }
 }

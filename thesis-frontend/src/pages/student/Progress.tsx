@@ -18,9 +18,14 @@ interface Milestone {
   title: string;
   description: string;
   deadline: string;
-  status: "completed" | "in-progress" | "pending" | "overdue" | "waiting-for-committee";
+  status: "completed" | "in-progress" | "pending" | "overdue" | "waiting-for-committee" | "failed";
   completedDate?: string;
-  ordinal: number; // Add ordinal
+  failedAt?: string;
+  failureReason?: string | null;
+  ordinal: number;
+  /** GV đã cấp phép nộp muộn cho mốc này */
+  allowLateSubmit?: boolean;
+  lateSubmitGrantedBy?: string | null;
 }
 
 const Progress: React.FC = () => {
@@ -89,7 +94,8 @@ const Progress: React.FC = () => {
               | "in-progress"
               | "pending"
               | "overdue"
-              | "waiting-for-committee" = "pending";
+              | "waiting-for-committee"
+              | "failed" = "pending";
             let completedDate: string | undefined;
             const deadline: string = template.deadline;
 
@@ -110,7 +116,6 @@ const Progress: React.FC = () => {
                   specificCompletedAt = progressMilestone.completedAt4;
                   break;
                 default:
-                  // Fallback: check if any completedAt is set
                   specificCompletedAt =
                     progressMilestone.completedAt1 ||
                     progressMilestone.completedAt2 ||
@@ -119,9 +124,17 @@ const Progress: React.FC = () => {
                   break;
               }
 
-              // Priority 1: Check if this is the final milestone waiting for committee
               const state = progressMilestone.state.toLowerCase();
-              if (state === "waitingforcommittee" && template.ordinal === 4) {
+
+              // Priority 0: Milestone bị FAILED (và chưa EXEMPTED)
+              if (
+                state === "failed" &&
+                !progressMilestone.failureReason?.startsWith("EXEMPTED")
+              ) {
+                status = "failed";
+              }
+              // Priority 1: Check if this is the final milestone waiting for committee
+              else if (state === "waitingforcommittee" && template.ordinal === 4) {
                 status = "waiting-for-committee";
                 if (specificCompletedAt) completedDate = specificCompletedAt.split("T")[0];
               }
@@ -129,7 +142,7 @@ const Progress: React.FC = () => {
               else if (specificCompletedAt) {
                 status = "completed";
                 completedDate = specificCompletedAt.split("T")[0];
-              } 
+              }
               // Priority 3: Other states
               else {
                 if (
@@ -146,6 +159,15 @@ const Progress: React.FC = () => {
               }
             }
 
+            // Client-side overdue detection: nếu đang in-progress nhưng deadline đã qua → overdue
+            if (
+              status === "in-progress" &&
+              deadline &&
+              new Date(deadline) < new Date()
+            ) {
+              status = "overdue";
+            }
+
             return {
               id: template.milestoneTemplateID,
               title: template.name,
@@ -153,6 +175,10 @@ const Progress: React.FC = () => {
               deadline,
               status,
               completedDate,
+              failedAt: progressMilestone?.failedAt ?? undefined,
+              failureReason: progressMilestone?.failureReason ?? null,
+              allowLateSubmit: progressMilestone?.allowLateSubmit ?? false,
+              lateSubmitGrantedBy: progressMilestone?.lateSubmitGrantedBy ?? null,
               ordinal: template.ordinal,
             };
           },
@@ -319,6 +345,8 @@ const Progress: React.FC = () => {
         return "#f37021";
       case "overdue":
         return "#ef4444";
+      case "failed":
+        return "#dc2626";
       case "waiting-for-committee":
         return "#22c55e";
       default:
@@ -334,6 +362,8 @@ const Progress: React.FC = () => {
         return <Clock size={24} color="#f37021" />;
       case "overdue":
         return <AlertCircle size={24} color="#ef4444" />;
+      case "failed":
+        return <AlertCircle size={24} color="#dc2626" />;
       case "waiting-for-committee":
         return <CheckCircle size={24} color="#22c55e" />;
       default:
@@ -349,6 +379,8 @@ const Progress: React.FC = () => {
         return "Đang thực hiện";
       case "overdue":
         return "Quá hạn";
+      case "failed":
+        return "Thất bại - Cần xử lý";
       case "waiting-for-committee":
         return "Chờ tạo hội đồng và bảo vệ";
       default:
@@ -584,6 +616,85 @@ const Progress: React.FC = () => {
         </div>
       </div>
 
+      {/* Overdue Warning Banner */}
+      {milestones.some((m) => m.status === "overdue" || m.status === "failed") && (
+        <div
+          style={{
+            marginBottom: "24px",
+            padding: "16px 20px",
+            background: "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)",
+            border: "2px solid #fecaca",
+            borderRadius: "12px",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "12px",
+          }}
+        >
+          <AlertCircle size={20} color="#dc2626" style={{ flexShrink: 0, marginTop: "2px" }} />
+          <div>
+            <div style={{ fontWeight: "800", color: "#b91c1c", fontSize: "14px", marginBottom: "4px" }}>
+              ⚠️ Cảnh báo: Bạn đang không theo kịp tiến độ!
+            </div>
+            <div style={{ color: "#dc2626", fontSize: "13px", fontWeight: "600" }}>
+              {milestones.filter((m) => m.status === "overdue").length > 0 && (
+                <span>
+                  Có <strong>{milestones.filter((m) => m.status === "overdue").length}</strong> mốc đã quá hạn và chưa hoàn thành.{" "}
+                </span>
+              )}
+              {milestones.filter((m) => m.status === "failed").length > 0 && (
+                <span>
+                  Có <strong>{milestones.filter((m) => m.status === "failed").length}</strong> mốc đã bị đánh dấu thất bại.{" "}
+                </span>
+              )}
+            </div>
+            <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "6px", fontWeight: "500" }}>
+              Hệ thống sẽ tự động đánh dấu thất bại các mốc quá hạn vào 01:00 sáng hàng ngày. Đề tài của bạn có thể bị mất điều kiện bảo vệ. Vui lòng liên hệ giảng viên hướng dẫn ngay.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Banner nộp muộn được cấp phép */}
+      {milestones.some((m) => m.status === "overdue" && m.allowLateSubmit) && (
+        <div style={{
+          marginBottom: "24px", padding: "14px 20px",
+          background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
+          border: "2px solid #86efac", borderRadius: "12px",
+          display: "flex", alignItems: "center", gap: "12px",
+        }}>
+          <CheckCircle size={20} color="#16a34a" style={{ flexShrink: 0 }} />
+          <div>
+            <div style={{ fontWeight: "800", color: "#15803d", fontSize: "14px", marginBottom: "2px" }}>
+              ✅ Giảng viên đã cấp phép nộp muộn!
+            </div>
+            <div style={{ color: "#16a34a", fontSize: "13px" }}>
+              Bạn có thể nộp báo cáo cho mốc đang quá hạn. Hãy nộp ngay trước khi phép hết hiệu lực.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Banner quá hạn chưa có phép — hướng dẫn chờ GV */}
+      {milestones.some((m) => m.status === "overdue" && !m.allowLateSubmit) && (
+        <div style={{
+          marginBottom: "24px", padding: "14px 20px",
+          background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
+          border: "2px solid #fde68a", borderRadius: "12px",
+          display: "flex", alignItems: "center", gap: "12px",
+        }}>
+          <Clock size={20} color="#d97706" style={{ flexShrink: 0 }} />
+          <div>
+            <div style={{ fontWeight: "800", color: "#b45309", fontSize: "14px", marginBottom: "2px" }}>
+              ⏳ Bạn đã quá hạn — chờ giảng viên cấp phép nộp muộn
+            </div>
+            <div style={{ color: "#92400e", fontSize: "13px" }}>
+              Khi bạn cố nộp báo cáo, hệ thống sẽ tự động gửi yêu cầu đến giảng viên hướng dẫn.
+              Hãy liên hệ trực tiếp với giảng viên để được xét duyệt sớm hơn.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Timeline */}
       <div
         style={{
@@ -666,7 +777,9 @@ const Progress: React.FC = () => {
                         ? "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)"
                         : milestone.status === "in-progress"
                           ? "linear-gradient(135deg, #fff5f0 0%, #ffe8dc 100%)"
-                          : "#fafafa",
+                          : milestone.status === "failed"
+                            ? "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)"
+                            : "#fafafa",
                     border: `2px solid ${getStatusColor(milestone.status)}`,
                     borderRadius: "12px",
                     transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -766,6 +879,42 @@ const Progress: React.FC = () => {
                       {new Date(milestone.completedDate).toLocaleDateString(
                         "vi-VN",
                       )}
+                    </div>
+                  )}
+
+                  {/* Hiển thị thông báo khi milestone FAILED */}
+                  {milestone.status === "failed" && (
+                    <div
+                      style={{
+                        marginTop: "12px",
+                        padding: "12px 16px",
+                        background: "#fef2f2",
+                        border: "1px solid #fecaca",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                        color: "#b91c1c",
+                        fontWeight: "600",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                        <AlertCircle size={14} />
+                        <strong>Mốc tiến độ thất bại</strong>
+                      </div>
+                      <div style={{ color: "#991b1b", fontWeight: 500 }}>
+                        {milestone.failureReason === "ABSENT"
+                          ? "Sinh viên không nộp báo cáo trước deadline."
+                          : milestone.failureReason === "ABANDONED_REVISION"
+                            ? "Sinh viên không nộp lại sau khi giảng viên yêu cầu sửa đổi."
+                            : "Mốc tiến độ đã bị đánh dấu thất bại."}
+                      </div>
+                      {milestone.failedAt && (
+                        <div style={{ color: "#9ca3af", fontSize: "11px", marginTop: "4px", fontWeight: 500 }}>
+                          Thời điểm: {new Date(milestone.failedAt).toLocaleString("vi-VN")}
+                        </div>
+                      )}
+                      <div style={{ color: "#b91c1c", marginTop: "8px", fontSize: "11px" }}>
+                        ⚠️ Vui lòng liên hệ giảng viên hướng dẫn để được xem xét gia hạn hoặc miễn trừ.
+                      </div>
                     </div>
                   )}
                 </div>

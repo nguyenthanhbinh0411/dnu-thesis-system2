@@ -15,11 +15,18 @@ import {
 } from "lucide-react";
 import { fetchData, normalizeUrl } from "../../api/fetchData";
 import ImportExportActions from "../../components/admin/ImportExportActions.tsx";
+import { useActiveDefensePeriodId } from "../../utils/defensePeriod";
 import ManagementSectionedFormBody from "../../components/admin/ManagementSectionedFormBody";
 import TablePagination from "../../components/TablePagination/TablePagination";
 import { useToast } from "../../context/useToast";
 import type { ApiResponse } from "../../types/api";
 import "./TopicsManagement.css";
+
+type DefensePeriod = {
+  defenseTermId: number;
+  name: string;
+  status: string;
+};
 
 type RecordData = Record<string, unknown>;
 type FieldType = "text" | "number" | "date" | "textarea";
@@ -573,6 +580,33 @@ function getMilestoneLabel(code: string): string {
 
 const TopicsManagement: React.FC = () => {
   const { addToast } = useToast();
+  const activePeriodId = useActiveDefensePeriodId();
+  const [periods, setPeriods] = useState<DefensePeriod[]>([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchPeriods = async () => {
+      try {
+        const response = await fetchData<ApiResponse<DefensePeriod[]>>(
+          "/defense-periods",
+          { method: "GET" }
+        );
+        if (response?.success && response.data) {
+          setPeriods(response.data);
+        }
+      } catch {
+        setPeriods([]);
+      }
+    };
+    void fetchPeriods();
+  }, []);
+
+  useEffect(() => {
+    if (activePeriodId) {
+      setSelectedPeriodId(activePeriodId);
+    }
+  }, [activePeriodId]);
+
   const [rows, setRows] = useState<RecordData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -634,11 +668,22 @@ const TopicsManagement: React.FC = () => {
   }, []);
 
   const listQuery = useMemo(
-    () => ({ page, pageSize, search: searchKeyword, ...advancedFilters }),
-    [advancedFilters, page, pageSize, searchKeyword],
+    () => ({
+      page,
+      pageSize,
+      search: searchKeyword,
+      DefenseTermId: selectedPeriodId || undefined,
+      ...advancedFilters,
+    }),
+    [advancedFilters, page, pageSize, searchKeyword, selectedPeriodId],
   );
 
   const loadRows = useCallback(async () => {
+    if (!selectedPeriodId) {
+      setRows([]);
+      setTotalCount(0);
+      return;
+    }
     setIsLoading(true);
     try {
       const query = buildQuery(listQuery);
@@ -662,7 +707,7 @@ const TopicsManagement: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [addToast, listQuery]);
+  }, [addToast, listQuery, selectedPeriodId]);
 
   useEffect(() => {
     void loadRows();
@@ -721,6 +766,9 @@ const TopicsManagement: React.FC = () => {
       try {
         const query = new URLSearchParams();
         query.append("TopicCode", topicCode);
+        if (selectedPeriodId) {
+          query.append("DefenseTermId", String(selectedPeriodId));
+        }
 
         const response = await fetchData<ApiResponse<DashboardDataPayload>>(
           `/reports/student/dashboard/get-list?${query.toString()}`,
@@ -741,10 +789,11 @@ const TopicsManagement: React.FC = () => {
         if (userCode) {
           setHistoryLoading(true);
           try {
+            const historyUrl = `/reports/student/progress-history?userCode=${encodeURIComponent(userCode)}&page=1&pageSize=10${selectedPeriodId ? `&defenseTermId=${selectedPeriodId}` : ""}`;
             const historyRes = await fetchData<
               ApiResponse<ProgressHistoryPayload>
             >(
-              `/reports/student/progress-history?userCode=${encodeURIComponent(userCode)}&page=1&pageSize=10`,
+              historyUrl,
               { method: "GET" },
             );
 
@@ -782,7 +831,7 @@ const TopicsManagement: React.FC = () => {
         return null;
       }
     },
-    [addToast],
+    [addToast, selectedPeriodId],
   );
 
   const openDetail = async (row: RecordData) => {
@@ -860,6 +909,9 @@ const TopicsManagement: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (activeModal === "create") {
+        if (selectedPeriodId) {
+          payload.defenseTermId = selectedPeriodId;
+        }
         await requestApiData<RecordData>(
           "/Topics/create",
           { method: "POST", body: payload },
@@ -1014,6 +1066,25 @@ const TopicsManagement: React.FC = () => {
         </div>
 
         <div className="topics-actions-wrap">
+          <div className="topics-period-select-wrap">
+            <select
+              value={selectedPeriodId || ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedPeriodId(val ? Number(val) : null);
+                setPage(1);
+              }}
+              className="topics-period-select"
+            >
+              <option value="">-- Chọn đợt bảo vệ --</option>
+              {periods.map((p) => (
+                <option key={p.defenseTermId} value={p.defenseTermId}>
+                  {p.name} {p.defenseTermId === activePeriodId ? "(Hiện tại)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button
             type="button"
             onClick={() => setShowAdvancedFilters((prev) => !prev)}

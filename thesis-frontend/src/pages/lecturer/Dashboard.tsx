@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { fetchData } from "../../api/fetchData";
 import { useAuth } from "../../hooks/useAuth";
+import { getActiveDefensePeriodId } from "../../utils/defensePeriod";
 import {
   getLecturerCode,
   setLecturerCode,
@@ -398,16 +399,17 @@ const Dashboard: React.FC = () => {
         const lecturerCode = await resolveLecturerCodeFromSession(
           normalizeText(auth.user?.userCode),
         );
-        const overviewQuery = lecturerCode ? { lecturerCode } : {};
+        const activeDefenseTermId = getActiveDefensePeriodId();
+        const overviewQuery = lecturerCode ? { lecturerCode, defenseTermId: activeDefenseTermId ?? undefined } : {};
         const listQuery = lecturerCode
-          ? { lecturerCode, limit: 10 }
+          ? { lecturerCode, limit: 10, defenseTermId: activeDefenseTermId ?? undefined }
           : { limit: 10 };
         const workloadQuery = lecturerCode
-          ? { lecturerCode, days: 30 }
+          ? { lecturerCode, days: 30, defenseTermId: activeDefenseTermId ?? undefined }
           : { days: 30 };
-        const chartQuery = lecturerCode ? { lecturerCode } : {};
+        const chartQuery = lecturerCode ? { lecturerCode, defenseTermId: activeDefenseTermId ?? undefined } : {};
         const overdueQuery = lecturerCode
-          ? { lecturerCode, days: 30 }
+          ? { lecturerCode, days: 30, defenseTermId: activeDefenseTermId ?? undefined }
           : { days: 30 };
 
         const [

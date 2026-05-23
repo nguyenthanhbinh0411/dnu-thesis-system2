@@ -48,7 +48,8 @@ namespace ThesisManagement.Api.DTOs.Reports.Query
         DateTime? CompletedAt2,
         DateTime? CompletedAt3,
         DateTime? CompletedAt4,
-        DateTime? CompletedAt5);
+        DateTime? CompletedAt5,
+        bool AllowLateSubmit = false);
 
     public record ReportSupervisorDto(
         int LecturerProfileID,
@@ -147,6 +148,9 @@ namespace ThesisManagement.Api.DTOs.Reports.Query
         public int Page { get; set; } = 0;
         public int? PageSize { get; set; }
 
+        /// <summary>Lọc sinh viên thuộc đợt bảo vệ cụ thể (qua bảng DEFENSETERMSTUDENTS).</summary>
+        public int? DefenseTermId { get; set; }
+
         public string? Search { get; set; }
         public string? UserCode { get; set; }
         public string? StudentCode { get; set; }
@@ -216,11 +220,13 @@ namespace ThesisManagement.Api.DTOs.Reports.Query
         string? State = null,
         DateTime? FromDate = null,
         DateTime? ToDate = null,
-        string? MilestoneCode = null);
+        string? MilestoneCode = null,
+        int? DefenseTermId = null);
 
     public record LecturerSubmissionFilterDto(
         string LecturerCode,
         int Page = 1,
         int PageSize = 20,
-        string? State = null);
+        string? State = null,
+        int? DefenseTermId = null);
 }

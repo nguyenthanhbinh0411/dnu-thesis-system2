@@ -42,6 +42,8 @@ export type StudentProfileFilter = {
   page?: number;
   pageSize?: number;
   excludeDefenseTermId?: number | string;
+  /** Lọc sinh viên theo đợt bảo vệ (DefenseTermId). Null = tất cả đợt. */
+  defenseTermId?: number | string;
 };
 
 export type LecturerProfileFilter = {
@@ -55,6 +57,8 @@ export type LecturerProfileFilter = {
   page?: number;
   pageSize?: number;
   excludeDefenseTermId?: number | string;
+  /** Lọc giảng viên theo đợt bảo vệ (DefenseTermId). Null = tất cả đợt. */
+  defenseTermId?: number | string;
 };
 
 export type DefenseTermStudentPayload = {
