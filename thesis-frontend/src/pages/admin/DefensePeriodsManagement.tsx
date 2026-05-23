@@ -86,8 +86,8 @@ interface MilestoneTemplate {
 
 const STATUS_CONFIG: Record<DefenseTermStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   Draft: { label: "Soạn thảo", color: "#64748b", bg: "#f1f5f9", icon: <Edit size={14} /> },
-  Registration: { label: "Đăng ký đề tài", color: "#0ea5e9", bg: "#f0f9ff", icon: <FileDown size={14} /> },
-  Assignment: { label: "Phân công giảng viên", color: "#6366f1", bg: "#eef2ff", icon: <Users size={14} /> },
+  Registration: { label: "Đăng ký & Phân công", color: "#0ea5e9", bg: "#f0f9ff", icon: <FileDown size={14} /> },
+  Assignment: { label: "Đăng ký & Phân công", color: "#6366f1", bg: "#eef2ff", icon: <Users size={14} /> },
   ProgressTracking: { label: "Theo dõi tiến độ", color: "#f59e0b", bg: "#fffbeb", icon: <Activity size={14} /> },
   CommitteePreparation: { label: "Phân công hội đồng", color: "#8b5cf6", bg: "#f5f3ff", icon: <Settings size={14} /> },
   Running: { label: "Bảo vệ", color: "#166534", bg: "#dcfce7", icon: <Play size={14} /> },
@@ -98,6 +98,32 @@ const STATUS_CONFIG: Record<DefenseTermStatus, { label: string; color: string; b
   Published: { label: "Công bố", color: "#15803d", bg: "#f0fdf4", icon: <Zap size={14} /> },
   Closed: { label: "Đóng & Lưu trữ", color: "#1e293b", bg: "#f8fafc", icon: <Archive size={14} /> },
   Archived: { label: "Đóng & Lưu trữ", color: "#475569", bg: "#f1f5f9", icon: <Archive size={14} /> },
+};
+
+const getStageNote = (status: string) => {
+  const s = String(status ?? "").trim().toLowerCase();
+  if (s === "draft") {
+    return "Cần thêm danh sách sinh viên, giảng viên vào đợt.";
+  }
+  if (s === "registration" || s === "assignment") {
+    return "Cho phép sinh viên đăng ký đề tài và Phân công giảng viên hướng dẫn (bắt buộc) khi không chọn đề tài.";
+  }
+  if (s === "progresstracking") {
+    return "Theo dõi sinh viên - giảng viên về tiến độ của từng sinh viên.";
+  }
+  if (s === "committeepreparation") {
+    return "Tạo hội đồng, xếp lịch và gửi thông báo cho sinh viên và thành viên hội đồng.";
+  }
+  if (s === "running" || s === "paused") {
+    return "Điều hành chấm điểm.";
+  }
+  if (["scoringlocked", "finalization", "finalized", "published"].includes(s)) {
+    return "Đảm bảo hậu bảo vệ thành công.";
+  }
+  if (s === "closed" || s === "archived") {
+    return "Đợt đã hoàn thành và lưu trữ thành công.";
+  }
+  return "";
 };
 
 const DEEP_BLUE_PRIMARY = "#1e3a5f";
@@ -325,7 +351,7 @@ const getNextStatus = (status?: DefenseTermStatus): DefenseTermStatus => {
   if (!status) return "Draft";
   switch (status) {
     case "Draft": return "Registration";
-    case "Registration": return "Assignment";
+    case "Registration": return "ProgressTracking";
     case "Assignment": return "ProgressTracking";
     case "ProgressTracking": return "CommitteePreparation";
     case "CommitteePreparation": return "Running";
@@ -344,8 +370,8 @@ const getNextStatus = (status?: DefenseTermStatus): DefenseTermStatus => {
 const getNextActionLabel = (status?: DefenseTermStatus): string => {
   if (!status) return "Tiếp tục quy trình";
   switch (status) {
-    case "Draft": return "Mở đăng ký đề tài";
-    case "Registration": return "Chuyển sang Phân công";
+    case "Draft": return "Mở đăng ký & Phân công";
+    case "Registration": return "Theo dõi tiến độ";
     case "Assignment": return "Theo dõi tiến độ";
     case "ProgressTracking": return "Chuẩn bị hội đồng";
     case "CommitteePreparation": return "Bắt đầu bảo vệ";
@@ -972,6 +998,12 @@ const DefensePeriodsManagement: React.FC = () => {
   const isScoringComplete = totalTopics > 0 && scoredTopics >= totalTopics;
   const canRollbackStage = parsedConfig?.canRollbackStage === true || parsedConfig?.CanRollbackStage === true;
 
+  const stats = useMemo(() => monitoring?.analytics?.overview || {}, [monitoring]);
+  const pipeline = useMemo(() => monitoring?.pipeline || {}, [monitoring]);
+  const overviewSnapshot = useMemo(() => snapshot?.analytics?.overview ?? snapshot?.overview ?? snapshot ?? {}, [snapshot]);
+  const totalStudents = useMemo(() => readCount(stats, ["totalStudents", "studentCount", "totalStudentCount"], readCount(overviewSnapshot, ["totalStudents", "studentCount", "totalStudentCount"], readArrayCount(snapshot, ["students", "studentList", "studentRows", "studentItems", "members", "items"]))), [stats, overviewSnapshot, snapshot]);
+  const totalLecturers = useMemo(() => readCount(stats, ["totalLecturers", "lecturerCount", "totalLecturerCount"], readCount(overviewSnapshot, ["totalLecturers", "lecturerCount", "totalLecturerCount"], readArrayCount(snapshot, ["lecturers", "lecturerList", "lecturerRows", "lecturerItems", "members", "items"]))), [stats, overviewSnapshot, snapshot]);
+
   const loadData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
@@ -1095,8 +1127,18 @@ const DefensePeriodsManagement: React.FC = () => {
 
     if (currentStatus === "Registration") {
       matrix.forEach((row: any) => {
-        const tStatus = String(row.status ?? "").toLowerCase();
-        if (tStatus === "draft" || tStatus === "pending" || tStatus === "requested" || tStatus === "reviewing") {
+        const tStatus = String(row.status ?? "").toLowerCase().trim();
+        const hasNoTopic = !row.topicTitle || row.topicTitle === "-" || row.topicTitle.trim() === "" || tStatus === "";
+        const isNotApproved = tStatus === "draft" || tStatus === "pending" || tStatus === "requested" || tStatus === "reviewing";
+        if (hasNoTopic) {
+          errors.push({
+            studentName: row.studentName ?? "Sinh viên chưa rõ",
+            studentCode: row.studentCode ?? "-",
+            supervisorName: "Chưa gán",
+            topicTitle: "Chưa đăng ký đề tài",
+            reason: "Sinh viên chưa có đề tài trong đợt.",
+          });
+        } else if (isNotApproved) {
           errors.push({
             studentName: row.studentName ?? "Sinh viên chưa rõ",
             studentCode: row.studentCode ?? "-",
@@ -1286,7 +1328,9 @@ const DefensePeriodsManagement: React.FC = () => {
       isOpen: true,
       action,
       title: `Xác nhận điều hành: ${actionLabel}`,
-      message: `Hệ thống sẽ thực hiện lệnh "${actionLabel}" cho đợt "${selectedRow?.name}". Hành động này sẽ chuyển trạng thái quy trình và cập nhật quyền hạn truy cập của sinh viên, giảng viên.`,
+      message: (action === "NEXT" && currentStatus === "Draft")
+        ? `Bạn có chắc chắn muốn bắt đầu giai đoạn Đăng ký & Phân công cho đợt này? Hệ thống ghi nhận có ${totalStudents} sinh viên và ${totalLecturers} giảng viên tham gia đợt.`
+        : `Hệ thống sẽ thực hiện lệnh "${actionLabel}" cho đợt "${selectedRow?.name}". Hành động này sẽ chuyển trạng thái quy trình và cập nhật quyền hạn truy cập của sinh viên, giảng viên.`,
       type: action === "FINALIZE" || action === "CLOSE" || action === "ARCHIVE" ? "warning" : "info"
     });
   };
@@ -1294,14 +1338,21 @@ const DefensePeriodsManagement: React.FC = () => {
   const executeAction = async () => {
     if (!selectedId || !confirmState) return;
     const { action } = confirmState;
+    if (action === "CLOSE_MODAL") {
+      setConfirmState(null);
+      return;
+    }
 
     setRefreshing(true);
+    let shouldClearConfirm = true;
     try {
       const idempotencyKey = safeRandomUUID();
       let res;
       if (action === "ROLLBACK_STAGE") {
         const reason = window.prompt("Vui lòng nhập lý do quay lại bước trước:", "Thao tác nhầm") || "Thao tác nhầm";
         res = await defensePeriodApi.rollbackStage(selectedId, reason, idempotencyKey);
+      } else if (action === "NEXT_BYPASS") {
+        res = await defensePeriodApi.lifecycle(selectedId, "NEXT", idempotencyKey, { bypassProgressCheck: true });
       } else {
         res = await defensePeriodApi.lifecycle(selectedId, action, idempotencyKey);
       }
@@ -1309,7 +1360,7 @@ const DefensePeriodsManagement: React.FC = () => {
         if (action === "ROLLBACK_STAGE") {
           addToast("Quay lại giai đoạn trước thành công. Lần rollback đã được sử dụng cho giai đoạn này.", "success");
           setHasRolledBackThisSession(true);
-        } else if (action === "NEXT") {
+        } else if (action === "NEXT" || action === "NEXT_BYPASS") {
           // Reset rollback tracking when moving to next stage
           setHasRolledBackThisSession(false);
           setReminderSentCount(0);
@@ -1343,6 +1394,35 @@ const DefensePeriodsManagement: React.FC = () => {
         addToast(readEnvelopeData<string>(res) || "Thao tác thất bại.", "error");
       }
     } catch (err: any) {
+      const errCode = err.data?.code ?? err.data?.Code;
+      const errMsg = err.data?.message ?? err.data?.Message ?? err.message ?? "Lỗi hệ thống khi thực hiện lệnh.";
+
+      if (errCode === "UC2.NEXT.STUDENTS_WITHOUT_TOPIC") {
+        const studentCodes = err.data?.data?.studentsWithoutTopic ?? err.data?.Data?.StudentsWithoutTopic ?? [];
+        const listStr = Array.isArray(studentCodes) && studentCodes.length > 0 ? studentCodes.join(", ") : "";
+        setConfirmState({
+          isOpen: true,
+          action: "CLOSE_MODAL",
+          title: "Thiếu đề tài sinh viên",
+          message: `${errMsg} Danh sách mã sinh viên chưa có đề tài: ${listStr}`,
+          type: "danger"
+        });
+        shouldClearConfirm = false;
+        return;
+      }
+
+      if (errCode === "UC2.NEXT.INELIGIBLE_TOPICS") {
+        setConfirmState({
+          isOpen: true,
+          action: "NEXT_BYPASS",
+          title: "Xác nhận chuyển giai đoạn",
+          message: "Một số đề tài chưa Đủ điều kiện bảo vệ (có đồ án vẫn chưa đủ điều kiện bảo vệ). Bạn có muốn tiếp tục chuyển sang giai đoạn chuẩn bị hội đồng?",
+          type: "warning"
+        });
+        shouldClearConfirm = false;
+        return;
+      }
+
       if (err instanceof FetchDataError && err.status === 409 && action === "ARCHIVE") {
         const confirmForce = window.confirm("Đợt bảo vệ chưa công bố điểm. Bạn có muốn lưu trữ cưỡng bức (Force Archive) không?");
         if (confirmForce) {
@@ -1377,12 +1457,13 @@ const DefensePeriodsManagement: React.FC = () => {
           }
         }
       } else {
-        const errMsg = err.data?.message || err.data?.Message || err.message || "Lỗi hệ thống khi thực hiện lệnh.";
         addToast(errMsg, "error");
       }
     } finally {
+      if (shouldClearConfirm) {
+        setConfirmState(null);
+      }
       setRefreshing(false);
-      setConfirmState(null);
     }
   };
 
@@ -1619,8 +1700,7 @@ const DefensePeriodsManagement: React.FC = () => {
   const renderTimeline = () => {
     const steps = [
       { key: "Draft", label: "Soạn thảo", desc: "Khởi tạo đợt đồ án" },
-      { key: "Registration", label: "Đăng ký", desc: "Mở đăng ký đề tài" },
-      { key: "Assignment", label: "Phân công", desc: "Gán GV hướng dẫn" },
+      { key: "Registration", label: "Đăng ký & Phân công", desc: "Đăng ký đề tài & Gán GV" },
       { key: "ProgressTracking", label: "Tiến độ", desc: "Theo dõi thực hiện" },
       { key: "CommitteePreparation", label: "Hội đồng", desc: "Chuẩn bị hội đồng" },
       { key: "Running", label: "Bảo vệ", desc: "Chấm điểm & biên bản" },
@@ -1632,64 +1712,21 @@ const DefensePeriodsManagement: React.FC = () => {
     const statusOrder: Record<string, number> = {
       draft: 0,
       registration: 1,
-      assignment: 2,
-      progresstracking: 3,
-      committeepreparation: 4,
-      running: 5,
-      paused: 5,
-      scoringlocked: 6,
-      finalization: 6,
-      finalized: 6,
-      published: 6,
-      closed: 7,
-      archived: 7
+      assignment: 1,
+      progresstracking: 2,
+      committeepreparation: 3,
+      running: 4,
+      paused: 4,
+      scoringlocked: 5,
+      finalization: 5,
+      finalized: 5,
+      published: 5,
+      closed: 6,
+      archived: 6
     };
 
     const normalizedKey = String(currentStatus).toLowerCase().trim();
     const currentIndex = statusOrder[normalizedKey] ?? 0;
-
-    const formatStepDate = (dateStr?: string | null) => {
-      if (!dateStr) return null;
-      try {
-        const d = new Date(dateStr);
-        if (isNaN(d.getTime())) return null;
-        return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
-      } catch {
-        return null;
-      }
-    };
-
-    const getStepDate = (key: string) => {
-      if (!selectedRow) return null;
-      switch (key) {
-        case "Draft":
-          return formatStepDate(selectedRow.createdAt);
-        case "Registration": {
-          const m = milestones.find(item => item.ordinal === 1);
-          return formatStepDate(m?.deadline);
-        }
-        case "Assignment":
-          return null;
-        case "ProgressTracking": {
-          const m = milestones.find(item => item.ordinal === 2);
-          return formatStepDate(m?.deadline);
-        }
-        case "CommitteePreparation": {
-          const m = milestones.find(item => item.ordinal === 3);
-          return formatStepDate(m?.deadline);
-        }
-        case "Running": {
-          const m = milestones.find(item => item.ordinal === 4);
-          return formatStepDate(m?.deadline);
-        }
-        case "Finalization":
-          return formatStepDate(selectedRow.endDate);
-        case "Archived":
-          return selectedRow.status === "Archived" ? formatStepDate(selectedRow.lastUpdated) : null;
-        default:
-          return null;
-      }
-    };
 
     return (
       <div style={{ background: "#fff", padding: "24px", borderRadius: "16px", border: "1px solid #e2e8f0", marginBottom: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
@@ -1704,7 +1741,7 @@ const DefensePeriodsManagement: React.FC = () => {
         </div>
         <div style={{ display: "flex", position: "relative", padding: "0 10px" }}>
           {steps.map((step, idx) => {
-            const isCompleted = idx < currentIndex || (currentStatus === "Archived" && idx === 7);
+            const isCompleted = idx < currentIndex || (currentStatus === "Archived" && idx === 6);
             const isActive = idx === currentIndex && currentStatus !== "Archived";
 
             const isPausedActive = isActive && currentStatus === "Paused";
@@ -1736,11 +1773,6 @@ const DefensePeriodsManagement: React.FC = () => {
                   </div>
                   <div style={{ marginTop: "14px", textAlign: "center" }}>
                     <div style={{ fontSize: "13px", fontWeight: "800", color: isActive ? DEEP_BLUE_PRIMARY : (isCompleted ? "#1e293b" : "#94a3b8") }}>{step.label}</div>
-                    {getStepDate(step.key) && (
-                      <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px", fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "3px" }}>
-                        <CalendarIcon size={10} style={{ opacity: 0.8 }} /> {getStepDate(step.key)}
-                      </div>
-                    )}
                     <div style={{ fontSize: "10px", color: isActive ? DEEP_BLUE_PRIMARY : "#94a3b8", marginTop: "3px", fontWeight: isActive ? "700" : "500" }}>{step.desc}</div>
                   </div>
                 </div>
@@ -1751,7 +1783,7 @@ const DefensePeriodsManagement: React.FC = () => {
                     top: "18px",
                     width: `${100 / steps.length}%`,
                     height: "2px",
-                    background: idx < currentIndex || (currentStatus === "Archived" && idx < 7) ? "#10b981" : "#e2e8f0",
+                    background: idx < currentIndex || (currentStatus === "Archived" && idx < 6) ? "#10b981" : "#e2e8f0",
                     zIndex: 1,
                     transition: "all 0.5s ease"
                   }} />
@@ -1766,13 +1798,9 @@ const DefensePeriodsManagement: React.FC = () => {
 
 
   const renderOverview = () => {
-    const stats = monitoring?.analytics?.overview || {};
-    const pipeline = monitoring?.pipeline || {};
-    const overviewSnapshot = snapshot?.analytics?.overview ?? snapshot?.overview ?? snapshot ?? {};
-    const totalStudents = readCount(stats, ["totalStudents", "studentCount", "totalStudentCount"], readCount(overviewSnapshot, ["totalStudents", "studentCount", "totalStudentCount"], readArrayCount(snapshot, ["students", "studentList", "studentRows", "studentItems", "members", "items"])));
-    const totalLecturers = readCount(stats, ["totalLecturers", "lecturerCount", "totalLecturerCount"], readCount(overviewSnapshot, ["totalLecturers", "lecturerCount", "totalLecturerCount"], readArrayCount(snapshot, ["lecturers", "lecturerList", "lecturerRows", "lecturerItems", "members", "items"])));
     const assignedTopics = readCount(stats, ["totalTopics", "topicCount", "assignmentCount", "assignedTopics"], readCount(pipeline, ["totalTopics", "topicCount", "assignmentCount", "assignedTopics"], readCount(overviewSnapshot, ["totalTopics", "topicCount", "assignmentCount", "assignedTopics"])));
     const committeeCount = readCount(stats, ["totalCommittees", "committeeCount", "committeeTotal", "councilCount"], readCount(overviewSnapshot, ["totalCommittees", "committeeCount", "committeeTotal", "councilCount"], readArrayCount(snapshot, ["committees", "committeeList", "committeeRows", "committeeItems", "councils"])));
+    const currentStatus = selectedRow?.status || "Draft";
 
     return (
       <div style={{ display: "grid", gap: "24px" }}>
@@ -1811,6 +1839,40 @@ const DefensePeriodsManagement: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {getStageNote(currentStatus) && (
+          <div style={{
+            background: `linear-gradient(135deg, ${getStatusPresentation(currentStatus).color}0a 0%, ${getStatusPresentation(currentStatus).color}15 100%)`,
+            border: `1.5px dashed ${getStatusPresentation(currentStatus).color}`,
+            borderRadius: "16px",
+            padding: "16px 20px",
+            display: "flex",
+            alignItems: "center",
+            gap: "14px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.02)"
+          }}>
+            <div style={{
+              background: getStatusPresentation(currentStatus).color,
+              color: "#ffffff",
+              padding: "8px",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0
+            }}>
+              <BookOpen size={16} />
+            </div>
+            <div>
+              <div style={{ fontSize: "11px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
+                Nhiệm vụ cần làm trong giai đoạn {getStatusPresentation(currentStatus).label}
+              </div>
+              <div style={{ fontSize: "14px", fontWeight: "700", color: "#1e293b", lineHeight: "1.5" }}>
+                {getStageNote(currentStatus)}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "24px" }}>
           <div style={{ background: "#fff", padding: "24px", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
@@ -1991,7 +2053,7 @@ const DefensePeriodsManagement: React.FC = () => {
             <div style={{ padding: "20px", background: "#f8fafc", borderRadius: "16px", border: "1px solid #f1f5f9" }}>
               <div style={{ fontSize: "14px", color: "#475569", lineHeight: "1.6" }}>
                 {currentStatus === "Draft" && "Đợt đồ án đang trong quá trình khởi tạo. Bạn cần thiết lập lộ trình thời gian và kiểm tra danh sách thành viên trước khi mở đăng ký."}
-                {currentStatus === "Registration" && "Sinh viên đang thực hiện đăng ký đề tài. Bạn có thể theo dõi số lượng đăng ký và duyệt các đề tài hợp lệ."}
+                {currentStatus === "Registration" && "Sinh viên thực hiện đăng ký đề tài và phân công giảng viên hướng dẫn. Bạn có thể theo dõi số lượng đăng ký, duyệt các đề tài hợp lệ và gán giảng viên hướng dẫn."}
                 {currentStatus === "Assignment" && "Giai đoạn phân công giảng viên hướng dẫn và chuẩn bị nhân sự cho các hội đồng bảo vệ."}
                 {currentStatus === "ProgressTracking" && "Theo dõi tiến độ nộp báo cáo của sinh viên theo các mốc thời gian đã thiết lập trong lộ trình."}
                 {currentStatus === "CommitteePreparation" && "Thiết lập lịch bảo vệ chi tiết, gán phòng và thời gian cho từng hội đồng."}
@@ -2000,6 +2062,64 @@ const DefensePeriodsManagement: React.FC = () => {
                 {currentStatus === "Finalization" && "Tính toán kết quả cuối cùng và chuẩn bị đóng đợt để khóa hồ sơ bảo vệ."}
               </div>
             </div>
+
+            {getStageNote(currentStatus) && (
+              <div style={{
+                background: `linear-gradient(135deg, ${getStatusPresentation(currentStatus).color}0a 0%, ${getStatusPresentation(currentStatus).color}15 100%)`,
+                border: `1.5px dashed ${getStatusPresentation(currentStatus).color}`,
+                borderRadius: "16px",
+                padding: "16px 20px",
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.02)"
+              }}>
+                <div style={{
+                  background: getStatusPresentation(currentStatus).color,
+                  color: "#ffffff",
+                  padding: "8px",
+                  borderRadius: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0
+                }}>
+                  <BookOpen size={16} />
+                </div>
+                <div>
+                  <div style={{ fontSize: "11px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
+                    Nhiệm vụ cần làm
+                  </div>
+                  <div style={{ fontSize: "14px", fontWeight: "700", color: "#1e293b", lineHeight: "1.5" }}>
+                    {getStageNote(currentStatus)}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentStatus === "Draft" && (
+              <div style={{
+                background: "linear-gradient(135deg, #e0f2fe 0%, #eff6ff 100%)",
+                border: "1px solid #bae6fd",
+                borderRadius: "16px",
+                padding: "20px",
+                boxShadow: "0 4px 15px rgba(14, 165, 233, 0.05)",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "14px"
+              }}>
+                <div style={{ background: "#bae6fd", color: "#0369a1", padding: "10px", borderRadius: "12px", display: "flex", flexShrink: 0 }}>
+                  <Info size={20} />
+                </div>
+                <div>
+                  <h4 style={{ margin: "0 0 6px 0", fontSize: "14px", fontWeight: "800", color: "#0369a1" }}>Thành viên tham gia đợt</h4>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", fontSize: "13px", color: "#075985", fontWeight: "700" }}>
+                    <div>• Có {totalStudents} sinh viên trong đợt</div>
+                    <div>• Có {totalLecturers} giảng viên trong đợt</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {currentMilestone && (
               <div style={{ display: "flex", alignItems: "center", gap: "16px", padding: "16px", background: "#fffbeb", borderRadius: "16px", border: "1px solid #fef3c7" }}>

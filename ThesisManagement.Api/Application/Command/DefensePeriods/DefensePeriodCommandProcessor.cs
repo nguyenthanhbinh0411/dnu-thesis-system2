@@ -751,9 +751,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 var tagCatalogByCode = await LoadTagCatalogByCodeAsync(cancellationToken);
                 EnsureTagCodesExist(preferredTags, tagCatalogByCode, "UC2.2.TAG_NOT_FOUND");
 
-                var topics = preferredTags.Count == 0
-                    ? selectedTopics
-                    : selectedTopics.OrderByDescending(t => topicTags.TryGetValue(t.TopicCode, out var set) && set.Any(preferredTags.Contains)).ThenBy(t => t.TopicCode).ToList();
+                var topics = OrderTopicsForAutoGenerate(selectedTopics, topicTags, preferredTags);
 
                 var councils = new List<CouncilDraftDto>();
                 var now = DateTime.UtcNow;
@@ -764,13 +762,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 var membersPerCouncil = NormalizeMembersPerCouncil(config.CouncilConfig.MembersPerCouncilConfig);
                 var topicsPerCouncil = topicsPerSession * 2;
 
-                for (var i = 0; i < topics.Count; i += topicsPerCouncil)
+                var councilChunks = BuildAutoGenerateCouncilChunks(topics, topicsPerCouncil, 3);
+
+                for (var i = 0; i < councilChunks.Count; i++)
                 {
-                    var chunk = topics.Skip(i).Take(topicsPerCouncil).ToList();
-                    if (chunk.Count < topicsPerCouncil)
-                    {
-                        break;
-                    }
+                    var chunk = councilChunks[i];
 
                     if (!TryAllocateRoomDateSlot(selectedRooms, defenseDates, occupiedRoomDateSlots, ref roomIndex, out var room, out var defenseDate))
                     {
@@ -912,6 +908,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                         cancellationToken);
 
                     var rolePlan = BuildRolePlan(membersPerCouncil);
+                    ValidateGeneratedRolePlan(rolePlan, membersPerCouncil, "UC2.2.INVALID_ROLE_PLAN");
                     var warning = string.Empty;
 
                     if (availableLecturers.Count < membersPerCouncil)
@@ -3113,7 +3110,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     if (ineligibleTopics.Count > 0 && !bypassProgressCheck)
                     {
                         throw new BusinessRuleException(
-                            "Một số đề tài chưa Đủ điều kiện bảo vệ (vì có người bỏ làm đồ án mà). Bạn có muốn tiếp tục chuyển sang giai đoạn chuẩn bị hội đồng?",
+                            "Một số đề tài chưa Đủ điều kiện bảo vệ (có đồ án vẫn chưa đủ điều kiện bảo vệ). Bạn có muốn tiếp tục chuyển sang giai đoạn chuẩn bị hội đồng?",
                             "UC2.NEXT.INELIGIBLE_TOPICS",
                             new { IneligibleTopics = ineligibleTopics.Select(x => new { x.TopicCode, x.Title, x.Status }).ToList() }
                         );
@@ -6066,17 +6063,177 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
         {
             var normalizedCount = NormalizeMembersPerCouncil(membersPerCouncil);
             var roles = new List<string> { "CT", "UVTK" };
-            if (normalizedCount >= 3)
+            for (var i = roles.Count; i < normalizedCount; i++)
             {
                 roles.Add("UVPB");
             }
 
-            for (var i = roles.Count; i < normalizedCount; i++)
+            return roles;
+        }
+
+        private static List<Topic> OrderTopicsForAutoGenerate(
+            IReadOnlyList<Topic> topics,
+            IReadOnlyDictionary<string, HashSet<string>> topicTags,
+            HashSet<string> preferredTags)
+        {
+            if (topics.Count == 0)
             {
-                roles.Add("UV");
+                return new List<Topic>();
             }
 
-            return roles;
+            var placements = topics
+                .Select((topic, index) =>
+                {
+                    var normalizedTopicCode = NormalizeIdentityCode(topic.TopicCode) ?? string.Empty;
+                    var supervisorKey = NormalizeIdentityCode(topic.SupervisorLecturerCode) ?? string.Empty;
+                    var tags = topicTags.TryGetValue(topic.TopicCode, out var foundTags)
+                        ? foundTags
+                        : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var matchedPreferredTags = preferredTags.Count == 0
+                        ? 0
+                        : tags.Count(preferredTags.Contains);
+                    var tagBucketKey = BuildTopicTagBucketKey(tags, preferredTags);
+
+                    return new
+                    {
+                        Topic = topic,
+                        Index = index,
+                        TopicCode = normalizedTopicCode,
+                        SupervisorKey = supervisorKey,
+                        TagBucketKey = tagBucketKey,
+                        MatchedPreferredTags = matchedPreferredTags,
+                        TagCount = tags.Count
+                    };
+                })
+                .ToList();
+
+            return placements
+                .GroupBy(x => x.SupervisorKey, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(group => group.Count())
+                .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .SelectMany(group => group
+                    .GroupBy(x => x.TagBucketKey, StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(bucket => bucket.Max(item => item.MatchedPreferredTags))
+                    .ThenByDescending(bucket => bucket.Count())
+                    .ThenBy(bucket => bucket.Key, StringComparer.OrdinalIgnoreCase)
+                    .SelectMany(bucket => bucket
+                        .OrderByDescending(item => item.MatchedPreferredTags)
+                        .ThenByDescending(item => item.TagCount)
+                        .ThenBy(item => item.TopicCode, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(item => item.Index)
+                        .Select(item => item.Topic)))
+                .ToList();
+        }
+
+        private static List<List<Topic>> BuildAutoGenerateCouncilChunks(
+            IReadOnlyList<Topic> orderedTopics,
+            int topicsPerCouncil,
+            int maxTopicsPerSupervisorPerCouncil)
+        {
+            if (orderedTopics.Count == 0 || topicsPerCouncil <= 0)
+            {
+                return new List<List<Topic>>();
+            }
+
+            var remainingTopics = orderedTopics.ToList();
+            var chunks = new List<List<Topic>>();
+
+            while (remainingTopics.Count >= topicsPerCouncil)
+            {
+                var chunk = new List<Topic>(topicsPerCouncil);
+                var supervisorCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var progressed = true;
+
+                while (chunk.Count < topicsPerCouncil && progressed)
+                {
+                    progressed = false;
+
+                    for (var index = 0; index < remainingTopics.Count && chunk.Count < topicsPerCouncil; index++)
+                    {
+                        var topic = remainingTopics[index];
+                        var supervisorKey = NormalizeIdentityCode(topic.SupervisorLecturerCode) ?? string.Empty;
+                        var currentCount = supervisorCounts.TryGetValue(supervisorKey, out var count)
+                            ? count
+                            : 0;
+
+                        if (currentCount >= maxTopicsPerSupervisorPerCouncil)
+                        {
+                            continue;
+                        }
+
+                        chunk.Add(topic);
+                        supervisorCounts[supervisorKey] = currentCount + 1;
+                        remainingTopics.RemoveAt(index);
+                        index--;
+                        progressed = true;
+                    }
+                }
+
+                if (chunk.Count < topicsPerCouncil)
+                {
+                    break;
+                }
+
+                chunks.Add(chunk);
+            }
+
+            return chunks;
+        }
+
+        private static string BuildTopicTagBucketKey(HashSet<string> tags, HashSet<string> preferredTags)
+        {
+            var selectedTags = preferredTags.Count > 0
+                ? tags.Where(preferredTags.Contains)
+                : tags;
+
+            var normalized = selectedTags
+                .Select(NormalizeTagCode)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (normalized.Count == 0)
+            {
+                normalized = tags
+                    .Select(NormalizeTagCode)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            return normalized.Count == 0
+                ? string.Empty
+                : string.Join("|", normalized);
+        }
+
+        private static void ValidateGeneratedRolePlan(IReadOnlyList<string> roles, int expectedCount, string errorCode)
+        {
+            var normalizedExpectedCount = NormalizeMembersPerCouncil(expectedCount);
+            var normalizedRoles = roles
+                .Select(NormalizeRole)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
+
+            if (normalizedRoles.Count != normalizedExpectedCount)
+            {
+                throw new BusinessRuleException($"Số lượng thành viên phải đúng {normalizedExpectedCount}.", errorCode);
+            }
+
+            var chairCount = normalizedRoles.Count(x => x == "CT");
+            var secretaryCount = normalizedRoles.Count(x => x == "UVTK");
+            var reviewerCount = normalizedRoles.Count(x => x == "UVPB");
+
+            if (chairCount != 1 || secretaryCount != 1)
+            {
+                throw new BusinessRuleException("Hội đồng phải có đúng 1 CT và 1 UVTK.", errorCode);
+            }
+
+            if (reviewerCount != normalizedExpectedCount - 2)
+            {
+                throw new BusinessRuleException("Các thành viên còn lại phải là Ủy viên phản biện.", errorCode);
+            }
         }
 
         private static bool IsDoctorateDegree(string? degree)

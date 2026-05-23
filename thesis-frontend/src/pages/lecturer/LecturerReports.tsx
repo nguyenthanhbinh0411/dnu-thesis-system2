@@ -321,8 +321,8 @@ const LecturerReports: React.FC = () => {
   useEffect(() => {
     const fetchDefenseTerms = async () => {
       try {
-        const res = await fetchData("/defense-periods");
-        const list = (res as ApiResponse<any[]>)?.data || res || [];
+        const res = await fetchData<any>("/defense-periods");
+        const list = res?.data || res || [];
         const normalizedList = Array.isArray(list) ? list : (list.items || list.Items || []);
         
         setDefenseTerms(normalizedList);

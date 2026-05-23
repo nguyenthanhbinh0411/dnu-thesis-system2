@@ -1487,7 +1487,7 @@ namespace ThesisManagement.Api.Controllers
 
             var analyticsOverview = new
             {
-                TotalStudents = overview.Data?.TotalStudents ?? snapshotOverview.TotalStudents,
+                TotalStudents = snapshotOverview.TotalStudents,
                 Average = overview.Data?.Average ?? 0m,
                 PassRate = overview.Data?.PassRate ?? 0m,
                 Highest = overview.Data?.Highest ?? 0m,

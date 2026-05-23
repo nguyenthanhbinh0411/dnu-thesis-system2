@@ -63,6 +63,7 @@ type AutoGenerateTopicDto = {
   tagCodes?: string[];
   studentCode?: string | null;
   supervisorCode?: string | null;
+  studentName?: string | null;
   lecturerId?: number | string;
   lecturerProfileId?: number;
   lecturerCode?: string;
@@ -410,7 +411,7 @@ const BASE_MINUTE_SELECTOR_OPTIONS = Array.from({ length: 12 }, (_, index) =>
 
 const MONTH_SELECTOR_OPTIONS = Array.from({ length: 12 }, (_, index) => ({
   value: index + 1,
-  label: `Tháng ${toTwoDigits(index + 1)}`,
+  label: toTwoDigits(index + 1),
 }));
 
 const getDaysInMonth = (year: number, month: number) =>
@@ -1134,8 +1135,22 @@ const mapTopicRecordToAutoTopic = (
     supervisorCode: String(
       pickCaseInsensitiveValue(item, ["supervisorCode", "SupervisorCode"], ""),
     ).trim(),
+    studentName: String(
+      pickCaseInsensitiveValue(item, ["studentName", "StudentName", "proposerStudentName"], ""),
+    ).trim(),
   };
 };
+
+  const formatDateWithWeekday = (dateStr?: string | null) => {
+    if (!dateStr) return "-";
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return "-";
+    const dayMonthYear = d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const weekday = d.toLocaleDateString("vi-VN", { weekday: "long" });
+    const weekdayCap = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+    return `${dayMonthYear} — ${weekdayCap}`;
+  };
+
 
 const CommitteeManagement: React.FC = () => {
   const { addToast } = useToast();
@@ -1614,7 +1629,7 @@ const CommitteeManagement: React.FC = () => {
         if (normalizedRows.length === 0) {
           try {
             const topicResponse = await fetchData<ApiResponse<unknown>>(
-              `${defensePeriodBase}/topics?onlyEligible=false&onlyUnassigned=false&page=1&size=200`,
+              `${defensePeriodBase}/topics?onlyEligible=true&onlyUnassigned=false&page=1&size=200`,
               { method: "GET" },
             );
             const topicRaw = readEnvelopeData<unknown>(topicResponse);
@@ -2386,10 +2401,10 @@ const CommitteeManagement: React.FC = () => {
           ),
           loadOptionalResponse(
             "topics",
-            `${defensePeriodBase}/topics?onlyEligible=false&onlyUnassigned=false&page=1&size=200`,
+            `${defensePeriodBase}/topics?onlyEligible=true&onlyUnassigned=false&page=1&size=200`,
             () =>
               adminApi.getTopics({
-                onlyEligible: false,
+                onlyEligible: true,
                 onlyUnassigned: false,
                 page: 1,
                 size: 200,
@@ -2570,9 +2585,31 @@ const CommitteeManagement: React.FC = () => {
           .filter((item) => item.studentCode.length > 0);
         setStudents(mappedStudents);
 
+        const eligibleStudentCodes = new Set(
+          mappedStudents
+            .filter((s) => s.isEligible && isDefenseReadyTopicStatus(s.status))
+            .map((s) => String(s.studentCode ?? "").trim().toUpperCase()),
+        );
+        const eligibleTopicCodes = new Set(
+          mappedStudents
+            .map((s) => String(s.topicCode ?? "").trim())
+            .filter(Boolean)
+            .map((c) => c.toUpperCase()),
+        );
+
         const autoTopicsFromEndpoint = topicsData
           .map((item) => mapTopicRecordToAutoTopic(item))
-          .filter((topic) => Boolean(topic.topicCode || topic.topicId));
+          .filter((topic) => {
+            const sc = String(topic.studentCode ?? "").trim().toUpperCase();
+            const tc = String(topic.topicCode ?? topic.topicId ?? "").trim().toUpperCase();
+            if (eligibleStudentCodes.size === 0 && eligibleTopicCodes.size === 0) {
+              return Boolean(topic.topicCode || topic.topicId);
+            }
+            if (sc && eligibleStudentCodes.has(sc)) return true;
+            if (tc && eligibleTopicCodes.has(tc)) return true;
+            return false;
+          });
+
         if (autoTopicsFromEndpoint.length > 0) {
           setAvailableAutoTopics(autoTopicsFromEndpoint);
           setSelectedAutoTopicIds((prev) =>
@@ -3533,8 +3570,24 @@ const CommitteeManagement: React.FC = () => {
 
   const filteredAutoTopics = useMemo(() => {
     const keyword = topicSearchKeyword.trim().toLowerCase();
-    if (!keyword) return availableAutoTopics;
-    return availableAutoTopics.filter((topic) => {
+    // Enforce that only topics from eligible students are shown (defensive at render-time)
+    const allowedStudentCodes = new Set(
+      eligibleStudents.map((s) => String(s.studentCode ?? "").trim().toLowerCase()),
+    );
+    const allowedTopicCodes = new Set(
+      eligibleStudents.map((s) => String(s.topicCode ?? "").trim().toLowerCase()).filter(Boolean),
+    );
+
+    const visible = availableAutoTopics.filter((topic) => {
+      const sc = String(topic.studentCode ?? "").trim().toLowerCase();
+      const tc = String(topic.topicCode ?? topic.topicId ?? "").trim().toLowerCase();
+      if (sc && allowedStudentCodes.has(sc)) return true;
+      if (tc && allowedTopicCodes.has(tc)) return true;
+      return false;
+    });
+
+    if (!keyword) return visible;
+    return visible.filter((topic) => {
       const code = String(topic.topicCode ?? topic.topicId ?? "").toLowerCase();
       const title = (topic.title ?? "").toLowerCase();
       const tags = mergeStringLists(topic.tagCodes)
@@ -3653,7 +3706,22 @@ const CommitteeManagement: React.FC = () => {
       startTime,
       endTime,
       slotId: `${code}-${sessionCode === "AFTERNOON" ? "PM" : "AM"}`,
-      councilTags: item.tagCodes ?? [],
+      councilTags: (() => {
+        const incoming = (item.tagCodes ?? []) as string[];
+        if (Array.isArray(incoming) && incoming.length > 0) return incoming;
+        // derive from member lecturers' tags
+        try {
+          const derived = new Set<string>();
+          members.forEach((m) => {
+            getLecturerTagsByCode(m.lecturerCode).forEach((t) => {
+              if (t) derived.add(t);
+            });
+          });
+          return Array.from(derived);
+        } catch (e) {
+          return [] as string[];
+        }
+      })(),
       morningStudents,
       afternoonStudents,
       assignments: assignmentRows,
@@ -3803,7 +3871,27 @@ const CommitteeManagement: React.FC = () => {
           item.endTime ?? "",
         ) || undefined,
         slotId: `${councilCode}-${sessionCode === "AFTERNOON" ? "PM" : "AM"}`,
-        councilTags: item.councilTags ?? [],
+        // build members first so we can derive tags from their lecturer codes when missing
+        councilTags: (() => {
+          const incoming = (item.councilTags ?? []) as string[];
+          if (Array.isArray(incoming) && incoming.length > 0) return incoming;
+          const membersArr = (item.members ?? []).map((m) => ({
+            role: m.role ?? "UV",
+            lecturerCode: m.lecturerCode ?? "",
+            lecturerName: m.lecturerName ?? "",
+          }));
+          try {
+            const derived = new Set<string>();
+            membersArr.forEach((m) => {
+              getLecturerTagsByCode(m.lecturerCode).forEach((t) => {
+                if (t) derived.add(t);
+              });
+            });
+            return Array.from(derived);
+          } catch (e) {
+            return [] as string[];
+          }
+        })(),
         morningStudents:
           explicitMorning.length > 0 ? explicitMorning : derivedMorning,
         afternoonStudents:
@@ -3957,10 +4045,10 @@ const CommitteeManagement: React.FC = () => {
         ),
         loadOptionalResponse(
           "topics",
-          `${defensePeriodBase}/topics?onlyEligible=false&onlyUnassigned=false&page=1&size=200`,
+          `${defensePeriodBase}/topics?onlyEligible=true&onlyUnassigned=false&page=1&size=200`,
           () =>
             adminApi.getTopics({
-              onlyEligible: false,
+              onlyEligible: true,
               onlyUnassigned: false,
               page: 1,
               size: 200,
@@ -4020,6 +4108,27 @@ const CommitteeManagement: React.FC = () => {
           topics = extractCompactRows(topicsData, ["items", "Items"])
             .map((item) => mapTopicRecordToAutoTopic(item))
             .filter((topic) => Boolean(topic.topicCode || topic.topicId));
+
+          // Defensive filter: only keep topics that map to students that are eligible
+          const allowedStudentCodes = new Set(
+            eligibleStudents.map((s) => String(s.studentCode ?? "").trim().toUpperCase()),
+          );
+          const allowedTopicCodes = new Set(
+            eligibleStudents
+              .map((s) => String(s.topicCode ?? "").trim())
+              .filter(Boolean)
+              .map((c) => c.toUpperCase()),
+          );
+
+          if (allowedStudentCodes.size > 0 || allowedTopicCodes.size > 0) {
+            topics = topics.filter((t) => {
+              const sc = String(t.studentCode ?? "").trim().toUpperCase();
+              const tc = String(t.topicCode ?? t.topicId ?? "").trim().toUpperCase();
+              if (sc && allowedStudentCodes.has(sc)) return true;
+              if (tc && allowedTopicCodes.has(tc)) return true;
+              return false;
+            });
+          }
         }
       }
       if (topics.length === 0) {
@@ -4371,6 +4480,62 @@ const CommitteeManagement: React.FC = () => {
     setAssignmentLoading(true);
     setActionInFlight("Mô phỏng và tạo hội đồng tự động");
     try {
+      // 1. Update general config
+      const updateConfigResponse = await adminApi.updateConfig({
+        startDate: `${autoStartDate}T00:00:00Z`,
+        endDate: `${autoEndDate}T00:00:00Z`,
+        rooms: normalizedSelectedRooms,
+        morningStart,
+        afternoonStart,
+        softMaxCapacity: maxCapacity,
+      });
+      const updateConfigParsed = parseApiEnvelope(updateConfigResponse);
+      if (!updateConfigParsed.ok) {
+        setAutoGenerateModalAlert({
+          type: "error",
+          message: extractApiErrorMessage(
+            updateConfigResponse,
+            "Cập nhật cấu hình tham số thất bại.",
+          ),
+        });
+        return;
+      }
+      setConfigSaved(true);
+
+      // 2. Confirm council config
+      const confirmResponse = await adminApi.confirmCouncilConfig({
+        topicsPerSessionConfig,
+        membersPerCouncilConfig,
+        tags: normalizedConfigCouncilTagCodes,
+      });
+      const confirmParsed = parseApiEnvelope(confirmResponse);
+      if (!confirmParsed.ok) {
+        setAutoGenerateModalAlert({
+          type: "error",
+          message: extractApiErrorMessage(
+            confirmResponse,
+            "Xác nhận cấu hình hội đồng thất bại.",
+          ),
+        });
+        return;
+      }
+      setCouncilConfigConfirmed(true);
+
+      // 3. Lock lecturer capabilities
+      const lockResponse = await adminApi.lockCapabilities();
+      const lockParsed = parseApiEnvelope(lockResponse);
+      if (!lockParsed.ok) {
+        setAutoGenerateModalAlert({
+          type: "error",
+          message: extractApiErrorMessage(
+            lockResponse,
+            "Khóa năng lực giảng viên thất bại.",
+          ),
+        });
+        return;
+      }
+      setCapabilitiesLocked(true);
+
       const simulateResponse = await adminApi.simulateAutoGenerateCouncils(
         payload,
         makeIdempotencyKey("AUTOGEN-SIM"),
@@ -4601,13 +4766,6 @@ const CommitteeManagement: React.FC = () => {
   };
 
   const saveCouncilConfig = async () => {
-    if (normalizedConfigCouncilTagCodes.length === 0) {
-      setCouncilConfigConfirmed(false);
-      notifyWarning(
-        "Vui lòng chọn ít nhất 1 tag hội đồng trước khi lưu cấu hình.",
-      );
-      return;
-    }
     try {
       setActionInFlight("Lưu cấu hình hội đồng");
       const response = await adminApi.confirmCouncilConfig({
@@ -4840,6 +4998,22 @@ const CommitteeManagement: React.FC = () => {
       ),
     [configCouncilTags, resolveTagCode],
   );
+
+  const isAutoGenerateConfigValid = useMemo(() => {
+    return (
+      Boolean(autoStartDate) &&
+      Boolean(autoEndDate) &&
+      selectedAutoRooms.length > 0 &&
+      selectedAutoTopicIds.length > 0 &&
+      selectedAutoLecturerIds.length > 0
+    );
+  }, [
+    autoStartDate,
+    autoEndDate,
+    selectedAutoRooms,
+    selectedAutoTopicIds,
+    selectedAutoLecturerIds,
+  ]);
 
   const normalizedManualCouncilTagCodes = useMemo(
     () =>
@@ -5999,6 +6173,10 @@ const CommitteeManagement: React.FC = () => {
       setManualMode(null);
       setManualReadOnly(false);
       notifySuccess(`Đã xóa hội đồng ${target.id}.`);
+      // Ensure UI fully refreshes to reflect deletion (avoid stale state/caching)
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
     } catch {
       notifyError(
         `Không xóa được hội đồng ${target.id}. Vui lòng tải lại dữ liệu và thử lại.`,
@@ -7537,6 +7715,11 @@ const CommitteeManagement: React.FC = () => {
             font-size: 14px;
             line-height: 1.2;
             min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-direction: row;
           }
           .committee-content .committee-primary-btn {
             color: #ffffff !important;
@@ -7606,6 +7789,11 @@ const CommitteeManagement: React.FC = () => {
             font-weight: 600;
             min-height: 40px;
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-direction: row;
           }
           .committee-accent-btn:hover:not(:disabled) {
             border-color: #cbd5e1;
@@ -7626,6 +7814,11 @@ const CommitteeManagement: React.FC = () => {
             font-weight: 600;
             min-height: 40px;
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-direction: row;
           }
           .committee-ghost-btn:hover:not(:disabled) {
             border-color: #cbd5e1;
@@ -7640,6 +7833,11 @@ const CommitteeManagement: React.FC = () => {
             font-weight: 600;
             min-height: 40px;
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-direction: row;
           }
           .committee-danger-btn:hover:not(:disabled) {
             border-color: #fecaca;
@@ -7670,6 +7868,29 @@ const CommitteeManagement: React.FC = () => {
             background: #f37021;
             color: #ffffff;
             box-shadow: 0 6px 16px rgba(243, 112, 33, 0.28);
+          }
+
+          /* Smaller session add buttons (Sáng / Chiều) */
+          .committee-session-btn {
+            border: 1px solid #f37021;
+            border-radius: 999px;
+            background: #ffffff;
+            color: #f37021;
+            cursor: pointer;
+            font-weight: 700;
+            padding: 6px 10px;
+            font-size: 12px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 32px;
+          }
+          .committee-session-btn:hover:not(:disabled) {
+            background: #f37021;
+            color: #ffffff;
+            transform: translateY(-1px);
           }
           .committee-member-caption {
             font-size: 12px;
@@ -8361,28 +8582,32 @@ const CommitteeManagement: React.FC = () => {
             margin-bottom: 14px;
           }
           .prepare-room-chip {
-            border: 1px solid #cbd5e1;
-            border-radius: 999px;
+            border: 1.5px solid #3b82f6;
+            border-radius: 8px;
             min-height: 36px;
+            min-width: 60px;
             padding: 0 12px;
             background: #ffffff;
-            color: #0f172a;
+            color: #2563eb;
             font-weight: 700;
             font-size: 12px;
             line-height: 1;
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             transition: border-color .2s ease, background-color .2s ease, transform .2s ease;
           }
           .prepare-room-chip:hover {
-            border-color: #cbd5e1;
-            background: #ffffff;
+            border-color: #2563eb;
+            background: #eff6ff;
             transform: translateY(-1px);
           }
           .prepare-room-chip.active {
-            border-color: #f37021;
-            background: #f37021;
+            border-color: #2563eb;
+            background: #2563eb;
             color: #ffffff;
-            box-shadow: 0 6px 14px rgba(243, 112, 33, 0.2);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
           }
           .prepare-time-grid {
             display: grid;
@@ -9066,7 +9291,7 @@ const CommitteeManagement: React.FC = () => {
                 Xem danh sách
               </button>
             </div>
-            <div style={{ fontSize: 32, fontWeight: 900, color: "#f37021" }}>{validRows.length}</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: "#f37021" }}>{eligibleStudents.length}</div>
             <div style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>
               Đề tài sẵn sàng phân công hội đồng
             </div>
@@ -9084,7 +9309,7 @@ const CommitteeManagement: React.FC = () => {
             <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Phiên bảo vệ gần nhất</div>
             <div style={{ fontSize: 32, fontWeight: 900, color: "#1e3a5f" }}>
               {latestCouncilOverview
-                ? new Date(latestCouncilOverview.defenseDate).toLocaleDateString("vi-VN").slice(0, 5) // Display day/month
+                ? formatDateWithWeekday(latestCouncilOverview.defenseDate)
                 : "-"}
             </div>
             <div style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b", display: "grid", gap: 2 }}>
@@ -9141,21 +9366,23 @@ const CommitteeManagement: React.FC = () => {
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {canLockCouncils && (
+                {!councilListLocked && (
                   <button
                     type="button"
                     onClick={lockCouncils}
                     disabled={
                       !stateHydrated ||
                       councilListLocked ||
-                      Boolean(actionInFlight)
+                      Boolean(actionInFlight) ||
+                      drafts.length === 0 ||
+                      !canLockCouncils
                     }
                     className="committee-primary-btn"
                   >
                     <Lock size={14} /> Chốt danh sách hội đồng
                   </button>
                 )}
-                {canReopenCouncils && (
+                {councilListLocked && canReopenCouncils && (
                   <button
                     type="button"
                     onClick={reopenCouncils}
@@ -9172,11 +9399,12 @@ const CommitteeManagement: React.FC = () => {
                       borderRadius: 10,
                       fontSize: 13,
                       fontWeight: 700,
-                      color: DEEP_BLUE_PRIMARY,
+                      color: (!stateHydrated || !councilListLocked || Boolean(actionInFlight)) ? "#94a3b8" : DEEP_BLUE_PRIMARY,
                       display: "flex",
                       alignItems: "center",
                       gap: 8,
-                      cursor: "pointer"
+                      cursor: (!stateHydrated || !councilListLocked || Boolean(actionInFlight)) ? "not-allowed" : "pointer",
+                      opacity: (!stateHydrated || !councilListLocked || Boolean(actionInFlight)) ? 0.6 : 1,
                     }}
                   >
                     <RefreshCw size={16} /> Mở lại chốt hội đồng
@@ -10173,6 +10401,9 @@ const CommitteeManagement: React.FC = () => {
                                 <div style={{ fontSize: 12 }}>
                                   <div style={{ fontWeight: 700 }}>{topic.topicCode ?? topic.topicId}</div>
                                   <div style={{ color: "#475569", marginTop: 2 }}>{topic.title}</div>
+                                  {topic.studentName && (
+                                    <div style={{ color: "#64748b", marginTop: 4, fontSize: 12 }}>{topic.studentName}</div>
+                                  )}
                                   {topic.tagCodes && topic.tagCodes.length > 0 && (
                                     <div style={{ fontSize: 10, color: "#3b82f6", marginTop: 4 }}>
                                       #{topic.tagCodes.join(" #")}
@@ -10294,9 +10525,28 @@ const CommitteeManagement: React.FC = () => {
                           {renderDateSelector("Bắt đầu tạo từ", autoStartDate, setAutoStartDate)}
                           {renderDateSelector("Đến ngày", autoEndDate, setAutoEndDate)}
                         </div>
-
                         <div style={{ display: "grid", gap: 8 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>Phòng bảo vệ khả dụng</div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ fontSize: 13, fontWeight: 600 }}>Phòng bảo vệ khả dụng ({selectedAutoRooms.length})</div>
+                            <div style={{ display: "flex", gap: 4 }}>
+                              <button
+                                type="button"
+                                className="committee-ghost-btn"
+                                style={{ padding: "4px 8px", fontSize: 11 }}
+                                onClick={() => setSelectedAutoRooms(autoRoomOptions)}
+                              >
+                                Tất cả
+                              </button>
+                              <button
+                                type="button"
+                                className="committee-ghost-btn"
+                                style={{ padding: "4px 8px", fontSize: 11 }}
+                                onClick={() => setSelectedAutoRooms([])}
+                              >
+                                Bỏ chọn
+                              </button>
+                            </div>
+                          </div>
                           <div style={{
                             display: "flex",
                             gap: 8,
@@ -10373,7 +10623,33 @@ const CommitteeManagement: React.FC = () => {
                         </div>
 
                         <div style={{ display: "grid", gap: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600 }}>Tags áp dụng cho Hội đồng</span>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>Tags áp dụng cho Hội đồng ({configCouncilTags.length})</span>
+                            <div style={{ display: "flex", gap: 4 }}>
+                              <button
+                                type="button"
+                                className="committee-ghost-btn"
+                                style={{ padding: "4px 8px", fontSize: 11 }}
+                                onClick={() => {
+                                  setCouncilConfigConfirmed(false);
+                                  setConfigCouncilTags(allTags.map(tag => resolveTagCode(tag)).filter(Boolean));
+                                }}
+                              >
+                                Tất cả
+                              </button>
+                              <button
+                                type="button"
+                                className="committee-ghost-btn"
+                                style={{ padding: "4px 8px", fontSize: 11 }}
+                                onClick={() => {
+                                  setCouncilConfigConfirmed(false);
+                                  setConfigCouncilTags([]);
+                                }}
+                              >
+                                Bỏ chọn
+                              </button>
+                            </div>
+                          </div>
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                             {allTags.map((tag: string) => (
                               <button
@@ -10441,13 +10717,13 @@ const CommitteeManagement: React.FC = () => {
                       </span>
                     ) : (
                       <span style={{
-                        color: canCreateCouncils ? "#059669" : "#dc2626",
+                        color: isAutoGenerateConfigValid ? "#059669" : "#dc2626",
                         fontWeight: 600,
                         display: "flex",
                         alignItems: "center",
                         gap: 6
                       }}>
-                        {canCreateCouncils
+                        {isAutoGenerateConfigValid
                           ? <><CheckCircle2 size={16} /> Sẵn sàng tạo hội đồng</>
                           : <><X size={16} /> Thiếu thông tin cấu hình</>}
                       </span>
@@ -10481,7 +10757,7 @@ const CommitteeManagement: React.FC = () => {
                       type="button"
                       className="committee-primary-btn"
                       onClick={proceedAutoGenerateStep2}
-                      style={{ minWidth: 160, height: 40 }}
+                      style={{ minWidth: 160, height: 40, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, flexDirection: "row" }}
                     >
                       <span>Tiếp theo</span>
                       <ChevronRight size={16} />
@@ -10491,11 +10767,11 @@ const CommitteeManagement: React.FC = () => {
                       type="button"
                       className="committee-primary-btn"
                       onClick={submitAutoGenerate}
-                      style={{ minWidth: 220, height: 40 }}
+                      style={{ minWidth: 220, height: 40, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, flexDirection: "row" }}
                       disabled={
                         councilListLocked ||
                         assignmentLoading ||
-                        !canCreateCouncils ||
+                        !isAutoGenerateConfigValid ||
                         !hasAllowedAction("GENERATE_COUNCILS")
                       }
                     >
@@ -11496,19 +11772,19 @@ const CommitteeManagement: React.FC = () => {
                                             <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                                               <button
                                                 type="button"
-                                                className="committee-primary-btn"
+                                                className="committee-session-btn"
                                                 onClick={() => moveManualTopicToSession(item.studentCode, "MORNING")}
-                                                style={{ padding: "4px 8px", fontSize: 10, fontWeight: 700, minHeight: "auto", borderRadius: 6 }}
+                                                aria-label={`Thêm đề tài ${item.studentCode} vào buổi sáng`}
                                               >
-                                                + Sáng
+                                                + Buổi sáng
                                               </button>
                                               <button
                                                 type="button"
-                                                className="committee-primary-btn"
+                                                className="committee-session-btn"
                                                 onClick={() => moveManualTopicToSession(item.studentCode, "AFTERNOON")}
-                                                style={{ padding: "4px 8px", fontSize: 10, fontWeight: 700, minHeight: "auto", borderRadius: 6 }}
+                                                aria-label={`Thêm đề tài ${item.studentCode} vào buổi chiều`}
                                               >
-                                                + Chiều
+                                                + Buổi chiều
                                               </button>
                                             </div>
                                           )}
