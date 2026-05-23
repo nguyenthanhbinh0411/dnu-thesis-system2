@@ -40,7 +40,16 @@ namespace ThesisManagement.Api.Application.Query.CatalogTopics
                 query = query.Where(x => x.DepartmentCode == filter.DepartmentCode);
 
             if (!string.IsNullOrWhiteSpace(filter.AssignedStatus))
-                query = query.Where(x => x.AssignedStatus == filter.AssignedStatus);
+            {
+                if (filter.AssignedStatus == "Chưa giao")
+                {
+                    query = query.Where(x => x.AssignedStatus == null || x.AssignedStatus == "" || x.AssignedStatus == "Chưa giao");
+                }
+                else
+                {
+                    query = query.Where(x => x.AssignedStatus == filter.AssignedStatus);
+                }
+            }
 
             if (filter.FromDate.HasValue)
                 query = query.Where(x => x.CreatedAt >= filter.FromDate.Value);

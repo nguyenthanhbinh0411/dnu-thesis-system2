@@ -50,13 +50,36 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerOverviewAsync(string? lecturerCode, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
-            var sql = @"
+            var defenseTermCondition = defenseTermId.HasValue 
+                ? $" AND da.DEFENSETERMID = {defenseTermId.Value}" 
+                : string.Empty;
+
+            var guidingCountSubquery = defenseTermId.HasValue
+                ? $"(SELECT COUNT(*) FROM TOPICS t WHERE t.SUPERVISORLECTURERCODE = v.LECTURERCODE AND t.DEFENSETERMID = {defenseTermId.Value})"
+                : "d.CURRENTGUIDINGCOUNT";
+
+            var pendingReviewSubquery = defenseTermId.HasValue
+                ? $"(SELECT COUNT(*) FROM PROGRESSSUBMISSIONS s JOIN PROGRESSMILESTONES m ON s.MILESTONEID = m.MILESTONEID JOIN TOPICS t ON m.TOPICID = t.TOPICID WHERE s.LECTURERCODE = v.LECTURERCODE AND UPPER(s.LECTURERSTATE) = 'PENDING' AND t.DEFENSETERMID = {defenseTermId.Value})"
+                : "v.PROGRESS_PENDING_REVIEW";
+
+            var upcomingDefenseSubquery = defenseTermId.HasValue
+                ? $"(SELECT COUNT(*) FROM DEFENSEASSIGNMENTS da JOIN COMMITTEEMEMBERS cm ON da.COMMITTEEID = cm.COMMITTEEID JOIN COMMITTEES c ON da.COMMITTEEID = c.COMMITTEEID WHERE cm.MEMBERLECTURERCODE = v.LECTURERCODE AND c.DEFENSEDATE >= TRUNC(SYSDATE) AND c.DEFENSEDATE <= TRUNC(SYSDATE) + 7 AND c.DEFENSETERMID = {defenseTermId.Value})"
+                : "v.UPCOMING_DEFENSE_7D";
+
+            var highRiskItemsSubquery = defenseTermId.HasValue
+                ? $"(SELECT COUNT(*) FROM PROGRESSMILESTONES m JOIN TOPICS t ON m.TOPICID = t.TOPICID LEFT JOIN PROGRESSSUBMISSIONS s ON m.MILESTONEID = s.MILESTONEID WHERE t.SUPERVISORLECTURERCODE = v.LECTURERCODE AND m.DEADLINE IS NOT NULL AND m.DEADLINE < SYSDATE AND s.SUBMISSIONID IS NULL AND t.DEFENSETERMID = {defenseTermId.Value})"
+                : "v.HIGH_RISK_ITEMS";
+
+            var sql = $@"
                 SELECT v.*, 
-                       d.CURRENTGUIDINGCOUNT,
+                       {guidingCountSubquery} as CURRENTGUIDINGCOUNT,
+                       {pendingReviewSubquery} as PROGRESS_PENDING_REVIEW,
+                       {upcomingDefenseSubquery} as UPCOMING_DEFENSE_7D,
+                       {highRiskItemsSubquery} as HIGH_RISK_ITEMS,
                        (SELECT COUNT(*) 
                         FROM DEFENSEASSIGNMENTS da 
                         JOIN COMMITTEEMEMBERS cm ON da.COMMITTEEID = cm.COMMITTEEID 
-                        WHERE cm.MEMBERLECTURERCODE = v.LECTURERCODE) as CURRENT_DEFENSE_COUNT
+                        WHERE cm.MEMBERLECTURERCODE = v.LECTURERCODE{defenseTermCondition}) as CURRENT_DEFENSE_COUNT
                 FROM VW_DASH_LECTURER_OVERVIEW v
                 LEFT JOIN V_LECTURER_DASHBOARD d ON v.LECTURERCODE = d.LECTURERCODE";
             var parameters = new List<(string Name, object? Value)>();
@@ -66,6 +89,12 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
             {
                 conditions.Add("v.LECTURERCODE = :P_LECTURER_CODE");
                 parameters.Add(("P_LECTURER_CODE", effectiveLecturerCode));
+            }
+
+            if (defenseTermId.HasValue)
+            {
+                conditions.Add("v.LECTURERCODE IN (SELECT LECTURERCODE FROM DEFENSETERMLECTURERS WHERE DEFENSETERMID = :P_DEFENSE_TERM_ID)");
+                parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
             }
 
             if (conditions.Count > 0)
@@ -136,7 +165,7 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
 
             if (defenseTermId.HasValue)
             {
-                innerSql += " AND DEFENSETERMID = :P_DEFENSE_TERM_ID";
+                innerSql += " AND LECTURERCODE IN (SELECT LECTURERCODE FROM DEFENSETERMLECTURERS WHERE DEFENSETERMID = :P_DEFENSE_TERM_ID)";
                 parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
             }
 
@@ -263,36 +292,162 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         }
 
         public Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceOverviewAsync(int? defenseTermId = null)
-            => QueryRowsAsync("SELECT * FROM VW_DASH_STUDENT_SERVICE_OVERVIEW", Array.Empty<(string Name, object? Value)>());
+        {
+            if (defenseTermId.HasValue)
+            {
+                var sql = @"
+                    SELECT 
+                        (SELECT COUNT(*) FROM DEFENSETERMSTUDENTS WHERE DEFENSETERMID = :P_DEFENSE_TERM_ID) as TOTAL_STUDENTS,
+                        (SELECT COUNT(*) FROM DEFENSETERMSTUDENTS dts
+                         WHERE dts.DEFENSETERMID = :P_DEFENSE_TERM_ID
+                           AND NOT EXISTS (
+                               SELECT 1 FROM TOPICS t 
+                               WHERE t.DEFENSETERMID = :P_DEFENSE_TERM_ID 
+                                 AND t.PROPOSERSTUDENTCODE = dts.STUDENTCODE
+                           )) as STUDENTS_NO_TOPIC,
+                        (SELECT COUNT(DISTINCT t.PROPOSERSTUDENTCODE) 
+                         FROM PROGRESSMILESTONES m
+                         JOIN TOPICS t ON m.TOPICID = t.TOPICID
+                         LEFT JOIN PROGRESSSUBMISSIONS s ON m.MILESTONEID = s.MILESTONEID
+                         WHERE t.DEFENSETERMID = :P_DEFENSE_TERM_ID
+                           AND m.DEADLINE IS NOT NULL 
+                           AND m.DEADLINE < SYSDATE 
+                           AND s.SUBMISSIONID IS NULL) as STUDENTS_WITH_BREACHED_SUBMISSIONS,
+                        (SELECT COUNT(*) FROM TOPICS WHERE DEFENSETERMID = :P_DEFENSE_TERM_ID) as TOTAL_TOPICS,
+                        (SELECT COUNT(*) FROM DEFENSEASSIGNMENTS da
+                         LEFT JOIN DEFENSE_RESULTS dr ON da.ASSIGNMENTID = dr.ASSIGNMENTID
+                         WHERE da.DEFENSETERMID = :P_DEFENSE_TERM_ID
+                           AND (dr.ISLOCKED IS NULL OR dr.ISLOCKED = 0)) as DEFENSE_PENDING_RESULTS
+                    FROM DUAL";
+                return QueryRowsAsync(sql, new[] { ("P_DEFENSE_TERM_ID", (object?)defenseTermId.Value) });
+            }
+            return QueryRowsAsync("SELECT * FROM VW_DASH_STUDENT_SERVICE_OVERVIEW", Array.Empty<(string Name, object? Value)>());
+        }
 
         public Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceAtRiskAsync(int limit, int? defenseTermId = null)
-            => QueryRowsAsync(
-                "SELECT * FROM (SELECT * FROM VW_DASH_STUDENT_SERVICE_AT_RISK ORDER BY RISK_SCORE DESC, OVERDUE_REVIEW_COUNT DESC) WHERE ROWNUM <= :P_LIMIT",
-                new[] { ("P_LIMIT", (object?)ClampLimit(limit, 200)) });
+        {
+            var sql = "SELECT * FROM (SELECT * FROM VW_DASH_STUDENT_SERVICE_AT_RISK WHERE 1=1";
+            var parameters = new List<(string Name, object? Value)>();
+            if (defenseTermId.HasValue)
+            {
+                sql += " AND STUDENTCODE IN (SELECT STUDENTCODE FROM DEFENSETERMSTUDENTS WHERE DEFENSETERMID = :P_DEFENSE_TERM_ID)";
+                parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
+            }
+            sql += " ORDER BY RISK_SCORE DESC, OVERDUE_REVIEW_COUNT DESC) WHERE ROWNUM <= :P_LIMIT";
+            parameters.Add(("P_LIMIT", ClampLimit(limit, 200)));
+            return QueryRowsAsync(sql, parameters);
+        }
 
         public Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceBacklogAsync(int? defenseTermId = null)
-            => QueryRowsAsync("SELECT * FROM VW_DASH_STUDENT_SERVICE_BACKLOG ORDER BY MODULE_NAME", Array.Empty<(string Name, object? Value)>());
+        {
+            if (defenseTermId.HasValue)
+            {
+                var sql = @"
+                    SELECT 'Topics' as MODULE_NAME, COUNT(*) as BACKLOG_COUNT FROM TOPICS WHERE DEFENSETERMID = :P_DEFENSE_TERM_ID AND STATUS = 'Pending'
+                    UNION ALL
+                    SELECT 'Progress' as MODULE_NAME, COUNT(*) as BACKLOG_COUNT FROM PROGRESSSUBMISSIONS s JOIN PROGRESSMILESTONES m ON s.MILESTONEID = m.MILESTONEID JOIN TOPICS t ON m.TOPICID = t.TOPICID WHERE t.DEFENSETERMID = :P_DEFENSE_TERM_ID AND UPPER(s.LECTURERSTATE) = 'PENDING'
+                    UNION ALL
+                    SELECT 'Defense' as MODULE_NAME, COUNT(*) as BACKLOG_COUNT FROM DEFENSEASSIGNMENTS da LEFT JOIN DEFENSE_RESULTS dr ON da.ASSIGNMENTID = dr.ASSIGNMENTID WHERE da.DEFENSETERMID = :P_DEFENSE_TERM_ID AND (dr.ISLOCKED IS NULL OR dr.ISLOCKED = 0)";
+                return QueryRowsAsync(sql, new[] { ("P_DEFENSE_TERM_ID", (object?)defenseTermId.Value) });
+            }
+            return QueryRowsAsync("SELECT * FROM VW_DASH_STUDENT_SERVICE_BACKLOG ORDER BY MODULE_NAME", Array.Empty<(string Name, object? Value)>());
+        }
 
         public Task<IReadOnlyList<Dictionary<string, object?>>> GetStudentServiceDepartmentBreakdownAsync(int? defenseTermId = null)
-            => QueryRowsAsync(
+        {
+            if (defenseTermId.HasValue)
+            {
+                var sql = @"
+                    SELECT 
+                        dp.DEPARTMENTCODE,
+                        COUNT(DISTINCT dts.STUDENTCODE) as TOTAL_STUDENTS,
+                        COUNT(DISTINCT CASE WHEN t.TOPICID IS NOT NULL THEN dts.STUDENTCODE END) as STUDENTS_WITH_TOPIC,
+                        COUNT(DISTINCT CASE WHEN (
+                            SELECT COUNT(*) 
+                            FROM PROGRESSMILESTONES m 
+                            LEFT JOIN PROGRESSSUBMISSIONS s ON m.MILESTONEID = s.MILESTONEID
+                            WHERE m.TOPICID = t.TOPICID 
+                              AND m.DEADLINE IS NOT NULL 
+                              AND m.DEADLINE < SYSDATE 
+                              AND s.SUBMISSIONID IS NULL
+                        ) > 0 THEN dts.STUDENTCODE END) as AT_RISK_COUNT
+                    FROM DEPARTMENTS dp
+                    LEFT JOIN STUDENTPROFILES sp ON dp.DEPARTMENTCODE = sp.DEPARTMENTCODE
+                    JOIN DEFENSETERMSTUDENTS dts ON sp.STUDENTCODE = dts.STUDENTCODE AND dts.DEFENSETERMID = :P_DEFENSE_TERM_ID
+                    LEFT JOIN TOPICS t ON dts.STUDENTCODE = t.PROPOSERSTUDENTCODE AND t.DEFENSETERMID = :P_DEFENSE_TERM_ID
+                    GROUP BY dp.DEPARTMENTCODE
+                    ORDER BY dp.DEPARTMENTCODE";
+                return QueryRowsAsync(sql, new[] { ("P_DEFENSE_TERM_ID", (object?)defenseTermId.Value) });
+            }
+            return QueryRowsAsync(
                 "SELECT * FROM VW_DASH_STUDENT_SERVICE_DEPARTMENT_BREAKDOWN ORDER BY DEPARTMENTCODE",
                 Array.Empty<(string Name, object? Value)>());
+        }
 
         public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminOverviewAsync(int? defenseTermId = null)
-            => QueryRowsAsync("SELECT * FROM VW_DASH_ADMIN_OVERVIEW", Array.Empty<(string Name, object? Value)>());
+        {
+            if (defenseTermId.HasValue)
+            {
+                var sql = @"
+                    SELECT 
+                        (SELECT COUNT(*) FROM TOPICS WHERE DEFENSETERMID = :P_DEFENSE_TERM_ID) as TOTAL_TOPICS,
+                        (SELECT COUNT(*) FROM TOPICS WHERE DEFENSETERMID = :P_DEFENSE_TERM_ID AND STATUS = 'Pending') as TOPICS_PENDING,
+                        (SELECT COUNT(*) FROM PROGRESSSUBMISSIONS s JOIN PROGRESSMILESTONES m ON s.MILESTONEID = m.MILESTONEID JOIN TOPICS t ON m.TOPICID = t.TOPICID WHERE t.DEFENSETERMID = :P_DEFENSE_TERM_ID) as TOTAL_SUBMISSIONS,
+                        (SELECT COUNT(*) FROM PROGRESSMILESTONES m JOIN TOPICS t ON m.TOPICID = t.TOPICID LEFT JOIN PROGRESSSUBMISSIONS s ON m.MILESTONEID = s.MILESTONEID WHERE t.DEFENSETERMID = :P_DEFENSE_TERM_ID AND m.DEADLINE IS NOT NULL AND m.DEADLINE < SYSDATE AND s.SUBMISSIONID IS NULL) as SUBMISSION_SLA_BREACHES,
+                        (SELECT COUNT(*) FROM DEFENSEASSIGNMENTS WHERE DEFENSETERMID = :P_DEFENSE_TERM_ID) as TOTAL_ASSIGNMENTS,
+                        (SELECT COUNT(*) FROM DEFENSEASSIGNMENTS da JOIN DEFENSE_RESULTS dr ON da.ASSIGNMENTID = dr.ASSIGNMENTID WHERE da.DEFENSETERMID = :P_DEFENSE_TERM_ID AND dr.ISLOCKED = 1) as LOCKED_RESULTS,
+                        (SELECT COUNT(DISTINCT t.PROPOSERSTUDENTCODE) FROM PROGRESSMILESTONES m JOIN TOPICS t ON m.TOPICID = t.TOPICID LEFT JOIN PROGRESSSUBMISSIONS s ON m.MILESTONEID = s.MILESTONEID WHERE t.DEFENSETERMID = :P_DEFENSE_TERM_ID AND m.DEADLINE IS NOT NULL AND m.DEADLINE < SYSDATE AND s.SUBMISSIONID IS NULL) as STUDENTS_AT_RISK,
+                        (SELECT COUNT(*) FROM PROGRESSMILESTONES m JOIN TOPICS t ON m.TOPICID = t.TOPICID LEFT JOIN PROGRESSSUBMISSIONS s ON m.MILESTONEID = s.MILESTONEID WHERE t.DEFENSETERMID = :P_DEFENSE_TERM_ID AND m.DEADLINE IS NOT NULL AND m.DEADLINE < SYSDATE AND s.SUBMISSIONID IS NULL) as TOTAL_SLA_BREACHES
+                    FROM DUAL";
+                return QueryRowsAsync(sql, new[] { ("P_DEFENSE_TERM_ID", (object?)defenseTermId.Value) });
+            }
+            return QueryRowsAsync("SELECT * FROM VW_DASH_ADMIN_OVERVIEW", Array.Empty<(string Name, object? Value)>());
+        }
 
         public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminPeriodFunnelAsync(int limit, int? defenseTermId = null)
-            => QueryRowsAsync(
-                "SELECT * FROM (SELECT * FROM VW_DASH_ADMIN_PERIOD_FUNNEL ORDER BY STARTDATE DESC NULLS LAST, DEFENSETERMID DESC) WHERE ROWNUM <= :P_LIMIT",
-                new[] { ("P_LIMIT", (object?)ClampLimit(limit, 200)) });
+        {
+            var sql = "SELECT * FROM (SELECT * FROM VW_DASH_ADMIN_PERIOD_FUNNEL WHERE 1=1";
+            var parameters = new List<(string Name, object? Value)>();
+            if (defenseTermId.HasValue)
+            {
+                sql += " AND DEFENSETERMID = :P_DEFENSE_TERM_ID";
+                parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
+            }
+            sql += " ORDER BY STARTDATE DESC NULLS LAST, DEFENSETERMID DESC) WHERE ROWNUM <= :P_LIMIT";
+            parameters.Add(("P_LIMIT", ClampLimit(limit, 200)));
+            return QueryRowsAsync(sql, parameters);
+        }
 
         public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminCouncilCapacityAsync(int limit, int? defenseTermId = null)
-            => QueryRowsAsync(
-                "SELECT * FROM (SELECT * FROM VW_DASH_ADMIN_COUNCIL_CAPACITY ORDER BY LOAD_RATIO DESC NULLS LAST, ASSIGNMENT_COUNT DESC) WHERE ROWNUM <= :P_LIMIT",
-                new[] { ("P_LIMIT", (object?)ClampLimit(limit, 200)) });
+        {
+            var sql = "SELECT * FROM (SELECT v.* FROM VW_DASH_ADMIN_COUNCIL_CAPACITY v";
+            var parameters = new List<(string Name, object? Value)>();
+            if (defenseTermId.HasValue)
+            {
+                sql += " JOIN COMMITTEES c ON v.COMMITTEEID = c.COMMITTEEID WHERE c.DEFENSETERMID = :P_DEFENSE_TERM_ID";
+                parameters.Add(("P_DEFENSE_TERM_ID", defenseTermId.Value));
+            }
+            sql += " ORDER BY v.LOAD_RATIO DESC NULLS LAST, v.ASSIGNMENT_COUNT DESC) WHERE ROWNUM <= :P_LIMIT";
+            parameters.Add(("P_LIMIT", ClampLimit(limit, 200)));
+            return QueryRowsAsync(sql, parameters);
+        }
 
         public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminScoreQualityAsync(int? defenseTermId = null)
-            => QueryRowsAsync("SELECT * FROM VW_DASH_ADMIN_SCORE_QUALITY", Array.Empty<(string Name, object? Value)>());
+        {
+            if (defenseTermId.HasValue)
+            {
+                var sql = @"
+                    SELECT 
+                        (SELECT COUNT(*) FROM DEFENSEASSIGNMENTS WHERE DEFENSETERMID = :P_DEFENSE_TERM_ID) as TOTAL_ASSIGNMENTS,
+                        (SELECT COUNT(*) FROM DEFENSEASSIGNMENTS da JOIN DEFENSE_RESULTS dr ON da.ASSIGNMENTID = dr.ASSIGNMENTID WHERE da.DEFENSETERMID = :P_DEFENSE_TERM_ID) as HAS_FINAL_RESULT,
+                        (SELECT ROUND(AVG(dr.FINALSCORENUMERIC), 2) FROM DEFENSEASSIGNMENTS da JOIN DEFENSE_RESULTS dr ON da.ASSIGNMENTID = dr.ASSIGNMENTID WHERE da.DEFENSETERMID = :P_DEFENSE_TERM_ID) as AVG_FINAL_SCORE,
+                        (SELECT COUNT(*) FROM DEFENSEASSIGNMENTS da JOIN DEFENSE_RESULTS dr ON da.ASSIGNMENTID = dr.ASSIGNMENTID WHERE da.DEFENSETERMID = :P_DEFENSE_TERM_ID AND dr.ISLOCKED = 1) as LOCKED_RESULT_COUNT,
+                        (SELECT COUNT(*) FROM DEFENSEASSIGNMENTS da LEFT JOIN DEFENSE_RESULTS dr ON da.ASSIGNMENTID = dr.ASSIGNMENTID WHERE da.DEFENSETERMID = :P_DEFENSE_TERM_ID AND dr.RESULTID IS NULL) as NO_SUBMITTED_COMPONENT_COUNT
+                    FROM DUAL";
+                return QueryRowsAsync(sql, new[] { ("P_DEFENSE_TERM_ID", (object?)defenseTermId.Value) });
+            }
+            return QueryRowsAsync("SELECT * FROM VW_DASH_ADMIN_SCORE_QUALITY", Array.Empty<(string Name, object? Value)>());
+        }
 
         public Task<IReadOnlyList<Dictionary<string, object?>>> GetAdminSlaBottleneckAsync(int days, int? defenseTermId = null)
             => QueryRowsAsync(

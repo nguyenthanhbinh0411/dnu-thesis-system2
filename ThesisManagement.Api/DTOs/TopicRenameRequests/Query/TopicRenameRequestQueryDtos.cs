@@ -13,6 +13,7 @@ namespace ThesisManagement.Api.DTOs.TopicRenameRequests.Query
         public string? ReviewedByUserCode { get; set; }
         public string? OldTitle { get; set; }
         public string? NewTitle { get; set; }
+        public int? DefenseTermId { get; set; }
     }
 
     public record TopicRenameRequestReadDto(

@@ -593,12 +593,21 @@ const DefenseTermStudentsSection = forwardRef<
         } as DefenseTermStudentPayload);
         addToast("Đã cập nhật sinh viên trong đợt.", "success");
       } else {
-        await Promise.all(
-          selected.map((item) =>
-            createDefenseTermStudent(toPayload(item, defenseTermId)),
-          ),
+        const existingIds = new Set(rows.map((r) => r.studentProfileID));
+        const newSelected = selected.filter(
+          (item) => !existingIds.has(item.studentProfileID),
         );
-        addToast("Đã thêm sinh viên vào đợt.", "success");
+
+        if (newSelected.length > 0) {
+          await Promise.all(
+            newSelected.map((item) =>
+              createDefenseTermStudent(toPayload(item, defenseTermId)),
+            ),
+          );
+          addToast(`Đã thêm ${newSelected.length} sinh viên mới vào đợt.`, "success");
+        } else {
+          addToast("Không có sinh viên mới nào được chọn để thêm.", "info");
+        }
       }
       setPickerOpen(false);
       setEditingRow(null);
@@ -906,7 +915,11 @@ const DefenseTermStudentsSection = forwardRef<
       <DefenseTermStudentsPickerModal
         isOpen={pickerOpen}
         defenseTermId={defenseTermId}
-        initialSelectedIds={editingRow ? [editingRow.studentProfileID] : []}
+        initialSelectedIds={
+          editingRow
+            ? [editingRow.studentProfileID]
+            : rows.map((r) => r.studentProfileID)
+        }
         initialSelections={
           editingRow
             ? [
@@ -923,7 +936,18 @@ const DefenseTermStudentsSection = forwardRef<
                   raw: editingRow.raw,
                 },
               ]
-            : []
+            : rows.map((r) => ({
+                studentProfileID: r.studentProfileID,
+                studentCode: r.studentCode,
+                userCode: r.userCode,
+                fullName: r.fullName,
+                classCode: r.classCode,
+                facultyCode: r.facultyCode,
+                departmentCode: r.departmentCode,
+                gpa: r.gpa,
+                studentImage: "",
+                raw: r.raw,
+              }))
         }
         title={
           editingRow ? "Sửa sinh viên trong đợt" : "Thêm sinh viên vào đợt"

@@ -2663,7 +2663,7 @@ namespace ThesisManagement.Api.Migrations
                     OraclePropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("MilestoneID"));
 
                     b.Property<bool>("AllowLateSubmit")
-                        .HasColumnType("BOOLEAN")
+                        .HasColumnType("NUMBER(1)")
                         .HasColumnName("ALLOWLATESUBMIT");
 
                     b.Property<DateTime?>("CompletedAt1")
@@ -3064,6 +3064,10 @@ namespace ThesisManagement.Api.Migrations
 
                     OraclePropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FileID"));
 
+                    b.Property<int?>("DefenseTermId")
+                        .HasColumnType("NUMBER(10)")
+                        .HasColumnName("DEFENSETERMID");
+
                     b.Property<string>("FileName")
                         .HasMaxLength(255)
                         .HasColumnType("NVARCHAR2(255)")
@@ -3109,6 +3113,8 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnName("UPLOADEDBYUSERID");
 
                     b.HasKey("FileID");
+
+                    b.HasIndex("DefenseTermId");
 
                     b.HasIndex("SubmissionID");
 
@@ -3557,6 +3563,10 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnName("CREATEDAT")
                         .HasDefaultValueSql("SYSTIMESTAMP");
 
+                    b.Property<int?>("DefenseTermId")
+                        .HasColumnType("NUMBER(10)")
+                        .HasColumnName("DEFENSETERMID");
+
                     b.Property<string>("GeneratedFileHash")
                         .HasMaxLength(64)
                         .HasColumnType("NVARCHAR2(64)")
@@ -3665,6 +3675,8 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnName("TOPICID");
 
                     b.HasKey("RequestId");
+
+                    b.HasIndex("DefenseTermId");
 
                     b.HasIndex("RequestCode")
                         .IsUnique();
@@ -4791,11 +4803,17 @@ namespace ThesisManagement.Api.Migrations
 
             modelBuilder.Entity("ThesisManagement.Api.Models.SubmissionFile", b =>
                 {
+                    b.HasOne("ThesisManagement.Api.Models.DefenseTerm", "DefenseTerm")
+                        .WithMany()
+                        .HasForeignKey("DefenseTermId");
+
                     b.HasOne("ThesisManagement.Api.Models.ProgressSubmission", "Submission")
                         .WithMany("SubmissionFiles")
                         .HasForeignKey("SubmissionID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("DefenseTerm");
 
                     b.Navigation("Submission");
                 });
@@ -4864,6 +4882,10 @@ namespace ThesisManagement.Api.Migrations
 
             modelBuilder.Entity("ThesisManagement.Api.Models.TopicRenameRequest", b =>
                 {
+                    b.HasOne("ThesisManagement.Api.Models.DefenseTerm", "DefenseTerm")
+                        .WithMany()
+                        .HasForeignKey("DefenseTermId");
+
                     b.HasOne("ThesisManagement.Api.Models.User", "RequestedByUser")
                         .WithMany()
                         .HasForeignKey("RequestedByUserId")
@@ -4879,6 +4901,8 @@ namespace ThesisManagement.Api.Migrations
                         .WithMany()
                         .HasForeignKey("TopicId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("DefenseTerm");
 
                     b.Navigation("RequestedByUser");
 

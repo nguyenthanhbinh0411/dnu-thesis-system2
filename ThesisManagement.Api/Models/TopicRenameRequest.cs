@@ -30,7 +30,10 @@ namespace ThesisManagement.Api.Models
         public DateTime CreatedAt { get; set; }
         public DateTime LastUpdated { get; set; }
 
+        public int? DefenseTermId { get; set; }
+
         public Topic? Topic { get; set; }
+        public DefenseTerm? DefenseTerm { get; set; }
         public User? RequestedByUser { get; set; }
         public User? ReviewedByUser { get; set; }
         public ICollection<TopicRenameRequestFile>? Files { get; set; }

@@ -601,14 +601,23 @@ const DefenseTermLecturersSection = forwardRef<
         );
         addToast("Đã cập nhật giảng viên trong đợt.", "success");
       } else {
-        await Promise.all(
-          selected.map((item) =>
-            createDefenseTermLecturer({
-              ...toPayload(item, defenseTermId),
-            }),
-          ),
+        const existingIds = new Set(rows.map((r) => r.lecturerProfileID));
+        const newSelected = selected.filter(
+          (item) => !existingIds.has(item.lecturerProfileID),
         );
-        addToast("Đã thêm giảng viên vào đợt.", "success");
+
+        if (newSelected.length > 0) {
+          await Promise.all(
+            newSelected.map((item) =>
+              createDefenseTermLecturer({
+                ...toPayload(item, defenseTermId),
+              }),
+            ),
+          );
+          addToast(`Đã thêm ${newSelected.length} giảng viên mới vào đợt.`, "success");
+        } else {
+          addToast("Không có giảng viên mới nào được chọn để thêm.", "info");
+        }
       }
       setPickerOpen(false);
       setEditingRow(null);
@@ -914,7 +923,11 @@ const DefenseTermLecturersSection = forwardRef<
       <DefenseTermLecturersPickerModal
         isOpen={pickerOpen}
         defenseTermId={defenseTermId}
-        initialSelectedIds={editingRow ? [editingRow.lecturerProfileID] : []}
+        initialSelectedIds={
+          editingRow
+            ? [editingRow.lecturerProfileID]
+            : rows.map((r) => r.lecturerProfileID)
+        }
         initialSelections={
           editingRow
             ? [
@@ -930,7 +943,17 @@ const DefenseTermLecturersSection = forwardRef<
                   raw: editingRow.raw,
                 },
               ]
-            : []
+            : rows.map((r) => ({
+                lecturerProfileID: r.lecturerProfileID,
+                lecturerCode: r.lecturerCode,
+                userCode: r.userCode,
+                fullName: r.fullName,
+                departmentCode: r.departmentCode,
+                degree: r.degree,
+                profileImage: "",
+                isPrimary: r.isPrimary,
+                raw: r.raw,
+              }))
         }
         title={
           editingRow ? "Sửa giảng viên trong đợt" : "Thêm giảng viên vào đợt"

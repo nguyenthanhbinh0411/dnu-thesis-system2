@@ -364,6 +364,7 @@ const DefenseTermLecturersPickerModal: React.FC<
             userCode: filters.userCode,
             page,
             pageSize,
+            defenseTermId: defenseTermId ?? undefined,
             excludeDefenseTermId: defenseTermId ?? undefined,
           });
 

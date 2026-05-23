@@ -84,6 +84,7 @@ namespace ThesisManagement.Api.Application.Command.TopicRenameRequests
                 NewTitle = dto.NewTitle.Trim(),
                 Reason = dto.Reason,
                 Status = "PENDING",
+                DefenseTermId = topic.DefenseTermId,
                 RequestedByUserId = actorUserId.Value,
                 RequestedByUserCode = actorUserCode,
                 RequestedByRole = actorRole ?? "Student",

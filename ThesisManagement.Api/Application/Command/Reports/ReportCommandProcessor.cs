@@ -67,6 +67,7 @@ namespace ThesisManagement.Api.Application.Command.Reports
                 return OperationResult<StudentProgressSubmitResultDto>.Failed("Milestone not found", 404);
 
             // ── Guard 1: Chặn nộp khi milestone đã bị FAILED (và chưa được EXEMPTED) ──
+            /* Tạm ẩn kiểm tra mốc FAILED do quá hạn theo yêu cầu để cho phép SV nộp bài tự do
             if (string.Equals(milestone.State, "FAILED", StringComparison.OrdinalIgnoreCase))
             {
                 var failureReason = milestone.FailureReason ?? "";
@@ -77,6 +78,7 @@ namespace ThesisManagement.Api.Application.Command.Reports
                         "Vui lòng liên hệ giảng viên hướng dẫn để được xem xét gia hạn hoặc miễn trừ.", 409);
                 }
             }
+            */
 
             // ── Guard 2: Chặn nộp mốc N khi mốc N-1 chưa được duyệt (sequential guard) ──
             if (_overdueOptions.EnableSequentialSubmissionGuard)
@@ -96,6 +98,7 @@ namespace ThesisManagement.Api.Application.Command.Reports
             }
 
             // ── Guard 3: Chặn nộp khi đã quá deadline mà chưa được GV cấp phép nộp muộn ──
+            /* Tạm ẩn chặn quá hạn nộp theo yêu cầu để sinh viên nộp bài tự do
             if (milestone.Deadline.HasValue && milestone.Deadline.Value < DateTime.UtcNow)
             {
                 if (!milestone.AllowLateSubmit)
@@ -139,6 +142,7 @@ namespace ThesisManagement.Api.Application.Command.Reports
                 // AllowLateSubmit = true: cho qua, sẽ reset sau khi lưu thành công
                 _logger.LogInformation("Late submit allowed for milestone {MilestoneID} by {GrantedBy}", milestone.MilestoneID, milestone.LateSubmitGrantedBy);
             }
+            */
 
             var latestSubmissionForMilestone = await _uow.ProgressSubmissions.Query()
                 .Where(x => x.StudentUserCode == payload.StudentUserCode && x.MilestoneID == milestone.MilestoneID)
