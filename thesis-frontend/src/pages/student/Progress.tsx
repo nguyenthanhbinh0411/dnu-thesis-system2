@@ -160,6 +160,8 @@ const Progress: React.FC = () => {
             }
 
             // Client-side overdue detection: nếu đang in-progress nhưng deadline đã qua → overdue
+            // Ẩn phần quá hạn ở giao diện tiến độ theo yêu cầu để tránh gây hoang mang cho sinh viên
+            /*
             if (
               status === "in-progress" &&
               deadline &&
@@ -167,6 +169,7 @@ const Progress: React.FC = () => {
             ) {
               status = "overdue";
             }
+            */
 
             return {
               id: template.milestoneTemplateID,

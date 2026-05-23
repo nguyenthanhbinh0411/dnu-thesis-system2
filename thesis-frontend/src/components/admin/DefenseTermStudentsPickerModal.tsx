@@ -53,7 +53,7 @@ interface DefenseTermStudentsPickerModalProps {
 
 const initialFilters: StudentPickerFilters = {
   search: "",
-  minGPA: "",
+  minGPA: "2.5",
   maxGPA: "",
   classCode: "",
   facultyCode: "",
@@ -330,6 +330,7 @@ const DefenseTermStudentsPickerModal: React.FC<
             userCode: filters.userCode,
             page,
             pageSize,
+            defenseTermId: defenseTermId ?? undefined,
             excludeDefenseTermId: defenseTermId ?? undefined,
           });
 
@@ -453,6 +454,7 @@ const DefenseTermStudentsPickerModal: React.FC<
         userCode: filters.userCode,
         page: 1,
         pageSize: 500,
+        defenseTermId: defenseTermId ?? undefined,
         excludeDefenseTermId: defenseTermId ?? undefined,
       });
       const nextSelection = response.data.map(toStudentSelection);

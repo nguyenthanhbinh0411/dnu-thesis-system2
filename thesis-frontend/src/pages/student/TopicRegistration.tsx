@@ -168,6 +168,7 @@ const TopicRegistration: React.FC = () => {
     [],
   );
   const [lecturers, setLecturers] = useState<LecturerProfile[]>([]);
+  const [allLecturers, setAllLecturers] = useState<LecturerProfile[]>([]);
   const [filteredLecturers, setFilteredLecturers] = useState<LecturerProfile[]>(
     [],
   );
@@ -254,7 +255,9 @@ const TopicRegistration: React.FC = () => {
         ]);
 
       setCatalogTopics(catalogRes || []);
-      setLecturers((lecturerRes as ApiResponse<LecturerProfile[]>)?.data || []);
+      const fetchedAllLecturers = (lecturerRes as ApiResponse<LecturerProfile[]>)?.data || [];
+      setAllLecturers(fetchedAllLecturers);
+      setLecturers([]); // Will be populated by the selectedDefenseTermId useEffect
       setFilteredLecturers([]);
 
       // Departments list — prefer the logged-in student's department as the default
@@ -265,6 +268,7 @@ const TopicRegistration: React.FC = () => {
         ? departmentsList[0]
         : null;
 
+      let studentProfileDefenseTermId: number | null = null;
       if (userCode) {
         try {
           const studentRes = await fetchData(
@@ -278,6 +282,10 @@ const TopicRegistration: React.FC = () => {
               (d) => d.departmentCode === studentDeptCode,
             );
             if (matched) deptToUse = matched;
+
+            if (studentData[0].defenseTermId) {
+              studentProfileDefenseTermId = studentData[0].defenseTermId;
+            }
           }
         } catch (err) {
           console.error("Error fetching student profile for department:", err);
@@ -299,11 +307,46 @@ const TopicRegistration: React.FC = () => {
 
       setTags((tagRes as ApiResponse<Tag[]>)?.data || []);
       setDefenseTerms(defenseTermRes || []);
-      if (defenseTermRes && defenseTermRes.length > 0) {
-        setSelectedDefenseTermId((prev) => {
-          const exists = prev && defenseTermRes.some(t => String(t.defenseTermId) === String(prev));
-          return exists ? prev : defenseTermRes[0].defenseTermId;
-        });
+
+      // Check if student already has a topic
+      let studentTopic: Topic | null = null;
+      if (userCode) {
+        try {
+          const topicsRes = await fetchData(
+            `/Topics/get-list?ProposerUserCode=${userCode}`,
+          );
+          const topics = (topicsRes as ApiResponse<Topic[]>)?.data || [];
+          studentTopic =
+            topics.find(
+              (topic) =>
+                topic.status === "Đang chờ" ||
+                topic.status === "Đã duyệt" ||
+                topic.status === "Đã chấp nhận" ||
+                topic.status === "Đủ điều kiện bảo vệ" ||
+                topic.status === "Từ chối" ||
+                topic.status === "Cần sửa đổi",
+            ) ??
+            topics[0] ??
+            null;
+
+          setExistingTopic(studentTopic);
+        } catch (error) {
+          console.error("Error checking existing topics:", error);
+        }
+      }
+
+      // Determine initial defense term to select
+      let termIdToSet: DefensePeriodId | null = null;
+      if (studentTopic?.defenseTermId) {
+        termIdToSet = studentTopic.defenseTermId;
+      } else if (studentProfileDefenseTermId) {
+        termIdToSet = studentProfileDefenseTermId;
+      } else if (defenseTermRes && defenseTermRes.length > 0) {
+        termIdToSet = defenseTermRes[0].defenseTermId;
+      }
+
+      if (termIdToSet) {
+        setSelectedDefenseTermId(termIdToSet);
       }
 
       // Fetch topic code template
@@ -322,32 +365,6 @@ const TopicRegistration: React.FC = () => {
       } catch (error) {
         console.error("Error fetching topic code template:", error);
       }
-
-      // Check if student already has a topic
-      if (userCode) {
-        try {
-          const topicsRes = await fetchData(
-            `/Topics/get-list?ProposerUserCode=${userCode}`,
-          );
-          const topics = (topicsRes as ApiResponse<Topic[]>)?.data || [];
-          const existingTopic =
-            topics.find(
-              (topic) =>
-                topic.status === "Đang chờ" ||
-                topic.status === "Đã duyệt" ||
-                topic.status === "Đã chấp nhận" ||
-                topic.status === "Đủ điều kiện bảo vệ" ||
-                topic.status === "Từ chối" ||
-                topic.status === "Cần sửa đổi",
-            ) ??
-            topics[0] ??
-            null;
-
-          setExistingTopic(existingTopic);
-        } catch (error) {
-          console.error("Error checking existing topics:", error);
-        }
-      }
     } catch (error) {
       setError("Không thể tải dữ liệu ban đầu");
       console.error("Error fetching initial data:", error);
@@ -355,6 +372,33 @@ const TopicRegistration: React.FC = () => {
       setLoading(false);
     }
   }, [userCode]);
+
+  // Load and filter lecturers whenever the selected defense term or master lecturers list changes
+  useEffect(() => {
+    if (!selectedDefenseTermId || allLecturers.length === 0) {
+      setLecturers([]);
+      return;
+    }
+
+    const fetchAndFilterLecturersByTerm = async () => {
+      try {
+        const termLecturerRes = await fetchData(
+          `/DefenseTermLecturers/get-list?DefenseTermId=${selectedDefenseTermId}&PageSize=500`
+        );
+        const termLecturers = (termLecturerRes as ApiResponse<any[]>)?.data || [];
+        const termLecturerCodes = new Set(termLecturers.map((tl) => tl.lecturerCode).filter(Boolean));
+        
+        const filteredTermLecturers = allLecturers.filter((lp) => 
+          termLecturerCodes.has(lp.lecturerCode)
+        );
+        setLecturers(filteredTermLecturers);
+      } catch (err) {
+        console.error("Error fetching/filtering term lecturers:", err);
+      }
+    };
+
+    void fetchAndFilterLecturersByTerm();
+  }, [selectedDefenseTermId, allLecturers]);
 
   const handleContinueAfterSuccess = async () => {
     // Close modal and refresh data/form after registration
@@ -561,7 +605,10 @@ const TopicRegistration: React.FC = () => {
               );
               const availableLecturers =
                 (lecturersRes as ApiResponse<LecturerProfile[]>)?.data || [];
-              setFilteredLecturers(availableLecturers);
+              // Giao với danh sách giảng viên của đợt bảo vệ hiện hành
+              const termLecturerCodes = new Set(lecturers.map((l) => l.lecturerCode).filter(Boolean));
+              const finalLecturers = availableLecturers.filter((l) => termLecturerCodes.has(l.lecturerCode));
+              setFilteredLecturers(finalLecturers);
             }
           } catch (error) {
             console.error("Error loading catalog topic with tags:", error);
@@ -725,7 +772,11 @@ const TopicRegistration: React.FC = () => {
           const availableLecturers =
             (lecturersRes as ApiResponse<LecturerProfile[]>)?.data || [];
 
-          setFilteredLecturers(availableLecturers);
+          // Giao với danh sách giảng viên của đợt bảo vệ hiện hành
+          const termLecturerCodes = new Set(lecturers.map((l) => l.lecturerCode).filter(Boolean));
+          const finalLecturers = availableLecturers.filter((l) => termLecturerCodes.has(l.lecturerCode));
+
+          setFilteredLecturers(finalLecturers);
           // Set first selected tag as selectedTagInfo for display
           setSelectedTagInfo(selectedTags[0]);
         } catch (error) {
@@ -909,10 +960,14 @@ const TopicRegistration: React.FC = () => {
       const availableLecturers =
         (lecturersRes as ApiResponse<LecturerProfile[]>)?.data || [];
 
+      // Giao với danh sách giảng viên của đợt bảo vệ hiện hành
+      const termLecturerCodes = new Set(lecturers.map((l) => l.lecturerCode).filter(Boolean));
+      const finalLecturers = availableLecturers.filter((l) => termLecturerCodes.has(l.lecturerCode));
+
       // Update state
       setSelectedTagInfo(firstTag || null);
       setSelectedTagIDs(uniqueTags.map((tag) => tag.tagID));
-      setFilteredLecturers(availableLecturers);
+      setFilteredLecturers(finalLecturers);
 
       // Update form data
       setFormData({
@@ -2450,10 +2505,15 @@ const TopicRegistration: React.FC = () => {
                             }`}
                         >
                           <div className="flex justify-between items-start mb-6">
-                            <span className={`text-[10px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest ${(isEditing ? editFormData.catalogTopicID : formData.catalogTopicID) === topic.catalogTopicID ? "bg-orange-500 text-white" : "bg-slate-100 text-slate-400"
-                              }`}>
-                              {topic.catalogTopicCode}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest ${(isEditing ? editFormData.catalogTopicID : formData.catalogTopicID) === topic.catalogTopicID ? "bg-orange-500 text-white" : "bg-slate-100 text-slate-400"
+                                }`}>
+                                {topic.catalogTopicCode}
+                              </span>
+                              <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 uppercase">
+                                {topic.assignedStatus || "Chưa giao"}
+                              </span>
+                            </div>
                             {(isEditing ? editFormData.catalogTopicID : formData.catalogTopicID) === topic.catalogTopicID && (
                               <div className="text-orange-500 bg-orange-50 p-1.5 rounded-full animate-bounce">
                                 <Check size={18} />
@@ -2484,6 +2544,7 @@ const TopicRegistration: React.FC = () => {
                           <th className="px-8 py-6">Mã Đề tài</th>
                           <th className="px-8 py-6">Tên Đề tài</th>
                           <th className="px-8 py-6">Lĩnh vực</th>
+                          <th className="px-8 py-6">Trạng thái</th>
                           <th className="px-8 py-6 text-center">Thao tác</th>
                         </tr>
                       </thead>
@@ -2497,6 +2558,11 @@ const TopicRegistration: React.FC = () => {
                                 <div className="flex gap-1.5 flex-wrap">
                                   {topic.tags?.slice(0, 2).map(tag => (<span key={tag.tagID} className="text-[10px] font-bold bg-slate-100 text-slate-500 px-3 py-1 rounded-lg">{tag.tagName}</span>))}
                                 </div>
+                              </td>
+                              <td className="px-8 py-6">
+                                <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 uppercase">
+                                  {topic.assignedStatus || "Chưa giao"}
+                                </span>
                               </td>
                               <td className="px-8 py-6 text-center">
                                 <button className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${(isEditing ? editFormData.catalogTopicID : formData.catalogTopicID) === topic.catalogTopicID ? "bg-orange-500 text-white shadow-lg shadow-orange-100" : "bg-slate-50 text-slate-400 group-hover:bg-orange-500 group-hover:text-white"}`}>

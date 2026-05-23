@@ -56,6 +56,8 @@ namespace ThesisManagement.Api.Application.Query.TopicRenameRequests
                 requestQuery = requestQuery.Where(x => x.OldTitle.Contains(filter.OldTitle));
             if (!string.IsNullOrWhiteSpace(filter.NewTitle))
                 requestQuery = requestQuery.Where(x => x.NewTitle.Contains(filter.NewTitle));
+            if (filter.DefenseTermId.HasValue)
+                requestQuery = requestQuery.Where(x => x.DefenseTermId == filter.DefenseTermId.Value);
 
             if (!string.IsNullOrWhiteSpace(filter.Search))
             {

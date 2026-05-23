@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { fetchData } from "../../api/fetchData";
 import { useAuth } from "../../hooks/useAuth";
-import { getActiveDefensePeriodId } from "../../utils/defensePeriod";
+import { getActiveDefensePeriodId, useActiveDefensePeriodId } from "../../utils/defensePeriod";
 import {
   getLecturerCode,
   setLecturerCode,
@@ -361,6 +361,7 @@ function buildEvents(rows: DashboardRecord[]): UpcomingEvent[] {
 
 const Dashboard: React.FC = () => {
   const auth = useAuth();
+  const activeDefensePeriodId = useActiveDefensePeriodId();
   const chartCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartInstanceRef = useRef<Chart | null>(null);
 
@@ -399,7 +400,7 @@ const Dashboard: React.FC = () => {
         const lecturerCode = await resolveLecturerCodeFromSession(
           normalizeText(auth.user?.userCode),
         );
-        const activeDefenseTermId = getActiveDefensePeriodId();
+        const activeDefenseTermId = activeDefensePeriodId;
         const overviewQuery = lecturerCode ? { lecturerCode, defenseTermId: activeDefenseTermId ?? undefined } : {};
         const listQuery = lecturerCode
           ? { lecturerCode, limit: 10, defenseTermId: activeDefenseTermId ?? undefined }
@@ -522,7 +523,7 @@ const Dashboard: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [auth.user?.userCode]);
+  }, [auth.user?.userCode, activeDefensePeriodId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -537,6 +538,7 @@ const Dashboard: React.FC = () => {
         const response = await getLecturerOverdueTrend({
           lecturerCode,
           days: daysRange,
+          defenseTermId: activeDefensePeriodId ?? undefined,
         });
         if (cancelled) return;
         setOverdueTrendRows(
@@ -564,7 +566,7 @@ const Dashboard: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [daysRange, lecturerCode]);
+  }, [daysRange, lecturerCode, activeDefensePeriodId]);
 
   const stats = useMemo<DashboardStats>(() => {
     const overviewRow = overviewRows[0] ?? {};

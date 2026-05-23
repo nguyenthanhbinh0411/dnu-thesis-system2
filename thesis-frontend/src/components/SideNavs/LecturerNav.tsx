@@ -49,11 +49,13 @@ const LecturerNav: React.FC<LecturerNavProps> = ({
       label: "Xin đổi tên đề tài",
       icon: <FileText size={18} />,
     },
+    /*
     {
       path: "/lecturer/workflow-audits",
       label: "Workflow Audit",
       icon: <Activity size={18} />,
     },
+    */
     ...(showRevisionMenu
       ? [
         {
@@ -78,11 +80,13 @@ const LecturerNav: React.FC<LecturerNavProps> = ({
         },
       ]
       : []),
+    /*
     {
       path: "/lecturer/notifications",
       label: "Thông báo",
       icon: <Bell size={18} />,
     },
+    */
   ];
 
   return (

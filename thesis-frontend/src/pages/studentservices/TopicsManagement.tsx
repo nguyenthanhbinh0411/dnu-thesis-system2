@@ -12,6 +12,9 @@ import {
   Trash2,
   User,
   Users,
+  Zap,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { fetchData, normalizeUrl } from "../../api/fetchData";
 import ImportExportActions from "../../components/admin/ImportExportActions.tsx";
@@ -610,6 +613,13 @@ const TopicsManagement: React.FC = () => {
   const [rows, setRows] = useState<RecordData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // State for Auto Assign
+  const [showAutoAssignModal, setShowAutoAssignModal] = useState(false);
+  const [autoAssignPreview, setAutoAssignPreview] = useState<any[]>([]);
+  const [isAutoAssignLoading, setIsAutoAssignLoading] = useState(false);
+  const [lecturersList, setLecturersList] = useState<any[]>([]);
+  const [isAutoAssignSaving, setIsAutoAssignSaving] = useState(false);
   const [activeModal, setActiveModal] = useState<
     "detail" | "create" | "edit" | null
   >(null);
@@ -641,6 +651,92 @@ const TopicsManagement: React.FC = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyItems, setHistoryItems] = useState<ProgressHistoryItem[]>([]);
   const [historyTotalCount, setHistoryTotalCount] = useState(0);
+
+  const triggerAutoAssign = async () => {
+    if (!selectedPeriodId) {
+      addToast("Vui lòng chọn đợt bảo vệ để thực hiện tự động phân công.", "warning");
+      return;
+    }
+    setShowAutoAssignModal(true);
+    setIsAutoAssignLoading(true);
+    try {
+      const [previewRes, lecturersRes] = await Promise.all([
+        fetchData<ApiResponse<any[]>>("/Topics/auto-assign/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ defenseTermId: selectedPeriodId })
+        }),
+        fetchData<ApiResponse<any>>("/LecturerProfiles/get-list?Page=0&PageSize=500", {
+          method: "GET"
+        })
+      ]);
+
+      if (previewRes?.success) {
+        setAutoAssignPreview(previewRes.data || []);
+      } else {
+        addToast(previewRes?.message || "Không thể tải danh sách xem trước phân công.", "error");
+        setShowAutoAssignModal(false);
+      }
+
+      if (lecturersRes?.success) {
+        const normalized = normalizeList(lecturersRes.data);
+        setLecturersList(normalized.items);
+      }
+    } catch (err) {
+      addToast("Lỗi khi kết nối với hệ thống.", "error");
+      setShowAutoAssignModal(false);
+    } finally {
+      setIsAutoAssignLoading(false);
+    }
+  };
+
+  const handleLecturerChange = (studentCode: string, newLecturerCode: string) => {
+    const newLecturer = lecturersList.find(l => l.lecturerCode === newLecturerCode);
+    setAutoAssignPreview(prev => prev.map(item => {
+      if (item.studentCode === studentCode) {
+        return {
+          ...item,
+          supervisorLecturerCode: newLecturerCode,
+          supervisorLecturerName: newLecturer?.fullName || newLecturerCode,
+          matchTagsCount: 0,
+          isFallback: true,
+          commonTags: []
+        };
+      }
+      return item;
+    }));
+  };
+
+  const handleConfirmAutoAssign = async () => {
+    if (autoAssignPreview.length === 0) return;
+    setIsAutoAssignSaving(true);
+    try {
+      const payload = autoAssignPreview.map(item => ({
+        studentCode: item.studentCode,
+        catalogTopicCode: item.catalogTopicCode,
+        topicTitle: item.topicTitle,
+        supervisorLecturerCode: item.supervisorLecturerCode
+      }));
+
+      const res = await fetchData<ApiResponse<any>>("/Topics/auto-assign/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (res?.success) {
+        addToast("Phân công đề tài tự động thành công!", "success");
+        setShowAutoAssignModal(false);
+        await loadRows();
+      } else {
+        addToast(res?.message || "Không thể lưu phân công đề tài.", "error");
+      }
+    } catch (err) {
+      addToast("Lỗi hệ thống khi lưu phân công.", "error");
+    } finally {
+      setIsAutoAssignSaving(false);
+    }
+  };
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -1098,6 +1194,13 @@ const TopicsManagement: React.FC = () => {
             moduleLabel="Quản lý đề tài"
             onImportSuccess={loadRows}
           />
+          <button
+            type="button"
+            onClick={triggerAutoAssign}
+            className="topics-auto-btn"
+          >
+            <Zap size={14} /> Tự động phân công
+          </button>
           <button
             type="button"
             onClick={openCreate}
@@ -1838,6 +1941,136 @@ const TopicsManagement: React.FC = () => {
                 >
                   {isSubmitting ? "Đang lưu..." : "Lưu"}
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAutoAssignModal && (
+        <div className="topics-modal-overlay">
+          <div className="topics-modal auto-assign-preview-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="topics-modal-close"
+              onClick={() => setShowAutoAssignModal(false)}
+            >
+              x
+            </button>
+
+            <div className="auto-assign-shell">
+              <div className="topics-modal-header">
+                <h3>⚡ Kết quả Phân công Đề tài Tự động</h3>
+                <p>Hệ thống tự động so khớp nhãn tags chuyên ngành của đề tài mẫu với giảng viên và cân bằng tải lượng hướng dẫn.</p>
+              </div>
+
+              <div className="auto-assign-body">
+                {isAutoAssignLoading ? (
+                  <div className="auto-assign-loading-box">
+                    <Loader2 className="auto-assign-spinner" size={40} />
+                    <h4>Đang tính toán phân công tối ưu chuyên môn...</h4>
+                    <p>Vui lòng đợi trong giây lát.</p>
+                  </div>
+                ) : autoAssignPreview.length === 0 ? (
+                  <div className="auto-assign-empty-box">
+                    <Check size={36} color="#2e7d32" />
+                    <h4>Tất cả sinh viên trong đợt này đều đã có đề tài!</h4>
+                    <p>Không có sinh viên trễ hạn đăng ký.</p>
+                  </div>
+                ) : (
+                  <div className="auto-assign-table-wrap">
+                    <table className="auto-assign-table">
+                      <thead>
+                        <tr>
+                          <th>Sinh viên</th>
+                          <th>Đề tài đề xuất</th>
+                          <th>Giảng viên được ghép</th>
+                          <th>Độ khớp nhãn</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {autoAssignPreview.map((item, index) => (
+                          <tr key={`${item.studentCode}-${index}`}>
+                            <td>
+                              <div className="student-info-cell">
+                                <span className="student-name">{item.studentName}</span>
+                                <span className="student-meta">{item.studentCode} • {item.studentDepartment}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="topic-info-cell">
+                                <span className="topic-title-text">{item.topicTitle}</span>
+                                {item.catalogTopicCode && (
+                                  <span className="topic-catalog-badge">Mẫu: {item.catalogTopicCode}</span>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              <select
+                                value={item.supervisorLecturerCode}
+                                onChange={(e) => handleLecturerChange(item.studentCode, e.target.value)}
+                                className="lecturer-select-inline"
+                              >
+                                {lecturersList.map((lec) => (
+                                  <option key={lec.lecturerCode} value={lec.lecturerCode}>
+                                    {lec.fullName} ({lec.lecturerCode})
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td>
+                              {item.isFallback ? (
+                                <div className="fallback-badge-wrap">
+                                  <span className="match-quality-badge quality-warning">
+                                    <AlertTriangle size={12} /> 0 tag trùng - Cảnh báo
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="match-tags-container">
+                                  <span className="match-quality-badge quality-good">
+                                    Trùng khớp ({item.matchTagsCount} tag)
+                                  </span>
+                                  <div className="common-tags-pills">
+                                    {item.commonTags?.map((tag: string) => (
+                                      <span key={tag} className="common-tag-pill">{tag}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="topics-form-actions">
+                <button
+                  type="button"
+                  className="topics-cancel-btn"
+                  onClick={() => setShowAutoAssignModal(false)}
+                  disabled={isAutoAssignSaving}
+                >
+                  Hủy bỏ
+                </button>
+                {autoAssignPreview.length > 0 && (
+                  <button
+                    type="button"
+                    className="topics-save-btn confirm-auto-btn"
+                    onClick={() => void handleConfirmAutoAssign()}
+                    disabled={isAutoAssignSaving || isAutoAssignLoading}
+                  >
+                    {isAutoAssignSaving ? (
+                      <>
+                        <Loader2 className="btn-spinner" size={14} /> Đang áp dụng...
+                      </>
+                    ) : (
+                      `Xác nhận áp dụng (${autoAssignPreview.length} đề tài)`
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>
