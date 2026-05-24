@@ -66,6 +66,16 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnName("LASTUPDATED")
                         .HasDefaultValueSql("SYSTIMESTAMP");
 
+                    b.Property<string>("LecturerCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("VARCHAR2(30)")
+                        .HasColumnName("LECTURERCODE");
+
+                    b.Property<string>("LecturerName")
+                        .HasMaxLength(150)
+                        .HasColumnType("NVARCHAR2(150)")
+                        .HasColumnName("LECTURERNAME");
+
                     b.Property<string>("Summary")
                         .HasMaxLength(1000)
                         .HasColumnType("NVARCHAR2(1000)")
@@ -83,6 +93,8 @@ namespace ThesisManagement.Api.Migrations
                         .IsUnique();
 
                     b.HasIndex("DepartmentCode");
+
+                    b.HasIndex("LecturerCode");
 
                     b.ToTable("CATALOGTOPICS");
                 });
@@ -4239,7 +4251,15 @@ namespace ThesisManagement.Api.Migrations
                         .HasForeignKey("DepartmentCode")
                         .HasPrincipalKey("DepartmentCode");
 
+                    b.HasOne("ThesisManagement.Api.Models.LecturerProfile", "Lecturer")
+                        .WithMany()
+                        .HasForeignKey("LecturerCode")
+                        .HasPrincipalKey("LecturerCode")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Department");
+
+                    b.Navigation("Lecturer");
                 });
 
             modelBuilder.Entity("ThesisManagement.Api.Models.CatalogTopicTag", b =>

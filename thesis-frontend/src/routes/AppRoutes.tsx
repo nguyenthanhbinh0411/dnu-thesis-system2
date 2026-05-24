@@ -35,6 +35,7 @@ import CommitteeOperationsManagement from "../pages/admin/CommitteeOperationsMan
 import SystemActivityLogs from "../pages/admin/SystemActivityLogs";
 import LecturerTopicReviewPage from "../pages/lecturer/LecturerTopicReview";
 import LecturerRevisionDashboard from "../pages/lecturer/LecturerRevisionDashboard";
+import LecturerCatalogTopicsPage from "../pages/lecturer/LecturerCatalogTopicsPage";
 import StudentServiceDashboard from "../pages/studentservices/StudentServiceDashboard";
 import StudentProfilesManagement from "../pages/studentservices/StudentProfilesManagement";
 import LecturerProfilesManagement from "../pages/studentservices/LecturerProfilesManagement";
@@ -109,6 +110,7 @@ const AppRoutes: React.FC = () => {
           <Route path="profile" element={<LecturerProfilePage />} />
           <Route path="change-password" element={<ChangePasswordPage />} />
           <Route path="notifications" element={<LecturerNotifications />} />
+          <Route path="catalogtopics" element={<LecturerCatalogTopicsPage />} />
           {/* thêm các route con của lecturer ở đây */}
         </Route>
 

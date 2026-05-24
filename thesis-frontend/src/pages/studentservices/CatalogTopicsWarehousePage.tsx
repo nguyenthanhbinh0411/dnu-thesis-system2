@@ -32,6 +32,8 @@ type CatalogTopicWithTagsDto = {
   departmentCode: string;
   assignedStatus: string;
   assignedAt: string;
+  lecturerCode?: string | null;
+  lecturerName?: string | null;
   createdAt: string;
   lastUpdated: string;
   tags: CatalogTopicTagDto[];
@@ -63,6 +65,7 @@ type CatalogTopicEditForm = {
   assignedStatus: string;
   assignedAt: string;
   tagCodes: string;
+  lecturerCode?: string;
 };
 
 type ModalMode = "detail" | "edit" | null;
@@ -156,6 +159,8 @@ function normalizeCatalogTopicDetail(
     departmentCode: String(source.departmentCode ?? fallback.departmentCode ?? ""),
     assignedStatus: String(source.assignedStatus ?? fallback.assignedStatus ?? ""),
     assignedAt: (source.assignedAt as string | null | undefined) ?? fallback.assignedAt,
+    lecturerCode: (source.lecturerCode as string | null | undefined) ?? fallback.lecturerCode ?? null,
+    lecturerName: (source.lecturerName as string | null | undefined) ?? fallback.lecturerName ?? null,
     createdAt: String(source.createdAt ?? fallback.createdAt ?? ""),
     lastUpdated: String(source.lastUpdated ?? fallback.lastUpdated ?? ""),
     tags,
@@ -825,13 +830,14 @@ const CatalogTopicsWarehousePage: React.FC = () => {
             style={{ width: "100%", tableLayout: "fixed", minWidth: 0 }}
           >
             <colgroup>
-              <col style={{ width: "13%" }} />
-              <col style={{ width: "14%" }} />
-              <col style={{ width: "30%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "22%" }} />
+              <col style={{ width: "8%" }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "8%" }} />
+              <col style={{ width: "10%" }} />
               <col style={{ width: "12%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "14%" }} />
-              <col style={{ width: "16%" }} />
             </colgroup>
             <thead>
               <tr>
@@ -875,6 +881,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                     Khoa
                   </button>
                 </th>
+                <th>Giảng viên</th>
                 <th>
                   <button
                     type="button"
@@ -896,7 +903,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
               {isLoadingRows ? (
                 Array.from({ length: 5 }).map((_, index) => (
                   <tr key={`skeleton-${index}`}>
-                    {Array.from({ length: 7 }).map((__, idx) => (
+                    {Array.from({ length: 8 }).map((__, idx) => (
                       <td key={`skeleton-${index}-${idx}`}>
                         <div
                           style={{
@@ -912,7 +919,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>Không có dữ liệu kho đề tài.</td>
+                  <td colSpan={8}>Không có dữ liệu kho đề tài.</td>
                 </tr>
               ) : (
                 rows.map((row) => (
@@ -937,6 +944,20 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                       </div>
                     </td>
                     <td>{row.departmentCode || "--"}</td>
+                    <td>
+                      {row.lecturerCode ? (
+                        <div title={row.lecturerName || ""}>
+                          <span style={{ fontWeight: 600 }}>{row.lecturerCode}</span>
+                          {row.lecturerName && (
+                            <div style={{ fontSize: 11, color: "#64748b" }}>
+                              {row.lecturerName}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: "#94a3b8", fontSize: 13 }}>--</span>
+                      )}
+                    </td>
                     <td>
                       {row.assignedStatus === "Assigned" || row.assignedStatus === "Đã giao" ? (
                         <span className="badge-assigned" style={{

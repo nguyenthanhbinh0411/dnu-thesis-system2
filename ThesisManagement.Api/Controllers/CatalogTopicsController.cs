@@ -1,4 +1,5 @@
 using AutoMapper;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ThesisManagement.Api.Application.Command.CatalogTopics;
@@ -75,6 +76,33 @@ namespace ThesisManagement.Api.Controllers
             var result = await _createCatalogTopicCommand.ExecuteAsync(dto);
             if (!result.Success)
                 return StatusCode(result.StatusCode, ApiResponse<object>.Fail(result.ErrorMessage ?? "Request failed", result.StatusCode));
+
+            return StatusCode(result.StatusCode, ApiResponse<CatalogTopicReadDto>.SuccessResponse(result.Data, 1, result.StatusCode));
+        }
+
+        [Authorize(Roles = "Lecturer")]
+        [HttpPost("lecturer-submit")]
+        public async Task<IActionResult> LecturerSubmit([FromBody] CatalogTopicCreateDto dto)
+        {
+            var userCode = GetRequestUserCode();
+            if (string.IsNullOrEmpty(userCode))
+                return Unauthorized(ApiResponse<object>.Fail("Không tìm thấy phiên làm việc người dùng", 401));
+
+            var lecturer = await _uow.LecturerProfiles.Query()
+                .FirstOrDefaultAsync(x => x.UserCode == userCode);
+            if (lecturer == null)
+                return NotFound(ApiResponse<object>.Fail("Không tìm thấy hồ sơ giảng viên của bạn", 404));
+
+            var lecturerDto = dto with 
+            { 
+                LecturerCode = lecturer.LecturerCode,
+                LecturerName = lecturer.FullName,
+                AssignedStatus = "Chưa giao"
+            };
+
+            var result = await _createCatalogTopicCommand.ExecuteAsync(lecturerDto);
+            if (!result.Success)
+                return StatusCode(result.StatusCode, ApiResponse<object>.Fail(result.ErrorMessage ?? "Yêu cầu thất bại", result.StatusCode));
 
             return StatusCode(result.StatusCode, ApiResponse<CatalogTopicReadDto>.SuccessResponse(result.Data, 1, result.StatusCode));
         }
