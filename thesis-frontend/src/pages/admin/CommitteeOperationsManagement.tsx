@@ -1259,7 +1259,12 @@ const CommitteeOperationsManagement: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportPreviewModalOpen, setExportPreviewModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "committee" | "post-defense" | "export" | "audit">("overview");
-  
+
+  const [exportSubTab, setExportSubTab] = useState<"spreadsheet" | "documents">("spreadsheet");
+  const [bulkSelectedCommitteeIds, setBulkSelectedCommitteeIds] = useState<number[]>([]);
+  const [bulkDocumentTypes, setBulkDocumentTypes] = useState<string[]>(["scoresheet", "meeting", "reviewer"]);
+  const [bulkFormat, setBulkFormat] = useState<"word" | "pdf">("word");
+  const [isBulkExporting, setIsBulkExporting] = useState(false);
   // System logs state
   const [systemLogs, setSystemLogs] = useState<any[]>([]);
   const [logsTotalCount, setLogsTotalCount] = useState(0);
@@ -2289,6 +2294,58 @@ const CommitteeOperationsManagement: React.FC = () => {
     })();
   };
 
+  const handleBulkExportZip = async () => {
+    if (!periodId) {
+      notifyWarning("Chưa chọn đợt bảo vệ. Vui lòng chọn đợt bảo vệ.");
+      return;
+    }
+    if (bulkSelectedCommitteeIds.length === 0) {
+      notifyError("Vui lòng chọn ít nhất một hội đồng để trích xuất.");
+      return;
+    }
+    if (bulkDocumentTypes.length === 0) {
+      notifyError("Vui lòng chọn ít nhất một loại tài liệu cần trích xuất.");
+      return;
+    }
+
+    setIsBulkExporting(true);
+    try {
+      const endpoint = `/api/defense-periods/${periodId}/lecturer/reports/export-bulk-zip`;
+      const data = await fetchData<ArrayBuffer>(endpoint, {
+        method: "POST",
+        skipAuthRedirect: true,
+        body: {
+          committeeIds: bulkSelectedCommitteeIds,
+          documentTypes: bulkDocumentTypes,
+          format: bulkFormat
+        }
+      });
+
+      if (!data || data.byteLength === 0) {
+        throw new Error("Không có tài liệu nào được trích xuất thành công.");
+      }
+
+      const downloadDate = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const fileName = `danh-sach-tai-lieu-${downloadDate}.zip`;
+      const blob = new Blob([data], { type: "application/zip" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      notifySuccess("Tải xuống tệp ZIP tài liệu thành công.");
+    } catch (error) {
+      console.error("Bulk Export Error:", error);
+      notifyError(error instanceof Error ? error.message : "Có lỗi xảy ra khi tạo tệp ZIP tài liệu.");
+    } finally {
+      setIsBulkExporting(false);
+    }
+  };
+
   const downloadCommitteeReport = async (committeeRow: CommitteeSummary, reportTypeValue: CommitteeExportType, format: ReportFormat) => {
     if (!periodId) {
       notifyWarning("Chua chon dot bao ve. Vui long chon dot tai module Quan ly dot.");
@@ -2648,6 +2705,12 @@ const CommitteeOperationsManagement: React.FC = () => {
       .map(([committeeCode, topicRows], index) => buildSummary(committeeCode, topicRows, index))
       .sort((left, right) => left.code.localeCompare(right.code));
   }, [analytics?.byCouncil, committeeStatusOverrides, scoringMatrix, scoresPublished]);
+
+  useEffect(() => {
+    if (bulkSelectedCommitteeIds.length === 0 && committeeOperationalRows.length > 0) {
+      setBulkSelectedCommitteeIds(committeeOperationalRows.map(c => c.committeeId).filter(Boolean) as number[]);
+    }
+  }, [committeeOperationalRows, bulkSelectedCommitteeIds.length]);
 
   // 1. Đề tài đã đóng hội đồng không có đủ điểm
   const topicsClosedNoScoreAlerts = useMemo(() => {
@@ -5050,6 +5113,187 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
     </section>
   );
   
+    const renderBulkDocumentsTab = () => {
+      const hasSelectedAll = bulkSelectedCommitteeIds.length === committeeOperationalRows.length;
+      return (
+        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 32, alignItems: "start", animation: "fadeIn 0.3s ease" }}>
+          {/* Left side: Committees list selection */}
+          <div style={{ background: "#f8fafc", padding: 24, borderRadius: 24, border: "1px solid #e2e8f0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#1e293b" }}>Chọn Hội đồng trích xuất</h4>
+                <p style={{ margin: "4px 0 0 0", fontSize: 12, color: "#64748b", fontWeight: 600 }}>
+                  Đã chọn <span style={{ color: DEEP_BLUE_PRIMARY, fontWeight: 800 }}>{bulkSelectedCommitteeIds.length}</span> / {committeeOperationalRows.length} hội đồng
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (hasSelectedAll) {
+                    setBulkSelectedCommitteeIds([]);
+                  } else {
+                    setBulkSelectedCommitteeIds(committeeOperationalRows.map(c => c.committeeId).filter(Boolean) as number[]);
+                  }
+                }}
+                style={{
+                  background: "white", border: "1px solid #cbd5e1", borderRadius: 10, padding: "8px 14px",
+                  fontSize: 12, fontWeight: 700, color: "#475569", cursor: "pointer", transition: "all 0.2s"
+                }}
+              >
+                {hasSelectedAll ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: 10, maxHeight: 420, overflowY: "auto", paddingRight: 8 }}>
+              {committeeOperationalRows.map((row) => {
+                const isChecked = bulkSelectedCommitteeIds.includes(row.committeeId!);
+                return (
+                  <div
+                    key={row.key}
+                    onClick={() => {
+                      setBulkSelectedCommitteeIds(prev => 
+                        prev.includes(row.committeeId!) 
+                          ? prev.filter(id => id !== row.committeeId!) 
+                          : [...prev, row.committeeId!]
+                      );
+                    }}
+                    style={{
+                      padding: "14px 16px", borderRadius: 16, border: "1px solid",
+                      borderColor: isChecked ? DEEP_BLUE_PRIMARY : "#e2e8f0",
+                      background: isChecked ? `${DEEP_BLUE_PRIMARY}05` : "white",
+                      cursor: "pointer", transition: "all 0.2s",
+                      display: "flex", alignItems: "center", gap: 14
+                    }}
+                    onMouseEnter={(e) => { if(!isChecked) e.currentTarget.style.borderColor = "#cbd5e1"; }}
+                    onMouseLeave={(e) => { if(!isChecked) e.currentTarget.style.borderColor = "#e2e8f0"; }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {}} // handled by parent onClick
+                      style={{ width: 18, height: 18, accentColor: DEEP_BLUE_PRIMARY, cursor: "pointer" }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontWeight: 800, color: "#0f172a", fontSize: 13 }}>{row.code}</span>
+                        <span style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>{row.totalTopics} đề tài</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                        {row.name} • GV: {row.chair}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right side: Options and Export Trigger */}
+          <div style={{ display: "grid", gap: 24 }}>
+            {/* Option 1: Document Types */}
+            <div style={{ background: "white", padding: 24, borderRadius: 24, border: "1px solid #e2e8f0" }}>
+              <h4 style={{ margin: "0 0 16px 0", fontSize: 14, fontWeight: 800, color: "#1e293b" }}>1. Loại tài liệu trích xuất</h4>
+              <div style={{ display: "grid", gap: 10 }}>
+                {[
+                  { id: "scoresheet", label: "Bảng điểm hội đồng (Danh sách điểm các đề tài)" },
+                  { id: "meeting", label: "Biên bản hội đồng bảo vệ (Mỗi đề tài một biên bản)" },
+                  { id: "reviewer", label: "Nhận xét phản biện hội đồng (Mỗi đề tài một bản)" }
+                ].map(opt => {
+                  const isChecked = bulkDocumentTypes.includes(opt.id);
+                  return (
+                    <label
+                      key={opt.id}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12,
+                        border: `1px solid ${isChecked ? DEEP_BLUE_PRIMARY : "#f1f5f9"}`,
+                        background: isChecked ? `${DEEP_BLUE_PRIMARY}02` : "#fcfdfe",
+                        cursor: "pointer", transition: "all 0.2s"
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          setBulkDocumentTypes(prev =>
+                            prev.includes(opt.id) ? prev.filter(t => t !== opt.id) : [...prev, opt.id]
+                          );
+                        }}
+                        style={{ width: 18, height: 18, accentColor: DEEP_BLUE_PRIMARY, cursor: "pointer" }}
+                      />
+                      <span style={{ fontSize: 13, fontWeight: isChecked ? 800 : 600, color: isChecked ? "#0f172a" : "#64748b" }}>
+                        {opt.label}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Option 2: Format Choice */}
+            <div style={{ background: "white", padding: 24, borderRadius: 24, border: "1px solid #e2e8f0" }}>
+              <h4 style={{ margin: "0 0 16px 0", fontSize: 14, fontWeight: 800, color: "#1e293b" }}>2. Định dạng File xuất bản</h4>
+              <div style={{ display: "flex", gap: 16 }}>
+                {[
+                  { value: "word" as const, label: "Tập tin Word (.docx)", color: "#2563eb" },
+                  { value: "pdf" as const, label: "Tập tin PDF (.pdf)", color: "#dc2626" }
+                ].map(opt => {
+                  const isActive = bulkFormat === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setBulkFormat(opt.value)}
+                      style={{
+                        flex: 1, padding: "14px", borderRadius: 12, fontSize: 13, fontWeight: 800,
+                        border: `2px solid ${isActive ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`,
+                        background: isActive ? `${DEEP_BLUE_PRIMARY}05` : "white",
+                        color: isActive ? DEEP_BLUE_PRIMARY : "#64748b",
+                        cursor: "pointer", transition: "all 0.2s", display: "flex", flexDirection: "column",
+                        alignItems: "center", gap: 4
+                      }}
+                    >
+                      <span style={{ fontSize: 13 }}>{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Option 3: Preview Naming description */}
+            <div style={{ background: "#f8fafc", padding: "16px 20px", borderRadius: 16, border: "1px dashed #cbd5e1" }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <Info size={16} color={DEEP_BLUE_PRIMARY} />
+                <span style={{ fontSize: 12, fontWeight: 800, color: DEEP_BLUE_PRIMARY }}>Định dạng tên file tự động đặt:</span>
+              </div>
+              <div style={{ fontSize: 11, color: "#64748b", marginTop: 8, lineHeight: "1.6" }}>
+                • Bảng điểm: <strong>[Mã hội đồng].{bulkFormat === "pdf" ? "pdf" : "docx"}</strong> (VD: <i>HD-01.{bulkFormat === "pdf" ? "pdf" : "docx"}</i>)<br />
+                • Biên bản / Nhận xét: <strong>[Mã sinh viên] - [Mã hội đồng] - [Ngày tải].{bulkFormat === "pdf" ? "pdf" : "docx"}</strong>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <button
+              type="button"
+              onClick={handleBulkExportZip}
+              disabled={isBulkExporting}
+              style={{
+                width: "100%", padding: "16px", borderRadius: 14, border: "none",
+                background: isBulkExporting ? "#cbd5e1" : `linear-gradient(135deg, ${DEEP_BLUE_PRIMARY} 0%, #0f172a 100%)`,
+                color: "white", fontSize: 14, fontWeight: 800, cursor: isBulkExporting ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+                boxShadow: "0 10px 15px -3px rgba(30, 58, 95, 0.2)", transition: "all 0.2s"
+              }}
+              onMouseEnter={(e) => { if (!isBulkExporting) e.currentTarget.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={(e) => { if (!isBulkExporting) e.currentTarget.style.transform = "translateY(0)"; }}
+            >
+              {isBulkExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+              {isBulkExporting ? "Đang trích xuất & nén tài liệu..." : `Tải xuống tài liệu ${bulkSelectedCommitteeIds.length} Hội đồng (.zip)`}
+            </button>
+          </div>
+        </div>
+      );
+    };
+
     const renderExportTab = () => {
       const currentTemplate = exportTemplateOptions.find(t => t.value === exportTemplateMode) || exportTemplateOptions[0];
       const filteredGroups = exportFieldGroups.map(group => ({
@@ -5077,7 +5321,36 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 40, alignItems: "start" }}>
+          {/* Sub-tab Toggle Selector */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 32, borderBottom: "1px solid #f1f5f9", paddingBottom: 16 }}>
+            <button
+              type="button"
+              onClick={() => setExportSubTab("spreadsheet")}
+              style={{
+                padding: "10px 20px", borderRadius: 12, border: "none",
+                background: exportSubTab === "spreadsheet" ? DEEP_BLUE_PRIMARY : "#f1f5f9",
+                color: exportSubTab === "spreadsheet" ? "white" : "#475569",
+                fontWeight: 800, fontSize: 13, cursor: "pointer", transition: "all 0.2s"
+              }}
+            >
+              Trích xuất Bảng dữ liệu (Excel/PDF)
+            </button>
+            <button
+              type="button"
+              onClick={() => setExportSubTab("documents")}
+              style={{
+                padding: "10px 20px", borderRadius: 12, border: "none",
+                background: exportSubTab === "documents" ? DEEP_BLUE_PRIMARY : "#f1f5f9",
+                color: exportSubTab === "documents" ? "white" : "#475569",
+                fontWeight: 800, fontSize: 13, cursor: "pointer", transition: "all 0.2s"
+              }}
+            >
+              Tải Tài liệu Hàng loạt (Bảng điểm, Biên bản, Nhận xét ZIP)
+            </button>
+          </div>
+
+          {exportSubTab === "spreadsheet" ? (
+            <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 40, alignItems: "start" }}>
             <aside style={{ background: "#f8fafc", padding: 24, borderRadius: 24, border: "1px solid #f1f5f9", position: "sticky", top: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
                 <div style={{ width: 32, height: 32, borderRadius: "50%", background: DEEP_BLUE_PRIMARY, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>1</div>
@@ -5285,6 +5558,9 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               </div>
             </main>
           </div>
+          ) : (
+            renderBulkDocumentsTab()
+          )}
         </section>
       );
     };
