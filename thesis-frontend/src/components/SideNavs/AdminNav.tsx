@@ -92,21 +92,6 @@ const AdminNav: React.FC<AdminNavProps> = ({
 
   const adminOnlyItems = [
     {
-      path: `${basePath}/topic-review`,
-      label: "Duyệt đề tài",
-      icon: <BookOpen size={18} />,
-    },
-    {
-      path: `${basePath}/committees/management`,
-      label: "Phân công hội đồng",
-      icon: <ShieldCheck size={18} />,
-    },
-    {
-      path: `${basePath}/committees/operations`,
-      label: "Điều hành chấm điểm",
-      icon: <Activity size={18} />,
-    },
-    {
       path: `${basePath}/notifications/create`,
       label: "Tạo thông báo",
       icon: <Bell size={18} />,
@@ -129,7 +114,61 @@ const AdminNav: React.FC<AdminNavProps> = ({
   ];
 
   const rawNavItems = [
-    ...commonItems,
+    { path: `${basePath}`, label: "Trang chủ", icon: <Home size={18} /> },
+    ...(role === ROLE_ADMIN
+      ? [
+          {
+            path: `${basePath}/topic-review`,
+            label: "Điều hành tiến độ",
+            icon: <BookOpen size={18} />,
+          },
+          {
+            path: `${basePath}/committees/management`,
+            label: "Phân công hội đồng",
+            icon: <ShieldCheck size={18} />,
+          },
+          {
+            path: `${basePath}/committees/operations`,
+            label: "Điều hành chấm điểm",
+            icon: <Activity size={18} />,
+          },
+        ]
+      : []),
+    {
+      path: `${basePath}/students`,
+      label: "Quản lý sinh viên",
+      icon: <Users size={18} />,
+    },
+    {
+      path: `${basePath}/lecturers`,
+      label: "Quản lý giảng viên",
+      icon: <GraduationCap size={18} />,
+    },
+    {
+      path: `${basePath}/departments`,
+      label: "Quản lý khoa/bộ môn",
+      icon: <Building2 size={18} />,
+    },
+    {
+      path: `${basePath}/topics`,
+      label: "Quản lý đề tài",
+      icon: <ClipboardList size={18} />,
+    },
+    {
+      path: `${basePath}/rooms`,
+      label: "Quản lý phòng",
+      icon: <Building2 size={18} />,
+    },
+    {
+      path: `${basePath}/tags`,
+      label: "Quản lý tags",
+      icon: <BookOpen size={18} />,
+    },
+    {
+      path: `${basePath}/catalogtopics`,
+      label: "Kho đề tài có sẵn",
+      icon: <ClipboardList size={18} />,
+    },
     ...(roleCanSeeUsers
       ? [
           {

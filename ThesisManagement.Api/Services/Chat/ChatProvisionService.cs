@@ -39,11 +39,23 @@ namespace ThesisManagement.Api.Services.Chat
 
             if (directConversation == null)
             {
+                string? termName = null;
+                if (topic.DefenseTermId.HasValue && topic.DefenseTermId.Value > 0)
+                {
+                    var defenseTerm = await _uow.DefenseTerms.GetByIdAsync(topic.DefenseTermId.Value);
+                    if (defenseTerm != null)
+                    {
+                        termName = defenseTerm.Name ?? defenseTerm.TermCode;
+                    }
+                }
+
+                var conversationTitle = string.IsNullOrWhiteSpace(termName) ? topic.Title : $"[{termName}] {topic.Title}";
+
                 directConversation = new Conversation
                 {
                     ConversationCode = directConversationCode,
                     ConversationType = "Direct",
-                    Title = $"{topic.Title}",
+                    Title = conversationTitle,
                     CreatedByUserID = supervisorUserId.Value,
                     CreatedByUserCode = supervisorUserCode,
                     IsArchived = false,
@@ -53,6 +65,27 @@ namespace ThesisManagement.Api.Services.Chat
 
                 await _uow.Conversations.AddAsync(directConversation);
                 await _uow.SaveChangesAsync();
+            }
+            else
+            {
+                string? termName = null;
+                if (topic.DefenseTermId.HasValue && topic.DefenseTermId.Value > 0)
+                {
+                    var defenseTerm = await _uow.DefenseTerms.GetByIdAsync(topic.DefenseTermId.Value);
+                    if (defenseTerm != null)
+                    {
+                        termName = defenseTerm.Name ?? defenseTerm.TermCode;
+                    }
+                }
+
+                var conversationTitle = string.IsNullOrWhiteSpace(termName) ? topic.Title : $"[{termName}] {topic.Title}";
+                if (directConversation.Title != conversationTitle)
+                {
+                    directConversation.Title = conversationTitle;
+                    directConversation.LastUpdated = DateTime.UtcNow;
+                    _uow.Conversations.Update(directConversation);
+                    await _uow.SaveChangesAsync();
+                }
             }
 
             await EnsureMemberAsync(directConversation.ConversationID, directConversation.ConversationCode, proposerUserId.Value, proposerUserCode, "Member");
