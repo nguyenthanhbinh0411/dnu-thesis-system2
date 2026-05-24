@@ -632,6 +632,158 @@ namespace ThesisManagement.Api.Controllers
             return File(response.Data.Content, response.Data.ContentType, response.Data.FileName);
         }
 
+        [HttpPost("reports/export-bulk-zip")]
+        [Authorize(Roles = "Admin,Head,Secretary")]
+        public async Task<IActionResult> ExportBulkDocumentsZip(
+            int periodId,
+            [FromBody] BulkExportRequestDto request)
+        {
+            if (request == null || request.CommitteeIds == null || request.CommitteeIds.Count == 0)
+            {
+                return BadRequest(ApiResponse<object>.Fail("Thiếu danh sách hội đồng trích xuất.", 400));
+            }
+
+            var format = (request.Format ?? "word").Trim().ToLowerInvariant();
+            if (format == "docx") format = "word";
+            if (format != "word" && format != "pdf")
+            {
+                return BadRequest(ApiResponse<object>.Fail("Định dạng không hợp lệ. Chỉ hỗ trợ word hoặc pdf.", 400));
+            }
+
+            var committeeIds = request.CommitteeIds.Distinct().ToList();
+            var docTypes = (request.DocumentTypes ?? new List<string>())
+                .Select(t => t.Trim().ToLowerInvariant())
+                .Distinct()
+                .ToList();
+
+            if (docTypes.Count == 0)
+            {
+                return BadRequest(ApiResponse<object>.Fail("Thiếu loại tài liệu cần trích xuất (scoreSheet, meeting, reviewer).", 400));
+            }
+
+            // Retrieve committees with codes
+            var committees = await _uow.Committees.Query()
+                .Where(c => committeeIds.Contains(c.CommitteeID))
+                .ToListAsync(HttpContext.RequestAborted);
+
+            // Retrieve all defense assignments with proposer user profiles/student code
+            var assignments = await _uow.DefenseAssignments.Query()
+                .Include(a => a.Topic)
+                .Where(a => a.CommitteeID.HasValue && committeeIds.Contains(a.CommitteeID.Value))
+                .ToListAsync(HttpContext.RequestAborted);
+
+            var downloadDate = DateTime.Now.ToString("yyyyMMdd");
+            var ms = new System.IO.MemoryStream();
+
+            using (var archive = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, true))
+            {
+                foreach (var committee in committees)
+                {
+                    var committeeCodeClean = string.IsNullOrWhiteSpace(committee.CommitteeCode) 
+                        ? $"HD-{committee.CommitteeID}" 
+                        : committee.CommitteeCode.Trim();
+
+                    // 1. Export ScoreSheet (Bảng điểm hội đồng)
+                    if (docTypes.Contains("scoresheet"))
+                    {
+                        try
+                        {
+                            var scoreRes = await _buildDefenseReportQuery.ExecuteAsync(periodId, "form-1", format, committee.CommitteeID, HttpContext.RequestAborted);
+                            if (scoreRes.Success && scoreRes.Data.Content != null && scoreRes.Data.Content.Length > 0)
+                            {
+                                var ext = format == "pdf" ? "pdf" : "docx";
+                                var scoreFileName = $"{committeeCodeClean}.{ext}";
+                                var entry = archive.CreateEntry(scoreFileName, System.IO.Compression.CompressionLevel.Fastest);
+                                using (var entryStream = entry.Open())
+                                {
+                                    await entryStream.WriteAsync(scoreRes.Data.Content, 0, scoreRes.Data.Content.Length, HttpContext.RequestAborted);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error exporting ScoreSheet for committee {committee.CommitteeID}: {ex.Message}");
+                        }
+                    }
+
+                    // Get assignments for this committee
+                    var committeeAssignments = assignments.Where(a => a.CommitteeID == committee.CommitteeID).ToList();
+
+                    foreach (var assign in committeeAssignments)
+                    {
+                        var studentCode = string.IsNullOrWhiteSpace(assign.Topic?.ProposerStudentCode)
+                            ? "SV_UNKNOWN"
+                            : assign.Topic.ProposerStudentCode.Trim();
+
+                        // 2. Export MeetingMinutes (Biên bản)
+                        if (docTypes.Contains("meeting"))
+                        {
+                            try
+                            {
+                                var minutesRes = format switch
+                                {
+                                    "pdf" => await _defenseTemplateExportService.ExportMeetingMinutesPdfAsync(periodId, committee.CommitteeID, assign.AssignmentID, HttpContext.RequestAborted),
+                                    _ => await _defenseTemplateExportService.ExportMeetingMinutesAsync(periodId, committee.CommitteeID, assign.AssignmentID, HttpContext.RequestAborted)
+                                };
+
+                                if (minutesRes.Success && minutesRes.Data.Content != null && minutesRes.Data.Content.Length > 0)
+                                {
+                                    var ext = format == "pdf" ? "pdf" : "docx";
+                                    var minutesFileName = $"{studentCode} - {committeeCodeClean} - {downloadDate}_BienBan.{ext}";
+                                    var entry = archive.CreateEntry(minutesFileName, System.IO.Compression.CompressionLevel.Fastest);
+                                    using (var entryStream = entry.Open())
+                                    {
+                                        await entryStream.WriteAsync(minutesRes.Data.Content, 0, minutesRes.Data.Content.Length, HttpContext.RequestAborted);
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error exporting MeetingMinutes for assignment {assign.AssignmentID}: {ex.Message}");
+                            }
+                        }
+
+                        // 3. Export ReviewerComments (Nhận xét phản biện)
+                        if (docTypes.Contains("reviewer"))
+                        {
+                            try
+                            {
+                                var reviewRes = format switch
+                                {
+                                    "pdf" => await _defenseTemplateExportService.ExportReviewerCommentsPdfAsync(periodId, committee.CommitteeID, assign.AssignmentID, HttpContext.RequestAborted),
+                                    _ => await _defenseTemplateExportService.ExportReviewerCommentsAsync(periodId, committee.CommitteeID, assign.AssignmentID, HttpContext.RequestAborted)
+                                };
+
+                                if (reviewRes.Success && reviewRes.Data.Content != null && reviewRes.Data.Content.Length > 0)
+                                {
+                                    var ext = format == "pdf" ? "pdf" : "docx";
+                                    var reviewFileName = $"{studentCode} - {committeeCodeClean} - {downloadDate}_NhanXet.{ext}";
+                                    var entry = archive.CreateEntry(reviewFileName, System.IO.Compression.CompressionLevel.Fastest);
+                                    using (var entryStream = entry.Open())
+                                    {
+                                        await entryStream.WriteAsync(reviewRes.Data.Content, 0, reviewRes.Data.Content.Length, HttpContext.RequestAborted);
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error exporting ReviewerComments for assignment {assign.AssignmentID}: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+            }
+
+            ms.Position = 0;
+            var archiveBytes = ms.ToArray();
+            if (archiveBytes.Length == 0)
+            {
+                return BadRequest(ApiResponse<object>.Fail("Không có tài liệu nào được trích xuất thành công.", 400));
+            }
+
+            return File(archiveBytes, "application/zip", $"danh-sach-tai-lieu-{downloadDate}.zip");
+        }
+
         [HttpGet("scoring/progress-topic-final")]
         [Authorize(Roles = "Lecturer,Head,Secretary")]
         public async Task<ActionResult<ApiResponse<List<TopicFinalScoreProgressDto>>>> GetTopicFinalScoreProgress(int periodId, [FromQuery] int? committeeId = null)
@@ -1497,5 +1649,12 @@ namespace ThesisManagement.Api.Controllers
             public DateTime StartDate { get; set; }
             public DateTime? EndDate { get; set; }
         }
+    }
+
+    public class BulkExportRequestDto
+    {
+        public List<int> CommitteeIds { get; set; } = new();
+        public List<string> DocumentTypes { get; set; } = new(); // "scoreSheet", "meeting", "reviewer"
+        public string Format { get; set; } = "word"; // "word" or "pdf"
     }
 }
