@@ -15,6 +15,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
     {
         Task SubmitIndependentScoreAsync(int committeeId, LecturerScoreSubmitDto request, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default);
         Task OpenSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default);
+        Task PauseSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default);
+        Task ResumeSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default);
         Task LockSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default);
         Task CloseSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default);
         Task ReopenFinalizedSessionAsync(int committeeId, int actorUserId, string? reason = null, CancellationToken cancellationToken = default);
@@ -98,6 +100,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             if (normalizedCommitteeStatus == CommitteeStatus.Draft)
             {
                 throw new BusinessRuleException("Hội đồng đang ở trạng thái Draft. Cần sẵn sàng và mở ca trước khi chấm điểm.", "UC3.4.INVALID_COMMITTEE_STATE");
+            }
+
+            if (normalizedCommitteeStatus == CommitteeStatus.Paused)
+            {
+                throw new BusinessRuleException("Phiên hội đồng đang tạm dừng. Vui lòng tiếp tục phiên trước khi chấm điểm.", "UC3.4.SESSION_PAUSED");
             }
 
             if (normalizedCommitteeStatus == CommitteeStatus.Ready && normalizedAssignmentStatus == AssignmentStatus.Pending)
@@ -310,6 +317,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 throw new BusinessRuleException("Hội đồng đã chốt/công bố kết quả, không thể mở ca đồ án tốt nghiệp.", "UC3.4.INVALID_COMMITTEE_STATE");
             }
 
+            if (committeeStatus == CommitteeStatus.Paused)
+            {
+                throw new BusinessRuleException("Phiên hội đồng đang tạm dừng. Vui lòng tiếp tục phiên trước khi mở lại.", "UC3.4.SESSION_PAUSED");
+            }
+
             var now = DateTime.UtcNow;
             if (committeeStatus == CommitteeStatus.Ready || committeeStatus == CommitteeStatus.Completed || isAdminLockedSession)
             {
@@ -383,6 +395,152 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
             {
                 await _hub.Clients.All.SendAsync("DefenseSessionOpened", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
+            }, cancellationToken);
+        }
+
+        public async Task PauseSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new BusinessRuleException("Lý do thực hiện không được để trống.", "UC3.INVALID_REASON");
+            }
+
+            await using var tx = await _uow.BeginTransactionAsync(cancellationToken);
+
+            if (!isAdmin)
+            {
+                var secretary = await _db.CommitteeMembers.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.CommitteeID == committeeId && x.MemberLecturerCode == lecturerCode, cancellationToken);
+                if (secretary == null || NormalizeRole(secretary.Role) != "UVTK")
+                {
+                    throw new BusinessRuleException("Chỉ Thư ký hội đồng (UVTK) mới có quyền tạm dừng phiên bảo vệ.");
+                }
+            }
+
+            var committee = await _db.Committees.FirstOrDefaultAsync(x => x.CommitteeID == committeeId, cancellationToken);
+            if (committee == null)
+            {
+                throw new BusinessRuleException("Không tìm thấy hội đồng.");
+            }
+
+            var committeeStatus = DefenseWorkflowStateMachine.ParseCommitteeStatus(committee.Status);
+            if (committeeStatus != CommitteeStatus.Ongoing)
+            {
+                throw new BusinessRuleException("Chỉ có thể tạm dừng khi hội đồng đang họp.", "UC3.4.INVALID_COMMITTEE_STATE");
+            }
+
+            DefenseWorkflowStateMachine.EnsureCommitteeTransition(committeeStatus, CommitteeStatus.Paused, "UC3.4.INVALID_COMMITTEE_STATE");
+
+            var now = DateTime.UtcNow;
+            var beforeSnapshot = new { committee.Status, committee.LastUpdated };
+            committee.Status = DefenseWorkflowStateMachine.ToValue(CommitteeStatus.Paused);
+            committee.LastUpdated = now;
+            _uow.Committees.Update(committee);
+
+            await _uow.SaveChangesAsync();
+            await tx.CommitAsync(cancellationToken);
+
+            await _auditTrail.WriteAsync(
+                "PAUSE_SESSION",
+                "SUCCESS",
+                beforeSnapshot,
+                new { committee.Status, committee.LastUpdated },
+                new { CommitteeId = committeeId, LecturerCode = lecturerCode, Reason = reason, IsAdmin = isAdmin },
+                actorUserId,
+                cancellationToken);
+
+            string logReason = !string.IsNullOrWhiteSpace(reason) ? $" [Lý do: {reason}]" : "";
+            string actionDesc = isAdmin
+                ? $"[PAUSE_SESSION]{logReason} Quản trị viên tạm dừng phiên bảo vệ hội đồng {committee.CommitteeCode}"
+                : $"[PAUSE_SESSION]{logReason} Thư ký {lecturerCode} tạm dừng phiên bảo vệ hội đồng {committee.CommitteeCode}";
+
+            await _systemActivityLogger.WriteLogAsync(
+                entityName: "Committee",
+                entityId: committeeId.ToString(),
+                actionType: "PAUSE_SESSION",
+                actionDescription: actionDesc,
+                actorUserId: actorUserId,
+                module: "Defense",
+                status: "SUCCESS",
+                relatedRecordCode: committee.CommitteeCode,
+                cancellationToken: cancellationToken);
+
+            await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
+            {
+                await _hub.Clients.All.SendAsync("DefenseSessionPaused", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
+            }, cancellationToken);
+        }
+
+        public async Task ResumeSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new BusinessRuleException("Lý do thực hiện không được để trống.", "UC3.INVALID_REASON");
+            }
+
+            await using var tx = await _uow.BeginTransactionAsync(cancellationToken);
+
+            if (!isAdmin)
+            {
+                var secretary = await _db.CommitteeMembers.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.CommitteeID == committeeId && x.MemberLecturerCode == lecturerCode, cancellationToken);
+                if (secretary == null || NormalizeRole(secretary.Role) != "UVTK")
+                {
+                    throw new BusinessRuleException("Chỉ Thư ký hội đồng (UVTK) mới có quyền tiếp tục phiên bảo vệ.");
+                }
+            }
+
+            var committee = await _db.Committees.FirstOrDefaultAsync(x => x.CommitteeID == committeeId, cancellationToken);
+            if (committee == null)
+            {
+                throw new BusinessRuleException("Không tìm thấy hội đồng.");
+            }
+
+            var committeeStatus = DefenseWorkflowStateMachine.ParseCommitteeStatus(committee.Status);
+            if (committeeStatus != CommitteeStatus.Paused)
+            {
+                throw new BusinessRuleException("Chỉ có thể tiếp tục khi hội đồng đang tạm dừng.", "UC3.4.INVALID_COMMITTEE_STATE");
+            }
+
+            DefenseWorkflowStateMachine.EnsureCommitteeTransition(committeeStatus, CommitteeStatus.Ongoing, "UC3.4.INVALID_COMMITTEE_STATE");
+
+            var now = DateTime.UtcNow;
+            var beforeSnapshot = new { committee.Status, committee.LastUpdated };
+            committee.Status = DefenseWorkflowStateMachine.ToValue(CommitteeStatus.Ongoing);
+            committee.LastUpdated = now;
+            _uow.Committees.Update(committee);
+
+            await _uow.SaveChangesAsync();
+            await tx.CommitAsync(cancellationToken);
+
+            await _auditTrail.WriteAsync(
+                "RESUME_SESSION",
+                "SUCCESS",
+                beforeSnapshot,
+                new { committee.Status, committee.LastUpdated },
+                new { CommitteeId = committeeId, LecturerCode = lecturerCode, Reason = reason, IsAdmin = isAdmin },
+                actorUserId,
+                cancellationToken);
+
+            string logReason = !string.IsNullOrWhiteSpace(reason) ? $" [Lý do: {reason}]" : "";
+            string actionDesc = isAdmin
+                ? $"[RESUME_SESSION]{logReason} Quản trị viên tiếp tục phiên bảo vệ hội đồng {committee.CommitteeCode}"
+                : $"[RESUME_SESSION]{logReason} Thư ký {lecturerCode} tiếp tục phiên bảo vệ hội đồng {committee.CommitteeCode}";
+
+            await _systemActivityLogger.WriteLogAsync(
+                entityName: "Committee",
+                entityId: committeeId.ToString(),
+                actionType: "RESUME_SESSION",
+                actionDescription: actionDesc,
+                actorUserId: actorUserId,
+                module: "Defense",
+                status: "SUCCESS",
+                relatedRecordCode: committee.CommitteeCode,
+                cancellationToken: cancellationToken);
+
+            await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
+            {
+                await _hub.Clients.All.SendAsync("DefenseSessionResumed", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
             }, cancellationToken);
         }
 
@@ -558,6 +716,10 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             }
 
             var committeeStatus = DefenseWorkflowStateMachine.ParseCommitteeStatus(committee.Status);
+            if (committeeStatus == CommitteeStatus.Paused)
+            {
+                throw new BusinessRuleException("Phiên hội đồng đang tạm dừng. Vui lòng tiếp tục phiên trước khi chốt điểm.", "UC3.5.INVALID_COMMITTEE_STATE");
+            }
             if (committeeStatus != CommitteeStatus.Ongoing && committeeStatus != CommitteeStatus.Completed)
             {
                 throw new BusinessRuleException("Chỉ có thể đóng ca khi hội đồng đang ở trạng thái Ongoing.", "UC3.5.INVALID_COMMITTEE_STATE");

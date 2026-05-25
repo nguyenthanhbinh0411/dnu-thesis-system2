@@ -18,6 +18,7 @@ import {
   Clock,
   Layers3,
   Lock,
+  Copy,
   Pencil,
   Plus,
   RefreshCw,
@@ -1183,7 +1184,8 @@ const CommitteeManagement: React.FC = () => {
   const [maxCapacity, setMaxCapacity] = useState(4);
   const [configSaved, setConfigSaved] = useState(false);
   const [councilConfigConfirmed, setCouncilConfigConfirmed] = useState(false);
-  const [topicsPerSessionConfig, setTopicsPerSessionConfig] = useState(3);
+  const [morningTopicsPerSessionConfig, setMorningTopicsPerSessionConfig] = useState(3);
+  const [afternoonTopicsPerSessionConfig, setAfternoonTopicsPerSessionConfig] = useState(3);
   const [membersPerCouncilConfig, setMembersPerCouncilConfig] = useState(3);
   const [configCouncilTags, setConfigCouncilTags] = useState<string[]>([]);
 
@@ -1226,7 +1228,7 @@ const CommitteeManagement: React.FC = () => {
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [councilPage, setCouncilPage] = useState(1);
   const [selectedCouncilId, setSelectedCouncilId] = useState<string>("");
-  const [manualMode, setManualMode] = useState<"create" | "edit" | null>(null);
+  const [manualMode, setManualMode] = useState<"create" | "duplicate" | "edit" | null>(null);
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
   const [manualId, setManualId] = useState("HD-2026-04");
   const [manualName, setManualName] = useState("Hội đồng mới");
@@ -1250,6 +1252,7 @@ const CommitteeManagement: React.FC = () => {
   const [manualRelatedStudents, setManualRelatedStudents] = useState<string[]>(
     [],
   );
+  const [manualDuplicateSourceLabel, setManualDuplicateSourceLabel] = useState<string>("");
   const [, setManualUnrelatedStudents] = useState<string[]>([]);
   const [manualAssignments, setManualAssignments] = useState<CouncilAssignment[]>([]);
   const [manualTopicDragStudentCode, setManualTopicDragStudentCode] = useState("");
@@ -1913,7 +1916,9 @@ const CommitteeManagement: React.FC = () => {
           },
         }),
       confirmCouncilConfig: (payload: {
-        topicsPerSessionConfig: number;
+        morningTopicsPerSessionConfig: number;
+        afternoonTopicsPerSessionConfig: number;
+        topicsPerSessionConfig?: number;
         membersPerCouncilConfig: number;
         tags: string[];
       }) =>
@@ -2803,12 +2808,28 @@ const CommitteeManagement: React.FC = () => {
               ),
             ),
           );
-          setTopicsPerSessionConfig(
+          const legacyTopicsPerSessionConfig = Number(
+            pickCaseInsensitiveValue(
+              configData,
+              ["topicsPerSessionConfig", "TopicsPerSessionConfig"],
+              3,
+            ),
+          );
+          setMorningTopicsPerSessionConfig(
             Number(
               pickCaseInsensitiveValue(
                 configData,
-                ["topicsPerSessionConfig", "TopicsPerSessionConfig"],
-                3,
+                ["morningTopicsPerSessionConfig", "MorningTopicsPerSessionConfig"],
+                legacyTopicsPerSessionConfig,
+              ),
+            ),
+          );
+          setAfternoonTopicsPerSessionConfig(
+            Number(
+              pickCaseInsensitiveValue(
+                configData,
+                ["afternoonTopicsPerSessionConfig", "AfternoonTopicsPerSessionConfig"],
+                legacyTopicsPerSessionConfig,
               ),
             ),
           );
@@ -4408,7 +4429,9 @@ const CommitteeManagement: React.FC = () => {
       tags: normalizedConfigCouncilTagCodes,
       strategy: {
         groupByTag: autoGroupByTag,
-        maxPerSession: topicsPerSessionConfig,
+        maxPerSession: morningTopicsPerSessionConfig + afternoonTopicsPerSessionConfig,
+        morningTopicsPerSession: morningTopicsPerSessionConfig,
+        afternoonTopicsPerSession: afternoonTopicsPerSessionConfig,
         prioritizeMatchTag: autoPrioritizeMatchTag,
         heuristicWeights: {
           tagMatchWeight: 0.5,
@@ -4504,7 +4527,9 @@ const CommitteeManagement: React.FC = () => {
 
       // 2. Confirm council config
       const confirmResponse = await adminApi.confirmCouncilConfig({
-        topicsPerSessionConfig,
+        morningTopicsPerSessionConfig,
+        afternoonTopicsPerSessionConfig,
+        topicsPerSessionConfig: morningTopicsPerSessionConfig + afternoonTopicsPerSessionConfig,
         membersPerCouncilConfig,
         tags: normalizedConfigCouncilTagCodes,
       });
@@ -4769,7 +4794,9 @@ const CommitteeManagement: React.FC = () => {
     try {
       setActionInFlight("Lưu cấu hình hội đồng");
       const response = await adminApi.confirmCouncilConfig({
-        topicsPerSessionConfig,
+        morningTopicsPerSessionConfig,
+        afternoonTopicsPerSessionConfig,
+        topicsPerSessionConfig: morningTopicsPerSessionConfig + afternoonTopicsPerSessionConfig,
         membersPerCouncilConfig,
         tags: normalizedConfigCouncilTagCodes,
       });
@@ -4780,7 +4807,7 @@ const CommitteeManagement: React.FC = () => {
       }
       setCouncilConfigConfirmed(Boolean(parsed.data));
       notifySuccess(
-        `Đã lưu tham số cấu hình (${topicsPerSessionConfig} đề tài/buổi, ${membersPerCouncilConfig} thành viên).`,
+        `Đã lưu tham số cấu hình (${morningTopicsPerSessionConfig} đề tài buổi sáng, ${afternoonTopicsPerSessionConfig} đề tài buổi chiều, ${membersPerCouncilConfig} thành viên).`,
       );
     } catch {
       setCouncilConfigConfirmed(false);
@@ -5966,6 +5993,7 @@ const CommitteeManagement: React.FC = () => {
     setCreateStep(1);
     setManualSnapshot(null);
     setManualReadOnly(false);
+    setManualDuplicateSourceLabel("");
   };
 
   const startCreateCouncil = () => {
@@ -5976,6 +6004,73 @@ const CommitteeManagement: React.FC = () => {
     setManualMode("create");
     resetManualForm(nextGeneratedCouncilId);
     notifyInfo("Mở biểu mẫu thêm hội đồng mới.");
+  };
+
+  const startDuplicateCouncil = (councilId?: string) => {
+    if (!canModifyCouncils) {
+      notifyWarning("Danh sách hội đồng đã chốt. Không thể sao chép hội đồng.");
+      return;
+    }
+
+    const target = councilId
+      ? (editableDrafts.find((item: CouncilDraft) => item.id === councilId) ?? null)
+      : selectedCouncil;
+
+    if (!target) {
+      notifyWarning("Không tìm thấy hội đồng để sao chép.");
+      return;
+    }
+
+    const normalizedCouncilTags = Array.from(
+      new Set(
+        target.councilTags
+          .map((tag) => resolveTagCode(tag))
+          .filter((tag) => tag.length > 0),
+      ),
+    );
+    const inferredScheduleMode: CouncilScheduleMode =
+      target.morningStudents.length > 0 && target.afternoonStudents.length > 0
+        ? "FULL_DAY"
+        : "ONE_SESSION";
+    const inferredSessionCode: SessionCode =
+      inferredScheduleMode === "ONE_SESSION"
+        ? target.afternoonStudents.length > 0
+          ? "AFTERNOON"
+          : "MORNING"
+        : target.sessionCode ?? normalizeSessionCode(target.session);
+    const normalizedMembers = target.members.map((member, index) => ({
+      ...member,
+      role: normalizeManualMemberRoleCode(member.role, index),
+    }));
+    while (normalizedMembers.length < FIXED_MANUAL_MEMBER_SLOT_COUNT) {
+      normalizedMembers.push({
+        role: getDefaultManualMemberRole(normalizedMembers.length),
+        lecturerCode: "",
+        lecturerName: "",
+      });
+    }
+
+    setManualMode("duplicate");
+    resetManualForm(nextGeneratedCouncilId);
+    setManualName(`Sao chép từ ${target.name ?? target.id}`);
+    setManualDefenseDate(target.defenseDate);
+    setManualRoom(normalizeRoomCode(target.room));
+    setManualScheduleMode(inferredScheduleMode);
+    setManualSessionCode(inferredSessionCode);
+    setManualStartTime(normalizeTimeOnly(target.startTime ?? morningStart));
+    setManualEndTime(normalizeTimeOnly(target.endTime ?? afternoonEnd));
+    setManualCouncilTags(normalizedCouncilTags);
+    setManualMembers(normalizedMembers);
+    setManualDuplicateSourceLabel(target.name ?? target.id);
+    setManualAssignments([]);
+    setManualMorningStudents([]);
+    setManualAfternoonStudents([]);
+    setManualRelatedStudents([]);
+    setManualUnrelatedStudents([]);
+    setManualSnapshot(null);
+    setManualReadOnly(false);
+    setCreateStep(1);
+    notifyInfo("Mở biểu mẫu sao chép hội đồng.");
   };
 
   const toggleConfigCouncilTag = (tag: string) => {
@@ -6411,7 +6506,7 @@ const CommitteeManagement: React.FC = () => {
     const activeStep =
       requestedStep ?? (manualMode === "edit" ? 3 : createStep);
 
-    if (manualMode === "create" && activeStep < 3) {
+    if (isManualCreateMode && activeStep < 3) {
       notifyWarning("Vui lòng hoàn tất bước 3 rồi lưu toàn bộ hội đồng.");
       return;
     }
@@ -6442,7 +6537,7 @@ const CommitteeManagement: React.FC = () => {
     const tryRollbackCreatedCouncil = async () => {
       if (
         rollbackTriggered ||
-        manualMode !== "create" ||
+        !isManualCreateMode ||
         !createdCouncilIdForRollback
       ) {
         return;
@@ -6585,6 +6680,47 @@ const CommitteeManagement: React.FC = () => {
     if (invalidAssignment) {
       notifyError(
         "Bước 3 chưa hợp lệ: mỗi đề tài phải có ngày, giờ bắt đầu, giờ kết thúc và thứ tự.",
+      );
+      return;
+    }
+
+    const requestedTopicCodes = Array.from(
+      new Set(
+        draftAssignments
+          .map((assignment) => String(assignment.topicCode ?? "").trim())
+          .filter(Boolean),
+      ),
+    );
+    const duplicateTopicConflicts = requestedTopicCodes.length > 0
+      ? councilRows.flatMap((row) => {
+        const rowAssignments = row.assignments ?? [];
+        return rowAssignments
+          .map((assignment) => ({
+            councilId: row.id,
+            topicCode: String(assignment.topicCode ?? "").trim(),
+          }))
+          .filter((assignment) =>
+            assignment.topicCode.length > 0 &&
+            requestedTopicCodes.includes(assignment.topicCode) &&
+            (manualMode !== "edit" || row.id !== (selectedCouncil?.id ?? manualSnapshot?.id ?? normalizedManualId))
+          );
+      })
+      : [];
+
+    if (duplicateTopicConflicts.length > 0) {
+      const conflictedTopics = Array.from(
+        new Set(duplicateTopicConflicts.map((item) => item.topicCode)),
+      );
+      const conflictedCouncils = Array.from(
+        new Set(duplicateTopicConflicts.map((item) => item.councilId)),
+      );
+      notifyError(
+        `Các đề tài đã được dùng ở hội đồng khác: ${conflictedTopics.join(", ")}. Vui lòng chọn đề tài khác.`,
+      );
+      setManualDuplicateSourceLabel(
+        conflictedCouncils.length > 0
+          ? `Đề tài trùng ở: ${conflictedCouncils.join(", ")}`
+          : manualDuplicateSourceLabel,
       );
       return;
     }
@@ -6742,7 +6878,7 @@ const CommitteeManagement: React.FC = () => {
     let savedCouncilCode = draft.id;
     let savedCouncilId = workflowCouncilId;
     let savedConcurrencyToken = currentConcurrencyToken;
-    const isCreateMode = manualMode === "create";
+    const isCreateMode = isManualCreateMode;
 
     try {
       setActionInFlight(
@@ -6987,6 +7123,7 @@ const CommitteeManagement: React.FC = () => {
     }
     setManualMode(null);
     setManualReadOnly(false);
+    setManualDuplicateSourceLabel("");
   };
 
   const manualRelatedStudentView = buildStudentView(manualRelatedStudents);
@@ -7282,9 +7419,10 @@ const CommitteeManagement: React.FC = () => {
     ],
   );
   const isManualDetailMode = manualMode === "edit";
-  const showManualWizardSteps = manualMode === "create" && !manualReadOnly;
+  const isManualCreateMode = manualMode === "create" || manualMode === "duplicate";
+  const showManualWizardSteps = isManualCreateMode && !manualReadOnly;
   const showManualTopicSelection =
-    manualMode === "create" && !manualReadOnly && createStep === 2;
+    isManualCreateMode && !manualReadOnly && createStep === 2;
   const showManualEditableTopicSelection =
     manualMode === "edit" && !manualReadOnly;
   const showManualTopicWorkspace =
@@ -7300,7 +7438,7 @@ const CommitteeManagement: React.FC = () => {
       notifyWarning("Danh sách hội đồng đã chốt. Đóng màn tạo tự động.");
     }
 
-    if (manualMode === "create") {
+    if (isManualCreateMode) {
       setManualMode(null);
       setManualReadOnly(false);
       notifyWarning("Danh sách hội đồng đã chốt. Đóng biểu mẫu thêm hội đồng.");
@@ -9803,6 +9941,20 @@ const CommitteeManagement: React.FC = () => {
                           </button>
                           <button
                             type="button"
+                            className="committee-ghost-btn committee-icon-btn"
+                            title="Sao chép hội đồng"
+                            aria-label="Sao chép hội đồng"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              startDuplicateCouncil(row.id);
+                            }}
+                            disabled={councilListLocked || Boolean(actionInFlight)}
+                            style={{ minHeight: 34, padding: 0 }}
+                          >
+                            <Copy size={14} />
+                          </button>
+                          <button
+                            type="button"
                             className="committee-danger-btn committee-icon-btn"
                             title="Xóa hội đồng"
                             aria-label="Xóa hội đồng"
@@ -10585,8 +10737,8 @@ const CommitteeManagement: React.FC = () => {
                           <div style={{ display: "grid", gap: 4 }}>
                             <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>Ca làm việc mặc định</span>
                             <div style={{ fontSize: 12, padding: "8px 12px", background: "#f1f5f9", borderRadius: 8 }}>
-                              Sáng: {morningStart} - {morningEnd}<br />
-                              Chiều: {afternoonStart} - {afternoonEnd}
+                              Sáng: {morningStart} - {morningEnd} ({morningTopicsPerSessionConfig} đề tài)<br />
+                              Chiều: {afternoonStart} - {afternoonEnd} ({afternoonTopicsPerSessionConfig} đề tài)
                             </div>
                           </div>
                         </div>
@@ -10601,15 +10753,28 @@ const CommitteeManagement: React.FC = () => {
 
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                           <label style={{ display: "grid", gap: 6 }}>
-                            <span style={{ fontWeight: 600, fontSize: 13 }}>Số đề tài / buổi</span>
+                            <span style={{ fontWeight: 600, fontSize: 13 }}>Số đề tài buổi sáng</span>
                             <select
-                              value={topicsPerSessionConfig}
-                              onChange={(e) => setTopicsPerSessionConfig(Number(e.target.value))}
+                              value={morningTopicsPerSessionConfig}
+                              onChange={(e) => setMorningTopicsPerSessionConfig(Number(e.target.value))}
                               style={{ height: 38, fontSize: 13 }}
                             >
                               {[1, 2, 3, 4, 5, 6].map(v => <option key={v} value={v}>{v}</option>)}
                             </select>
                           </label>
+                          <label style={{ display: "grid", gap: 6 }}>
+                            <span style={{ fontWeight: 600, fontSize: 13 }}>Số đề tài buổi chiều</span>
+                            <select
+                              value={afternoonTopicsPerSessionConfig}
+                              onChange={(e) => setAfternoonTopicsPerSessionConfig(Number(e.target.value))}
+                              style={{ height: 38, fontSize: 13 }}
+                            >
+                              {[1, 2, 3, 4, 5, 6].map(v => <option key={v} value={v}>{v}</option>)}
+                            </select>
+                          </label>
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                           <label style={{ display: "grid", gap: 6 }}>
                             <span style={{ fontWeight: 600, fontSize: 13 }}>Thành viên / hội đồng</span>
                             <select
@@ -10820,18 +10985,22 @@ const CommitteeManagement: React.FC = () => {
                     </div>
                     <div>
                       <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.02em" }}>
-                        {manualMode === "create"
-                          ? "Thêm hội đồng mới"
-                          : manualReadOnly
-                            ? `Chi tiết hội đồng ${selectedCouncilId}`
-                            : `Chỉnh sửa hội đồng ${selectedCouncilId}`}
+                        {manualMode === "duplicate"
+                          ? "Sao chép hội đồng"
+                          : isManualCreateMode
+                            ? "Thêm hội đồng mới"
+                            : manualReadOnly
+                              ? `Chi tiết hội đồng ${selectedCouncilId}`
+                              : `Chỉnh sửa hội đồng ${selectedCouncilId}`}
                       </h2>
                       <div style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b", fontWeight: 500 }}>
-                        {manualMode === "create"
-                          ? "Hoàn tất đủ 3 bước rồi bấm Thêm hội đồng ở góc dưới bên phải để tạo hội đồng thật."
-                          : manualReadOnly
-                            ? "Xem chi tiết, xác nhận chỉnh sửa, hủy hoặc lưu thay đổi."
-                            : "Chỉnh sửa thông tin hội đồng, đề tài và thành viên rồi lưu thay đổi."}
+                        {manualMode === "duplicate"
+                          ? `Chọn ngày và danh sách đề tài để sao chép ${manualDuplicateSourceLabel || "hội đồng"}, rồi lưu như một hội đồng mới.`
+                          : isManualCreateMode
+                            ? "Hoàn tất đủ 3 bước rồi bấm Thêm hội đồng ở góc dưới bên phải để tạo hội đồng thật."
+                            : manualReadOnly
+                              ? "Xem chi tiết, xác nhận chỉnh sửa, hủy hoặc lưu thay đổi."
+                              : "Chỉnh sửa thông tin hội đồng, đề tài và thành viên rồi lưu thay đổi."}
                       </div>
                     </div>
                   </div>
@@ -10918,7 +11087,7 @@ const CommitteeManagement: React.FC = () => {
                             <Gavel size={15} style={{ color: "#2563eb" }} /> Mã hội đồng
                           </span>
                           <div style={{ fontSize: 11, color: "#64748b", margin: "4px 0" }}>
-                            {manualMode === "create"
+                            {isManualCreateMode
                               ? "Mã sẽ được hệ thống sinh sau khi lưu toàn bộ 3 bước."
                               : "Mã chỉ dùng để tham chiếu, không chỉnh sửa trực tiếp."}
                           </div>
@@ -11270,7 +11439,7 @@ const CommitteeManagement: React.FC = () => {
                     </div>
                   )}
 
-                  {manualMode === "create" && !manualReadOnly && createStep === 1 && (
+                  {isManualCreateMode && !manualReadOnly && createStep === 1 && (
                     <div
                       style={{
                         display: "flex",
@@ -11494,7 +11663,7 @@ const CommitteeManagement: React.FC = () => {
                     </div>
                   )}
 
-                  {manualMode === "create" && !manualReadOnly && createStep === 3 && (
+                  {isManualCreateMode && !manualReadOnly && createStep === 3 && (
                     <div
                       style={{
                         display: "flex",
@@ -11973,7 +12142,7 @@ const CommitteeManagement: React.FC = () => {
                     </div>
                   )}
 
-                  {manualMode === "create" && !manualReadOnly && createStep === 2 && (
+                  {isManualCreateMode && !manualReadOnly && createStep === 2 && (
                     <div
                       style={{
                         display: "flex",

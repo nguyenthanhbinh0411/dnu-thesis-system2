@@ -242,6 +242,8 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
         public List<string> AvailableRooms { get; set; } = new();
         public List<string> DefaultSelectedRooms { get; set; } = new();
         public int SoftMaxCapacity { get; set; }
+        public int MorningTopicsPerSession { get; set; }
+        public int AfternoonTopicsPerSession { get; set; }
         public int TopicsPerSession { get; set; }
         public int MembersPerCouncil { get; set; }
         public bool LecturerCapabilitiesLocked { get; set; }

@@ -7,7 +7,8 @@ namespace ThesisManagement.Api.Models
         Ongoing = 2,
         Completed = 3,
         Finalized = 4,
-        Published = 5
+        Published = 5,
+        Paused = 6
     }
 
     public enum DefenseTermStatus
