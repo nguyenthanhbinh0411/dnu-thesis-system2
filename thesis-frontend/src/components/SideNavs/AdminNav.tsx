@@ -60,11 +60,6 @@ const AdminNav: React.FC<AdminNavProps> = ({
       label: "Quản lý khoa/bộ môn",
       icon: <Building2 size={18} />,
     },
-    {
-      path: `${basePath}/topics`,
-      label: "Quản lý đề tài",
-      icon: <ClipboardList size={18} />,
-    },
     // `Quản lý đợt` removed: home page now manages defense periods (điều hành đợt is the dashboard)
     {
       path: `${basePath}/rooms`,
@@ -114,12 +109,22 @@ const AdminNav: React.FC<AdminNavProps> = ({
   ];
 
   const rawNavItems = [
-    { path: `${basePath}`, label: "Trang chủ", icon: <Home size={18} /> },
+    ...(role === ROLE_STUDENT_SERVICE
+      ? [
+          {
+            path: `${basePath}`,
+            label: "Phân công và theo dõi",
+            icon: <BookOpen size={18} />,
+          },
+        ]
+      : [
+          { path: `${basePath}`, label: "Trang chủ", icon: <Home size={18} /> },
+        ]),
     ...(role === ROLE_ADMIN
       ? [
           {
             path: `${basePath}/topic-review`,
-            label: "Điều hành tiến độ",
+            label: "Phân công và theo dõi",
             icon: <BookOpen size={18} />,
           },
           {
@@ -148,11 +153,6 @@ const AdminNav: React.FC<AdminNavProps> = ({
       path: `${basePath}/departments`,
       label: "Quản lý khoa/bộ môn",
       icon: <Building2 size={18} />,
-    },
-    {
-      path: `${basePath}/topics`,
-      label: "Quản lý đề tài",
-      icon: <ClipboardList size={18} />,
     },
     {
       path: `${basePath}/rooms`,

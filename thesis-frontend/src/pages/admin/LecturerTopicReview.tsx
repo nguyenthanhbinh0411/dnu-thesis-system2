@@ -3384,7 +3384,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
               letterSpacing: "-0.03em",
               lineHeight: 1
             }}>
-              Điều hành đăng ký & <span style={{ color: "#f37021" }}>Phân công GVHD</span>
+              Phân công GVHD và <span style={{ color: "#f37021" }}>theo dõi</span>
             </h1>
             
             <div style={{
@@ -3434,13 +3434,47 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
             maxWidth: 600,
             margin: "40px auto"
           }}>
-            <Loader2 size={48} color="#f37021" style={{ animation: "spin 1s linear infinite", margin: "0 auto 20px auto" }} />
-            <h3 style={{ fontSize: "20px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>
-              Đang kết nối đợt bảo vệ tốt nghiệp...
-            </h3>
-            <p style={{ fontSize: "14px", color: "#64748b" }}>
-              Hệ thống tự động xác định đợt bảo vệ hiện hành để tải dữ liệu điều hành.
+            <div style={{
+              width: 80,
+              height: 80,
+              borderRadius: "50%",
+              background: "#eff6ff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 24px auto",
+              color: "#1e3a5f"
+            }}>
+              <BookOpen size={40} />
+            </div>
+            <h2 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", marginBottom: "12px" }}>
+              Chưa có đợt bảo vệ hiện hành
+            </h2>
+            <p style={{ fontSize: "15px", color: "#64748b", lineHeight: 1.6, marginBottom: "28px" }}>
+              Hệ thống chưa ghi nhận đợt đồ án tốt nghiệp hiện hành nào đang diễn ra. Vui lòng tạo đợt mới hoặc kích hoạt đợt tại module Quản lý đợt.
             </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <a
+                href="/admin/defense-periods"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "48px",
+                  borderRadius: "14px",
+                  background: "#1e3a5f",
+                  color: "white",
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  textDecoration: "none",
+                  transition: "background 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#12253f"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "#1e3a5f"}
+              >
+                Quản lý đợt bảo vệ
+              </a>
+            </div>
           </div>
         ) : (
           <>

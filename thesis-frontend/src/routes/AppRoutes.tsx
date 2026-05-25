@@ -184,7 +184,7 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           }
         >
-          <Route index element={<StudentServiceDashboard />} />
+          <Route index element={<LecturerTopicReview />} />
           <Route
             path="academic-data"
             element={<AcademicDataManagementPage />}

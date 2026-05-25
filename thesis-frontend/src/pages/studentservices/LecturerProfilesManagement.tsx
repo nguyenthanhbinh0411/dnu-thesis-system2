@@ -614,53 +614,14 @@ const LecturerProfilesManagement: React.FC = () => {
     setActiveModal("detail");
 
     try {
-      const termFilter = selectedPeriodId ? `&DefenseTermId=${selectedPeriodId}` : "";
-      const [detailResponse, dashboardResponse] = await Promise.all([
-        requestApiData<RecordData>(
-          `/LecturerProfiles/get-detail/${encodeURIComponent(code)}`,
-          { method: "GET" },
-          "Không thể tải chi tiết giảng viên.",
-        ),
-        requestApiData<unknown>(
-          `/reports/student/dashboard/get-list?Page=0&PageSize=10&SupervisorLecturerCode=${encodeURIComponent(code)}${termFilter}`,
-          { method: "GET" },
-          "Không thể tải danh sách sinh viên.",
-        ),
-      ]);
-
-      setSelectedRow(detailResponse.data || row);
-      const dashboardItems = normalizeDashboardItems(dashboardResponse.data);
-      setDetailItems(dashboardItems);
-      setDetailTotalCount(
-        dashboardResponse.totalCount || dashboardItems.length,
+      const { data } = await requestApiData<RecordData>(
+        `/LecturerProfiles/get-detail/${encodeURIComponent(code)}`,
+        { method: "GET" },
+        "Không thể tải chi tiết giảng viên.",
       );
+      setSelectedRow(data || row);
     } catch {
-      try {
-        const { data } = await requestApiData<RecordData>(
-          `/LecturerProfiles/get-detail/${encodeURIComponent(code)}`,
-          { method: "GET" },
-          "Không thể tải chi tiết giảng viên.",
-        );
-        setSelectedRow(data);
-      } catch {
-        setSelectedRow(row);
-      }
-      try {
-        const termFilter = selectedPeriodId ? `&DefenseTermId=${selectedPeriodId}` : "";
-        const dashboardResponse = await requestApiData<unknown>(
-          `/reports/student/dashboard/get-list?Page=0&PageSize=10&SupervisorLecturerCode=${encodeURIComponent(code)}${termFilter}`,
-          { method: "GET" },
-          "Không thể tải danh sách sinh viên.",
-        );
-        const dashboardItems = normalizeDashboardItems(dashboardResponse.data);
-        setDetailItems(dashboardItems);
-        setDetailTotalCount(
-          dashboardResponse.totalCount || dashboardItems.length,
-        );
-      } catch {
-        setDetailItems([]);
-        setDetailTotalCount(0);
-      }
+      setSelectedRow(row);
     } finally {
       setDetailLoading(false);
     }
@@ -1099,345 +1060,121 @@ const LecturerProfilesManagement: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="lecturer-detail-tabs">
-                  <button
-                    type="button"
-                    className={detailTab === "info" ? "is-active" : ""}
-                    onClick={() => setDetailTab("info")}
-                  >
-                    <User size={14} />
-                    Thông tin
-                  </button>
-                  <button
-                    type="button"
-                    className={detailTab === "students" ? "is-active" : ""}
-                    onClick={() => setDetailTab("students")}
-                  >
-                    <Users size={14} />
-                    Sinh viên
-                  </button>
-                  <button
-                    type="button"
-                    className={detailTab === "topics" ? "is-active" : ""}
-                    onClick={() => setDetailTab("topics")}
-                  >
-                    <BookOpen size={14} />
-                    Đề tài
-                  </button>
-                </div>
-
                 <div className="lecturer-detail-body">
                   {detailLoading ? (
                     <div className="lecturer-detail-loading">
                       Đang tải chi tiết...
                     </div>
                   ) : (
-                    <>
-                      {detailTab === "info" && (
-                        <div className="lecturer-detail-columns">
-                          <div className="lecturer-detail-column">
-                            <section className="lecturer-info-card">
-                              <h4>Thông tin cơ bản</h4>
-                              <div className="lecturer-detail-list">
-                                <div>
-                                  <span>Mã giảng viên</span>
-                                  <strong>
-                                    {String(selectedRow?.lecturerCode || "--")}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Mã user</span>
-                                  <strong>
-                                    {String(selectedRow?.userCode || "--")}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Khoa/Bộ môn</span>
-                                  <strong>
-                                    {String(
-                                      selectedRow?.departmentCode || "--",
-                                    )}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Học vị</span>
-                                  <strong>
-                                    {String(selectedRow?.degree || "--")}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Email</span>
-                                  <strong>
-                                    {String(selectedRow?.email || "--")}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>SĐT</span>
-                                  <strong>
-                                    {String(selectedRow?.phoneNumber || "--")}
-                                  </strong>
-                                </div>
-                              </div>
-
-                              <div className="lecturer-guide-quota">
-                                <div className="lecturer-guide-quota-row">
-                                  <span>Chỉ tiêu hướng dẫn</span>
-                                  <strong>
-                                    {String(
-                                      selectedRow?.currentGuidingCount ?? 0,
-                                    )}
-                                    /{String(selectedRow?.guideQuota ?? "--")}
-                                  </strong>
-                                </div>
-                                <div className="lecturer-progress-track-lg">
-                                  <div
-                                    className="lecturer-progress-fill"
-                                    style={{
-                                      width: `${getGuidingProgress(selectedRow || {}).ratio}%`,
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            </section>
+                    <div className="lecturer-detail-columns">
+                      <div className="lecturer-detail-column">
+                        <section className="lecturer-info-card">
+                          <h4>Thông tin cơ bản</h4>
+                          <div className="lecturer-detail-list">
+                            <div>
+                              <span>Mã giảng viên</span>
+                              <strong>
+                                {String(selectedRow?.lecturerCode || "--")}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Mã user</span>
+                              <strong>
+                                {String(selectedRow?.userCode || "--")}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Khoa/Bộ môn</span>
+                              <strong>
+                                {String(
+                                  selectedRow?.departmentCode || "--",
+                                )}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Học vị</span>
+                              <strong>
+                                {String(selectedRow?.degree || "--")}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Email</span>
+                              <strong>
+                                {String(selectedRow?.email || "--")}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>SĐT</span>
+                              <strong>
+                                {String(selectedRow?.phoneNumber || "--")}
+                              </strong>
+                            </div>
                           </div>
 
-                          <div className="lecturer-detail-column">
-                            <section className="lecturer-info-card">
-                              <h4>Thông tin mở rộng</h4>
-                              <div className="lecturer-detail-list">
-                                <div>
-                                  <span>Giới tính</span>
-                                  <strong>
-                                    {String(selectedRow?.gender || "--")}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Ngày sinh</span>
-                                  <strong>
-                                    {formatDate(
-                                      String(selectedRow?.dateOfBirth || ""),
-                                    )}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Địa chỉ</span>
-                                  <strong>
-                                    {String(selectedRow?.address || "--")}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Ghi chú</span>
-                                  <strong>
-                                    {String(selectedRow?.notes || "--")}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Ngày cập nhật</span>
-                                  <strong>
-                                    {formatDateTime(
-                                      String(selectedRow?.lastUpdated || ""),
-                                    )}
-                                  </strong>
-                                </div>
-                              </div>
-                            </section>
+                          <div className="lecturer-guide-quota">
+                            <div className="lecturer-guide-quota-row">
+                              <span>Chỉ tiêu hướng dẫn</span>
+                              <strong>
+                                {String(
+                                  selectedRow?.currentGuidingCount ?? 0,
+                                )}
+                                /{String(selectedRow?.guideQuota ?? "--")}
+                              </strong>
+                            </div>
+                            <div className="lecturer-progress-track-lg">
+                              <div
+                                className="lecturer-progress-fill"
+                                style={{
+                                  width: `${getGuidingProgress(selectedRow || {}).ratio}%`,
+                                }}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        </section>
+                      </div>
 
-                      {detailTab === "students" && (
-                        <div className="lecturer-list-panel">
-                          <div className="lecturer-list-header">
-                            <h4>Danh sách sinh viên</h4>
-                            <span>
-                              {detailStudents.length} / {detailTotalCount}
-                            </span>
+                      <div className="lecturer-detail-column">
+                        <section className="lecturer-info-card">
+                          <h4>Thông tin mở rộng</h4>
+                          <div className="lecturer-detail-list">
+                            <div>
+                              <span>Giới tính</span>
+                              <strong>
+                                {String(selectedRow?.gender || "--")}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Ngày sinh</span>
+                              <strong>
+                                {formatDate(
+                                  String(selectedRow?.dateOfBirth || ""),
+                                )}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Địa chỉ</span>
+                              <strong>
+                                {String(selectedRow?.address || "--")}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Ghi chú</span>
+                              <strong>
+                                {String(selectedRow?.notes || "--")}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Ngày cập nhật</span>
+                              <strong>
+                                {formatDateTime(
+                                  String(selectedRow?.lastUpdated || ""),
+                                )}
+                              </strong>
+                            </div>
                           </div>
-                          {detailStudents.length === 0 ? (
-                            <div className="lecturer-empty-state">
-                              Không có sinh viên nào.
-                            </div>
-                          ) : (
-                            <div className="lecturer-item-list">
-                              {detailStudents.map((item) => (
-                                <div
-                                  key={getStudentCode(item)}
-                                  className="lecturer-item-card"
-                                >
-                                  <div className="lecturer-item-head">
-                                    <div className="lecturer-item-avatar-wrap">
-                                      {item.student?.studentImage ? (
-                                        <img
-                                          src={getAvatarUrl(
-                                            String(item.student.studentImage),
-                                          )}
-                                          alt={getStudentName(item)}
-                                          className="lecturer-item-avatar"
-                                          loading="lazy"
-                                        />
-                                      ) : (
-                                        <div className="lecturer-item-avatar lecturer-item-avatar-fallback">
-                                          {getStudentName(item)
-                                            .trim()
-                                            .charAt(0)
-                                            .toUpperCase()}
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    <div className="lecturer-item-head-text">
-                                      <h5>{getStudentName(item)}</h5>
-                                      <p>
-                                        {getStudentCode(item)} •{" "}
-                                        {String(item.student?.userCode || "--")}
-                                      </p>
-                                    </div>
-
-                                    <span className="lecturer-status lecturer-status-approved">
-                                      {getStatusText(item.topic?.status)}
-                                    </span>
-                                  </div>
-
-                                  <div className="lecturer-item-meta-grid">
-                                    <div className="lecturer-item-meta">
-                                      <span>Lớp</span>
-                                      <strong>
-                                        {String(
-                                          item.student?.classCode || "--",
-                                        )}
-                                      </strong>
-                                    </div>
-                                    <div className="lecturer-item-meta">
-                                      <span>Khoa</span>
-                                      <strong>
-                                        {String(
-                                          item.student?.departmentCode || "--",
-                                        )}
-                                      </strong>
-                                    </div>
-                                    <div className="lecturer-item-meta">
-                                      <span>GPA</span>
-                                      <strong>
-                                        {String(item.student?.gpa ?? "--")}
-                                      </strong>
-                                    </div>
-                                    <div className="lecturer-item-meta">
-                                      <span>Tiến độ</span>
-                                      <strong>
-                                        {item.currentMilestone
-                                          ?.milestoneTemplateCode
-                                          ? getMilestoneLabel(
-                                              item.currentMilestone
-                                                .milestoneTemplateCode,
-                                            )
-                                          : "--"}
-                                      </strong>
-                                    </div>
-                                  </div>
-
-                                  <div className="lecturer-item-topic">
-                                    <span>Đề tài</span>
-                                    <p>{getTopicTitle(item)}</p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {detailTab === "topics" && (
-                        <div className="lecturer-list-panel">
-                          <div className="lecturer-list-header">
-                            <h4>Danh sách đề tài</h4>
-                            <span>
-                              {detailTopics.length} / {detailTotalCount}
-                            </span>
-                          </div>
-                          {detailTopics.length === 0 ? (
-                            <div className="lecturer-empty-state">
-                              Không có đề tài nào.
-                            </div>
-                          ) : (
-                            <div className="lecturer-item-list">
-                              {detailTopics.map((item) => {
-                                const progress = calcProgress(
-                                  item.currentMilestone,
-                                  5,
-                                );
-                                return (
-                                  <div
-                                    key={getTopicCode(item)}
-                                    className="lecturer-item-card"
-                                  >
-                                    <div className="lecturer-topic-head">
-                                      <div>
-                                        <h5>{getTopicTitle(item)}</h5>
-                                        <p>{getTopicCode(item)}</p>
-                                      </div>
-                                      <span className="lecturer-status lecturer-status-pending">
-                                        {getStatusText(item.topic?.status)}
-                                      </span>
-                                    </div>
-
-                                    <div className="lecturer-topic-summary">
-                                      <span>Mô tả</span>
-                                      <p>
-                                        {String(item.topic?.summary || "--")}
-                                      </p>
-                                    </div>
-
-                                    <div className="lecturer-topic-meta-grid">
-                                      <div className="lecturer-item-meta">
-                                        <span>Loại</span>
-                                        <strong>
-                                          {getTopicTypeLabel(item.topic?.type)}
-                                        </strong>
-                                      </div>
-                                      <div className="lecturer-item-meta">
-                                        <span>Ngày tạo</span>
-                                        <strong>
-                                          {formatDateTime(
-                                            item.topic?.createdAt,
-                                          )}
-                                        </strong>
-                                      </div>
-                                      <div className="lecturer-item-meta">
-                                        <span>Milestone</span>
-                                        <strong>
-                                          {item.currentMilestone
-                                            ?.milestoneTemplateCode
-                                            ? getMilestoneLabel(
-                                                item.currentMilestone
-                                                  .milestoneTemplateCode,
-                                              )
-                                            : "--"}
-                                        </strong>
-                                      </div>
-                                      <div className="lecturer-item-meta">
-                                        <span>Tiến độ</span>
-                                        <strong>{progress}%</strong>
-                                      </div>
-                                    </div>
-
-                                    <div className="lecturer-topic-tags">
-                                      {(item.topicTags || []).map((tag) => (
-                                        <span
-                                          key={tag.tagCode}
-                                          className="lecturer-tag"
-                                        >
-                                          {tag.tagName}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
+                        </section>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
