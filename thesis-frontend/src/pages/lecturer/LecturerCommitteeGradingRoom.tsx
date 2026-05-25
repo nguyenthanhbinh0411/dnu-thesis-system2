@@ -47,11 +47,13 @@ import {
     Link,
     Lock,
     MapPin,
+    PauseCircle,
     MessageSquareText,
     Package,
     Paperclip,
     PencilRuler,
     Plus,
+    PlayCircle,
     Save,
     Star,
     Trash2,
@@ -76,7 +78,7 @@ type Committee = {
     date: string | null;
     slot: string | null;
     studentCount: number;
-    status: "Sắp diễn ra" | "Đang họp" | "Đã chốt" | "Đã đóng";
+    status: "Sắp diễn ra" | "Đang họp" | "Tạm dừng" | "Đã chốt" | "Đã đóng";
     normalizedRole: CommitteeRoleCode;
     roleCode: CommitteeRoleCode;
     roleLabel: string;
@@ -709,6 +711,16 @@ const getCommitteeStatusVisual = (status: Committee["status"]): CommitteeStatusV
                 chipBorder: "#f97316",
                 chipText: "#c2410c",
             };
+        case "Tạm dừng":
+            return {
+                icon: <PauseCircle size={14} />,
+                label: "Tạm dừng",
+                cardBorder: "#f59e0b",
+                cardGlow: "rgba(245, 158, 11, 0.2)",
+                chipBg: "#fffbeb",
+                chipBorder: "#f59e0b",
+                chipText: "#b45309",
+            };
         case "Đã chốt":
             return {
                 icon: <Lock size={14} />,
@@ -742,13 +754,16 @@ const getCommitteeStatusVisual = (status: Committee["status"]): CommitteeStatusV
     }
 };
 
-const mapCommitteeStatus = (value: unknown): "Sắp diễn ra" | "Đang họp" | "Đã chốt" | "Đã đóng" => {
+const mapCommitteeStatus = (value: unknown): "Sắp diễn ra" | "Đang họp" | "Tạm dừng" | "Đã chốt" | "Đã đóng" => {
     const raw = String(value ?? "").trim().toUpperCase();
     if (raw === "FINALIZED") {
         return "Đã đóng";
     }
     if (raw === "LOCKED" || raw === "COMPLETED") {
         return "Đã chốt";
+    }
+    if (raw === "PAUSED") {
+        return "Tạm dừng";
     }
     if (raw === "LIVE" || raw === "ONGOING") {
         return "Đang họp";
@@ -993,6 +1008,28 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                     committeeId: Number(id),
                     reason: reason,
                     ...(idempotencyKey ? { idempotencyKey } : {}),
+                },
+                headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+            }),
+        pauseSessionByCommittee: (id: string | number, idempotencyKey?: string, reason?: string) =>
+            fetchData<ApiResponse<boolean>>(`${lecturerBase}/scoring/actions`, {
+                method: "POST",
+                body: {
+                    action: "PAUSE_SESSION",
+                    committeeId: id,
+                    reason,
+                    idempotencyKey,
+                },
+                headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+            }),
+        resumeSessionByCommittee: (id: string | number, idempotencyKey?: string, reason?: string) =>
+            fetchData<ApiResponse<boolean>>(`${lecturerBase}/scoring/actions`, {
+                method: "POST",
+                body: {
+                    action: "RESUME_SESSION",
+                    committeeId: id,
+                    reason,
+                    idempotencyKey,
                 },
                 headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
             }),
@@ -2650,7 +2687,8 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         });
     }, [scoringMatrix]);
 
-    const canLockSession = (canLockSessionByActions || isChairRole) && allTopicsGraded;
+    const isSessionPaused = selectedCommittee?.status === "Tạm dừng";
+    const canLockSession = (canLockSessionByActions || isChairRole) && allTopicsGraded && !isSessionPaused;
 
 
     const canEditMinutesByActions = hasAllowedAction(
@@ -2698,7 +2736,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
     // Committee status is the source of truth
     const isCurrentSessionLocked = isSessionLocked || isSessionClosed;
     const canDownloadPreviewDocuments = isCurrentSessionLocked;
-    const canScoreNow = canSubmitScore && isSessionOpened;
+    const canScoreNow = canSubmitScore && isSessionOpened && !isSessionPaused;
     const canEditChairConclusion = canScoreNow && !isCurrentSessionLocked;
 
     const myRoleLabel = isChairRole
@@ -2968,6 +3006,10 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             notifyInfo("Phiên của hội đồng này đang mở sẵn.");
             return;
         }
+        if (committee.status === "Tạm dừng") {
+            notifyInfo("Phiên đang tạm dừng. Vui lòng chọn Tiếp tục phiên để mở lại.");
+            return;
+        }
         if (committee.status === "Đã đóng") {
             notifyInfo("Phiên đã đóng vĩnh viễn. Liên hệ quản trị viên để mở lại.");
             return;
@@ -2995,6 +3037,74 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             notifySuccess(`Đã mở phiên hội đồng ${committee.id}.`);
         } catch {
             notifyError("Mở phiên hội đồng thất bại.");
+        }
+    };
+
+    const handleSecretaryPauseSession = async (committee: Committee) => {
+        if (committee.normalizedRole !== "UVTK") {
+            notifyInfo("Chỉ Thư ký hội đồng mới có thể tạm dừng phiên.");
+            return;
+        }
+        if (!periodId) {
+            notifyError("Không tìm thấy đợt bảo vệ hiện hành.");
+            return;
+        }
+        if (committee.status !== "Đang họp") {
+            notifyInfo("Phiên hiện tại chưa ở trạng thái đang họp để tạm dừng.");
+            return;
+        }
+
+        const reason = requestActionReason(`Nhập lý do tạm dừng phiên hội đồng ${committee.id}:`);
+        if (!reason) {
+            return;
+        }
+
+        try {
+            const idempotencyKey = createIdempotencyKey(periodIdText || "NA", `secretary-pause-${committee.id}`);
+            const response = await lecturerApi.pauseSessionByCommittee(committee.numericId, idempotencyKey, reason);
+            if (notifyApiFailure(response as ApiResponse<unknown>, "Tạm dừng phiên hội đồng thất bại.")) {
+                return;
+            }
+
+            syncCommitteeSessionStatus(committee.id, "Tạm dừng");
+            pushTrace("pause-session", `[UC3.PAUSE_SESSION] Thư ký đã tạm dừng phiên hội đồng ${committee.id}.`);
+            notifySuccess(`Đã tạm dừng phiên hội đồng ${committee.id}.`);
+        } catch {
+            notifyError("Tạm dừng phiên hội đồng thất bại.");
+        }
+    };
+
+    const handleSecretaryResumeSession = async (committee: Committee) => {
+        if (committee.normalizedRole !== "UVTK") {
+            notifyInfo("Chỉ Thư ký hội đồng mới có thể tiếp tục phiên.");
+            return;
+        }
+        if (!periodId) {
+            notifyError("Không tìm thấy đợt bảo vệ hiện hành.");
+            return;
+        }
+        if (committee.status !== "Tạm dừng") {
+            notifyInfo("Phiên hiện tại chưa ở trạng thái tạm dừng để tiếp tục.");
+            return;
+        }
+
+        const reason = requestActionReason(`Nhập lý do tiếp tục phiên hội đồng ${committee.id}:`);
+        if (!reason) {
+            return;
+        }
+
+        try {
+            const idempotencyKey = createIdempotencyKey(periodIdText || "NA", `secretary-resume-${committee.id}`);
+            const response = await lecturerApi.resumeSessionByCommittee(committee.numericId, idempotencyKey, reason);
+            if (notifyApiFailure(response as ApiResponse<unknown>, "Tiếp tục phiên hội đồng thất bại.")) {
+                return;
+            }
+
+            syncCommitteeSessionStatus(committee.id, "Đang họp");
+            pushTrace("resume-session", `[UC3.RESUME_SESSION] Thư ký đã tiếp tục phiên hội đồng ${committee.id}.`);
+            notifySuccess(`Đã tiếp tục phiên hội đồng ${committee.id}.`);
+        } catch {
+            notifyError("Tiếp tục phiên hội đồng thất bại.");
         }
     };
 
@@ -3061,6 +3171,12 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         if (isCurrentSessionLocked) {
             if (!options?.suppressToast) {
                 notifyError("Phiên chấm đã khóa. Vui lòng yêu cầu Chủ tịch mở lại.");
+            }
+            return false;
+        }
+        if (isSessionPaused) {
+            if (!options?.suppressToast) {
+                notifyError("Phiên hiện tại đang tạm dừng. Vui lòng đợi thư ký tiếp tục phiên.");
             }
             return false;
         }
@@ -3863,6 +3979,26 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                 onClick={() => { void handleSecretaryOpenSession(selectedCommittee); }}
                                             >
                                                 <CalendarClock size={14} /> Mở phiên
+                                            </button>
+                                        )}
+
+                                        {selectedCommittee?.status === "Đang họp" && isSecretaryRole && !isSessionPaused && (
+                                            <button
+                                                type="button"
+                                                className="lec-primary"
+                                                onClick={() => { void handleSecretaryPauseSession(selectedCommittee); }}
+                                            >
+                                                <PauseCircle size={14} /> Tạm dừng phiên
+                                            </button>
+                                        )}
+
+                                        {selectedCommittee?.status === "Tạm dừng" && isSecretaryRole && (
+                                            <button
+                                                type="button"
+                                                className="lec-primary"
+                                                onClick={() => { void handleSecretaryResumeSession(selectedCommittee); }}
+                                            >
+                                                <PlayCircle size={14} /> Tiếp tục phiên
                                             </button>
                                         )}
 

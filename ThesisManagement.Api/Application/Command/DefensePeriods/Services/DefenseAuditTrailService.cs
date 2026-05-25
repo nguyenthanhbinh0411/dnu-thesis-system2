@@ -105,6 +105,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
 
             if (key.Contains("SUBMIT") && key.Contains("SCORE")) return "SUBMIT_SCORE";
             if (key.Contains("LOCK") && key.Contains("SESSION")) return "LOCK_SESSION";
+            if (key.Contains("PAUSE") && key.Contains("SESSION")) return "PAUSE_SESSION";
+            if (key.Contains("RESUME") && key.Contains("SESSION")) return "RESUME_SESSION";
             if ((key.Contains("APPROVE") && key.Contains("REVISION")) || key == "REVISION_APPROVE") return "APPROVE_REVISION";
             if ((key.Contains("REJECT") && key.Contains("REVISION")) || key == "REVISION_REJECT") return "REJECT_REVISION";
             if (key.Contains("PUBLISH")) return "PUBLISH";

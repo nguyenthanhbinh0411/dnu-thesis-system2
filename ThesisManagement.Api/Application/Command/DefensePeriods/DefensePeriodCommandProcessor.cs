@@ -58,6 +58,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
         Task<ApiResponse<bool>> SaveLecturerMinuteAsync(int committeeId, UpdateLecturerMinutesDto request, string lecturerCode, int actorUserId, CancellationToken cancellationToken = default);
         Task<ApiResponse<bool>> SubmitIndependentScoreAsync(int committeeId, LecturerScoreSubmitDto request, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
         Task<ApiResponse<bool>> OpenSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
+        Task<ApiResponse<bool>> PauseSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
+        Task<ApiResponse<bool>> ResumeSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
         Task<ApiResponse<bool>> LockSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
         Task<ApiResponse<bool>> ApproveRevisionAsync(int revisionId, string? reason, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
         Task<ApiResponse<bool>> RejectRevisionAsync(int revisionId, string reason, string lecturerCode, int actorUserId, string? idempotencyKey = null, CancellationToken cancellationToken = default);
@@ -337,8 +339,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     config.SoftMaxCapacity
                 };
 
-                var topicsPerSession = NormalizeTopicsPerSession(config.CouncilConfig.TopicsPerSessionConfig);
-                ValidatePeriodConfig(request, topicsPerSession);
+                var morningTopicsPerSession = ResolveMorningTopicsPerSession(config.CouncilConfig);
+                ValidatePeriodConfig(request, morningTopicsPerSession);
 
                 var nextStartDate = request.StartDate?.Date ?? period.StartDate.Date;
                 var nextEndDate = request.EndDate?.Date ?? period.EndDate?.Date;
@@ -427,9 +429,21 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
         {
             try
             {
-                if (request.TopicsPerSessionConfig < MinTopicsPerSession || request.TopicsPerSessionConfig > MaxTopicsPerSession)
+                var morningTopicsPerSession = request.MorningTopicsPerSessionConfig > 0
+                    ? request.MorningTopicsPerSessionConfig
+                    : request.TopicsPerSessionConfig;
+                var afternoonTopicsPerSession = request.AfternoonTopicsPerSessionConfig > 0
+                    ? request.AfternoonTopicsPerSessionConfig
+                    : request.TopicsPerSessionConfig;
+
+                if (morningTopicsPerSession < MinTopicsPerSession || morningTopicsPerSession > MaxTopicsPerSession)
                 {
-                    throw new BusinessRuleException("topicsPerSessionConfig phải trong khoảng 3-7.");
+                    throw new BusinessRuleException("morningTopicsPerSessionConfig phải trong khoảng 3-7.");
+                }
+
+                if (afternoonTopicsPerSession < MinTopicsPerSession || afternoonTopicsPerSession > MaxTopicsPerSession)
+                {
+                    throw new BusinessRuleException("afternoonTopicsPerSessionConfig phải trong khoảng 3-7.");
                 }
 
                 if (request.MembersPerCouncilConfig < MinMembersPerCouncil || request.MembersPerCouncilConfig > MaxMembersPerCouncil)
@@ -447,13 +461,17 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 var beforeConfig = new
                 {
                     config.CouncilConfigConfirmed,
+                    config.CouncilConfig.MorningTopicsPerSessionConfig,
+                    config.CouncilConfig.AfternoonTopicsPerSessionConfig,
                     config.CouncilConfig.TopicsPerSessionConfig,
                     config.CouncilConfig.MembersPerCouncilConfig,
                     config.CouncilConfig.Tags
                 };
                 config.CouncilConfig = new ConfirmCouncilConfigDto
                 {
-                    TopicsPerSessionConfig = request.TopicsPerSessionConfig,
+                    MorningTopicsPerSessionConfig = morningTopicsPerSession,
+                    AfternoonTopicsPerSessionConfig = afternoonTopicsPerSession,
+                    TopicsPerSessionConfig = morningTopicsPerSession + afternoonTopicsPerSession,
                     MembersPerCouncilConfig = request.MembersPerCouncilConfig,
                     Tags = normalizedConfigTags
                 };
@@ -470,6 +488,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     new
                     {
                         config.CouncilConfigConfirmed,
+                        config.CouncilConfig.MorningTopicsPerSessionConfig,
+                        config.CouncilConfig.AfternoonTopicsPerSessionConfig,
                         config.CouncilConfig.TopicsPerSessionConfig,
                         config.CouncilConfig.MembersPerCouncilConfig,
                         config.CouncilConfig.Tags
@@ -758,15 +778,89 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 var roomIndex = 0;
                 var councilIndex = 1;
 
-                var topicsPerSession = NormalizeTopicsPerSession(config.CouncilConfig.TopicsPerSessionConfig);
+                var morningTopicsPerSession = request.Strategy?.MorningTopicsPerSession > 0
+                    ? NormalizeTopicsPerSession(request.Strategy.MorningTopicsPerSession)
+                    : ResolveMorningTopicsPerSession(config.CouncilConfig);
+                var afternoonTopicsPerSession = request.Strategy?.AfternoonTopicsPerSession > 0
+                    ? NormalizeTopicsPerSession(request.Strategy.AfternoonTopicsPerSession)
+                    : ResolveAfternoonTopicsPerSession(config.CouncilConfig);
                 var membersPerCouncil = NormalizeMembersPerCouncil(config.CouncilConfig.MembersPerCouncilConfig);
-                var topicsPerCouncil = topicsPerSession * 2;
+                var topicsPerCouncil = morningTopicsPerSession + afternoonTopicsPerSession;
 
                 var councilChunks = BuildAutoGenerateCouncilChunks(topics, topicsPerCouncil, 3);
+                var rosterReuseSpan = 2;
+                var currentRosterLecturerCodes = new List<string>();
 
                 for (var i = 0; i < councilChunks.Count; i++)
                 {
                     var chunk = councilChunks[i];
+
+                    if (i % rosterReuseSpan == 0 || currentRosterLecturerCodes.Count == 0)
+                    {
+                        var chunkSupervisorCodes = chunk
+                            .Select(x => x.SupervisorLecturerCode)
+                            .Where(x => !string.IsNullOrWhiteSpace(x))
+                            .Select(x => x!.Trim())
+                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                        var pairTopicDerivedCouncilTags = NormalizeTagCodes(
+                                chunk.SelectMany(t => topicTags.TryGetValue(t.TopicCode, out var tags) ? tags.AsEnumerable() : Enumerable.Empty<string>()))
+                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                        var pairHeuristicTargetTags = preferredTags.Count > 0
+                            ? preferredTags.ToHashSet(StringComparer.OrdinalIgnoreCase)
+                            : pairTopicDerivedCouncilTags;
+
+                        var rankedChairLecturerCodes = _heuristicService
+                            .RankLecturers(
+                                doctorateLecturers
+                                    .Where(l => !chunkSupervisorCodes.Contains(l.LecturerCode))
+                                    .Select(l => new LecturerHeuristicCandidate
+                                    {
+                                        LecturerCode = l.LecturerCode,
+                                        Tags = lecturerTagMap.TryGetValue(l.LecturerCode, out var tags)
+                                            ? tags
+                                            : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                                        Workload = runtimeWorkloadMap.TryGetValue(l.LecturerCode, out var chairLoad) ? chairLoad : 0,
+                                        ConsecutiveCommitteeAssignments = runtimeConsecutiveCommitteeMap.TryGetValue(l.LecturerCode, out var chairStreak) ? chairStreak : 0
+                                    })
+                                    .ToList(),
+                                pairHeuristicTargetTags,
+                                request.Strategy?.HeuristicWeights)
+                            .Select(x => x.LecturerCode)
+                            .ToList();
+
+                        var chairLecturerCode = rankedChairLecturerCodes.FirstOrDefault();
+                        if (string.IsNullOrWhiteSpace(chairLecturerCode))
+                        {
+                            throw new BusinessRuleException(
+                                "Không thể xác định giảng viên đủ học vị Tiến sĩ để làm chủ tịch hội đồng.",
+                                "UC2.2.CHAIR_DOCTORATE_REQUIRED");
+                        }
+
+                        var remainingLecturerCodes = _heuristicService
+                            .RankLecturers(
+                                lecturers
+                                    .Where(l => !chunkSupervisorCodes.Contains(l.LecturerCode)
+                                        && !string.Equals(l.LecturerCode, chairLecturerCode, StringComparison.OrdinalIgnoreCase))
+                                    .Select(l => new LecturerHeuristicCandidate
+                                    {
+                                        LecturerCode = l.LecturerCode,
+                                        Tags = lecturerTagMap.TryGetValue(l.LecturerCode, out var tags)
+                                            ? tags
+                                            : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                                        Workload = runtimeWorkloadMap.TryGetValue(l.LecturerCode, out var load) ? load : 0,
+                                        ConsecutiveCommitteeAssignments = runtimeConsecutiveCommitteeMap.TryGetValue(l.LecturerCode, out var streak) ? streak : 0
+                                    })
+                                    .ToList(),
+                                pairHeuristicTargetTags,
+                                request.Strategy?.HeuristicWeights)
+                            .Select(x => x.LecturerCode)
+                            .ToList();
+
+                        currentRosterLecturerCodes = new List<string> { chairLecturerCode };
+                        currentRosterLecturerCodes.AddRange(remainingLecturerCodes.Take(Math.Max(0, membersPerCouncil - 1)));
+                    }
 
                     if (!TryAllocateRoomDateSlot(selectedRooms, defenseDates, occupiedRoomDateSlots, ref roomIndex, out var room, out var defenseDate))
                     {
@@ -824,9 +918,9 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
                     config.CouncilIds.Add(committee.CommitteeID);
 
-                    var morning = chunk.Take(topicsPerSession).ToList();
-                    var afternoon = chunk.Skip(topicsPerSession).Take(topicsPerSession).ToList();
-                    var allCodes = chunk.Select(x => x.SupervisorLecturerCode).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var morning = chunk.Take(morningTopicsPerSession).ToList();
+                    var afternoon = chunk.Skip(morningTopicsPerSession).Take(afternoonTopicsPerSession).ToList();
+                    var allCodes = currentRosterLecturerCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                     var topicDerivedCouncilTags = NormalizeTagCodes(
                             chunk.SelectMany(t => topicTags.TryGetValue(t.TopicCode, out var tags) ? tags.AsEnumerable() : Enumerable.Empty<string>()))
@@ -836,59 +930,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                         ? preferredTags.ToHashSet(StringComparer.OrdinalIgnoreCase)
                         : topicDerivedCouncilTags;
 
-                    var rankedChairLecturerCodes = _heuristicService
-                        .RankLecturers(
-                            doctorateLecturers
-                                .Where(l => !allCodes.Contains(l.LecturerCode))
-                                .Select(l => new LecturerHeuristicCandidate
-                                {
-                                    LecturerCode = l.LecturerCode,
-                                    Tags = lecturerTagMap.TryGetValue(l.LecturerCode, out var tags)
-                                        ? tags
-                                        : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                                    Workload = runtimeWorkloadMap.TryGetValue(l.LecturerCode, out var chairLoad) ? chairLoad : 0,
-                                    ConsecutiveCommitteeAssignments = runtimeConsecutiveCommitteeMap.TryGetValue(l.LecturerCode, out var chairStreak) ? chairStreak : 0
-                                })
-                                .ToList(),
-                            heuristicTargetTags,
-                            request.Strategy?.HeuristicWeights)
-                        .Select(x => x.LecturerCode)
-                        .ToList();
-
-                    var chairLecturerCode = rankedChairLecturerCodes.FirstOrDefault();
-                    if (string.IsNullOrWhiteSpace(chairLecturerCode))
-                    {
-                        throw new BusinessRuleException(
-                            "Không thể xác định giảng viên đủ học vị Tiến sĩ để làm chủ tịch hội đồng.",
-                            "UC2.2.CHAIR_DOCTORATE_REQUIRED");
-                    }
-
-                    var remainingLecturerCodes = _heuristicService
-                        .RankLecturers(
-                            lecturers
-                                .Where(l => !allCodes.Contains(l.LecturerCode)
-                                    && !string.Equals(l.LecturerCode, chairLecturerCode, StringComparison.OrdinalIgnoreCase))
-                                .Select(l => new LecturerHeuristicCandidate
-                                {
-                                    LecturerCode = l.LecturerCode,
-                                    Tags = lecturerTagMap.TryGetValue(l.LecturerCode, out var tags)
-                                        ? tags
-                                        : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                                    Workload = runtimeWorkloadMap.TryGetValue(l.LecturerCode, out var load) ? load : 0,
-                                    ConsecutiveCommitteeAssignments = runtimeConsecutiveCommitteeMap.TryGetValue(l.LecturerCode, out var streak) ? streak : 0
-                                })
-                                .ToList(),
-                            heuristicTargetTags,
-                            request.Strategy?.HeuristicWeights)
-                        .Select(x => x.LecturerCode)
-                        .ToList();
-
-                    var rankedLecturerCodes = new List<string> { chairLecturerCode };
-                    rankedLecturerCodes.AddRange(remainingLecturerCodes.Take(Math.Max(0, membersPerCouncil - 1)));
+                    var rosterLecturerSet = currentRosterLecturerCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                     var availableLecturers = lecturers
-                        .Where(x => rankedLecturerCodes.Contains(x.LecturerCode, StringComparer.OrdinalIgnoreCase))
-                        .OrderBy(x => rankedLecturerCodes.FindIndex(code => string.Equals(code, x.LecturerCode, StringComparison.OrdinalIgnoreCase)))
+                        .Where(x => rosterLecturerSet.Contains(x.LecturerCode))
+                        .OrderBy(x => currentRosterLecturerCodes.FindIndex(code => string.Equals(code, x.LecturerCode, StringComparison.OrdinalIgnoreCase)))
                         .ToList();
 
                     var selectedLecturerTags = NormalizeTagCodes(
@@ -1293,7 +1339,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     throw new BusinessRuleException("Cần xác nhận cấu hình hội đồng (UC 2.1) trước khi tạo hội đồng.");
                 }
 
-                await ValidateCouncilPayloadAsync(periodId, config, request, cancellationToken);
+                await ValidateCouncilPayloadAsync(periodId, null, config, request, cancellationToken);
                 EnsureCouncilDateWithinPeriod(period, period.StartDate.Date);
                 var normalizedRoom = await EnsureRoomCodeExistsAsync(request.Room, cancellationToken, "UC2.3.ROOM_NOT_FOUND");
                 await EnsureRoomDateSlotAvailableAsync(periodId, normalizedRoom, period.StartDate.Date, null, cancellationToken, "UC2.3.ROOM_DATE_CONFLICT");
@@ -1376,7 +1422,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     throw new BusinessRuleException("Hội đồng không thuộc đợt đồ án tốt nghiệp này.");
                 }
 
-                await ValidateCouncilPayloadAsync(periodId, config, request, cancellationToken);
+                await ValidateCouncilPayloadAsync(periodId, councilId, config, request, cancellationToken);
 
                 var committee = await _db.Committees.FirstOrDefaultAsync(x => x.CommitteeID == councilId, cancellationToken);
                 if (committee == null)
@@ -1837,6 +1883,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     .Select(x => x.TopicCode.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                await EnsureTopicsNotAssignedElsewhereAsync(
+                    periodId,
+                    councilId,
+                    requestedTopicCodes,
+                    cancellationToken);
                 var removedTopicCodes = existingAssignments
                     .Where(x => !string.IsNullOrWhiteSpace(x.TopicCode) && !requestedTopicCodes.Contains(x.TopicCode!))
                     .Select(x => x.TopicCode!)
@@ -2168,7 +2219,9 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     throw new BusinessRuleException("Không được gán trùng đề tài trong cùng hội đồng.", "UC2.3.DUPLICATE_TOPIC", new { TopicCode = normalizedTopicCode });
                 }
 
-                var topicsPerSession = NormalizeTopicsPerSession(config.CouncilConfig.TopicsPerSessionConfig);
+                var topicsPerSession = session == 2
+                    ? ResolveAfternoonTopicsPerSession(config.CouncilConfig)
+                    : ResolveMorningTopicsPerSession(config.CouncilConfig);
                 if (assignments.Count(x => x.Session == session) >= topicsPerSession)
                 {
                     throw new BusinessRuleException($"Mỗi buổi chỉ cho phép tối đa {topicsPerSession} đề tài.", "UC2.3.INVALID_TOPIC_COUNT_SESSION");
@@ -2212,6 +2265,12 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 {
                     throw new BusinessRuleException("Vi phạm ràng buộc GVHD không được nằm trong hội đồng của SV mình hướng dẫn.", "UC2.3.SUPERVISOR_CONFLICT");
                 }
+
+                await EnsureTopicsNotAssignedElsewhereAsync(
+                    periodId,
+                    councilId,
+                    new[] { normalizedTopicCode },
+                    cancellationToken);
 
                 var usedOrderIndexes = assignments
                     .Where(x => x.Session == session && x.OrderIndex.HasValue && x.OrderIndex.Value > 0)
@@ -2333,7 +2392,9 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     .Where(x => x.CommitteeID == councilId && x.AssignmentID != assignmentId)
                     .ToListAsync(cancellationToken);
 
-                var topicsPerSession = NormalizeTopicsPerSession(config.CouncilConfig.TopicsPerSessionConfig);
+                var topicsPerSession = session == 2
+                    ? ResolveAfternoonTopicsPerSession(config.CouncilConfig)
+                    : ResolveMorningTopicsPerSession(config.CouncilConfig);
                 var sessionCount = siblingAssignments.Count(x => x.Session == session);
                 if (sessionCount >= topicsPerSession)
                 {
@@ -3271,6 +3332,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 period.LastUpdated = DateTime.UtcNow;
                 _uow.DefenseTerms.Update(period);
                 await _uow.SaveChangesAsync();
+
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "DefensePeriod",
+                    entityId: periodId.ToString(),
+                    actionType: "UPDATE",
+                    actionDescription: $"Tạm dừng đợt đồ án tốt nghiệp {period.TermCode} - {period.Description}",
+                    actorUserId: actorUserId,
+                    module: "Defense",
+                    status: "SUCCESS",
+                    relatedRecordCode: period.TermCode,
+                    cancellationToken: cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
 
                 await AddAuditSnapshotAsync("PAUSE", "SUCCESS", new { period.Status }, new { Status = "Paused" }, new { PeriodId = periodId }, actorUserId, cancellationToken);
@@ -3305,6 +3378,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 period.LastUpdated = DateTime.UtcNow;
                 _uow.DefenseTerms.Update(period);
                 await _uow.SaveChangesAsync();
+
+                await _systemActivityLogger.WriteLogAsync(
+                    entityName: "DefensePeriod",
+                    entityId: periodId.ToString(),
+                    actionType: "UPDATE",
+                    actionDescription: $"Tiếp tục đợt đồ án tốt nghiệp {period.TermCode} - {period.Description}",
+                    actorUserId: actorUserId,
+                    module: "Defense",
+                    status: "SUCCESS",
+                    relatedRecordCode: period.TermCode,
+                    cancellationToken: cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
 
                 await AddAuditSnapshotAsync("RESUME", "SUCCESS", new { period.Status }, new { Status = "Running" }, new { PeriodId = periodId }, actorUserId, cancellationToken);
@@ -3790,6 +3875,54 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             }
 
             await SaveIdempotencyResponseAsync("OPEN_SESSION", committeeId, idempotencyKey, requestHash, response, cancellationToken);
+            return response;
+        }
+
+        public async Task<ApiResponse<bool>> PauseSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+        {
+            var requestHash = ComputeRequestHash("UC3.PAUSE_SESSION", committeeId, lecturerCode);
+            var replay = await TryReplayResponseAsync<bool>("PAUSE_SESSION", committeeId, idempotencyKey, requestHash, cancellationToken);
+            if (replay != null)
+            {
+                return replay;
+            }
+
+            ApiResponse<bool> response;
+            try
+            {
+                await _scoreWorkflowService.PauseSessionAsync(committeeId, lecturerCode, actorUserId, reason, isAdmin, cancellationToken);
+                response = ApiResponse<bool>.SuccessResponse(true);
+            }
+            catch (BusinessRuleException ex)
+            {
+                response = Fail<bool>(ex.Message, 400, ResolveUcCode(ex.Code, "UC3.4"), ex.Details);
+            }
+
+            await SaveIdempotencyResponseAsync("PAUSE_SESSION", committeeId, idempotencyKey, requestHash, response, cancellationToken);
+            return response;
+        }
+
+        public async Task<ApiResponse<bool>> ResumeSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+        {
+            var requestHash = ComputeRequestHash("UC3.RESUME_SESSION", committeeId, lecturerCode);
+            var replay = await TryReplayResponseAsync<bool>("RESUME_SESSION", committeeId, idempotencyKey, requestHash, cancellationToken);
+            if (replay != null)
+            {
+                return replay;
+            }
+
+            ApiResponse<bool> response;
+            try
+            {
+                await _scoreWorkflowService.ResumeSessionAsync(committeeId, lecturerCode, actorUserId, reason, isAdmin, cancellationToken);
+                response = ApiResponse<bool>.SuccessResponse(true);
+            }
+            catch (BusinessRuleException ex)
+            {
+                response = Fail<bool>(ex.Message, 400, ResolveUcCode(ex.Code, "UC3.4"), ex.Details);
+            }
+
+            await SaveIdempotencyResponseAsync("RESUME_SESSION", committeeId, idempotencyKey, requestHash, response, cancellationToken);
             return response;
         }
 
@@ -4293,6 +4426,63 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 });
         }
 
+        private async Task EnsureTopicsNotAssignedElsewhereAsync(
+            int periodId,
+            int currentCommitteeId,
+            IReadOnlyCollection<string> topicCodes,
+            CancellationToken cancellationToken)
+        {
+            var normalizedTopicCodes = topicCodes
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (normalizedTopicCodes.Count == 0)
+            {
+                return;
+            }
+
+            var duplicateTopicConflicts = await _db.DefenseAssignments.AsNoTracking()
+                .Where(x => x.DefenseTermId == periodId
+                    && x.CommitteeID.HasValue
+                    && x.CommitteeID.Value != currentCommitteeId
+                    && x.TopicCode != null
+                    && normalizedTopicCodes.Contains(x.TopicCode))
+                .Join(
+                    _db.Committees.AsNoTracking(),
+                    assignment => assignment.CommitteeID!.Value,
+                    committee => committee.CommitteeID,
+                    (assignment, committee) => new
+                    {
+                        assignment.TopicCode,
+                        committee.CommitteeID,
+                        committee.CommitteeCode,
+                        committee.DefenseDate
+                    })
+                .ToListAsync(cancellationToken);
+
+            if (duplicateTopicConflicts.Count == 0)
+            {
+                return;
+            }
+
+            throw new BusinessRuleException(
+                "Không được chọn đề tài đã tồn tại ở hội đồng khác.",
+                "UC2.3.TOPIC_ALREADY_ASSIGNED",
+                new
+                {
+                    TopicCodes = duplicateTopicConflicts
+                        .Select(x => x.TopicCode)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
+                    Councils = duplicateTopicConflicts
+                        .Select(x => string.IsNullOrWhiteSpace(x.CommitteeCode) ? $"ID-{x.CommitteeID}" : x.CommitteeCode)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList()
+                });
+        }
+
         private async Task SaveCouncilAssignmentsAsync(Committee committee, List<CouncilAssignmentInputDto> assignments, DateTime now, CancellationToken cancellationToken)
         {
             var normalizedAssignments = assignments
@@ -4539,19 +4729,20 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             _db.Entry(topicStub).Property(x => x.LastUpdated).IsModified = true;
         }
 
-        private async Task ValidateCouncilPayloadAsync(int periodId, DefensePeriodConfigState config, CouncilUpsertDto request, CancellationToken cancellationToken)
+        private async Task ValidateCouncilPayloadAsync(int periodId, int? currentCommitteeId, DefensePeriodConfigState config, CouncilUpsertDto request, CancellationToken cancellationToken)
         {
-            var topicsPerSession = NormalizeTopicsPerSession(config.CouncilConfig.TopicsPerSessionConfig);
+            var morningTopicsPerSession = ResolveMorningTopicsPerSession(config.CouncilConfig);
+            var afternoonTopicsPerSession = ResolveAfternoonTopicsPerSession(config.CouncilConfig);
             var membersPerCouncil = NormalizeMembersPerCouncil(config.CouncilConfig.MembersPerCouncilConfig);
 
-            if (request.MorningStudentCodes.Count != topicsPerSession)
+            if (request.MorningStudentCodes.Count != morningTopicsPerSession)
             {
-                throw new BusinessRuleException($"Mỗi hội đồng phải có đúng {topicsPerSession} sinh viên buổi sáng.", "UC2.3.INVALID_TOPIC_COUNT_SESSION");
+                throw new BusinessRuleException($"Mỗi hội đồng phải có đúng {morningTopicsPerSession} sinh viên buổi sáng.", "UC2.3.INVALID_TOPIC_COUNT_SESSION");
             }
 
-            if (request.AfternoonStudentCodes.Count != topicsPerSession)
+            if (request.AfternoonStudentCodes.Count != afternoonTopicsPerSession)
             {
-                throw new BusinessRuleException($"Mỗi hội đồng phải có đúng {topicsPerSession} sinh viên buổi chiều.", "UC2.3.INVALID_TOPIC_COUNT_SESSION");
+                throw new BusinessRuleException($"Mỗi hội đồng phải có đúng {afternoonTopicsPerSession} sinh viên buổi chiều.", "UC2.3.INVALID_TOPIC_COUNT_SESSION");
             }
 
             if (request.Members.Count != membersPerCouncil)
@@ -4600,7 +4791,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(x => x.Trim())
                 .ToList();
-            var expectedTotalTopics = topicsPerSession * 2;
+            var expectedTotalTopics = morningTopicsPerSession + afternoonTopicsPerSession;
 
             if (students.Count != expectedTotalTopics)
             {
@@ -4610,6 +4801,43 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             if (students.Distinct(StringComparer.OrdinalIgnoreCase).Count() != expectedTotalTopics)
             {
                 throw new BusinessRuleException("Không được trùng sinh viên giữa 2 buổi.");
+            }
+
+            var duplicateTopicConflicts = await _db.DefenseAssignments.AsNoTracking()
+                .Where(x => x.DefenseTermId == periodId
+                    && x.CommitteeID.HasValue
+                    && (!currentCommitteeId.HasValue || x.CommitteeID.Value != currentCommitteeId.Value)
+                    && x.TopicCode != null
+                    && students.Contains(x.TopicCode))
+                .Join(
+                    _db.Committees.AsNoTracking(),
+                    assignment => assignment.CommitteeID!.Value,
+                    committee => committee.CommitteeID,
+                    (assignment, committee) => new
+                    {
+                        assignment.TopicCode,
+                        committee.CommitteeID,
+                        committee.CommitteeCode,
+                        committee.DefenseDate
+                    })
+                .ToListAsync(cancellationToken);
+
+            if (duplicateTopicConflicts.Count > 0)
+            {
+                throw new BusinessRuleException(
+                    "Không được chọn đề tài đã tồn tại ở hội đồng khác.",
+                    "UC2.3.TOPIC_ALREADY_ASSIGNED",
+                    new
+                    {
+                        TopicCodes = duplicateTopicConflicts
+                            .Select(x => x.TopicCode)
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToList(),
+                        Councils = duplicateTopicConflicts
+                            .Select(x => string.IsNullOrWhiteSpace(x.CommitteeCode) ? $"ID-{x.CommitteeID}" : x.CommitteeCode)
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToList()
+                    });
             }
 
             var scopedStudentCodes = await _db.DefenseTermStudents.AsNoTracking()
@@ -6058,6 +6286,25 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
             return value;
         }
+
+        private static int ResolveMorningTopicsPerSession(ConfirmCouncilConfigDto config)
+        {
+            var candidate = config.MorningTopicsPerSessionConfig > 0
+                ? config.MorningTopicsPerSessionConfig
+                : config.TopicsPerSessionConfig;
+            return NormalizeTopicsPerSession(candidate);
+        }
+
+        private static int ResolveAfternoonTopicsPerSession(ConfirmCouncilConfigDto config)
+        {
+            var candidate = config.AfternoonTopicsPerSessionConfig > 0
+                ? config.AfternoonTopicsPerSessionConfig
+                : config.TopicsPerSessionConfig;
+            return NormalizeTopicsPerSession(candidate);
+        }
+
+        private static int ResolveTopicsPerCouncil(ConfirmCouncilConfigDto config)
+            => ResolveMorningTopicsPerSession(config) + ResolveAfternoonTopicsPerSession(config);
 
         private static List<string> BuildRolePlan(int membersPerCouncil)
         {

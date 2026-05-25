@@ -935,7 +935,7 @@ namespace ThesisManagement.Api.Helpers
                 // Defense: công bố lịch, nhập điểm, khóa điểm, mở/đóng phiên, tạo yêu cầu hậu bảo vệ, phê duyệt/từ chối hồ sơ, nộp hồ sơ
                 query = query.Where(x => 
                     (x.Module == "Committee" && (x.ActionType == "CREATE" || x.ActionType == "UPDATE" || x.ActionType == "DELETE")) ||
-                    (x.Module == "Defense" && (x.ActionType == "PUBLISH" || x.ActionType == "SUBMIT" || x.ActionType == "LOCK" || x.ActionType == "CREATE" || x.ActionType == "APPROVE" || x.ActionType == "REJECT" || x.ActionType == "UPDATE" || x.ActionType == "OPEN_SESSION" || x.ActionType == "CLOSE_SESSION"))
+                    (x.Module == "Defense" && (x.ActionType == "PUBLISH" || x.ActionType == "SUBMIT" || x.ActionType == "LOCK" || x.ActionType == "CREATE" || x.ActionType == "APPROVE" || x.ActionType == "REJECT" || x.ActionType == "UPDATE" || x.ActionType == "OPEN_SESSION" || x.ActionType == "CLOSE_SESSION" || x.ActionType == "PAUSE_SESSION" || x.ActionType == "RESUME_SESSION"))
                 );
             }
 

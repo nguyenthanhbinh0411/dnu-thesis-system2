@@ -403,4 +403,166 @@ public class DefensePeriodEndToEndFlowTests
             _ => "Chưa xác định"
         };
     }
+
+    [Fact]
+    public async Task CreateCouncil_OneSession_ShouldWorkSuccessfully()
+    {
+        await using var db = CreateDbContext();
+        var uow = new UnitOfWork(db);
+
+        SeedPeriodAndMasterData(db);
+
+        var (processor, _) = BuildProcessor(db, uow);
+
+        // 1. Confirm configuration first
+        var confirmConfigResult = await processor.ConfirmCouncilConfigAsync(1, new ConfirmCouncilConfigDto
+        {
+            TopicsPerSessionConfig = 3,
+            MembersPerCouncilConfig = 3,
+            Tags = new List<string>()
+        }, actorUserId: 1001);
+        Assert.True(confirmConfigResult.Success);
+
+        // 2. Create council step 1 (Basic Info)
+        var createResult = await processor.CreateCouncilStep1Async(1, new CouncilWorkflowStep1Dto
+        {
+            Name = "Hội đồng 1 buổi test",
+            DefenseDate = DateTime.UtcNow.Date,
+            Room = "R101",
+            CouncilTags = new List<string>()
+        }, actorUserId: 1001);
+
+        Assert.True(createResult.Success, createResult.Message);
+        Assert.NotNull(createResult.Data);
+        var councilId = createResult.Data!.Id;
+        var concurrencyToken = createResult.Data.ConcurrencyToken;
+
+        // 3. Save members (Step 2)
+        var saveMembersResult = await processor.SaveCouncilMembersStepAsync(1, councilId, new CouncilWorkflowStep2Dto
+        {
+            ConcurrencyToken = concurrencyToken,
+            Members = new List<CouncilMemberInputDto>
+            {
+                new() { LecturerCode = "L001", Role = "CT" },
+                new() { LecturerCode = "L002", Role = "UVTK" },
+                new() { LecturerCode = "L003", Role = "UVPB" }
+            }
+        }, actorUserId: 1001);
+
+        Assert.True(saveMembersResult.Success);
+        concurrencyToken = saveMembersResult.Data!.ConcurrencyToken;
+
+        // 4. Save assignments for Morning (1 buổi) - 3 topics
+        var saveAssignmentsResult = await processor.SaveCouncilTopicsStepAsync(1, councilId, new CouncilWorkflowStep3Dto
+        {
+            ConcurrencyToken = concurrencyToken,
+            Assignments = new List<CouncilAssignmentInputDto>
+            {
+                new() { TopicCode = "T001", SessionCode = "MORNING", StartTime = "07:30", EndTime = "08:30", OrderIndex = 1 },
+                new() { TopicCode = "T002", SessionCode = "MORNING", StartTime = "08:30", EndTime = "09:30", OrderIndex = 2 },
+                new() { TopicCode = "T003", SessionCode = "MORNING", StartTime = "09:30", EndTime = "10:30", OrderIndex = 3 }
+            }
+        }, actorUserId: 1001);
+
+        Assert.True(saveAssignmentsResult.Success, saveAssignmentsResult.Message);
+        Assert.NotNull(saveAssignmentsResult.Data);
+        
+        // Verify assignments
+        var assignments = saveAssignmentsResult.Data!.Assignments;
+        Assert.Equal(3, assignments.Count);
+        Assert.All(assignments, a => Assert.Equal("MORNING", a.SessionCode));
+    }
+
+    [Fact]
+    public async Task SaveCouncilTopicsStepAsync_ShouldRejectTopicAlreadyAssignedToAnotherCouncil()
+    {
+        await using var db = CreateDbContext();
+        var uow = new UnitOfWork(db);
+
+        SeedPeriodAndMasterData(db);
+
+        var (processor, _) = BuildProcessor(db, uow);
+
+        var confirmConfigResult = await processor.ConfirmCouncilConfigAsync(1, new ConfirmCouncilConfigDto
+        {
+            TopicsPerSessionConfig = 3,
+            MembersPerCouncilConfig = 3,
+            Tags = new List<string>()
+        }, actorUserId: 1001);
+        Assert.True(confirmConfigResult.Success, confirmConfigResult.Message ?? "Confirm config failed");
+
+        var firstCouncilResult = await processor.CreateCouncilStep1Async(1, new CouncilWorkflowStep1Dto
+        {
+            Name = "Hội đồng A",
+            DefenseDate = DateTime.UtcNow.Date,
+            Room = "R101",
+            CouncilTags = new List<string>()
+        }, actorUserId: 1001);
+        Assert.True(firstCouncilResult.Success, firstCouncilResult.Message ?? "Create council A failed");
+
+        var firstCouncilId = firstCouncilResult.Data!.Id;
+        var firstToken = firstCouncilResult.Data.ConcurrencyToken;
+
+        var firstMembersResult = await processor.SaveCouncilMembersStepAsync(1, firstCouncilId, new CouncilWorkflowStep2Dto
+        {
+            ConcurrencyToken = firstToken,
+            Members = new List<CouncilMemberInputDto>
+            {
+                new() { LecturerCode = "L001", Role = "CT" },
+                new() { LecturerCode = "L002", Role = "UVTK" },
+                new() { LecturerCode = "L003", Role = "UVPB" }
+            }
+        }, actorUserId: 1001);
+        Assert.True(firstMembersResult.Success, firstMembersResult.Message ?? "Save members A failed");
+
+        var firstTopicsResult = await processor.SaveCouncilTopicsStepAsync(1, firstCouncilId, new CouncilWorkflowStep3Dto
+        {
+            ConcurrencyToken = firstMembersResult.Data!.ConcurrencyToken,
+            Assignments = new List<CouncilAssignmentInputDto>
+            {
+                new() { TopicCode = "T001", SessionCode = "MORNING", StartTime = "07:30", EndTime = "08:30", OrderIndex = 1 },
+                new() { TopicCode = "T002", SessionCode = "MORNING", StartTime = "08:30", EndTime = "09:30", OrderIndex = 2 },
+                new() { TopicCode = "T003", SessionCode = "MORNING", StartTime = "09:30", EndTime = "10:30", OrderIndex = 3 }
+            }
+        }, actorUserId: 1001);
+        Assert.True(firstTopicsResult.Success, firstTopicsResult.Message ?? "Save topics A failed");
+
+        var secondCouncilResult = await processor.CreateCouncilStep1Async(1, new CouncilWorkflowStep1Dto
+        {
+            Name = "Hội đồng B",
+            DefenseDate = DateTime.UtcNow.Date.AddDays(1),
+            Room = "R101",
+            CouncilTags = new List<string>()
+        }, actorUserId: 1001);
+        Assert.True(secondCouncilResult.Success, secondCouncilResult.Message ?? "Create council B failed");
+
+        var secondCouncilId = secondCouncilResult.Data!.Id;
+        var secondToken = secondCouncilResult.Data.ConcurrencyToken;
+
+        var secondMembersResult = await processor.SaveCouncilMembersStepAsync(1, secondCouncilId, new CouncilWorkflowStep2Dto
+        {
+            ConcurrencyToken = secondToken,
+            Members = new List<CouncilMemberInputDto>
+            {
+                new() { LecturerCode = "L001", Role = "CT" },
+                new() { LecturerCode = "L002", Role = "UVTK" },
+                new() { LecturerCode = "L004", Role = "UVPB" }
+            }
+        }, actorUserId: 1001);
+        Assert.True(secondMembersResult.Success, secondMembersResult.Message ?? "Save members B failed");
+
+        var secondTopicsResult = await processor.SaveCouncilTopicsStepAsync(1, secondCouncilId, new CouncilWorkflowStep3Dto
+        {
+            ConcurrencyToken = secondMembersResult.Data!.ConcurrencyToken,
+            Assignments = new List<CouncilAssignmentInputDto>
+            {
+                new() { TopicCode = "T001", SessionCode = "MORNING", StartTime = "07:30", EndTime = "08:30", OrderIndex = 1 },
+                new() { TopicCode = "T004", SessionCode = "MORNING", StartTime = "08:30", EndTime = "09:30", OrderIndex = 2 },
+                new() { TopicCode = "T005", SessionCode = "MORNING", StartTime = "09:30", EndTime = "10:30", OrderIndex = 3 }
+            }
+        }, actorUserId: 1001);
+
+        Assert.False(secondTopicsResult.Success);
+        Assert.Contains("không được chọn đề tài đã tồn tại ở hội đồng khác", secondTopicsResult.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }

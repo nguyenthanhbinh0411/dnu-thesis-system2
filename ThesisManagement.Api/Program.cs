@@ -532,6 +532,8 @@ builder.Services.AddScoped<IPublishDefensePeriodScoresCommand, PublishDefensePer
 builder.Services.AddScoped<ISaveLecturerMinuteCommand, SaveLecturerMinuteCommand>();
 builder.Services.AddScoped<ISubmitLecturerIndependentScoreCommand, SubmitLecturerIndependentScoreCommand>();
 builder.Services.AddScoped<IOpenLecturerSessionCommand, OpenLecturerSessionCommand>();
+builder.Services.AddScoped<IPauseLecturerSessionCommand, PauseLecturerSessionCommand>();
+builder.Services.AddScoped<IResumeLecturerSessionCommand, ResumeLecturerSessionCommand>();
 builder.Services.AddScoped<ILockLecturerSessionCommand, LockLecturerSessionCommand>();
 builder.Services.AddScoped<ICloseLecturerSessionCommand, CloseLecturerSessionCommand>();
 builder.Services.AddScoped<IApproveRevisionByLecturerCommand, ApproveRevisionByLecturerCommand>();

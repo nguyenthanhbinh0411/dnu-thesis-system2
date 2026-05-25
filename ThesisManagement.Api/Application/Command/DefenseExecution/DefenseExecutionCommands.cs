@@ -25,6 +25,16 @@ namespace ThesisManagement.Api.Application.Command.DefenseExecution
         Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
     }
 
+    public interface IPauseLecturerSessionCommand
+    {
+        Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
+    }
+
+    public interface IResumeLecturerSessionCommand
+    {
+        Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
+    }
+
     public interface ILockLecturerSessionCommand
     {
         Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default);
@@ -80,6 +90,22 @@ namespace ThesisManagement.Api.Application.Command.DefenseExecution
         public OpenLecturerSessionCommand(IDefensePeriodCommandProcessor processor) => _processor = processor;
         public Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default)
             => _processor.OpenSessionAsync(committeeId, lecturerCode, actorUserId, reason, isAdmin, idempotencyKey, cancellationToken);
+    }
+
+    public class PauseLecturerSessionCommand : IPauseLecturerSessionCommand
+    {
+        private readonly IDefensePeriodCommandProcessor _processor;
+        public PauseLecturerSessionCommand(IDefensePeriodCommandProcessor processor) => _processor = processor;
+        public Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+            => _processor.PauseSessionAsync(committeeId, lecturerCode, actorUserId, reason, isAdmin, idempotencyKey, cancellationToken);
+    }
+
+    public class ResumeLecturerSessionCommand : IResumeLecturerSessionCommand
+    {
+        private readonly IDefensePeriodCommandProcessor _processor;
+        public ResumeLecturerSessionCommand(IDefensePeriodCommandProcessor processor) => _processor = processor;
+        public Task<ApiResponse<bool>> ExecuteAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+            => _processor.ResumeSessionAsync(committeeId, lecturerCode, actorUserId, reason, isAdmin, idempotencyKey, cancellationToken);
     }
 
     public class LockLecturerSessionCommand : ILockLecturerSessionCommand

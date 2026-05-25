@@ -43,6 +43,7 @@ import {
   Package,
   Paperclip,
   Pencil,
+  PauseCircle,
   PieChart,
   Plus,
   Printer,
@@ -54,6 +55,7 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  PlayCircle,
   Star,
   Table,
   Trash2,
@@ -86,6 +88,7 @@ import {
 } from "../../utils/defensePeriod";
 type RevisionStatus = "all" | "pending" | "approved" | "rejected";
 type LifecycleAction = "PUBLISH" | "ROLLBACK" | "ARCHIVE" | "REOPEN";
+type CommitteeSessionAction = "PAUSE_SESSION" | "RESUME_SESSION";
 type ReportType = "council-summary" | "scoreboard" | "minutes" | "review" | "form-1" | "final-term" | "sync-errors";
 type ReportFormat = "csv" | "pdf" | "excel" | "word" | "zip";
 type OperationsPanelKey =
@@ -482,6 +485,8 @@ const statusToneMap: Record<string, ToneStyle> = {
   LOCKED: { bg: "#fee2e2", border: "none", text: "#991b1b" },
   IN_PROGRESS: { bg: "#eff6ff", border: "none", text: "#1d4ed8" },
   ONGOING: { bg: "#eff6ff", border: "none", text: "#1d4ed8" },
+  PAUSED: { bg: "#fffbeb", border: "none", text: "#b45309" },
+  TAM_DUNG: { bg: "#fffbeb", border: "none", text: "#b45309" },
   FINALIZED: { bg: "#f5f3ff", border: "none", text: "#6d28d9" },
   // Active primary state
   READY: { bg: DEEP_BLUE_PRIMARY, border: "none", text: "#ffffff" },
@@ -506,6 +511,8 @@ const statusLabelMap: Record<string, string> = {
   LOCKED: "Đã khóa",
   IN_PROGRESS: "Đang xử lý",
   ONGOING: "Đang diễn ra",
+  PAUSED: "Tạm dừng",
+  TAM_DUNG: "Tạm dừng",
   COMPLETED: "Đã hoàn thành",
   DELAYED: "Đang trễ",
   DRAFT: "Nháp",
@@ -2438,19 +2445,16 @@ const CommitteeOperationsManagement: React.FC = () => {
           return;
         }
 
-        let response: ApiResponse<Record<string, unknown>>;
-
         const committeeId =
-          selectedCommitteeRows.find((row) => Number.isFinite(Number(row.committeeId)))?.committeeId ??
-          selectedCommitteeRows[0]?.committeeId ??
-          selectedCouncilNumericId ??
-          null;
+          Number.isFinite(Number(committee.committeeId))
+            ? committee.committeeId
+            : selectedCouncilNumericId ?? null;
         if (!committeeId) {
-            notifyError("Không thể lấy ID hội đồng.");
-            return;
+          notifyError("Không thể lấy ID hội đồng.");
+          return;
         }
 
-        response = await fetchData<ApiResponse<Record<string, unknown>>>(
+        const response = await fetchData<ApiResponse<Record<string, unknown>>>(
           action === "ADMIN_UNLOCK"
             ? `/api/LecturerDefense/admin/unlock-session`
             : `/api/LecturerDefense/admin/reopen-session`,
@@ -2460,7 +2464,7 @@ const CommitteeOperationsManagement: React.FC = () => {
               committeeId,
               reason,
             },
-          }
+          },
         );
 
         const parsed = parseEnvelope(response, `Không thể thực hiện ${action}.`);
@@ -2489,7 +2493,104 @@ const CommitteeOperationsManagement: React.FC = () => {
         setActionInFlight(null);
       }
     },
-    [loadOperationsSnapshot, notifyError, notifySuccess, notifyWarning, parseEnvelope, periodId],
+    [
+      periodId,
+      notifyWarning,
+      notifyError,
+      notifySuccess,
+      selectedCouncilNumericId,
+      loadOperationsSnapshot,
+      parseEnvelope,
+    ],
+  );
+
+  const submitCommitteeSessionAction = useCallback(
+    async (action: CommitteeSessionAction, committee: CommitteeSummary | null) => {
+      if (!periodId) {
+        notifyWarning("Chưa có đợt bảo vệ hiện hành. Vui lòng tạo đợt tại module Quản lý đợt.");
+        return;
+      }
+      if (!committee) {
+        notifyWarning("Chưa chọn hội đồng để thao tác.");
+        return;
+      }
+
+      const actionLabel = action === "PAUSE_SESSION" ? "Tạm dừng phiên" : "Tiếp tục phiên";
+      const actionKey = `COMMITTEE-${committee.code}-${action}`;
+      setActionInFlight(actionKey);
+
+      try {
+        const reason = window.prompt(
+          action === "PAUSE_SESSION" ? `Nhập lý do tạm dừng phiên hội đồng ${committee.code}:` : `Nhập lý do tiếp tục phiên hội đồng ${committee.code}:`,
+          action === "PAUSE_SESSION" ? "Nghỉ giữa buổi" : "Tiếp tục xử lý buổi chiều",
+        )?.trim();
+
+        if (!reason) {
+          notifyWarning("Cần nhập lý do thực hiện.");
+          return;
+        }
+
+        const committeeId =
+          Number.isFinite(Number(committee.committeeId))
+            ? committee.committeeId
+            : selectedCouncilNumericId ?? null;
+        if (!committeeId) {
+          notifyError("Không thể lấy ID hội đồng.");
+          return;
+        }
+
+        const idempotencyKey = buildIdempotencyKey(action);
+        const response = await fetchData<ApiResponse<Record<string, unknown>>>(
+          `${defensePeriodBase}/lecturer/scoring/actions`,
+          {
+            method: "POST",
+            body: {
+              action,
+              committeeId,
+              reason,
+              idempotencyKey,
+            },
+            headers: { "Idempotency-Key": idempotencyKey },
+          },
+        );
+
+        const parsed = parseEnvelope(response, `Không thể thực hiện ${actionLabel}.`);
+        if (!parsed.ok) {
+          throw new Error("Committee session action failed");
+        }
+
+        notifySuccess(`${actionLabel} hội đồng ${committee.code} thành công.`);
+        await loadOperationsSnapshot();
+      } catch (error) {
+        const errorMessage = error instanceof FetchDataError
+          ? (() => {
+              const serverData = error.data as
+                | { message?: string; Message?: string; errors?: Record<string, string[]>; Errors?: Record<string, string[]> }
+                | undefined;
+              return (
+                serverData?.message ||
+                serverData?.Message ||
+                Object.values(serverData?.errors ?? serverData?.Errors ?? {})[0]?.[0] ||
+                error.message
+              );
+            })()
+          : "Không thể cập nhật trạng thái phiên hội đồng.";
+        notifyError(errorMessage);
+      } finally {
+        setActionInFlight(null);
+      }
+    },
+    [
+      periodId,
+      defensePeriodBase,
+      notifyWarning,
+      notifyError,
+      notifySuccess,
+      selectedCouncilNumericId,
+      buildIdempotencyKey,
+      loadOperationsSnapshot,
+      parseEnvelope,
+    ],
   );
 
   const handleTopicExport = (format: ReportFormat, row: ScoringMatrixRow) => {
@@ -2860,6 +2961,26 @@ const CommitteeOperationsManagement: React.FC = () => {
       return {
         action: "ADMIN_UNLOCK" as const,
         label: "Mở chốt điểm",
+      };
+    }
+
+    return null;
+  }, [selectedCommittee?.status]);
+
+  const selectedCommitteeSessionAction = useMemo(() => {
+    const normalizedStatus = normalizeStatusKey(selectedCommittee?.status ?? "");
+
+    if (normalizedStatus === "PAUSED" || normalizedStatus === "TAM_DUNG") {
+      return {
+        action: "RESUME_SESSION" as const,
+        label: "Tiếp tục phiên",
+      };
+    }
+
+    if (normalizedStatus === "ONGOING" || normalizedStatus === "IN_PROGRESS") {
+      return {
+        action: "PAUSE_SESSION" as const,
+        label: "Tạm dừng phiên",
       };
     }
 
@@ -4834,6 +4955,28 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                         boxShadow: "0 10px 15px -3px rgba(30, 58, 95, 0.2)"
                       }}
                     >{selectedCommitteeAdminAction.label}</button>
+                  )}
+                  {selectedCommitteeSessionAction && (
+                    <button
+                      onClick={() => void submitCommitteeSessionAction(selectedCommitteeSessionAction.action, selectedCommittee)}
+                      style={{
+                        background: selectedCommitteeSessionAction.action === "PAUSE_SESSION" ? "#fee2e2" : "#dcfce7",
+                        color: "#0f172a",
+                        border: "1px solid rgba(15, 23, 42, 0.08)",
+                        padding: "12px 24px",
+                        borderRadius: 14,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        boxShadow: "0 10px 15px -3px rgba(15, 23, 42, 0.08)"
+                      }}
+                    >
+                      {selectedCommitteeSessionAction.action === "PAUSE_SESSION" ? <PauseCircle size={18} /> : <PlayCircle size={18} />}
+                      {selectedCommitteeSessionAction.label}
+                    </button>
                   )}
                 </div>
               </div>

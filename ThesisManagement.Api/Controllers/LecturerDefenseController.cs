@@ -26,6 +26,8 @@ namespace ThesisManagement.Api.Controllers
         private readonly ISaveLecturerMinuteCommand _saveMinuteCommand;
         private readonly ISubmitLecturerIndependentScoreCommand _submitScoreCommand;
         private readonly IOpenLecturerSessionCommand _openSessionCommand;
+        private readonly IPauseLecturerSessionCommand _pauseSessionCommand;
+        private readonly IResumeLecturerSessionCommand _resumeSessionCommand;
         private readonly ILockLecturerSessionCommand _lockSessionCommand;
         private readonly ICloseLecturerSessionCommand _closeSessionCommand;
         private readonly IGetLecturerRevisionQueueQuery _revisionQueueQuery;
@@ -51,6 +53,8 @@ namespace ThesisManagement.Api.Controllers
             ISaveLecturerMinuteCommand saveMinuteCommand,
             ISubmitLecturerIndependentScoreCommand submitScoreCommand,
             IOpenLecturerSessionCommand openSessionCommand,
+            IPauseLecturerSessionCommand pauseSessionCommand,
+            IResumeLecturerSessionCommand resumeSessionCommand,
             ILockLecturerSessionCommand lockSessionCommand,
             ICloseLecturerSessionCommand closeSessionCommand,
             IGetLecturerRevisionQueueQuery revisionQueueQuery,
@@ -72,6 +76,8 @@ namespace ThesisManagement.Api.Controllers
             _saveMinuteCommand = saveMinuteCommand;
             _submitScoreCommand = submitScoreCommand;
             _openSessionCommand = openSessionCommand;
+            _pauseSessionCommand = pauseSessionCommand;
+            _resumeSessionCommand = resumeSessionCommand;
             _lockSessionCommand = lockSessionCommand;
             _closeSessionCommand = closeSessionCommand;
             _revisionQueueQuery = revisionQueueQuery;
@@ -793,7 +799,7 @@ namespace ThesisManagement.Api.Controllers
         }
 
         [HttpPost("scoring/actions")]
-        [Authorize(Roles = "Lecturer,Head,Secretary")]
+        [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
         public async Task<ActionResult<ApiResponse<object>>> HandleScoringAction(int periodId, [FromBody] LecturerScoringActionRequestDto request)
         {
             var action = (request.Action ?? string.Empty).Trim().ToUpperInvariant();
@@ -828,6 +834,20 @@ namespace ThesisManagement.Api.Controllers
                     action);
             }
 
+            if (action == "PAUSE_SESSION" || action == "PAUSE")
+            {
+                return WrapAsObject(
+                    await PauseSession(periodId, request.CommitteeId, request.Reason, request.IdempotencyKey),
+                    action);
+            }
+
+            if (action == "RESUME_SESSION" || action == "RESUME")
+            {
+                return WrapAsObject(
+                    await ResumeSession(periodId, request.CommitteeId, request.Reason, request.IdempotencyKey),
+                    action);
+            }
+
             if (action == "CLOSE_SESSION" || action == "CLOSE")
             {
                 return WrapAsObject(
@@ -835,7 +855,7 @@ namespace ThesisManagement.Api.Controllers
                     action);
             }
 
-            return BadRequest(ApiResponse<object>.Fail("Action không hợp lệ. Hỗ trợ: SUBMIT, OPEN_SESSION, LOCK_SESSION, CLOSE_SESSION.", 400));
+            return BadRequest(ApiResponse<object>.Fail("Action không hợp lệ. Hỗ trợ: SUBMIT, OPEN_SESSION, PAUSE_SESSION, RESUME_SESSION, LOCK_SESSION, CLOSE_SESSION.", 400));
         }
 
         [HttpPost("revisions/actions")]
@@ -1488,6 +1508,48 @@ namespace ThesisManagement.Api.Controllers
                 actorUserId: CurrentUserId,
                 reason: reason,
                 isAdmin: false,
+                idempotencyKey: idempotencyKey,
+                cancellationToken: HttpContext.RequestAborted);
+            return FromResult(result);
+        }
+
+        private async Task<ActionResult<ApiResponse<bool>>> PauseSession(int periodId, int id, string? reason, string? idempotencyKey = null)
+        {
+            var guard = await _getMinutesQuery.ExecuteAsync(id, periodId);
+            if (!guard.Success)
+            {
+                return StatusCode(guard.HttpStatusCode == 0 ? 400 : guard.HttpStatusCode, ApiResponse<bool>.Fail(guard.Message ?? "Không thể truy vấn biên bản hội đồng.", guard.HttpStatusCode == 0 ? 400 : guard.HttpStatusCode, guard.Errors, guard.Code));
+            }
+
+            var lecturerCode = GetRequestUserCode() ?? string.Empty;
+            var isAdmin = User.IsInRole("Admin") || User.IsInRole("Head");
+            var result = await _pauseSessionCommand.ExecuteAsync(
+                committeeId: id,
+                lecturerCode: lecturerCode,
+                actorUserId: CurrentUserId,
+                reason: reason,
+                isAdmin: isAdmin,
+                idempotencyKey: idempotencyKey,
+                cancellationToken: HttpContext.RequestAborted);
+            return FromResult(result);
+        }
+
+        private async Task<ActionResult<ApiResponse<bool>>> ResumeSession(int periodId, int id, string? reason, string? idempotencyKey = null)
+        {
+            var guard = await _getMinutesQuery.ExecuteAsync(id, periodId);
+            if (!guard.Success)
+            {
+                return StatusCode(guard.HttpStatusCode == 0 ? 400 : guard.HttpStatusCode, ApiResponse<bool>.Fail(guard.Message ?? "Không thể truy vấn biên bản hội đồng.", guard.HttpStatusCode == 0 ? 400 : guard.HttpStatusCode, guard.Errors, guard.Code));
+            }
+
+            var lecturerCode = GetRequestUserCode() ?? string.Empty;
+            var isAdmin = User.IsInRole("Admin") || User.IsInRole("Head");
+            var result = await _resumeSessionCommand.ExecuteAsync(
+                committeeId: id,
+                lecturerCode: lecturerCode,
+                actorUserId: CurrentUserId,
+                reason: reason,
+                isAdmin: isAdmin,
                 idempotencyKey: idempotencyKey,
                 cancellationToken: HttpContext.RequestAborted);
             return FromResult(result);

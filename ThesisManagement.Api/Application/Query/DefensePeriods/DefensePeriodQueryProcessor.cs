@@ -311,6 +311,8 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                 MorningStart = config.MorningStart,
                 AfternoonStart = config.AfternoonStart,
                 SoftMaxCapacity = config.SoftMaxCapacity,
+                MorningTopicsPerSessionConfig = config.CouncilConfig.MorningTopicsPerSessionConfig,
+                AfternoonTopicsPerSessionConfig = config.CouncilConfig.AfternoonTopicsPerSessionConfig,
                 TopicsPerSessionConfig = config.CouncilConfig.TopicsPerSessionConfig,
                 MembersPerCouncilConfig = config.CouncilConfig.MembersPerCouncilConfig,
                 Tags = config.CouncilConfig.Tags

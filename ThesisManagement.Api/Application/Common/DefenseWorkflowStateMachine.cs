@@ -9,7 +9,8 @@ namespace ThesisManagement.Api.Application.Common
         {
             { CommitteeStatus.Draft, new[] { CommitteeStatus.Ready } },
             { CommitteeStatus.Ready, new[] { CommitteeStatus.Ongoing } },
-            { CommitteeStatus.Ongoing, new[] { CommitteeStatus.Completed } },
+            { CommitteeStatus.Ongoing, new[] { CommitteeStatus.Completed, CommitteeStatus.Paused } },
+            { CommitteeStatus.Paused, new[] { CommitteeStatus.Ongoing } },
             { CommitteeStatus.Completed, new[] { CommitteeStatus.Finalized } },
             { CommitteeStatus.Finalized, new[] { CommitteeStatus.Published } },
             { CommitteeStatus.Published, Array.Empty<CommitteeStatus>() }

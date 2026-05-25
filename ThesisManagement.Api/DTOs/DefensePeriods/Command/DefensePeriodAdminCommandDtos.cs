@@ -49,7 +49,13 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
     public class ConfirmCouncilConfigDto
     {
         [Range(3, 7)]
-        public int TopicsPerSessionConfig { get; set; } = 3;
+        public int MorningTopicsPerSessionConfig { get; set; }
+
+        [Range(3, 7)]
+        public int AfternoonTopicsPerSessionConfig { get; set; }
+
+        [Range(0, 14)]
+        public int TopicsPerSessionConfig { get; set; }
 
         [Range(3, 7)]
         public int MembersPerCouncilConfig { get; set; } = 3;
@@ -94,6 +100,13 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
         public bool GroupByTag { get; set; } = true;
         [Range(1, 10)]
         public int MaxPerSession { get; set; } = 4;
+
+        [Range(1, 10)]
+        public int MorningTopicsPerSession { get; set; }
+
+        [Range(1, 10)]
+        public int AfternoonTopicsPerSession { get; set; }
+
         public bool PrioritizeMatchTag { get; set; } = true;
         public GenerateCouncilHeuristicWeightsDto? HeuristicWeights { get; set; }
     }

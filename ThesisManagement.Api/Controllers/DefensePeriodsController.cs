@@ -3790,6 +3790,12 @@ namespace ThesisManagement.Api.Controllers
                 AvailableRooms = availableRooms,
                 DefaultSelectedRooms = availableRooms,
                 SoftMaxCapacity = configResult.Data.SoftMaxCapacity,
+                MorningTopicsPerSession = configResult.Data.MorningTopicsPerSessionConfig > 0
+                    ? configResult.Data.MorningTopicsPerSessionConfig
+                    : configResult.Data.TopicsPerSessionConfig,
+                AfternoonTopicsPerSession = configResult.Data.AfternoonTopicsPerSessionConfig > 0
+                    ? configResult.Data.AfternoonTopicsPerSessionConfig
+                    : configResult.Data.TopicsPerSessionConfig,
                 TopicsPerSession = configResult.Data.TopicsPerSessionConfig,
                 MembersPerCouncil = configResult.Data.MembersPerCouncilConfig,
                 LecturerCapabilitiesLocked = stateResult.Data.LecturerCapabilitiesLocked,
@@ -3908,8 +3914,22 @@ namespace ThesisManagement.Api.Controllers
 
             var eligibleTopics = eligibleSelectedTopicCodes.Count;
 
-            var topicsPerSession = request.Strategy?.MaxPerSession > 0 ? request.Strategy.MaxPerSession : configResult.Data.TopicsPerSessionConfig;
-            var estimatedCapacity = selectedRooms.Count * periodDayCount * 2 * topicsPerSession;
+            var morningTopicsPerSession = request.Strategy?.MorningTopicsPerSession > 0
+                ? request.Strategy.MorningTopicsPerSession
+                : (request.Strategy?.MaxPerSession > 0
+                    ? request.Strategy.MaxPerSession
+                    : (configResult.Data.MorningTopicsPerSessionConfig > 0
+                        ? configResult.Data.MorningTopicsPerSessionConfig
+                        : configResult.Data.TopicsPerSessionConfig));
+            var afternoonTopicsPerSession = request.Strategy?.AfternoonTopicsPerSession > 0
+                ? request.Strategy.AfternoonTopicsPerSession
+                : (request.Strategy?.MaxPerSession > 0
+                    ? request.Strategy.MaxPerSession
+                    : (configResult.Data.AfternoonTopicsPerSessionConfig > 0
+                        ? configResult.Data.AfternoonTopicsPerSessionConfig
+                        : configResult.Data.TopicsPerSessionConfig));
+            var topicsPerCouncil = morningTopicsPerSession + afternoonTopicsPerSession;
+            var estimatedCapacity = selectedRooms.Count * periodDayCount * topicsPerCouncil;
             var estimatedAssigned = Math.Min(eligibleTopics, estimatedCapacity);
             var coveragePercent = eligibleTopics == 0 ? 100m : Math.Round((decimal)estimatedAssigned * 100m / eligibleTopics, 2);
 
@@ -3965,7 +3985,7 @@ namespace ThesisManagement.Api.Controllers
 
             var explainability = new List<string>
             {
-                $"Input rooms={selectedRooms.Count}; periodDays={periodDayCount}; topicsPerSession={topicsPerSession}; sessionsPerRoomPerDay=2",
+                $"Input rooms={selectedRooms.Count}; periodDays={periodDayCount}; morningTopics={morningTopicsPerSession}; afternoonTopics={afternoonTopicsPerSession}; topicsPerCouncil={topicsPerCouncil}; sessionsPerRoomPerDay=2",
                 $"Selected topics={selectedTopicCodes.Count}; selected lecturers={selectedLecturerCodes.Count}",
                 $"Eligible topics={eligibleTopics}; estimatedCapacity={estimatedCapacity}; estimatedAssigned={estimatedAssigned}",
                 $"Coverage={coveragePercent}%"
