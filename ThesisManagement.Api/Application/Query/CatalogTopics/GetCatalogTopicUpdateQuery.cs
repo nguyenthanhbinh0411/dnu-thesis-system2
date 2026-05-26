@@ -49,6 +49,8 @@ namespace ThesisManagement.Api.Application.Query.CatalogTopics
                 entity.DepartmentCode,
                 entity.AssignedStatus,
                 entity.AssignedAt,
+                entity.LecturerCode,
+                entity.LecturerName,
                 entity.CreatedAt,
                 entity.LastUpdated,
                 tags);

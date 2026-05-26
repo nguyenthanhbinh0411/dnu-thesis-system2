@@ -8,6 +8,7 @@ namespace ThesisManagement.Api.DTOs.CatalogTopics.Query
         public string? AssignedStatus { get; set; }
         public string? TagCode { get; set; }
         public string? TagName { get; set; }
+        public string? LecturerCode { get; set; }
     }
 
     public record CatalogTopicTagItemDto(
@@ -24,6 +25,8 @@ namespace ThesisManagement.Api.DTOs.CatalogTopics.Query
         string? DepartmentCode,
         string? AssignedStatus,
         DateTime? AssignedAt,
+        string? LecturerCode,
+        string? LecturerName,
         DateTime? CreatedAt,
         DateTime? LastUpdated,
         IReadOnlyList<CatalogTopicTagItemDto> Tags
@@ -52,6 +55,8 @@ namespace ThesisManagement.Api.DTOs.CatalogTopics.Query
         string? DepartmentCode,
         string? AssignedStatus,
         DateTime? AssignedAt,
+        string? LecturerCode,
+        string? LecturerName,
         DateTime? CreatedAt,
         DateTime? LastUpdated,
         IReadOnlyList<CatalogTopicTagItemDto> Tags,

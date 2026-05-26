@@ -40,6 +40,19 @@ namespace ThesisManagement.Api.Application.Command.CatalogTopics
                     .FirstOrDefaultAsync(d => d.DepartmentCode == dto.DepartmentCode);
             }
 
+            string? lecturerCode = dto.LecturerCode;
+            string? lecturerName = dto.LecturerName;
+
+            if (!string.IsNullOrWhiteSpace(lecturerCode) && string.IsNullOrWhiteSpace(lecturerName))
+            {
+                var lecturer = await _uow.LecturerProfiles.Query()
+                    .FirstOrDefaultAsync(x => x.LecturerCode == lecturerCode);
+                if (lecturer != null)
+                {
+                    lecturerName = lecturer.FullName;
+                }
+            }
+
             var entity = new CatalogTopic
             {
                 CatalogTopicCode = _codeGenerator.Generate("CAT"),
@@ -49,6 +62,8 @@ namespace ThesisManagement.Api.Application.Command.CatalogTopics
                 DepartmentCode = dto.DepartmentCode,
                 AssignedStatus = dto.AssignedStatus,
                 AssignedAt = dto.AssignedAt,
+                LecturerCode = lecturerCode,
+                LecturerName = lecturerName,
                 CreatedAt = DateTime.UtcNow,
                 LastUpdated = DateTime.UtcNow
             };

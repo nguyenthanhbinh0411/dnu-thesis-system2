@@ -389,14 +389,14 @@ const StudentProfilesManagement: React.FC = () => {
     }
   }, [activePeriodId]);
 
-  const [rows, setRows] = useState<StudentDashboardItem[]>([]);
+  const [rows, setRows] = useState<DashboardStudent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [templates, setTemplates] = useState<MilestoneTemplate[]>([]);
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
-    row?: DashboardRowView;
+    row?: DashboardStudent;
   }>({ isOpen: false });
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailTab, setDetailTab] = useState<
@@ -418,15 +418,6 @@ const StudentProfilesManagement: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const [refreshTick, setRefreshTick] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
-
-  const normalizeItems = (items: unknown): StudentDashboardItem[] => {
-    if (!Array.isArray(items)) return [];
-    return items.filter((item): item is StudentDashboardItem => {
-      if (!item || typeof item !== "object") return false;
-      const source = item as Partial<StudentDashboardItem>;
-      return Boolean(source.student);
-    });
-  };
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -464,9 +455,12 @@ const StudentProfilesManagement: React.FC = () => {
         query.append("page", String(Math.max(0, page - 1)));
         query.append("pageSize", String(pageSize));
         query.append("DefenseTermId", String(selectedPeriodId));
+        if (searchKeyword) {
+          query.append("search", searchKeyword);
+        }
 
-        const response = await fetchData<ApiResponse<DashboardDataPayload>>(
-          `/reports/student/dashboard/get-list?${query.toString()}`,
+        const response = await fetchData<ApiResponse<any>>(
+          `/StudentProfiles/get-list?${query.toString()}`,
           { method: "GET" },
         );
 
@@ -477,11 +471,12 @@ const StudentProfilesManagement: React.FC = () => {
         }
 
         const payload = response.data;
-        setRows(normalizeItems(payload.items));
+        const items = Array.isArray(payload.items) ? payload.items : (Array.isArray(payload) ? payload : []);
+        setRows(items);
         setTotalCount(
           Number(response.totalCount || 0) > 0
             ? Number(response.totalCount)
-            : Number(payload.totalCount || 0),
+            : Number(payload.totalCount || items.length || 0),
         );
       } catch (error) {
         addToast(
@@ -498,37 +493,29 @@ const StudentProfilesManagement: React.FC = () => {
     };
 
     void loadRows();
-  }, [addToast, page, pageSize, refreshTick, selectedPeriodId]);
+  }, [addToast, page, pageSize, refreshTick, selectedPeriodId, searchKeyword]);
 
   const pageCount = useMemo(
     () => Math.max(1, Math.ceil(totalCount / Math.max(1, pageSize))),
     [pageSize, totalCount],
   );
 
-  const rowsView = useMemo<DashboardRowView[]>(() => {
-    return rows
-      .map((item) => {
-        const status = mapApiStatusToDisplay(item.topic?.status);
-        const progress = calcProgress(item.currentMilestone, templates.length);
-        return { ...item, __status: status, __progress: progress };
-      })
-      .filter((item) => {
-        const q = searchKeyword.toLowerCase();
-        const matchSearch =
-          !q ||
-          item.student?.fullName?.toLowerCase().includes(q) ||
-          item.student?.studentCode?.toLowerCase().includes(q) ||
-          item.topic?.title?.toLowerCase().includes(q) ||
-          item.topic?.topicCode?.toLowerCase().includes(q);
-        const matchStatus =
-          statusFilter === "all" || item.__status === statusFilter;
-        return matchSearch && matchStatus;
-      });
-  }, [rows, searchKeyword, statusFilter, templates.length]);
+  const rowsView = useMemo<DashboardStudent[]>(() => {
+    return rows.filter((item) => {
+      const q = searchKeyword.toLowerCase();
+      const matchSearch =
+        !q ||
+        item.fullName?.toLowerCase().includes(q) ||
+        item.studentCode?.toLowerCase().includes(q) ||
+        item.studentEmail?.toLowerCase().includes(q);
+      const matchStatus =
+        statusFilter === "all" || (item.status || "").toLowerCase().includes(statusFilter.toLowerCase());
+      return matchSearch && matchStatus;
+    });
+  }, [rows, searchKeyword, statusFilter]);
 
-  const openDetail = async (row: DashboardRowView) => {
-    const studentCode = String(row.student?.studentCode || "").trim();
-    const userCode = String(row.student?.userCode || "").trim();
+  const openDetail = async (row: DashboardStudent) => {
+    const studentCode = String(row.studentCode || "").trim();
     if (!studentCode) {
       addToast("Không xác định được mã sinh viên để tải chi tiết.", "error");
       return;
@@ -541,80 +528,19 @@ const StudentProfilesManagement: React.FC = () => {
     setDetailModal({ isOpen: true, row });
 
     try {
-      const query = new URLSearchParams();
-      query.append("Page", "0");
-      query.append("PageSize", "10");
-      query.append("StudentCode", studentCode);
-      if (selectedPeriodId) {
-        query.append("DefenseTermId", String(selectedPeriodId));
-      }
-
-      const response = await fetchData<ApiResponse<DashboardDataPayload>>(
-        `/reports/student/dashboard/get-list?${query.toString()}`,
+      const response = await fetchData<ApiResponse<any>>(
+        `/StudentProfiles/get-detail/${encodeURIComponent(studentCode)}`,
         { method: "GET" },
       );
 
-      if (!response?.success || !response.data) {
-        throw new Error(
-          response?.message || "Không thể tải chi tiết sinh viên.",
-        );
-      }
-
-      const payload = response.data;
-      const firstItem = normalizeItems(payload.items)[0];
-      if (firstItem) {
+      if (response?.success && response.data) {
         setDetailModal({
           isOpen: true,
-          row: {
-            ...firstItem,
-            __status: row.__status,
-            __progress: row.__progress,
-          },
+          row: response.data,
         });
-
-        const resolvedUserCode = String(
-          firstItem.student?.userCode || userCode,
-        ).trim();
-        if (resolvedUserCode) {
-          setHistoryLoading(true);
-          try {
-            const historyUrl = `/reports/student/progress-history?userCode=${encodeURIComponent(
-              resolvedUserCode,
-            )}&page=1&pageSize=10${selectedPeriodId ? `&defenseTermId=${selectedPeriodId}` : ""}`;
-            const historyRes = await fetchData<
-              ApiResponse<ProgressHistoryPayload>
-            >(
-              historyUrl,
-              { method: "GET" },
-            );
-
-            if (historyRes?.success && historyRes.data) {
-              setHistoryItems(
-                Array.isArray(historyRes.data.items)
-                  ? historyRes.data.items
-                  : [],
-              );
-              setHistoryTotalCount(
-                Number(
-                  historyRes.totalCount || historyRes.data.totalCount || 0,
-                ),
-              );
-            }
-          } catch {
-            setHistoryItems([]);
-            setHistoryTotalCount(0);
-          } finally {
-            setHistoryLoading(false);
-          }
-        }
       }
-    } catch (error) {
-      addToast(
-        error instanceof Error
-          ? error.message
-          : "Không thể tải chi tiết sinh viên.",
-        "error",
-      );
+    } catch {
+      // Fallback
     } finally {
       setDetailLoading(false);
     }
@@ -639,8 +565,8 @@ const StudentProfilesManagement: React.FC = () => {
     setActiveModal("create");
   };
 
-  const openEdit = async (row: DashboardRowView) => {
-    const code = String(row.student?.studentCode || "").trim();
+  const openEdit = async (row: DashboardStudent) => {
+    const code = String(row.studentCode || "").trim();
     if (!code) {
       addToast("Không xác định được mã sinh viên để cập nhật.", "error");
       return;
@@ -664,8 +590,8 @@ const StudentProfilesManagement: React.FC = () => {
     }
   };
 
-  const handleDelete = async (row: DashboardRowView) => {
-    const code = String(row.student?.studentCode || "").trim();
+  const handleDelete = async (row: DashboardStudent) => {
+    const code = String(row.studentCode || "").trim();
     if (!code) {
       addToast("Không xác định được mã sinh viên để xóa.", "error");
       return;
@@ -739,81 +665,7 @@ const StudentProfilesManagement: React.FC = () => {
     }
   };
 
-  const detailStudent = detailModal.row;
-  const detailTopicTags = detailStudent?.topicTags ?? [];
-  const detailSupervisorTags = detailStudent?.supervisorTags ?? [];
-  const detailMilestones = useMemo(() => {
-    const fallbackCodes = ["MS_REG", "MS_PROG1", "MS_PROG2", "MS_FULL"];
-    const templateCodes = [...templates]
-      .sort((a, b) => a.ordinal - b.ordinal)
-      .slice(0, 4)
-      .map((item) => item.milestoneTemplateCode);
-    const codes = templateCodes.length === 4 ? templateCodes : fallbackCodes;
 
-    const currentCode =
-      detailStudent?.currentMilestone?.milestoneTemplateCode || "";
-    const currentOrdinal = Number(
-      detailStudent?.currentMilestone?.ordinal || 0,
-    );
-    const currentState = detailStudent?.currentMilestone?.state;
-
-    const completedAtValues = [
-      detailStudent?.currentMilestone?.completedAt1,
-      detailStudent?.currentMilestone?.completedAt2,
-      detailStudent?.currentMilestone?.completedAt3,
-      detailStudent?.currentMilestone?.completedAt4,
-    ];
-
-    return codes.map((code, index) => {
-      const ordinal = index + 1;
-      const completedAt = completedAtValues[index] || null;
-      let isCompleted = Boolean(completedAt && String(completedAt).trim());
-
-      // If we are waiting for committee, then milestone 4 is effectively completed
-      if (ordinal === 4 && currentState === "WaitingForCommittee") {
-        isCompleted = true;
-      }
-
-      let isCurrent =
-        code === currentCode || (!isCompleted && currentOrdinal === ordinal);
-
-      // If waiting for committee, it's effectively finished, so don't show as current (orange)
-      if (currentState === "WaitingForCommittee" && ordinal === 4) {
-        isCurrent = false;
-      }
-
-      let label = getMilestoneLabel(code);
-      if (ordinal === 4 && currentState === "WaitingForCommittee") {
-        label = "Chờ tạo hội đồng và bảo vệ";
-      }
-
-      return {
-        code,
-        label,
-        ordinal,
-        isCompleted,
-        isCurrent,
-        completedAt,
-      };
-    });
-  }, [
-    templates,
-    detailStudent?.currentMilestone?.milestoneTemplateCode,
-    detailStudent?.currentMilestone?.ordinal,
-    detailStudent?.currentMilestone?.state,
-    detailStudent?.currentMilestone?.completedAt1,
-    detailStudent?.currentMilestone?.completedAt2,
-    detailStudent?.currentMilestone?.completedAt3,
-    detailStudent?.currentMilestone?.completedAt4,
-  ]);
-
-  const getLecturerStateLabel = (state?: string): string => {
-    const value = (state || "").toUpperCase();
-    if (value === "APPROVED") return "Đã duyệt";
-    if (value === "REJECTED") return "Từ chối";
-    if (value === "PENDING") return "Chờ duyệt";
-    return state || "--";
-  };
 
   return (
     <div className="student-profiles-module">
@@ -908,50 +760,49 @@ const StudentProfilesManagement: React.FC = () => {
             <tr>
               <th>SINH VIÊN</th>
               <th>LIÊN HỆ</th>
-              <th>ĐỀ TÀI</th>
+              <th>LỚP / BỘ MÔN</th>
+              <th>HỌC LỰC / GPA</th>
               <th>TRẠNG THÁI</th>
-              <th>TIẾN ĐỘ</th>
-              <th>NGÀY ĐĂNG KÝ</th>
               <th>THAO TÁC</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={7}>Đang tải dữ liệu...</td>
+                <td colSpan={6}>Đang tải dữ liệu...</td>
               </tr>
             ) : rowsView.length === 0 ? (
               <tr>
-                <td colSpan={7}>Không có dữ liệu.</td>
+                <td colSpan={6}>Không có dữ liệu.</td>
               </tr>
             ) : (
               rowsView.map((row) => (
                 <tr
-                  key={`${row.student.studentProfileID}-${row.topic?.topicID || 'none'}`}
+                  key={row.studentProfileID}
                   className="spm-row"
                 >
                   <td>
                     <div className="spm-student-cell">
                       <div className="spm-avatar-wrap">
-                        {row.student.studentImage ? (
+                        {row.studentImage ? (
                           <img
-                            src={getAvatarUrl(row.student.studentImage)}
-                            alt={row.student.fullName}
+                            src={getAvatarUrl(row.studentImage)}
+                            alt={row.fullName}
                             className="spm-avatar"
                             loading="lazy"
                           />
                         ) : (
                           <div className="spm-avatar-fallback">
-                            {row.student.fullName?.charAt(0) || "S"}
+                            {row.fullName?.charAt(0) || "S"}
                           </div>
                         )}
                       </div>
                       <div>
                         <div className="spm-student-name">
-                          {row.student.fullName}
+                          {row.fullName}
                         </div>
                         <div className="spm-student-code">
-                          {row.student.studentCode}
+                          {row.studentCode}
                         </div>
                       </div>
                     </div>
@@ -959,52 +810,28 @@ const StudentProfilesManagement: React.FC = () => {
 
                   <td>
                     <div className="spm-muted">
-                      {row.student.studentEmail || "--"}
+                      {row.studentEmail || "--"}
                     </div>
                     <div className="spm-subtle">
-                      {row.student.phoneNumber || "--"}
+                      {row.phoneNumber || "--"}
                     </div>
                   </td>
 
                   <td>
-                    <div className="spm-table-topic-title">
-                      {row.topic?.title || "Chưa có đề tài"}
-                    </div>
-                    <div className="spm-subtle">{row.topic?.topicCode || "--"}</div>
+                    <div className="spm-muted">{row.departmentCode || "--"}</div>
+                    <div className="spm-subtle">{row.classCode || "--"}</div>
                   </td>
 
                   <td>
-                    <span className={`spm-status spm-status-${row.__status}`}>
-                      {row.__status === "approved" && <CheckCircle size={14} />}
-                      {row.__status === "pending" && <Clock size={14} />}
-                      {(row.__status === "revision" ||
-                        row.__status === "rejected") && (
-                        <AlertCircle size={14} />
-                      )}
-                      {row.__status === "defense-ready" && (
-                        <ShieldCheck size={14} />
-                      )}
-                      {row.__status === "committee-assigned" && (
-                        <BookOpen size={14} />
-                      )}
-                      {row.__status === "none" && <Circle size={14} />}
-                      {getStatusText(row.__status)}
+                    <div className="spm-muted">{row.academicStanding || "--"}</div>
+                    <div className="spm-subtle">GPA: {row.gpa ?? "--"}</div>
+                  </td>
+
+                  <td>
+                    <span className="spm-status spm-status-approved">
+                      {row.status || "Hoạt động"}
                     </span>
                   </td>
-
-                  <td>
-                    <div className="spm-progress-cell">
-                      <div className="spm-progress-track">
-                        <div
-                          className="spm-progress-fill"
-                          style={{ width: `${row.__progress}%` }}
-                        />
-                      </div>
-                      <strong>{row.__progress}%</strong>
-                    </div>
-                  </td>
-
-                  <td>{row.topic ? formatDate(row.topic.createdAt) : "--"}</td>
 
                   <td>
                     <div className="spm-action-buttons">
@@ -1057,24 +884,6 @@ const StudentProfilesManagement: React.FC = () => {
               <option value={50}>50</option>
             </select>
           </label>
-
-          <button
-            type="button"
-            disabled={page <= 1 || isLoading}
-            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-          >
-            Trước
-          </button>
-          <span>
-            Trang {page} / {pageCount}
-          </span>
-          <button
-            type="button"
-            disabled={page >= pageCount || isLoading}
-            onClick={() => setPage((prev) => Math.min(pageCount, prev + 1))}
-          >
-            Sau
-          </button>
         </div>
       </div>
 
@@ -1091,39 +900,28 @@ const StudentProfilesManagement: React.FC = () => {
             <div className="spm-detail-shell">
               <div className="spm-detail-header">
                 <div className="spm-detail-header-left">
-                  {detailModal.row.student.studentImage ? (
+                  {detailModal.row.studentImage ? (
                     <img
-                      src={getAvatarUrl(detailModal.row.student.studentImage)}
-                      alt={detailModal.row.student.fullName}
+                      src={getAvatarUrl(detailModal.row.studentImage)}
+                      alt={detailModal.row.fullName}
                       className="spm-avatar-lg"
                     />
                   ) : (
                     <div className="spm-avatar-fallback spm-avatar-lg-fallback">
-                      {detailModal.row.student.fullName?.charAt(0) || "S"}
+                      {detailModal.row.fullName?.charAt(0) || "S"}
                     </div>
                   )}
                   <div className="spm-detail-header-text">
-                    <h3>{detailModal.row.student.fullName}</h3>
+                    <h3>{detailModal.row.fullName}</h3>
                     <p>
-                      {detailModal.row.student.studentCode} •{" "}
-                      {detailModal.row.student.userCode}
+                      {detailModal.row.studentCode} • {detailModal.row.userCode}
                     </p>
                     <div className="spm-detail-subline">
-                      <span
-                        className={`spm-status spm-status-${detailModal.row.__status}`}
-                      >
-                        {detailModal.row.__status === "defense-ready" && (
-                          <ShieldCheck size={14} />
-                        )}
-                        {detailModal.row.__status === "committee-assigned" && (
-                          <BookOpen size={14} />
-                        )}
-                        {detailModal.row.student.status
-                          ? getStatusText(detailModal.row.student.status)
-                          : getStatusText(detailModal.row.__status)}
+                      <span className="spm-status spm-status-approved">
+                        {detailModal.row.status || "Hoạt động"}
                       </span>
                       <span className="spm-detail-gpa">
-                        GPA {detailModal.row.student.gpa ?? "--"}
+                        GPA {detailModal.row.gpa ?? "--"}
                       </span>
                     </div>
                   </div>
@@ -1134,7 +932,7 @@ const StudentProfilesManagement: React.FC = () => {
                     type="button"
                     className="spm-edit-btn"
                     onClick={() => {
-                      void openEdit(detailModal.row as DashboardRowView);
+                      void openEdit(detailModal.row as DashboardStudent);
                       closeDetail();
                     }}
                   >
@@ -1151,455 +949,87 @@ const StudentProfilesManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div className="spm-detail-tabs">
-                <button
-                  type="button"
-                  className={detailTab === "info" ? "is-active" : ""}
-                  onClick={() => setDetailTab("info")}
-                >
-                  <User size={14} />
-                  Thông tin
-                </button>
-                <button
-                  type="button"
-                  className={detailTab === "supervisor" ? "is-active" : ""}
-                  onClick={() => setDetailTab("supervisor")}
-                >
-                  <Users size={14} />
-                  Giảng viên
-                </button>
-                <button
-                  type="button"
-                  className={detailTab === "topic" ? "is-active" : ""}
-                  onClick={() => setDetailTab("topic")}
-                >
-                  <BookOpen size={14} />
-                  Đề tài
-                </button>
-                <button
-                  type="button"
-                  className={detailTab === "history" ? "is-active" : ""}
-                  onClick={() => setDetailTab("history")}
-                >
-                  <History size={14} />
-                  Lịch sử báo cáo
-                </button>
-              </div>
-
               <div className="spm-detail-body">
                 {detailLoading ? (
                   <div className="spm-detail-loading">Đang tải chi tiết...</div>
                 ) : (
-                  <>
-                    {detailTab === "info" && (
-                      <div className="spm-detail-columns">
-                        <div className="spm-detail-column">
-                          <div className="spm-detail-section spm-info-card">
-                            <h4>Thông tin cá nhân</h4>
-                            <div className="spm-detail-list">
-                              <div>
-                                <span>Email</span>
-                                <strong>
-                                  {detailModal.row.student.studentEmail || "--"}
-                                </strong>
-                              </div>
-                              <div>
-                                <span>SĐT</span>
-                                <strong>
-                                  {detailModal.row.student.phoneNumber || "--"}
-                                </strong>
-                              </div>
-                              <div>
-                                <span>Giới tính</span>
-                                <strong>
-                                  {detailModal.row.student.gender || "--"}
-                                </strong>
-                              </div>
-                              <div>
-                                <span>Ngày sinh</span>
-                                <strong>
-                                  {formatDate(
-                                    detailModal.row.student.dateOfBirth,
-                                  ) || "--"}
-                                </strong>
-                              </div>
-                              <div>
-                                <span>Địa chỉ</span>
-                                <strong>
-                                  {detailModal.row.student.address || "--"}
-                                </strong>
-                              </div>
-                            </div>
+                  <div className="spm-detail-columns">
+                    <div className="spm-detail-column">
+                      <div className="spm-detail-section spm-info-card">
+                        <h4>Thông tin cá nhân</h4>
+                        <div className="spm-detail-list">
+                          <div>
+                            <span>Email</span>
+                            <strong>
+                              {detailModal.row.studentEmail || "--"}
+                            </strong>
                           </div>
-                        </div>
-
-                        <div className="spm-detail-column">
-                          <div className="spm-detail-section spm-info-card">
-                            <h4>Học tập</h4>
-                            <div className="spm-detail-list">
-                              <div>
-                                <span>Khoa</span>
-                                <strong>
-                                  {detailModal.row.student.departmentCode ||
-                                    "--"}
-                                </strong>
-                              </div>
-                              <div>
-                                <span>Lớp</span>
-                                <strong>
-                                  {detailModal.row.student.classCode || "--"}
-                                </strong>
-                              </div>
-                              <div>
-                                <span>Niên khóa</span>
-                                <strong>
-                                  {detailModal.row.student.enrollmentYear ||
-                                    "--"}
-                                </strong>
-                              </div>
-                              <div>
-                                <span>GPA</span>
-                                <strong>
-                                  {detailModal.row.student.gpa ?? "--"}
-                                </strong>
-                              </div>
-                              <div>
-                                <span>Xếp loại</span>
-                                <strong>
-                                  {detailModal.row.student.academicStanding ||
-                                    "--"}
-                                </strong>
-                              </div>
-                            </div>
+                          <div>
+                            <span>SĐT</span>
+                            <strong>
+                              {detailModal.row.phoneNumber || "--"}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>Giới tính</span>
+                            <strong>
+                              {detailModal.row.gender || "--"}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>Ngày sinh</span>
+                            <strong>
+                              {formatDate(detailModal.row.dateOfBirth) || "--"}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>Địa chỉ</span>
+                            <strong>
+                              {detailModal.row.address || "--"}
+                            </strong>
                           </div>
                         </div>
                       </div>
-                    )}
+                    </div>
 
-                    {detailTab === "supervisor" && (
-                      <div className="spm-supervisor-layout">
-                        <div className="spm-detail-section spm-info-card spm-supervisor-card">
-                          <h4>Giảng viên hướng dẫn</h4>
-                          <div className="spm-detail-list spm-supervisor-list">
-                            <div>
-                              <span>Họ tên</span>
-                              <strong>
-                                {detailModal.row.supervisor?.fullName || "--"}
-                              </strong>
-                            </div>
-                            <div>
-                              <span>Mã GV</span>
-                              <strong>
-                                {detailModal.row.supervisor?.lecturerCode ||
-                                  "--"}
-                              </strong>
-                            </div>
-                            <div>
-                              <span>Học vị</span>
-                              <strong>
-                                {detailModal.row.supervisor?.degree || "--"}
-                              </strong>
-                            </div>
+                    <div className="spm-detail-column">
+                      <div className="spm-detail-section spm-info-card">
+                        <h4>Học tập</h4>
+                        <div className="spm-detail-list">
+                          <div>
+                            <span>Khoa</span>
+                            <strong>
+                              {detailModal.row.departmentCode || "--"}
+                            </strong>
                           </div>
-
-                          <div className="spm-guide-quota">
-                            <div className="spm-guide-quota-row">
-                              <span>Chỉ tiêu hướng dẫn</span>
-                              <strong>
-                                {detailModal.row.supervisor
-                                  ? `${detailModal.row.supervisor.currentGuidingCount || 0} / ${detailModal.row.supervisor.guideQuota || 0}`
-                                  : "--"}
-                              </strong>
-                            </div>
-                            <div className="spm-progress-track spm-progress-track-lg">
-                              <div
-                                className="spm-progress-fill"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    Math.round(
-                                      ((detailModal.row.supervisor
-                                        ?.currentGuidingCount || 0) /
-                                        Math.max(
-                                          1,
-                                          detailModal.row.supervisor
-                                            ?.guideQuota || 1,
-                                        )) *
-                                        100,
-                                    ),
-                                  )}%`,
-                                }}
-                              />
-                            </div>
+                          <div>
+                            <span>Lớp</span>
+                            <strong>
+                              {detailModal.row.classCode || "--"}
+                            </strong>
                           </div>
-                        </div>
-
-                        <div className="spm-detail-section spm-info-card spm-supervisor-card">
-                          <h4>Liên hệ & Chuyên ngành</h4>
-                          <div className="spm-detail-list spm-supervisor-list">
-                            <div>
-                              <span>Email</span>
-                              <strong>
-                                {detailModal.row.supervisor?.email || "--"}
-                              </strong>
-                            </div>
-                            <div>
-                              <span>SĐT</span>
-                              <strong>
-                                {detailModal.row.supervisor?.phoneNumber ||
-                                  "--"}
-                              </strong>
-                            </div>
-                            <div className="spm-supervisor-specialty-row">
-                              <span>Chuyên ngành</span>
-                              {detailSupervisorTags.length > 0 ? (
-                                <div className="spm-tag-wrap spm-tag-wrap-compact spm-supervisor-tags">
-                                  {detailSupervisorTags.map((tag) => (
-                                    <span key={tag.tagCode} className="spm-tag">
-                                      {tag.tagName}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <strong>--</strong>
-                              )}
-                            </div>
+                          <div>
+                            <span>Niên khóa</span>
+                            <strong>
+                              {detailModal.row.enrollmentYear || "--"}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>GPA</span>
+                            <strong>
+                              {detailModal.row.gpa ?? "--"}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>Xếp loại</span>
+                            <strong>
+                              {detailModal.row.academicStanding || "--"}
+                            </strong>
                           </div>
                         </div>
                       </div>
-                    )}
-
-                    {detailTab === "topic" && (
-                      <div className="spm-progress-panel">
-                        <div className="spm-detail-section spm-topic-hero">
-                          {detailModal.row.topic ? (
-                            <div className="spm-topic-panel">
-                              <strong className="spm-detail-topic-title">
-                                {detailModal.row.topic.title}
-                              </strong>
-
-                              <div className="spm-topic-layout">
-                                <div className="spm-topic-layout-left">
-                                  <div className="spm-topic-field">
-                                    <span className="spm-topic-field-label">
-                                      Mã đề tài:
-                                    </span>
-                                    <strong>
-                                      {detailModal.row.topic.topicCode}
-                                    </strong>
-                                  </div>
-
-                                  <div className="spm-topic-field spm-topic-field-summary">
-                                    <span className="spm-topic-field-label">
-                                      Mô tả:
-                                    </span>
-                                    <p>{detailModal.row.topic.summary || "--"}</p>
-                                  </div>
-                                </div>
-
-                                <div className="spm-topic-layout-right">
-                                  <div className="spm-topic-meta-row">
-                                    <span className="spm-topic-meta-label">
-                                      Trạng thái:
-                                    </span>
-                                    <span
-                                      className={`spm-status spm-status-${detailModal.row.__status}`}
-                                    >
-                                      {detailModal.row.topic.status}
-                                    </span>
-                                  </div>
-
-                                  <div className="spm-topic-meta-row">
-                                    <span className="spm-topic-meta-label">
-                                      Tags:
-                                    </span>
-                                    {detailTopicTags.length > 0 ? (
-                                      <div className="spm-tag-wrap spm-tag-wrap-compact">
-                                        {detailTopicTags.map((tag) => (
-                                          <span
-                                            key={tag.tagCode}
-                                            className="spm-tag"
-                                          >
-                                            {tag.tagName}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <span className="spm-topic-meta-empty">
-                                        --
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="spm-topic-empty-state">
-                              <BookOpen size={48} className="spm-empty-icon" />
-                              <p>Sinh viên này hiện chưa đăng ký đề tài tốt nghiệp.</p>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="spm-detail-section">
-                          <div className="spm-timeline-horizontal">
-                            {detailMilestones.map((milestone) => (
-                              <div
-                                key={milestone.code}
-                                className={`spm-timeline-step ${milestone.isCurrent ? "is-current" : ""} ${milestone.isCompleted ? "is-completed" : ""}`}
-                              >
-                                <div className="spm-timeline-node">
-                                  {milestone.isCompleted ? (
-                                    <Check size={16} />
-                                  ) : milestone.isCurrent ? (
-                                    <Clock3 size={15} />
-                                  ) : (
-                                    <Circle size={11} />
-                                  )}
-                                </div>
-                                <div className="spm-timeline-step-body">
-                                  <strong>
-                                    {milestone.code} - {milestone.label}
-                                  </strong>
-                                  <span className="spm-timeline-state">
-                                    {milestone.isCompleted
-                                      ? "Đã xong"
-                                      : milestone.isCurrent
-                                        ? "Đang làm"
-                                        : "Chưa làm"}
-                                  </span>
-                                  <span className="spm-timeline-time">
-                                    Hoàn thành:{" "}
-                                    {formatDateTime(milestone.completedAt)}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {detailTab === "history" && (
-                      <div className="spm-progress-panel">
-                        <div className="spm-detail-section">
-                          <h4>Lịch sử báo cáo</h4>
-                          {historyLoading ? (
-                            <div className="spm-detail-loading">
-                              Đang tải lịch sử báo cáo...
-                            </div>
-                          ) : historyItems.length === 0 ? (
-                            <div className="spm-history-empty">
-                              Chưa có báo cáo nào.
-                            </div>
-                          ) : (
-                            <div className="spm-history-list">
-                              {historyItems.map((item) => {
-                                const submission = item.submission;
-                                const files = submission.files ?? [];
-                                return (
-                                  <article
-                                    key={submission.submissionID}
-                                    className="spm-history-item"
-                                  >
-                                    <header className="spm-history-head">
-                                      <div>
-                                        <h5>
-                                          {submission.reportTitle ||
-                                            submission.submissionCode}
-                                        </h5>
-                                        <p>
-                                          {submission.submissionCode} •{" "}
-                                          {submission.milestoneCode}
-                                        </p>
-                                      </div>
-                                      <span className="spm-history-badge">
-                                        {getLecturerStateLabel(
-                                          submission.lecturerState,
-                                        )}
-                                      </span>
-                                    </header>
-
-                                    <div className="spm-history-meta-grid">
-                                      <div className="spm-history-meta-item">
-                                        <span>Nộp lúc</span>
-                                        <strong>
-                                          {formatDateTime(
-                                            submission.submittedAt,
-                                          )}
-                                        </strong>
-                                      </div>
-                                      <div className="spm-history-meta-item">
-                                        <span>Cập nhật</span>
-                                        <strong>
-                                          {formatDateTime(
-                                            submission.lastUpdated,
-                                          )}
-                                        </strong>
-                                      </div>
-                                      <div className="spm-history-meta-item">
-                                        <span>Lần nộp</span>
-                                        <strong>
-                                          {submission.attemptNumber ?? "--"}
-                                        </strong>
-                                      </div>
-                                      <div className="spm-history-meta-item">
-                                        <span>Feedback</span>
-                                        <strong>
-                                          {submission.feedbackLevel || "--"}
-                                        </strong>
-                                      </div>
-                                    </div>
-
-                                    <div className="spm-history-content-grid">
-                                      <div className="spm-history-block">
-                                        <span className="spm-history-block-label">
-                                          Mô tả báo cáo
-                                        </span>
-                                        <p className="spm-history-desc">
-                                          {submission.reportDescription ||
-                                            "Không có mô tả."}
-                                        </p>
-                                      </div>
-
-                                      <div className="spm-history-block">
-                                        <span className="spm-history-block-label">
-                                          Nhận xét giảng viên
-                                        </span>
-                                        <p className="spm-history-comment">
-                                          {submission.lecturerComment ||
-                                            "Chưa có nhận xét."}
-                                        </p>
-                                      </div>
-                                    </div>
-
-                                    {files.length > 0 && (
-                                      <div className="spm-history-files">
-                                        {files.map((file) => (
-                                          <a
-                                            key={file.fileID}
-                                            href={normalizeUrl(file.fileURL)}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                          >
-                                            {file.fileName}
-                                          </a>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </article>
-                                );
-                              })}
-                            </div>
-                          )}
-
-                          <div className="spm-history-footer">
-                            Tổng báo cáo: <strong>{historyTotalCount}</strong>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

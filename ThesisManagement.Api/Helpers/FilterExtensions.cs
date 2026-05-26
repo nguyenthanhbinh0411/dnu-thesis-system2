@@ -103,7 +103,7 @@ namespace ThesisManagement.Api.Helpers
                 query = query.Where(x => x.UserCode.Contains(filter.Username));
 
             if (!string.IsNullOrEmpty(filter.Role))
-                query = query.Where(x => x.Role == filter.Role);
+                query = query.Where(x => x.Role.ToLower().Contains(filter.Role.ToLower()));
 
             if (!string.IsNullOrEmpty(filter.UserCode))
                 query = query.Where(x => x.UserCode.Contains(filter.UserCode));

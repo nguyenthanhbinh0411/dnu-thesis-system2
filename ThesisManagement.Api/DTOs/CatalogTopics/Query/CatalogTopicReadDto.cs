@@ -10,6 +10,8 @@ namespace ThesisManagement.Api.DTOs.CatalogTopics.Query
         string? DepartmentCode,
         string? AssignedStatus,
         DateTime? AssignedAt,
+        string? LecturerCode,
+        string? LecturerName,
         DateTime? CreatedAt,
         DateTime? LastUpdated);
 }

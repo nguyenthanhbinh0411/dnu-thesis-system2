@@ -216,7 +216,14 @@ namespace ThesisManagement.Api.Data
                 b.Property(x => x.Title).HasMaxLength(255).IsRequired();
                 b.Property(x => x.Summary).HasMaxLength(1000);
                 b.Property(x => x.AssignedStatus).HasMaxLength(20);
+                b.Property(x => x.LecturerCode).HasMaxLength(30).HasColumnType("VARCHAR2(30)");
+                b.Property(x => x.LecturerName).HasMaxLength(150);
                 b.HasOne(x => x.Department).WithMany(x => x.CatalogTopics).HasForeignKey(x => x.DepartmentCode).HasPrincipalKey(x => x.DepartmentCode);
+                b.HasOne(x => x.Lecturer)
+                    .WithMany()
+                    .HasForeignKey(x => x.LecturerCode)
+                    .HasPrincipalKey(x => x.LecturerCode)
+                    .OnDelete(DeleteBehavior.SetNull);
                 b.Property(x => x.CreatedAt).HasDefaultValueSql("SYSTIMESTAMP");
                 b.Property(x => x.LastUpdated).HasDefaultValueSql("SYSTIMESTAMP");
             });
