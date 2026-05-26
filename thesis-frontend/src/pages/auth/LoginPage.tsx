@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, ShieldCheck, GraduationCap } from "lucide-react";
+import { Users, ShieldCheck, GraduationCap, ArrowLeft, Mail, KeyRound, Lock, Timer } from "lucide-react";
 import {
   login as loginApi,
   parseLoginResponse,
+  forgotPassword,
+  verifyOtpReset,
+  getCaptcha,
 } from "../../services/auth.service";
 import { useAuth } from "../../hooks/useAuth";
 import { RolePaths } from "../../utils/role";
@@ -148,8 +151,51 @@ const LoginPage: React.FC = () => {
   const [availableRoles, setAvailableRoles] = useState<string[]>([]);
   const [showRoleSelector, setShowRoleSelector] = useState(false);
   const [tempUser, setTempUser] = useState<any>(null);
+  
+  // States for forgot password flow
+  const [authMode, setAuthMode] = useState<"login" | "forgot_request" | "forgot_verify">("login");
+  const [forgotStudentCode, setForgotStudentCode] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // States for captcha security
+  const [requiresCaptcha, setRequiresCaptcha] = useState(false);
+  const [captchaCode, setCaptchaCode] = useState("");
+  const [captchaSessionId, setCaptchaSessionId] = useState("");
+  const [captchaImage, setCaptchaImage] = useState("");
+  const [captchaLoading, setCaptchaLoading] = useState(false);
+
+  // States for OTP request countdown rate-limit
+  const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const interval = setInterval(() => {
+      setCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [countdown]);
+
   const auth = useAuth();
   const navigate = useNavigate();
+
+  async function fetchCaptchaImage() {
+    setCaptchaLoading(true);
+    try {
+      const resp = await getCaptcha();
+      if (resp.success && resp.data) {
+        setCaptchaSessionId(resp.data.captchaSessionId);
+        setCaptchaImage(resp.data.captchaImage);
+        setCaptchaCode("");
+      }
+    } catch (err) {
+      console.error("Failed to load captcha", err);
+    } finally {
+      setCaptchaLoading(false);
+    }
+  }
 
   useEffect(() => {
     const expiredMessage = consumeSessionExpiredMessage();
@@ -158,13 +204,109 @@ const LoginPage: React.FC = () => {
     }
   }, []);
 
+  async function handleForgotPasswordRequest(e: React.FormEvent) {
+    e.preventDefault();
+    if (!forgotStudentCode.trim()) {
+      setError("Vui lòng nhập mã sinh viên.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const resp = await forgotPassword({ studentCode: forgotStudentCode.trim() });
+      if (resp.success) {
+        setSuccessMessage(resp.message || "Mã OTP đã được gửi đến email đăng ký.");
+        setAuthMode("forgot_verify");
+        setCountdown(60);
+      } else {
+        setError(resp.message || "Không thể yêu cầu đặt lại mật khẩu.");
+      }
+    } catch (err: unknown) {
+      if (err instanceof FetchDataError) {
+        const serverData = err.data as any;
+        const msg = serverData?.message || serverData?.Message || err.message || "Lỗi yêu cầu gửi OTP.";
+        setError(msg);
+      } else if (err instanceof Error) {
+        setError(err.message || "Lỗi yêu cầu gửi OTP.");
+      } else {
+        setError("Lỗi yêu cầu gửi OTP.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleForgotPasswordReset(e: React.FormEvent) {
+    e.preventDefault();
+    if (!otp.trim() || !newPassword.trim() || !confirmPassword.trim()) {
+      setError("Vui lòng điền đầy đủ các trường.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Mật khẩu mới và xác nhận mật khẩu không khớp.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const resp = await verifyOtpReset({
+        studentCode: forgotStudentCode.trim(),
+        otp: otp.trim(),
+        newPassword: newPassword.trim(),
+      });
+      if (resp.success) {
+        setSuccessMessage(resp.message || "Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.");
+        // Auto fill username and go to login
+        setUsername(forgotStudentCode.trim());
+        setPassword("");
+        setForgotStudentCode("");
+        setOtp("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setAuthMode("login");
+      } else {
+        setError(resp.message || "Đặt lại mật khẩu thất bại.");
+      }
+    } catch (err: unknown) {
+      if (err instanceof FetchDataError) {
+        const serverData = err.data as any;
+        const msg = serverData?.message || serverData?.Message || err.message || "Lỗi xác minh OTP đặt lại mật khẩu.";
+        setError(msg);
+      } else if (err instanceof Error) {
+        setError(err.message || "Lỗi xác minh OTP đặt lại mật khẩu.");
+      } else {
+        setError("Lỗi xác minh OTP đặt lại mật khẩu.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleBackToLogin() {
+    setAuthMode("login");
+    setError(null);
+    setSuccessMessage(null);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      const resp = (await loginApi({ username, password })) as LoginApiResponse;
+      const resp = (await loginApi({ 
+        username, 
+        password,
+        captchaCode: requiresCaptcha ? captchaCode : undefined,
+        captchaSessionId: requiresCaptcha ? captchaSessionId : undefined
+      })) as LoginApiResponse;
+
       if (!resp.success) {
+        if (resp.code === "REQUIRES_CAPTCHA") {
+          setRequiresCaptcha(true);
+          fetchCaptchaImage();
+        }
         setError(resp.message ?? "Đăng nhập thất bại");
         setLoading(false);
         return;
@@ -235,6 +377,10 @@ const LoginPage: React.FC = () => {
 
         await cacheRoleProfileCode(role, user.userCode || "");
 
+        // Reset failed login attempts states
+        setRequiresCaptcha(false);
+        setCaptchaCode("");
+
         auth.login(user);
         const redirect = RolePaths[role] ?? "/";
         navigate(redirect);
@@ -249,6 +395,13 @@ const LoginPage: React.FC = () => {
 
       setError("Không nhận được thông tin user từ server.");
     } catch (err: unknown) {
+      if (err instanceof FetchDataError) {
+        const serverData = err.data as any;
+        if (serverData?.code === "REQUIRES_CAPTCHA" || serverData?.Code === "REQUIRES_CAPTCHA") {
+          setRequiresCaptcha(true);
+          fetchCaptchaImage();
+        }
+      }
       setError(getLoginErrorMessage(err));
     } finally {
       if (!showRoleSelector) {
@@ -555,7 +708,9 @@ const LoginPage: React.FC = () => {
               letterSpacing: "0.5px",
             }}
           >
-            Đăng nhập hệ thống
+            {authMode === "login" && "Đăng nhập hệ thống"}
+            {authMode === "forgot_request" && "Quên mật khẩu"}
+            {authMode === "forgot_verify" && "Đặt lại mật khẩu"}
           </h1>
           <p
             style={{
@@ -563,9 +718,12 @@ const LoginPage: React.FC = () => {
               margin: 0,
               fontSize: "0.95rem",
               fontWeight: 400,
+              lineHeight: "1.4",
             }}
           >
-            Hệ thống Quản lý Đồ án Tốt nghiệp - Đại học Đại Nam
+            {authMode === "login" && "Hệ thống Quản lý Đồ án Tốt nghiệp - Đại học Đại Nam"}
+            {authMode === "forgot_request" && "Nhập mã số tài khoản để nhận mã xác nhận OTP gửi về email liên kết."}
+            {authMode === "forgot_verify" && `Nhập mã OTP đã gửi đến email của bạn và thiết lập mật khẩu mới.`}
           </p>
         </div>
 
@@ -581,186 +739,755 @@ const LoginPage: React.FC = () => {
               marginBottom: "1.5rem",
               fontSize: "0.9rem",
               fontWeight: 500,
+              lineHeight: "1.5",
             }}
           >
             {error}
           </div>
         )}
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} autoComplete="off">
-          {/* Username Field */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label
-              style={{
-                display: "block",
-                color: "#002855",
-                marginBottom: "0.5rem",
-                fontSize: "0.9rem",
-                fontWeight: 600,
-                letterSpacing: "0.3px",
-              }}
-            >
-              Tên đăng nhập
-            </label>
-            <div
-              style={{
-                position: "relative",
-                borderRadius: "8px",
-                overflow: "hidden",
-                backgroundColor:
-                  focusedField === "username"
-                    ? "rgba(243, 112, 33, 0.02)"
-                    : "#FFFFFF",
-                border:
-                  focusedField === "username"
-                    ? "2px solid #F37021"
-                    : "2px solid #E5E7EB",
-                transition: "all 0.3s ease",
-              }}
-            >
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                onFocus={() => setFocusedField("username")}
-                onBlur={() => setFocusedField(null)}
-                required
-                placeholder="Nhập tên đăng nhập"
-                autoComplete="off"
-                className="login-input"
-                style={{
-                  width: "100%",
-                  padding: "0.875rem 1rem",
-                  background: "transparent",
-                  border: "none",
-                  outline: "none",
-                  color: "#002855",
-                  fontSize: "1rem",
-                  fontFamily: "inherit",
-                  fontWeight: 400,
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Password Field */}
-          <div style={{ marginBottom: "2rem" }}>
-            <label
-              style={{
-                display: "block",
-                color: "#002855",
-                marginBottom: "0.5rem",
-                fontSize: "0.9rem",
-                fontWeight: 600,
-                letterSpacing: "0.3px",
-              }}
-            >
-              Mật khẩu
-            </label>
-            <div
-              style={{
-                position: "relative",
-                borderRadius: "8px",
-                overflow: "hidden",
-                backgroundColor:
-                  focusedField === "password"
-                    ? "rgba(243, 112, 33, 0.02)"
-                    : "#FFFFFF",
-                border:
-                  focusedField === "password"
-                    ? "2px solid #F37021"
-                    : "2px solid #E5E7EB",
-                transition: "all 0.3s ease",
-              }}
-            >
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onFocus={() => setFocusedField("password")}
-                onBlur={() => setFocusedField(null)}
-                required
-                placeholder="Nhập mật khẩu"
-                autoComplete="off"
-                className="login-input"
-                style={{
-                  width: "100%",
-                  padding: "0.875rem 1rem",
-                  background: "transparent",
-                  border: "none",
-                  outline: "none",
-                  color: "#002855",
-                  fontSize: "1rem",
-                  fontFamily: "inherit",
-                  fontWeight: 400,
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="login-button"
+        {/* Success Message */}
+        {successMessage && (
+          <div
             style={{
-              width: "100%",
-              padding: "0.875rem 1rem",
-              backgroundColor: loading ? "#E5E7EB" : "#F37021",
-              color: loading ? "#6B7280" : "#FFFFFF",
-              border: "none",
+              backgroundColor: "rgba(16, 185, 129, 0.08)",
+              border: "1px solid rgba(16, 185, 129, 0.2)",
+              color: "#059669",
+              padding: "1rem",
               borderRadius: "8px",
-              fontSize: "1rem",
-              fontWeight: 600,
-              cursor: loading ? "not-allowed" : "pointer",
-              transition: "all 0.3s ease",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.5rem",
-              boxShadow: loading
-                ? "none"
-                : "0 4px 12px rgba(243, 112, 33, 0.2)",
-              transform: loading ? "none" : "translateY(0)",
-              letterSpacing: "0.3px",
-            }}
-            onMouseOver={(e) => {
-              if (!loading) {
-                e.currentTarget.style.backgroundColor = "#E55A1B";
-                e.currentTarget.style.transform = "translateY(-1px)";
-                e.currentTarget.style.boxShadow =
-                  "0 6px 16px rgba(243, 112, 33, 0.25)";
-              }
-            }}
-            onMouseOut={(e) => {
-              if (!loading) {
-                e.currentTarget.style.backgroundColor = "#F37021";
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow =
-                  "0 4px 12px rgba(243, 112, 33, 0.2)";
-              }
+              marginBottom: "1.5rem",
+              fontSize: "0.9rem",
+              fontWeight: 500,
+              lineHeight: "1.5",
             }}
           >
-            {loading ? (
-              <>
-                <div
+            {successMessage}
+          </div>
+        )}
+
+        {/* Login Form */}
+        {authMode === "login" && (
+          <form onSubmit={handleSubmit} autoComplete="off">
+            {/* Username Field */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#002855",
+                  marginBottom: "0.5rem",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Tên đăng nhập
+              </label>
+              <div
+                style={{
+                  position: "relative",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  backgroundColor:
+                    focusedField === "username"
+                      ? "rgba(243, 112, 33, 0.02)"
+                      : "#FFFFFF",
+                  border:
+                    focusedField === "username"
+                      ? "2px solid #F37021"
+                      : "2px solid #E5E7EB",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  onFocus={() => setFocusedField("username")}
+                  onBlur={() => setFocusedField(null)}
+                  required
+                  placeholder="Nhập tên đăng nhập"
+                  autoComplete="off"
+                  className="login-input"
                   style={{
-                    width: "18px",
-                    height: "18px",
-                    border: "2px solid rgba(107, 114, 128, 0.3)",
-                    borderTop: "2px solid #6B7280",
-                    borderRadius: "50%",
-                    animation: "spin 1s linear infinite",
+                    width: "100%",
+                    padding: "0.875rem 1rem",
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: "#002855",
+                    fontSize: "1rem",
+                    fontFamily: "inherit",
+                    fontWeight: 400,
                   }}
                 />
-                Đang đăng nhập...
-              </>
-            ) : (
-              <>Đăng nhập</>
+              </div>
+            </div>
+
+            {/* Password Field */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#002855",
+                  marginBottom: "0.5rem",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Mật khẩu
+              </label>
+              <div
+                style={{
+                  position: "relative",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  backgroundColor:
+                    focusedField === "password"
+                      ? "rgba(243, 112, 33, 0.02)"
+                      : "#FFFFFF",
+                  border:
+                    focusedField === "password"
+                      ? "2px solid #F37021"
+                      : "2px solid #E5E7EB",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setFocusedField("password")}
+                  onBlur={() => setFocusedField(null)}
+                  required
+                  placeholder="Nhập mật khẩu"
+                  autoComplete="off"
+                  className="login-input"
+                  style={{
+                    width: "100%",
+                    padding: "0.875rem 1rem",
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: "#002855",
+                    fontSize: "1rem",
+                    fontFamily: "inherit",
+                    fontWeight: 400,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Captcha Field */}
+            {requiresCaptcha && (
+              <div style={{ marginBottom: "1.5rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    color: "#002855",
+                    marginBottom: "0.5rem",
+                    fontSize: "0.9rem",
+                    fontWeight: 600,
+                    letterSpacing: "0.3px",
+                  }}
+                >
+                  Mã xác thực Captcha
+                </label>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                  <div
+                    style={{
+                      flex: 1,
+                      position: "relative",
+                      borderRadius: "8px",
+                      overflow: "hidden",
+                      backgroundColor:
+                        focusedField === "captcha"
+                          ? "rgba(243, 112, 33, 0.02)"
+                          : "#FFFFFF",
+                      border:
+                        focusedField === "captcha"
+                          ? "2px solid #F37021"
+                          : "2px solid #E5E7EB",
+                      transition: "all 0.3s ease",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      maxLength={4}
+                      value={captchaCode}
+                      onChange={(e) => setCaptchaCode(e.target.value.toUpperCase())}
+                      onFocus={() => setFocusedField("captcha")}
+                      onBlur={() => setFocusedField(null)}
+                      required
+                      placeholder="Mã 4 ký tự"
+                      autoComplete="off"
+                      style={{
+                        width: "100%",
+                        padding: "0.875rem 1rem",
+                        background: "transparent",
+                        border: "none",
+                        outline: "none",
+                        color: "#002855",
+                        fontSize: "1rem",
+                        fontFamily: "monospace",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "2px",
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Captcha Image */}
+                  <div
+                    onClick={fetchCaptchaImage}
+                    title="Nhấp để đổi mã captcha mới"
+                    style={{
+                      height: "44px",
+                      width: "120px",
+                      borderRadius: "8px",
+                      border: "2px solid #E5E7EB",
+                      overflow: "hidden",
+                      backgroundColor: "#F3F4F6",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      position: "relative",
+                    }}
+                  >
+                    {captchaLoading ? (
+                      <div
+                        style={{
+                          width: "16px",
+                          height: "16px",
+                          border: "2px solid rgba(0, 40, 85, 0.2)",
+                          borderTop: "2px solid #002855",
+                          borderRadius: "50%",
+                          animation: "spin 1s linear infinite",
+                        }}
+                      />
+                    ) : (
+                      <img
+                        src={captchaImage}
+                        alt="Captcha"
+                        style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
-          </button>
-        </form>
+
+            {/* Forgot Password Link */}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1.5rem" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("forgot_request");
+                  setError(null);
+                  setSuccessMessage(null);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#F37021",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  padding: 0,
+                  transition: "color 0.2s ease",
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.color = "#E55A1B")}
+                onMouseOut={(e) => (e.currentTarget.style.color = "#F37021")}
+              >
+                Quên mật khẩu?
+              </button>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="login-button"
+              style={{
+                width: "100%",
+                padding: "0.875rem 1rem",
+                backgroundColor: loading ? "#E5E7EB" : "#F37021",
+                color: loading ? "#6B7280" : "#FFFFFF",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "1rem",
+                fontWeight: 600,
+                cursor: loading ? "not-allowed" : "pointer",
+                transition: "all 0.3s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
+                boxShadow: loading
+                  ? "none"
+                  : "0 4px 12px rgba(243, 112, 33, 0.2)",
+                transform: loading ? "none" : "translateY(0)",
+                letterSpacing: "0.3px",
+              }}
+              onMouseOver={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.backgroundColor = "#E55A1B";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.boxShadow =
+                    "0 6px 16px rgba(243, 112, 33, 0.25)";
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.backgroundColor = "#F37021";
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 12px rgba(243, 112, 33, 0.2)";
+                }
+              }}
+            >
+              {loading ? (
+                <>
+                  <div
+                    style={{
+                      width: "18px",
+                      height: "18px",
+                      border: "2px solid rgba(107, 114, 128, 0.3)",
+                      borderTop: "2px solid #6B7280",
+                      borderRadius: "50%",
+                      animation: "spin 1s linear infinite",
+                    }}
+                  />
+                  Đang đăng nhập...
+                </>
+              ) : (
+                <>Đăng nhập</>
+              )}
+            </button>
+          </form>
+        )}
+
+        {/* Forgot Password Request Form */}
+        {authMode === "forgot_request" && (
+          <form onSubmit={handleForgotPasswordRequest} autoComplete="off">
+            <div style={{ marginBottom: "2rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#002855",
+                  marginBottom: "0.5rem",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Mã sinh viên / Mã giảng viên
+              </label>
+              <div
+                style={{
+                  position: "relative",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  backgroundColor:
+                    focusedField === "forgotStudentCode"
+                      ? "rgba(243, 112, 33, 0.02)"
+                      : "#FFFFFF",
+                  border:
+                    focusedField === "forgotStudentCode"
+                      ? "2px solid #F37021"
+                      : "2px solid #E5E7EB",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <input
+                  type="text"
+                  value={forgotStudentCode}
+                  onChange={(e) => setForgotStudentCode(e.target.value)}
+                  onFocus={() => setFocusedField("forgotStudentCode")}
+                  onBlur={() => setFocusedField(null)}
+                  required
+                  placeholder="Nhập mã số tài khoản"
+                  autoComplete="off"
+                  style={{
+                    width: "100%",
+                    padding: "0.875rem 1rem",
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: "#002855",
+                    fontSize: "1rem",
+                    fontFamily: "inherit",
+                    fontWeight: 400,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "0.875rem 1rem",
+                backgroundColor: loading ? "#E5E7EB" : "#F37021",
+                color: loading ? "#6B7280" : "#FFFFFF",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "1rem",
+                fontWeight: 600,
+                cursor: loading ? "not-allowed" : "pointer",
+                transition: "all 0.3s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
+                boxShadow: loading
+                  ? "none"
+                  : "0 4px 12px rgba(243, 112, 33, 0.2)",
+                letterSpacing: "0.3px",
+                marginBottom: "1rem",
+              }}
+              onMouseOver={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.backgroundColor = "#E55A1B";
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.backgroundColor = "#F37021";
+                }
+              }}
+            >
+              {loading ? "Đang gửi mã OTP..." : "Gửi mã OTP"}
+            </button>
+
+            {/* Back Button */}
+            <button
+              type="button"
+              onClick={handleBackToLogin}
+              style={{
+                width: "100%",
+                padding: "0.875rem 1rem",
+                backgroundColor: "transparent",
+                color: "#6B7280",
+                border: "1px solid #E5E7EB",
+                borderRadius: "8px",
+                fontSize: "1rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.backgroundColor = "#F9FAFB";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+            >
+              <ArrowLeft size={18} />
+              Quay lại đăng nhập
+            </button>
+          </form>
+        )}
+
+        {/* Forgot Password Reset Form */}
+        {authMode === "forgot_verify" && (
+          <form onSubmit={handleForgotPasswordReset} autoComplete="off">
+            {/* OTP field */}
+            <div style={{ marginBottom: "1.25rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#002855",
+                  marginBottom: "0.5rem",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Mã xác thực OTP (6 số)
+              </label>
+              <div
+                style={{
+                  position: "relative",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  backgroundColor:
+                    focusedField === "otp"
+                      ? "rgba(243, 112, 33, 0.02)"
+                      : "#FFFFFF",
+                  border:
+                    focusedField === "otp"
+                      ? "2px solid #F37021"
+                      : "2px solid #E5E7EB",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  onFocus={() => setFocusedField("otp")}
+                  onBlur={() => setFocusedField(null)}
+                  required
+                  placeholder="Nhập 6 số OTP"
+                  autoComplete="off"
+                  style={{
+                    width: "100%",
+                    padding: "0.875rem 1rem",
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: "#002855",
+                    fontSize: "1.2rem",
+                    fontFamily: "inherit",
+                    fontWeight: 700,
+                    letterSpacing: "4px",
+                    textAlign: "center",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* New Password field */}
+            <div style={{ marginBottom: "1.25rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#002855",
+                  marginBottom: "0.5rem",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Mật khẩu mới
+              </label>
+              <div
+                style={{
+                  position: "relative",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  backgroundColor:
+                    focusedField === "newPassword"
+                      ? "rgba(243, 112, 33, 0.02)"
+                      : "#FFFFFF",
+                  border:
+                    focusedField === "newPassword"
+                      ? "2px solid #F37021"
+                      : "2px solid #E5E7EB",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  onFocus={() => setFocusedField("newPassword")}
+                  onBlur={() => setFocusedField(null)}
+                  required
+                  placeholder="Nhập mật khẩu mới"
+                  autoComplete="off"
+                  style={{
+                    width: "100%",
+                    padding: "0.875rem 1rem",
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: "#002855",
+                    fontSize: "1rem",
+                    fontFamily: "inherit",
+                    fontWeight: 400,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Confirm Password field */}
+            <div style={{ marginBottom: "2rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#002855",
+                  marginBottom: "0.5rem",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Xác nhận mật khẩu mới
+              </label>
+              <div
+                style={{
+                  position: "relative",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  backgroundColor:
+                    focusedField === "confirmPassword"
+                      ? "rgba(243, 112, 33, 0.02)"
+                      : "#FFFFFF",
+                  border:
+                    focusedField === "confirmPassword"
+                      ? "2px solid #F37021"
+                      : "2px solid #E5E7EB",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onFocus={() => setFocusedField("confirmPassword")}
+                  onBlur={() => setFocusedField(null)}
+                  required
+                  placeholder="Xác nhận mật khẩu mới"
+                  autoComplete="off"
+                  style={{
+                    width: "100%",
+                    padding: "0.875rem 1rem",
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: "#002855",
+                    fontSize: "1rem",
+                    fontFamily: "inherit",
+                    fontWeight: 400,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "0.875rem 1rem",
+                backgroundColor: loading ? "#E5E7EB" : "#F37021",
+                color: loading ? "#6B7280" : "#FFFFFF",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "1rem",
+                fontWeight: 600,
+                cursor: loading ? "not-allowed" : "pointer",
+                transition: "all 0.3s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
+                boxShadow: loading
+                  ? "none"
+                  : "0 4px 12px rgba(243, 112, 33, 0.2)",
+                letterSpacing: "0.3px",
+                marginBottom: "1rem",
+              }}
+              onMouseOver={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.backgroundColor = "#E55A1B";
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.backgroundColor = "#F37021";
+                }
+              }}
+            >
+              {loading ? "Đang xác nhận..." : "Xác nhận đổi mật khẩu"}
+            </button>
+
+            {/* Dual Action Buttons */}
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                type="button"
+                disabled={loading || countdown > 0}
+                onClick={() => {
+                  forgotPassword({ studentCode: forgotStudentCode.trim() })
+                    .then((resp) => {
+                      if (resp.success) {
+                        setSuccessMessage("Đã gửi lại mã OTP mới. Vui lòng kiểm tra email.");
+                        setError(null);
+                        setCountdown(60);
+                      } else {
+                        setError(resp.message || "Gửi lại OTP thất bại.");
+                      }
+                    })
+                    .catch((err) => setError(err.message || "Lỗi gửi lại OTP."));
+                }}
+                style={{
+                  flex: 1,
+                  padding: "0.875rem 1rem",
+                  backgroundColor: "transparent",
+                  color: countdown > 0 ? "#9CA3AF" : "#F37021",
+                  border: countdown > 0 ? "1px solid #E5E7EB" : "1px solid #F37021",
+                  borderRadius: "8px",
+                  fontSize: "0.95rem",
+                  fontWeight: 600,
+                  cursor: countdown > 0 ? "not-allowed" : "pointer",
+                  transition: "all 0.3s ease",
+                  textAlign: "center",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+                onMouseOver={(e) => {
+                  if (countdown <= 0) {
+                    e.currentTarget.style.backgroundColor = "rgba(243, 112, 33, 0.05)";
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (countdown <= 0) {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                  }
+                }}
+              >
+                {countdown > 0 ? (
+                  <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.35rem" }}>
+                    <Timer size={16} />
+                    Gửi lại sau (00:{countdown.toString().padStart(2, "0")})
+                  </span>
+                ) : (
+                  "Gửi lại OTP"
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleBackToLogin}
+                style={{
+                  flex: 1,
+                  padding: "0.875rem 1rem",
+                  backgroundColor: "transparent",
+                  color: "#6B7280",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: "8px",
+                  fontSize: "1rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.3s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = "#F9FAFB";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                Hủy bỏ
+              </button>
+            </div>
+          </form>
+        )}
 
         {/* Footer */}
         <div style={{ textAlign: "center", marginTop: "2rem" }}>
