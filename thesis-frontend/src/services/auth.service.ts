@@ -6,6 +6,8 @@ import { normalizeRole } from "../utils/role";
 export interface LoginRequest {
   username: string;
   password: string;
+  captchaCode?: string;
+  captchaSessionId?: string;
 }
 
 export interface LoginResult {
@@ -99,4 +101,43 @@ export async function resetPassword(
       body: payload,
     },
   );
+}
+
+export interface ForgotPasswordRequest {
+  studentCode: string;
+}
+
+export interface VerifyOtpResetRequest {
+  studentCode: string;
+  otp: string;
+  newPassword: string;
+}
+
+export async function forgotPassword(
+  payload: ForgotPasswordRequest,
+): Promise<ApiResponse<unknown>> {
+  return await fetchData<ApiResponse<unknown>>("/Auth/forgot-password", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function verifyOtpReset(
+  payload: VerifyOtpResetRequest,
+): Promise<ApiResponse<unknown>> {
+  return await fetchData<ApiResponse<unknown>>("/Auth/verify-otp-reset", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export interface CaptchaResponse {
+  captchaSessionId: string;
+  captchaImage: string;
+}
+
+export async function getCaptcha(): Promise<ApiResponse<CaptchaResponse>> {
+  return await fetchData<ApiResponse<CaptchaResponse>>("/Auth/captcha", {
+    method: "GET",
+  });
 }
