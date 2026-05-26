@@ -48,6 +48,7 @@ import TopicWorkflowAudits from "../pages/admin/TopicWorkflowAudits";
 import DefensePeriodsManagement from "../pages/admin/DefensePeriodsManagement";
 import RoomsManagement from "../pages/admin/RoomsManagement";
 import RouteErrorBoundary from "../components/RouteErrorBoundary";
+import InfoManagement from "../pages/admin/InfoManagement";
 /**
  * AppRoutes chứa tất cả route của ứng dụng.
  * Nếu thêm route mới, chỉ edit file này.
@@ -145,6 +146,7 @@ const AppRoutes: React.FC = () => {
             element={<DefensePeriodsManagement />}
           />
           <Route path="rooms" element={<RoomsManagement />} />
+          <Route path="info-management" element={<InfoManagement />} />
           <Route
             path="committees"
             element={<Navigate to="/admin/committees/management" replace />}
@@ -184,7 +186,7 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           }
         >
-          <Route index element={<LecturerTopicReview />} />
+          <Route index element={<DefensePeriodsManagement />} />
           <Route
             path="academic-data"
             element={<AcademicDataManagementPage />}
@@ -198,6 +200,37 @@ const AppRoutes: React.FC = () => {
           <Route
             path="catalogtopics"
             element={<CatalogTopicsWarehousePage />}
+          />
+          <Route path="topic-review" element={<LecturerTopicReview />} />
+          <Route
+            path="defense-periods"
+            element={<DefensePeriodsManagement />}
+          />
+          <Route path="rooms" element={<RoomsManagement />} />
+          <Route path="info-management" element={<InfoManagement />} />
+          <Route
+            path="committees"
+            element={<Navigate to="/student-service/committees/management" replace />}
+          />
+          <Route
+            path="committees/management"
+            element={
+              <RouteErrorBoundary pageTitle="Phân công - Quản lý hội đồng">
+                <CommitteeManagement />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="committees/operations"
+            element={
+              <RouteErrorBoundary pageTitle="Điều hành chấm điểm - Hậu bảo vệ">
+                <CommitteeOperationsManagement />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="defense-assignments"
+            element={<Navigate to="/student-service/committees/management" replace />}
           />
         </Route>
 

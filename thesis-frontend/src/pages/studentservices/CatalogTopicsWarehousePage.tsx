@@ -832,10 +832,10 @@ const CatalogTopicsWarehousePage: React.FC = () => {
             <colgroup>
               <col style={{ width: "10%" }} />
               <col style={{ width: "15%" }} />
-              <col style={{ width: "22%" }} />
-              <col style={{ width: "8%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "6%" }} />
               <col style={{ width: "15%" }} />
-              <col style={{ width: "8%" }} />
+              <col style={{ width: "12%" }} />
               <col style={{ width: "10%" }} />
               <col style={{ width: "12%" }} />
             </colgroup>
@@ -968,7 +968,8 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                           fontWeight: 700,
                           background: "#fee2e2",
                           color: "#991b1b",
-                          border: "1px solid #fecaca"
+                          border: "1px solid #fecaca",
+                          whiteSpace: "nowrap"
                         }}>
                           Đã giao
                         </span>
@@ -981,7 +982,8 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                           fontWeight: 700,
                           background: "#dcfce7",
                           color: "#166534",
-                          border: "1px solid #bbf7d0"
+                          border: "1px solid #bbf7d0",
+                          whiteSpace: "nowrap"
                         }}>
                           Chưa giao
                         </span>
