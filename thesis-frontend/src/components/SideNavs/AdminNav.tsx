@@ -80,10 +80,15 @@ const AdminNav: React.FC<AdminNavProps> = ({
 
   const roleCanSeeUsers = hasUserManagementPermission(role, "users:list");
 
-  const hiddenPaths =
-    role === ROLE_STUDENT_SERVICE
-      ? new Set([`${basePath}/defense-periods`, `${basePath}/rooms`])
-      : new Set<string>();
+  const hiddenPaths = new Set([
+    `${basePath}/students`,
+    `${basePath}/lecturers`,
+    `${basePath}/departments`,
+    `${basePath}/rooms`,
+    `${basePath}/tags`,
+    `${basePath}/catalogtopics`,
+    `${basePath}/users`,
+  ]);
 
   const adminOnlyItems = [
     {
@@ -109,36 +114,27 @@ const AdminNav: React.FC<AdminNavProps> = ({
   ];
 
   const rawNavItems = [
-    ...(role === ROLE_STUDENT_SERVICE
-      ? [
-          {
-            path: `${basePath}`,
-            label: "Phân công và theo dõi",
-            icon: <BookOpen size={18} />,
-          },
-        ]
-      : [
-          { path: `${basePath}`, label: "Trang chủ", icon: <Home size={18} /> },
-        ]),
-    ...(role === ROLE_ADMIN
-      ? [
-          {
-            path: `${basePath}/topic-review`,
-            label: "Phân công và theo dõi",
-            icon: <BookOpen size={18} />,
-          },
-          {
-            path: `${basePath}/committees/management`,
-            label: "Phân công hội đồng",
-            icon: <ShieldCheck size={18} />,
-          },
-          {
-            path: `${basePath}/committees/operations`,
-            label: "Điều hành chấm điểm",
-            icon: <Activity size={18} />,
-          },
-        ]
-      : []),
+    { path: `${basePath}`, label: "Trang chủ", icon: <Home size={18} /> },
+    {
+      path: `${basePath}/topic-review`,
+      label: "Phân công và theo dõi",
+      icon: <BookOpen size={18} />,
+    },
+    {
+      path: `${basePath}/committees/management`,
+      label: "Phân công hội đồng",
+      icon: <ShieldCheck size={18} />,
+    },
+    {
+      path: `${basePath}/committees/operations`,
+      label: "Điều hành chấm điểm",
+      icon: <Activity size={18} />,
+    },
+    {
+      path: `${basePath}/info-management`,
+      label: "Quản lý thông tin",
+      icon: <ClipboardList size={18} />,
+    },
     {
       path: `${basePath}/students`,
       label: "Quản lý sinh viên",

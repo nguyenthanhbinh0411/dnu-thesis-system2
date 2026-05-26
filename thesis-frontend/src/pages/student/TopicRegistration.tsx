@@ -387,8 +387,8 @@ const TopicRegistration: React.FC = () => {
         );
         const termLecturers = (termLecturerRes as ApiResponse<any[]>)?.data || [];
         const termLecturerCodes = new Set(termLecturers.map((tl) => tl.lecturerCode).filter(Boolean));
-        
-        const filteredTermLecturers = allLecturers.filter((lp) => 
+
+        const filteredTermLecturers = allLecturers.filter((lp) =>
           termLecturerCodes.has(lp.lecturerCode)
         );
         setLecturers(filteredTermLecturers);
@@ -699,18 +699,18 @@ const TopicRegistration: React.FC = () => {
         `/Templates/download?fileName=${encodeURIComponent(templateName)}`,
         { method: "GET" }
       );
-      
+
       const blob = new Blob([arrayBuffer], {
         type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
-      
+
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute("download", templateName);
       document.body.appendChild(link);
       link.click();
-      
+
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err) {
@@ -1815,6 +1815,7 @@ const TopicRegistration: React.FC = () => {
             </button>
           </div>
         </form>
+        <ChatbotPopup />
       </div>
     );
   }
@@ -2031,6 +2032,7 @@ const TopicRegistration: React.FC = () => {
             supervisorUserCode: existingTopic.supervisorUserCode || null,
           }}
         />
+        <ChatbotPopup />
       </div>
     );
   }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -10,7 +10,14 @@ import {
   Info,
   CheckCircle,
   X,
+  Loader2,
+  Search,
+  Filter,
 } from "lucide-react";
+import { fetchData } from "../../api/fetchData";
+import { readEnvelopeData } from "../../utils/api-envelope";
+import { useToast } from "../../context/useToast";
+import type { ApiResponse } from "../../types/api";
 
 // Types for notification
 interface NotificationRecipient {
@@ -18,6 +25,15 @@ interface NotificationRecipient {
   name: string;
   type: "student" | "lecturer" | "admin";
   code: string;
+  defenseTermId?: number | null;
+}
+
+interface DefensePeriod {
+  defenseTermId: number;
+  termCode?: string;
+  name: string;
+  academicYear?: string;
+  semester?: string;
 }
 
 interface NotificationTemplate {
@@ -27,15 +43,6 @@ interface NotificationTemplate {
   content: string;
   type: "info" | "warning" | "success" | "error";
 }
-
-// Mock data for recipients
-const mockRecipients: NotificationRecipient[] = [
-  { id: "1", name: "Nguyễn Văn An", type: "student", code: "SV001" },
-  { id: "2", name: "Trần Thị Bình", type: "student", code: "SV002" },
-  { id: "3", name: "Lê Văn Cường", type: "lecturer", code: "GV001" },
-  { id: "4", name: "Phạm Thị Dung", type: "lecturer", code: "GV002" },
-  { id: "5", name: "Hoàng Văn Em", type: "admin", code: "ADM001" },
-];
 
 // Mock notification templates
 const notificationTemplates: NotificationTemplate[] = [
@@ -67,6 +74,15 @@ const notificationTemplates: NotificationTemplate[] = [
 
 const CreateNotification: React.FC = () => {
   const navigate = useNavigate();
+  const { addToast } = useToast();
+  const [recipients, setRecipients] = useState<NotificationRecipient[]>([]);
+  const [loadingRecipients, setLoadingRecipients] = useState(false);
+  const [periods, setPeriods] = useState<DefensePeriod[]>([]);
+  const [isRecipientModalOpen, setIsRecipientModalOpen] = useState(false);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
+  const [recipientSearch, setRecipientSearch] = useState<string>("");
+  const [recipientTab, setRecipientTab] = useState<"student" | "lecturer">("student");
+  const [tempSelectedRecipients, setTempSelectedRecipients] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     title: "",
     content: "",
@@ -79,16 +95,88 @@ const CreateNotification: React.FC = () => {
       | "admins"
       | "specific",
     selectedRecipients: [] as string[],
-    sendEmail: true,
-    sendPush: true,
-    scheduleSend: false,
-    scheduledDate: "",
-    scheduledTime: "",
   });
 
   const [showPreview, setShowPreview] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const loadRecipients = async () => {
+      setLoadingRecipients(true);
+      try {
+        const [studentsRes, lecturersRes, usersRes, periodsRes] = await Promise.allSettled([
+          fetchData<ApiResponse<any[]>>("/StudentProfiles/get-list?pageSize=2000"),
+          fetchData<ApiResponse<any[]>>("/LecturerProfiles/get-list?pageSize=2000"),
+          fetchData<ApiResponse<any[]>>("/Users/get-list?pageSize=2000"),
+          fetchData<ApiResponse<any[]>>("/defense-periods"),
+        ]);
+
+        const loaded: NotificationRecipient[] = [];
+
+        if (studentsRes.status === "fulfilled") {
+          const studentItems = readEnvelopeData<any[]>(studentsRes.value) || [];
+          studentItems.forEach((s: any) => {
+            if (s.userCode) {
+              loaded.push({
+                id: s.userCode,
+                name: s.fullName || s.studentCode || "Sinh viên",
+                type: "student",
+                code: s.studentCode,
+                defenseTermId: s.defenseTermId,
+              });
+            }
+          });
+        }
+
+        if (lecturersRes.status === "fulfilled") {
+          const lecturerItems = readEnvelopeData<any[]>(lecturersRes.value) || [];
+          lecturerItems.forEach((l: any) => {
+            if (l.userCode) {
+              loaded.push({
+                id: l.userCode,
+                name: l.fullName || l.lecturerCode || "Giảng viên",
+                type: "lecturer",
+                code: l.lecturerCode,
+                defenseTermId: l.defenseTermId,
+              });
+            }
+          });
+        }
+
+        if (usersRes.status === "fulfilled") {
+          const userItems = readEnvelopeData<any[]>(usersRes.value) || [];
+          userItems.forEach((u: any) => {
+            if (u.role === "ADMIN") {
+              if (!loaded.some(x => x.id === u.userCode)) {
+                loaded.push({
+                  id: u.userCode,
+                  name: `Admin - ${u.userCode}`,
+                  type: "admin",
+                  code: u.userCode,
+                  defenseTermId: null,
+                });
+              }
+            }
+          });
+        }
+
+        if (periodsRes.status === "fulfilled") {
+          const periodItems = readEnvelopeData<any[]>(periodsRes.value) || [];
+          setPeriods(periodItems);
+        }
+
+        setRecipients(loaded);
+      } catch (err) {
+        console.error("Failed to load recipients", err);
+        addToast("Không thể tải danh sách người nhận thực tế.", "error");
+      } finally {
+        setLoadingRecipients(false);
+      }
+    };
+
+    void loadRecipients();
+  }, [addToast]);
 
   const handleInputChange = (field: string, value: unknown) => {
     setFormData((prev) => ({
@@ -120,12 +208,62 @@ const CreateNotification: React.FC = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      console.log("Notification created:", formData);
+    const isGlobal = formData.recipientType === "all";
+
+    // Resolve TargetUserCodes
+    let targetUserCodes: string[] | null = null;
+    if (!isGlobal) {
+      if (formData.recipientType === "students") {
+        targetUserCodes = recipients.filter((r) => r.type === "student").map((r) => r.id);
+      } else if (formData.recipientType === "lecturers") {
+        targetUserCodes = recipients.filter((r) => r.type === "lecturer").map((r) => r.id);
+      } else if (formData.recipientType === "admins") {
+        targetUserCodes = recipients.filter((r) => r.type === "admin").map((r) => r.id);
+      } else if (formData.recipientType === "specific") {
+        targetUserCodes = formData.selectedRecipients;
+      }
+    }
+
+    if (!isGlobal && (!targetUserCodes || targetUserCodes.length === 0)) {
+      addToast("Vui lòng chọn ít nhất một người nhận.", "warning");
       setIsSubmitting(false);
-      navigate("/admin/notifications");
-    }, 2000);
+      return;
+    }
+
+    try {
+      const payload = {
+        notifCategory: formData.type.toUpperCase(),
+        notifTitle: formData.title,
+        notifBody: formData.content,
+        notifPriority: formData.priority.toUpperCase(),
+        isGlobal: isGlobal,
+        targetUserCodes: targetUserCodes,
+        notifChannel: "IN_APP",
+        actionType: null,
+        actionUrl: null,
+        imageUrl: null,
+        relatedEntityName: null,
+        relatedEntityCode: null,
+        relatedEntityID: null,
+      };
+
+      const res = await fetchData<ApiResponse<any>>("/Notifications/create", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      if (res.success) {
+        addToast("Gửi thông báo thành công!", "success");
+        navigate("/admin");
+      } else {
+        throw new Error(res.message || "Gửi thất bại.");
+      }
+    } catch (err: any) {
+      const errMsg = err.data?.message || err.data?.Message || err.message || "Không thể gửi thông báo. Vui lòng thử lại.";
+      addToast(errMsg, "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getTypeIcon = (type: string) => {
@@ -158,7 +296,13 @@ const CreateNotification: React.FC = () => {
     }
   };
 
-  const filteredRecipients = mockRecipients.filter((recipient) => {
+  const getPeriodName = (termId?: number | null) => {
+    if (!termId) return null;
+    const p = periods.find((x) => x.defenseTermId === termId);
+    return p ? p.name : null;
+  };
+
+  const filteredRecipients = recipients.filter((recipient) => {
     if (formData.recipientType === "all") return true;
     if (formData.recipientType === "students")
       return recipient.type === "student";
@@ -509,85 +653,95 @@ const CreateNotification: React.FC = () => {
             </div>
 
             {formData.recipientType === "specific" && (
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    color: "#374151",
-                    marginBottom: "12px",
-                  }}
-                >
-                  Chọn người nhận ({formData.selectedRecipients.length} đã chọn)
-                </label>
-                <div
-                  style={{
-                    maxHeight: "200px",
-                    overflow: "auto",
-                    border: "1px solid #D1D5DB",
-                    borderRadius: "8px",
+              <div style={{ display: "grid", gap: "12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      color: "#374151",
+                    }}
+                  >
+                    Danh sách người nhận cụ thể: <span style={{ color: "#4F46E5", fontWeight: "800" }}>{formData.selectedRecipients.length}</span> người đã chọn
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempSelectedRecipients([...formData.selectedRecipients]);
+                      setIsRecipientModalOpen(true);
+                    }}
+                    style={{
+                      padding: "8px 16px",
+                      background: "linear-gradient(135deg, #4f46e5, #4338ca)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "8px",
+                      fontSize: "13px",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      boxShadow: "0 2px 4px rgba(79, 70, 229, 0.15)"
+                    }}
+                  >
+                    <Users size={14} /> Chọn danh sách...
+                  </button>
+                </div>
+                {formData.selectedRecipients.length > 0 ? (
+                  <div style={{
+                    maxHeight: "150px",
+                    overflowY: "auto",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "10px",
                     padding: "12px",
-                  }}
-                >
-                  {mockRecipients.map((recipient) => (
-                    <label
-                      key={recipient.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "12px",
-                        padding: "8px",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        transition: "background-color 0.2s",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "#F3F4F6";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "transparent";
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.selectedRecipients.includes(
-                          recipient.id
-                        )}
-                        onChange={() => handleRecipientToggle(recipient.id)}
-                        style={{ margin: 0 }}
-                      />
-                      <div
-                        style={{
+                    background: "#f8fafc",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "8px"
+                  }}>
+                    {formData.selectedRecipients.map((code) => {
+                      const rc = recipients.find(r => r.id === code);
+                      return (
+                        <div key={code} style={{
+                          background: "#fff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "99px",
+                          padding: "4px 12px",
+                          fontSize: "12px",
+                          fontWeight: "600",
                           display: "flex",
                           alignItems: "center",
-                          gap: "8px",
-                        }}
-                      >
-                        <User size={16} color="#6B7280" />
-                        <div>
-                          <div
-                            style={{
-                              fontSize: "14px",
-                              fontWeight: "500",
-                              color: "#111827",
-                            }}
+                          gap: "6px"
+                        }}>
+                          <span style={{ color: "#4f46e5", fontSize: "10px", fontWeight: "800" }}>
+                            [{rc?.type === "student" ? "SV" : rc?.type === "lecturer" ? "GV" : "ADM"}]
+                          </span>
+                          <span>{rc?.name || code}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleInputChange("selectedRecipients", formData.selectedRecipients.filter(c => c !== code))}
+                            style={{ border: "none", background: "none", color: "#6b7280", cursor: "pointer", padding: "0 2px", display: "flex", alignItems: "center" }}
                           >
-                            {recipient.name}
-                          </div>
-                          <div style={{ fontSize: "12px", color: "#6B7280" }}>
-                            {recipient.code} •{" "}
-                            {recipient.type === "student"
-                              ? "Sinh viên"
-                              : recipient.type === "lecturer"
-                              ? "Giảng viên"
-                              : "Quản trị viên"}
-                          </div>
+                            <X size={12} />
+                          </button>
                         </div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{
+                    border: "1px dashed #cbd5e1",
+                    borderRadius: "10px",
+                    padding: "20px",
+                    background: "#f8fafc",
+                    color: "#6b7280",
+                    textAlign: "center",
+                    fontSize: "13px"
+                  }}>
+                    Chưa chọn người nhận nào. Vui lòng bấm "Chọn danh sách..." để bắt đầu chọn.
+                  </div>
+                )}
               </div>
             )}
 
@@ -650,166 +804,6 @@ const CreateNotification: React.FC = () => {
           </div>
         </div>
 
-        {/* Delivery Options */}
-        <div
-          style={{
-            background: "#FFFFFF",
-            borderRadius: "12px",
-            padding: "24px",
-            border: "1px solid #E5E7EB",
-          }}
-        >
-          <h3
-            style={{
-              fontSize: "18px",
-              fontWeight: "600",
-              color: "#111827",
-              marginBottom: "20px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <Send size={20} />
-            Tùy chọn gửi
-          </h3>
-
-          <div style={{ display: "grid", gap: "16px" }}>
-            <div style={{ display: "flex", gap: "24px" }}>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  color: "#374151",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={formData.sendEmail}
-                  onChange={(e) =>
-                    handleInputChange("sendEmail", e.target.checked)
-                  }
-                  style={{ margin: 0 }}
-                />
-                Gửi email
-              </label>
-
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  color: "#374151",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={formData.sendPush}
-                  onChange={(e) =>
-                    handleInputChange("sendPush", e.target.checked)
-                  }
-                  style={{ margin: 0 }}
-                />
-                Thông báo đẩy
-              </label>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  color: "#374151",
-                  marginBottom: "12px",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={formData.scheduleSend}
-                  onChange={(e) =>
-                    handleInputChange("scheduleSend", e.target.checked)
-                  }
-                  style={{ margin: 0 }}
-                />
-                Lên lịch gửi
-              </label>
-
-              {formData.scheduleSend && (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "12px",
-                  }}
-                >
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "14px",
-                        fontWeight: "500",
-                        color: "#374151",
-                        marginBottom: "6px",
-                      }}
-                    >
-                      Ngày gửi
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.scheduledDate}
-                      onChange={(e) =>
-                        handleInputChange("scheduledDate", e.target.value)
-                      }
-                      style={{
-                        width: "100%",
-                        padding: "12px",
-                        border: "1px solid #D1D5DB",
-                        borderRadius: "8px",
-                        fontSize: "14px",
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "14px",
-                        fontWeight: "500",
-                        color: "#374151",
-                        marginBottom: "6px",
-                      }}
-                    >
-                      Giờ gửi
-                    </label>
-                    <input
-                      type="time"
-                      value={formData.scheduledTime}
-                      onChange={(e) =>
-                        handleInputChange("scheduledTime", e.target.value)
-                      }
-                      style={{
-                        width: "100%",
-                        padding: "12px",
-                        border: "1px solid #D1D5DB",
-                        borderRadius: "8px",
-                        fontSize: "14px",
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
 
         {/* Action Buttons */}
         <div
@@ -1206,6 +1200,447 @@ const CreateNotification: React.FC = () => {
               >
                 Hủy
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recipient Selection Modal */}
+      {isRecipientModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              background: "#FFFFFF",
+              borderRadius: "16px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+              width: "100%",
+              maxWidth: "800px",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              border: "1px solid #E2E8F0",
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "20px 24px",
+                borderBottom: "1px solid #E2E8F0",
+                background: "linear-gradient(135deg, #1e3a8a, #3b82f6)",
+                color: "#FFFFFF",
+              }}
+            >
+              <div>
+                <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "700" }}>Chọn người nhận thông báo</h2>
+                <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#DBEAFE" }}>
+                  Đang chọn <span style={{ fontWeight: "800", color: "#FDE047" }}>{tempSelectedRecipients.length}</span> người nhận
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRecipientModalOpen(false)}
+                style={{
+                  background: "rgba(255, 255, 255, 0.1)",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "36px",
+                  height: "36px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  color: "#FFFFFF",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.2)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)")}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Filters */}
+            <div
+              style={{
+                padding: "16px 24px",
+                background: "#F8FAFC",
+                borderBottom: "1px solid #E2E8F0",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+              }}
+            >
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                {/* Search Input */}
+                <div style={{ position: "relative" }}>
+                  <Search
+                    size={18}
+                    color="#94A3B8"
+                    style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Tìm theo tên hoặc mã số..."
+                    value={recipientSearch}
+                    onChange={(e) => setRecipientSearch(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px 10px 38px",
+                      border: "1px solid #CBD5E1",
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                {/* Period Select */}
+                <div style={{ position: "relative" }}>
+                  <Filter
+                    size={16}
+                    color="#94A3B8"
+                    style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }}
+                  />
+                  <select
+                    value={selectedPeriodId}
+                    onChange={(e) => setSelectedPeriodId(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px 10px 34px",
+                      border: "1px solid #CBD5E1",
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      background: "#FFFFFF",
+                      outline: "none",
+                    }}
+                  >
+                    <option value="">Tất cả đợt bảo vệ</option>
+                    {periods.map((p) => (
+                      <option key={p.defenseTermId} value={String(p.defenseTermId)}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "4px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setRecipientTab("student")}
+                    style={{
+                      padding: "8px 16px",
+                      background: recipientTab === "student" ? "#3B82F6" : "transparent",
+                      color: recipientTab === "student" ? "#FFFFFF" : "#475569",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    Sinh viên ({recipients.filter((r) => r.type === "student").length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecipientTab("lecturer")}
+                    style={{
+                      padding: "8px 16px",
+                      background: recipientTab === "lecturer" ? "#3B82F6" : "transparent",
+                      color: recipientTab === "lecturer" ? "#FFFFFF" : "#475569",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    Giảng viên & Admin ({recipients.filter((r) => r.type === "lecturer" || r.type === "admin").length})
+                  </button>
+                </div>
+
+                {/* Bulk Actions */}
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const filteredIds = recipients
+                        .filter((r) => {
+                          const matchesSearch =
+                            (r.name?.toLowerCase() || "").includes(recipientSearch.toLowerCase()) ||
+                            (r.code?.toLowerCase() || "").includes(recipientSearch.toLowerCase());
+                          const matchesPeriod = !selectedPeriodId || String(r.defenseTermId) === selectedPeriodId;
+                          const matchesTab = r.type === recipientTab || (recipientTab === "lecturer" && r.type === "admin");
+                          return matchesSearch && matchesPeriod && matchesTab;
+                        })
+                        .map((r) => r.id);
+
+                      setTempSelectedRecipients((prev) => {
+                        const next = [...prev];
+                        filteredIds.forEach((id) => {
+                          if (!next.includes(id)) next.push(id);
+                        });
+                        return next;
+                      });
+                    }}
+                    style={{
+                      padding: "6px 12px",
+                      background: "#EFF6FF",
+                      color: "#1D4ED8",
+                      border: "1px solid #BFDBFE",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Chọn tất cả đã lọc
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const filteredIds = recipients
+                        .filter((r) => {
+                          const matchesSearch =
+                            (r.name?.toLowerCase() || "").includes(recipientSearch.toLowerCase()) ||
+                            (r.code?.toLowerCase() || "").includes(recipientSearch.toLowerCase());
+                          const matchesPeriod = !selectedPeriodId || String(r.defenseTermId) === selectedPeriodId;
+                          const matchesTab = r.type === recipientTab || (recipientTab === "lecturer" && r.type === "admin");
+                          return matchesSearch && matchesPeriod && matchesTab;
+                        })
+                        .map((r) => r.id);
+
+                      setTempSelectedRecipients((prev) => prev.filter((id) => !filteredIds.includes(id)));
+                    }}
+                    style={{
+                      padding: "6px 12px",
+                      background: "#FEF2F2",
+                      color: "#991B1B",
+                      border: "1px solid #FCA5A5",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Bỏ chọn tất cả đã lọc
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body - Scrollable Candidate List */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                padding: "24px",
+                background: "#FFFFFF",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "12px",
+                alignContent: "start",
+                minHeight: "300px",
+              }}
+            >
+              {loadingRecipients ? (
+                <div style={{ gridColumn: "span 2", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px" }}>
+                  <div
+                    style={{
+                      width: "32px",
+                      height: "32px",
+                      border: "3px solid #3B82F6",
+                      borderTop: "3px solid transparent",
+                      borderRadius: "50%",
+                      animation: "spin 1s linear infinite",
+                    }}
+                  />
+                  <p style={{ marginTop: "12px", color: "#64748B", fontSize: "14px" }}>Đang tải danh sách người dùng...</p>
+                </div>
+              ) : (() => {
+                const filtered = recipients.filter((r) => {
+                  const matchesSearch =
+                    (r.name?.toLowerCase() || "").includes(recipientSearch.toLowerCase()) ||
+                    (r.code?.toLowerCase() || "").includes(recipientSearch.toLowerCase());
+                  const matchesPeriod = !selectedPeriodId || String(r.defenseTermId) === selectedPeriodId;
+                  const matchesTab = r.type === recipientTab || (recipientTab === "lecturer" && r.type === "admin");
+                  return matchesSearch && matchesPeriod && matchesTab;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div style={{ gridColumn: "span 2", textAlign: "center", padding: "60px 20px", color: "#64748B" }}>
+                      <Users size={48} style={{ margin: "0 auto 16px auto", opacity: 0.4 }} />
+                      <h3 style={{ margin: "0 0 4px 0", fontSize: "16px", fontWeight: "600" }}>Không tìm thấy người nhận nào</h3>
+                      <p style={{ margin: 0, fontSize: "13px" }}>Vui lòng thay đổi từ khóa tìm kiếm hoặc bộ lọc đợt bảo vệ.</p>
+                    </div>
+                  );
+                }
+
+                return filtered.map((r) => {
+                  const isChecked = tempSelectedRecipients.includes(r.id);
+                  const periodName = getPeriodName(r.defenseTermId);
+
+                  return (
+                    <div
+                      key={r.id}
+                      onClick={() => {
+                        setTempSelectedRecipients((prev) =>
+                          prev.includes(r.id) ? prev.filter((id) => id !== r.id) : [...prev, r.id]
+                        );
+                      }}
+                      style={{
+                        border: isChecked ? "2px solid #3B82F6" : "1px solid #E2E8F0",
+                        background: isChecked ? "#F0F6FF" : "#FFFFFF",
+                        borderRadius: "10px",
+                        padding: "12px 16px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        readOnly
+                        style={{
+                          width: "18px",
+                          height: "18px",
+                          cursor: "pointer",
+                        }}
+                      />
+                      <div
+                        style={{
+                          width: "36px",
+                          height: "36px",
+                          borderRadius: "50%",
+                          background: r.type === "student" ? "#EFF6FF" : r.type === "lecturer" ? "#ECFDF5" : "#FFF7ED",
+                          color: r.type === "student" ? "#2563EB" : r.type === "lecturer" ? "#059669" : "#D97706",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: "700",
+                          fontSize: "14px",
+                        }}
+                      >
+                        {r.type === "student" ? "SV" : r.type === "lecturer" ? "GV" : "AD"}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "14px", fontWeight: "600", color: "#1E293B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {r.name}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
+                          <span style={{ fontSize: "11px", color: "#64748B", fontWeight: "500" }}>Mã: {r.code}</span>
+                          {periodName && (
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                background: "#F1F5F9",
+                                color: "#475569",
+                                padding: "1px 6px",
+                                borderRadius: "4px",
+                                fontWeight: "600",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                maxWidth: "150px"
+                              }}
+                              title={periodName}
+                            >
+                              {periodName}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: "16px 24px",
+                borderTop: "1px solid #E2E8F0",
+                background: "#F8FAFC",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div style={{ fontSize: "13px", color: "#64748B", fontWeight: "500" }}>
+                Đã chọn <span style={{ color: "#3B82F6", fontWeight: "700" }}>{tempSelectedRecipients.length}</span> người nhận
+              </div>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button
+                  type="button"
+                  onClick={() => setIsRecipientModalOpen(false)}
+                  style={{
+                    padding: "10px 20px",
+                    background: "#FFFFFF",
+                    color: "#475569",
+                    border: "1px solid #CBD5E1",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#F1F5F9")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#FFFFFF")}
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleInputChange("selectedRecipients", tempSelectedRecipients);
+                    setIsRecipientModalOpen(false);
+                  }}
+                  style={{
+                    padding: "10px 24px",
+                    background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+                    color: "#FFFFFF",
+                    border: "none",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 4px rgba(37, 99, 235, 0.2)",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 4px 6px rgba(37, 99, 235, 0.3)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "0 2px 4px rgba(37, 99, 235, 0.2)")}
+                >
+                  Áp dụng ({tempSelectedRecipients.length})
+                </button>
+              </div>
             </div>
           </div>
         </div>
