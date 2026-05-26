@@ -1733,7 +1733,7 @@ const DefensePeriodsManagement: React.FC = () => {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <Activity size={18} color={DEEP_BLUE_PRIMARY} />
-            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: DEEP_BLUE_PRIMARY }}>Tiến trình điều hành đợt</h3>
+            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: DEEP_BLUE_PRIMARY }}>Lộ trình thực hiện đợt</h3>
           </div>
           <div style={{ fontSize: "12px", color: "#64748b", display: "flex", alignItems: "center", gap: "6px", background: "#f8fafc", padding: "6px 12px", borderRadius: "8px" }}>
             <Clock size={14} /> Cập nhật: {selectedRow?.lastUpdated ? new Date(selectedRow.lastUpdated).toLocaleString() : "--"}

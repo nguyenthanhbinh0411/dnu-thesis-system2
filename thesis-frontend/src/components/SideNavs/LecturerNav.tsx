@@ -10,6 +10,7 @@ import {
   BookOpen,
   Activity,
   FileCheck2,
+  Archive,
 } from "lucide-react";
 import "./SideNav.css";
 import "./LecturerNav.css";
@@ -48,6 +49,11 @@ const LecturerNav: React.FC<LecturerNavProps> = ({
       path: "/lecturer/topic-rename-requests",
       label: "Xin đổi tên đề tài",
       icon: <FileText size={18} />,
+    },
+    {
+      path: "/lecturer/catalogtopics",
+      label: "Kho đề tài có sẵn",
+      icon: <Archive size={18} />,
     },
     /*
     {

@@ -160,8 +160,6 @@ const Progress: React.FC = () => {
             }
 
             // Client-side overdue detection: nếu đang in-progress nhưng deadline đã qua → overdue
-            // Ẩn phần quá hạn ở giao diện tiến độ theo yêu cầu để tránh gây hoang mang cho sinh viên
-            /*
             if (
               status === "in-progress" &&
               deadline &&
@@ -169,7 +167,6 @@ const Progress: React.FC = () => {
             ) {
               status = "overdue";
             }
-            */
 
             return {
               id: template.milestoneTemplateID,
@@ -619,84 +616,11 @@ const Progress: React.FC = () => {
         </div>
       </div>
 
-      {/* Overdue Warning Banner */}
-      {milestones.some((m) => m.status === "overdue" || m.status === "failed") && (
-        <div
-          style={{
-            marginBottom: "24px",
-            padding: "16px 20px",
-            background: "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)",
-            border: "2px solid #fecaca",
-            borderRadius: "12px",
-            display: "flex",
-            alignItems: "flex-start",
-            gap: "12px",
-          }}
-        >
-          <AlertCircle size={20} color="#dc2626" style={{ flexShrink: 0, marginTop: "2px" }} />
-          <div>
-            <div style={{ fontWeight: "800", color: "#b91c1c", fontSize: "14px", marginBottom: "4px" }}>
-              ⚠️ Cảnh báo: Bạn đang không theo kịp tiến độ!
-            </div>
-            <div style={{ color: "#dc2626", fontSize: "13px", fontWeight: "600" }}>
-              {milestones.filter((m) => m.status === "overdue").length > 0 && (
-                <span>
-                  Có <strong>{milestones.filter((m) => m.status === "overdue").length}</strong> mốc đã quá hạn và chưa hoàn thành.{" "}
-                </span>
-              )}
-              {milestones.filter((m) => m.status === "failed").length > 0 && (
-                <span>
-                  Có <strong>{milestones.filter((m) => m.status === "failed").length}</strong> mốc đã bị đánh dấu thất bại.{" "}
-                </span>
-              )}
-            </div>
-            <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "6px", fontWeight: "500" }}>
-              Hệ thống sẽ tự động đánh dấu thất bại các mốc quá hạn vào 01:00 sáng hàng ngày. Đề tài của bạn có thể bị mất điều kiện bảo vệ. Vui lòng liên hệ giảng viên hướng dẫn ngay.
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Overdue Warning Banner — ẩn theo yêu cầu */}
 
-      {/* Banner nộp muộn được cấp phép */}
-      {milestones.some((m) => m.status === "overdue" && m.allowLateSubmit) && (
-        <div style={{
-          marginBottom: "24px", padding: "14px 20px",
-          background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
-          border: "2px solid #86efac", borderRadius: "12px",
-          display: "flex", alignItems: "center", gap: "12px",
-        }}>
-          <CheckCircle size={20} color="#16a34a" style={{ flexShrink: 0 }} />
-          <div>
-            <div style={{ fontWeight: "800", color: "#15803d", fontSize: "14px", marginBottom: "2px" }}>
-              ✅ Giảng viên đã cấp phép nộp muộn!
-            </div>
-            <div style={{ color: "#16a34a", fontSize: "13px" }}>
-              Bạn có thể nộp báo cáo cho mốc đang quá hạn. Hãy nộp ngay trước khi phép hết hiệu lực.
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Banner nộp muộn được cấp phép — ẩn theo yêu cầu */}
 
-      {/* Banner quá hạn chưa có phép — hướng dẫn chờ GV */}
-      {milestones.some((m) => m.status === "overdue" && !m.allowLateSubmit) && (
-        <div style={{
-          marginBottom: "24px", padding: "14px 20px",
-          background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
-          border: "2px solid #fde68a", borderRadius: "12px",
-          display: "flex", alignItems: "center", gap: "12px",
-        }}>
-          <Clock size={20} color="#d97706" style={{ flexShrink: 0 }} />
-          <div>
-            <div style={{ fontWeight: "800", color: "#b45309", fontSize: "14px", marginBottom: "2px" }}>
-              ⏳ Bạn đã quá hạn — chờ giảng viên cấp phép nộp muộn
-            </div>
-            <div style={{ color: "#92400e", fontSize: "13px" }}>
-              Khi bạn cố nộp báo cáo, hệ thống sẽ tự động gửi yêu cầu đến giảng viên hướng dẫn.
-              Hãy liên hệ trực tiếp với giảng viên để được xét duyệt sớm hơn.
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Banner quá hạn chưa có phép — ẩn theo yêu cầu */}
 
       {/* Timeline */}
       <div

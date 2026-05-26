@@ -10,6 +10,7 @@ using ThesisManagement.Api.DTOs.Workflows.Query;
 using ThesisManagement.Api.Application.Command.Notifications;
 using ThesisManagement.Api.Models;
 using ThesisManagement.Api.Services;
+using ThesisManagement.Api.Services.Chat;
 
 namespace ThesisManagement.Api.Application.Command.Workflows
 {
@@ -28,6 +29,7 @@ namespace ThesisManagement.Api.Application.Command.Workflows
         private readonly ITopicCodeGenerator _topicCodeGenerator;
         private readonly ITopicWorkflowCommandSupport _support;
         private readonly INotificationEventPublisher _notificationEventPublisher;
+        private readonly IChatProvisionService _chatProvisionService;
 
         public ResubmitTopicWorkflowCommandProcessor(
             ApplicationDbContext db,
@@ -36,7 +38,8 @@ namespace ThesisManagement.Api.Application.Command.Workflows
             ICurrentUserService currentUserService,
             ITopicCodeGenerator topicCodeGenerator,
             ITopicWorkflowCommandSupport support,
-            INotificationEventPublisher notificationEventPublisher)
+            INotificationEventPublisher notificationEventPublisher,
+            IChatProvisionService chatProvisionService)
         {
             _db = db;
             _uow = uow;
@@ -45,6 +48,7 @@ namespace ThesisManagement.Api.Application.Command.Workflows
             _topicCodeGenerator = topicCodeGenerator;
             _support = support;
             _notificationEventPublisher = notificationEventPublisher;
+            _chatProvisionService = chatProvisionService;
         }
 
         public Task<OperationResult<TopicWorkflowResultDto>> SubmitAsync(TopicResubmitWorkflowRequestDto request)
@@ -214,7 +218,8 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                     topic.CatalogTopicCode = normalizedCatalogTopicCode;
                 }
 
-                topic.Status = "Đang chờ";
+                var isCatalog = !string.Equals(topic.Type, "SELF", StringComparison.OrdinalIgnoreCase);
+                topic.Status = isCatalog ? "Đã duyệt" : "Đang chờ";
                 topic.LecturerComment = request.StudentNote;
                 topic.ResubmitCount = (topic.ResubmitCount ?? 0) + 1;
                 topic.LastUpdated = DateTime.UtcNow;
@@ -228,7 +233,7 @@ namespace ThesisManagement.Api.Application.Command.Workflows
 
                 await _uow.SaveChangesAsync();
 
-                if (isNewTopic && !string.Equals(topic.Type, "SELF", StringComparison.OrdinalIgnoreCase))
+                if (isNewTopic && isCatalog)
                 {
                     CatalogTopic? catalogTopic = null;
 
@@ -254,7 +259,19 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                 }
 
                 await _support.SyncTopicTagsAsync(topic, request.TagIDs, request.TagCodes, request.UseCatalogTopicTags == true);
-                var milestoneState = await _support.SyncMilestoneForResubmitAsync(topic, isNewTopic);
+                
+                string milestoneState;
+                if (isCatalog)
+                {
+                    await _support.EnsurePrimaryTopicLecturerLinkAsync(topic);
+                    await _chatProvisionService.EnsureForAcceptedTopicAsync(topic);
+                    milestoneState = await _support.SyncMilestoneForDecisionAsync(topic, "approve");
+                    await _uow.SaveChangesAsync();
+                }
+                else
+                {
+                    milestoneState = await _support.SyncMilestoneForResubmitAsync(topic, isNewTopic);
+                }
 
                 var mappedTopic = _mapper.Map<TopicReadDto>(topic);
                 var updatedTagCodes = await _uow.TopicTags.Query()
@@ -266,15 +283,17 @@ namespace ThesisManagement.Api.Application.Command.Workflows
 
                 await tx.CommitAsync();
 
+                var message = isCatalog
+                    ? (isNewTopic ? "Đăng ký đề tài từ kho thành công, hệ thống đã tự động phê duyệt" : "Cập nhật đề tài từ kho thành công, hệ thống đã tự động phê duyệt")
+                    : (isNewTopic ? "Đề tài đã được tạo và gửi duyệt" : "Đề tài đã được cập nhật và gửi duyệt lại");
+
                 var result = new TopicWorkflowResultDto(
                     mappedTopic,
                     updatedTagCodes,
                     milestoneState,
                     _support.NormalizeStatusCode(topic.Status),
                     isNewTopic,
-                    isNewTopic
-                        ? "Đề tài đã được tạo và gửi duyệt"
-                        : "Đề tài đã được cập nhật và gửi duyệt lại");
+                    message);
 
                 await _support.CreateWorkflowAuditAsync(
                     actionType: isNewTopic ? "SUBMIT" : "RESUBMIT",
@@ -302,10 +321,15 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                 if (!string.IsNullOrWhiteSpace(topic.SupervisorUserCode)
                     && !string.Equals(topic.SupervisorUserCode, actorUserCode, StringComparison.OrdinalIgnoreCase))
                 {
-                    var title = isNewTopic ? "Có đề tài mới chờ duyệt" : "Có đề tài gửi duyệt lại";
-                    var body = isNewTopic
-                        ? $"Đề tài {topic.TopicCode} - {topic.Title} vừa được gửi để duyệt. Người gửi: {actorUserCode}. Vui lòng vào màn hình duyệt để xem chi tiết nội dung và xử lý."
-                        : $"Đề tài {topic.TopicCode} - {topic.Title} vừa được sinh viên gửi duyệt lại. Người gửi: {actorUserCode}. Vui lòng kiểm tra cập nhật mới và phản hồi sớm.";
+                    var title = isCatalog
+                        ? "Sinh viên đã đăng ký đề tài từ kho"
+                        : (isNewTopic ? "Có đề tài mới chờ duyệt" : "Có đề tài gửi duyệt lại");
+
+                    var body = isCatalog
+                        ? $"Sinh viên {actorUserCode} đã đăng ký đề tài từ kho: {topic.TopicCode} - {topic.Title}. Đề tài đã được phê duyệt tự động."
+                        : (isNewTopic
+                            ? $"Đề tài {topic.TopicCode} - {topic.Title} vừa được gửi để duyệt. Người gửi: {actorUserCode}. Vui lòng vào màn hình duyệt để xem chi tiết nội dung và xử lý."
+                            : $"Đề tài {topic.TopicCode} - {topic.Title} vừa được sinh viên gửi duyệt lại. Người gửi: {actorUserCode}. Vui lòng kiểm tra cập nhật mới và phản hồi sớm.");
 
                     await _notificationEventPublisher.PublishAsync(new NotificationEventRequest(
                         NotifCategory: "TOPIC_WORKFLOW",
@@ -313,7 +337,7 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                         NotifBody: body,
                         NotifPriority: "NORMAL",
                         ActionType: "OPEN_TOPIC",
-                        ActionUrl: $"/topics/workflow/{topic.TopicCode}",
+                        ActionUrl: isCatalog ? $"/topics/{topic.TopicCode}" : $"/topics/workflow/{topic.TopicCode}",
                         RelatedEntityName: "TOPIC",
                         RelatedEntityCode: topic.TopicCode,
                         RelatedEntityID: topic.TopicID,

@@ -49,6 +49,26 @@ namespace ThesisManagement.Api.Application.Command.CatalogTopics
 
             entity.AssignedStatus = dto.AssignedStatus;
             entity.AssignedAt = dto.AssignedAt;
+
+            if (dto.LecturerCode != null)
+            {
+                entity.LecturerCode = string.IsNullOrWhiteSpace(dto.LecturerCode) ? null : dto.LecturerCode;
+                if (!string.IsNullOrWhiteSpace(entity.LecturerCode))
+                {
+                    var lecturer = await _uow.LecturerProfiles.Query()
+                        .FirstOrDefaultAsync(x => x.LecturerCode == entity.LecturerCode);
+                    entity.LecturerName = lecturer?.FullName ?? dto.LecturerName;
+                }
+                else
+                {
+                    entity.LecturerName = null;
+                }
+            }
+            else if (dto.LecturerName != null)
+            {
+                entity.LecturerName = string.IsNullOrWhiteSpace(dto.LecturerName) ? null : dto.LecturerName;
+            }
+
             entity.LastUpdated = DateTime.UtcNow;
 
             if (dto.TagIDs != null || dto.TagCodes != null)
@@ -164,6 +184,8 @@ namespace ThesisManagement.Api.Application.Command.CatalogTopics
                 entity.DepartmentCode,
                 entity.AssignedStatus,
                 entity.AssignedAt,
+                entity.LecturerCode,
+                entity.LecturerName,
                 entity.CreatedAt,
                 entity.LastUpdated,
                 tags);

@@ -170,6 +170,7 @@ namespace ThesisManagement.Api.Services.MilestoneOverdue
                 milestone.LastUpdated = DateTime.UtcNow;
                 db.ProgressMilestones.Update(milestone);
 
+                /*
                 // Đánh dấu topic không đủ điều kiện bảo vệ
                 if (milestone.Topic != null)
                 {
@@ -182,6 +183,7 @@ namespace ThesisManagement.Api.Services.MilestoneOverdue
                         db.Topics.Update(topic);
                     }
                 }
+                */
 
                 // Gửi thông báo cho sinh viên và giảng viên
                 await NotifyMilestoneFailedAsync(notificationPublisher, milestone, failureReason);

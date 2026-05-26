@@ -13,11 +13,14 @@ namespace ThesisManagement.Api.Models
         public string? DepartmentCode { get; set; } // New: reference by code
         public string? AssignedStatus { get; set; } // New: status of assignment
         public DateTime? AssignedAt { get; set; } // New: timestamp of assignment
-    public DateTime? CreatedAt { get; set; }
-    public DateTime? LastUpdated { get; set; }
+        public string? LecturerCode { get; set; } // New: lecturer code of proposer
+        public string? LecturerName { get; set; } // New: lecturer name of proposer
+        public DateTime? CreatedAt { get; set; }
+        public DateTime? LastUpdated { get; set; }
 
         // Navigation properties
         public Department? Department { get; set; }
+        public LecturerProfile? Lecturer { get; set; }
         public ICollection<CatalogTopicTag>? CatalogTopicTags { get; set; }
         public ICollection<Topic>? Topics { get; set; }
     }
