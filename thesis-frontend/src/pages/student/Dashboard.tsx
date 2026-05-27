@@ -343,9 +343,11 @@ const Dashboard: React.FC = () => {
       setError(null);
 
       try {
+        const activePeriodId = getActiveDefensePeriodId();
+        const periodParam = activePeriodId ? `&defenseTermId=${activePeriodId}` : "";
         const [dashboardResult, milestoneResult] = await Promise.allSettled([
           fetchData<ApiResponse<StudentDashboardPayload>>(
-            `/reports/student/dashboard?userCode=${encodeURIComponent(userCode)}`,
+            `/reports/student/dashboard?userCode=${encodeURIComponent(userCode)}${periodParam}`,
           ),
           fetchData<{ data?: MilestoneTemplate[] }>(
             "/MilestoneTemplates/get-list?Page=0&PageSize=10",

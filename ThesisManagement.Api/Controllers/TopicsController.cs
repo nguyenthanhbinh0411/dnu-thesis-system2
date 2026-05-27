@@ -345,11 +345,11 @@ namespace ThesisManagement.Api.Controllers
                         Title = assignment.TopicTitle,
                         Summary = catalogTopic?.Summary,
                         Type = catalogTopic == null ? "SELF" : "CATALOG",
-                        ProposerUserID = student.UserID,
+                        ProposerUserID = student.UserID ?? 0,
                         ProposerUserCode = student.UserCode,
                         ProposerStudentProfileID = student.StudentProfileID,
                         ProposerStudentCode = student.StudentCode,
-                        SupervisorUserID = lecturer.UserID,
+                        SupervisorUserID = lecturer.UserID ?? 0,
                         SupervisorUserCode = lecturer.UserCode,
                         SupervisorLecturerProfileID = lecturer.LecturerProfileID,
                         SupervisorLecturerCode = lecturer.LecturerCode,
@@ -358,7 +358,7 @@ namespace ThesisManagement.Api.Controllers
                         DepartmentID = student.DepartmentID,
                         DepartmentCode = student.DepartmentCode,
                         DefenseTermId = student.DefenseTermId,
-                        Status = "APPROVED",
+                        Status = "Đã duyệt",
                         CreatedAt = DateTime.UtcNow,
                         LastUpdated = DateTime.UtcNow
                     };
@@ -366,16 +366,17 @@ namespace ThesisManagement.Api.Controllers
                     _context.Topics.Add(topicEntity);
                     await _context.SaveChangesAsync(); // populated TopicID
 
-                    // 1. Initial Milestone Link (MS_REG)
+                    // 1. Initial Milestone Link (MS_PROG1 because registration is auto-approved)
                     var milestoneEntity = new ProgressMilestone
                     {
                         MilestoneID = nextMilestoneId++,
                         MilestoneCode = $"{codePrefix}{sequence++:D3}",
                         TopicID = topicEntity.TopicID,
                         TopicCode = topicEntity.TopicCode,
-                        MilestoneTemplateCode = "MS_REG",
-                        Ordinal = 1,
+                        MilestoneTemplateCode = "MS_PROG1",
+                        Ordinal = 2,
                         State = "Đang thực hiện",
+                        CompletedAt1 = DateTime.UtcNow,
                         CreatedAt = DateTime.UtcNow,
                         LastUpdated = DateTime.UtcNow
                     };

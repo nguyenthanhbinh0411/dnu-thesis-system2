@@ -124,7 +124,7 @@ namespace ThesisManagement.Api.Application.Command.Auth
                 : $"Thầy/Cô <strong>{fullName}</strong> (Mã GV: <strong>{user.UserCode}</strong>)";
 
             var emailBody = $@"
-                <div style='font-family: \"Be Vietnam Pro\", \"Segoe UI\", Helvetica, Arial, sans-serif; max-width: 600px; margin: 30px auto; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05); background-color: #ffffff;'>
+                <div style='font-family: ""Be Vietnam Pro"", ""Segoe UI"", Helvetica, Arial, sans-serif; max-width: 600px; margin: 30px auto; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05); background-color: #ffffff;'>
                     
                     <!-- Header -->
                     <div style='background: linear-gradient(135deg, #002855 0%, #001c3d 100%); padding: 30px 20px; text-align: center; border-bottom: 4px solid #F37021;'>

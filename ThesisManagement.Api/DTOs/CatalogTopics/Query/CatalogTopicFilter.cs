@@ -8,5 +8,6 @@ namespace ThesisManagement.Api.DTOs.CatalogTopics.Query
         public string? OwnerLecturerCode { get; set; }
         public string? DepartmentCode { get; set; }
         public string? AssignedStatus { get; set; }
+        public int? DefenseTermId { get; set; }
     }
 }

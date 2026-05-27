@@ -198,60 +198,89 @@ const LecturerLayout: React.FC = () => {
         }
 
         if (result.ok) {
-        setCanViewDefenseMenus(result.hasCommitteeAccess);
-        setCanViewRevisionMenu(result.isSecretary && result.hasPendingRevisions);
-        const periodName = result.period.name || `Đợt ${result.period.periodId}`;
-        setActiveDefensePeriodId(result.period.periodId);
-        setHeaderPeriod({
-          label: `${periodName} (#${result.period.periodId})`,
-          tone: "normal",
-          tooltip: `Đợt hiện tại: ${periodName} (#${result.period.periodId})`,
-        });
-        return;
-      }
+          setCanViewDefenseMenus(result.hasCommitteeAccess);
+          setCanViewRevisionMenu(result.isSecretary && result.hasPendingRevisions);
+          const periodName = result.period.name || `Đợt ${result.period.periodId}`;
+          setActiveDefensePeriodId(result.period.periodId);
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem("activeDefensePeriodStatus", result.period.status || "");
+          }
+          setHeaderPeriod({
+            label: `${periodName} (#${result.period.periodId})`,
+            tone: "normal",
+            tooltip: `Đợt hiện tại: ${periodName} (#${result.period.periodId})`,
+          });
+          return;
+        }
 
-      setCanViewDefenseMenus(false);
-      setCanViewRevisionMenu(false);
+        setCanViewDefenseMenus(false);
+        setCanViewRevisionMenu(false);
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem("activeDefensePeriodStatus");
+        }
 
-      if (result.code === "NOT_MAPPED") {
-        setActiveDefensePeriodId(null);
-        setHeaderPeriod({
-          label: "Chưa có mapping đợt",
-          tone: "warning",
-          tooltip: result.message,
-        });
-        return;
-      }
+        if (result.code === "NOT_MAPPED") {
+          setActiveDefensePeriodId(null);
+          setHeaderPeriod({
+            label: "Chưa có mapping đợt",
+            tone: "warning",
+            tooltip: result.message,
+          });
+          return;
+        }
 
-      if (result.code === "AMBIGUOUS" || result.code === "INVALID_CONTRACT") {
-        setActiveDefensePeriodId(null);
+        if (result.code === "AMBIGUOUS" || result.code === "INVALID_CONTRACT") {
+          setActiveDefensePeriodId(null);
+          setHeaderPeriod({
+            label: result.code === "AMBIGUOUS" ? "Dữ liệu đợt mơ hồ" : "Snapshot đợt không hợp lệ",
+            tone: "error",
+            tooltip: result.message,
+          });
+          return;
+        }
+
+        if (result.code && result.code.includes("NOT_FOUND")) {
+          setActiveDefensePeriodId(null);
+          setHeaderPeriod({
+            label: "Chưa mở đợt bảo vệ",
+            tone: "warning",
+            tooltip: result.message,
+          });
+          return;
+        }
+
+        if (result.code && result.code.includes("PROFILE_NOT_FOUND")) {
+          setActiveDefensePeriodId(null);
+          setHeaderPeriod({
+            label: "Chưa liên kết hồ sơ",
+            tone: "error",
+            tooltip: result.message,
+          });
+          return;
+        }
+
+        const cachedPeriodId = getActiveDefensePeriodId();
+        if (cachedPeriodId) {
+          setHeaderPeriod({
+            label: `Đợt #${cachedPeriodId} (cache)`,
+            tone: "warning",
+            tooltip: result.message,
+          });
+          return;
+        }
+
         setHeaderPeriod({
-          label: result.code === "AMBIGUOUS" ? "Dữ liệu đợt mơ hồ" : "Snapshot đợt không hợp lệ",
+          label: "Không xác định đợt",
           tone: "error",
           tooltip: result.message,
         });
-        return;
-      }
-
-      const cachedPeriodId = getActiveDefensePeriodId();
-      if (cachedPeriodId) {
-        setHeaderPeriod({
-          label: `Đợt #${cachedPeriodId} (cache)`,
-          tone: "warning",
-          tooltip: result.message,
-        });
-        return;
-      }
-
-      setHeaderPeriod({
-        label: "Không xác định đợt",
-        tone: "error",
-        tooltip: result.message,
-      });
       } catch (error) {
         if (cancelled) return;
 
         setCanViewDefenseMenus(false);
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem("activeDefensePeriodStatus");
+        }
         setHeaderPeriod({
           label: "Không xác định đợt",
           tone: "error",
@@ -270,24 +299,24 @@ const LecturerLayout: React.FC = () => {
   const headerPeriodStyle =
     headerPeriod.tone === "error"
       ? {
-          borderColor: "rgba(248, 113, 113, 0.45)",
-          backgroundColor: "rgba(127, 29, 29, 0.45)",
-          textColor: "#fecaca",
-          dotColor: "#f87171",
-        }
+        borderColor: "rgba(248, 113, 113, 0.45)",
+        backgroundColor: "rgba(127, 29, 29, 0.45)",
+        textColor: "#fecaca",
+        dotColor: "#f87171",
+      }
       : headerPeriod.tone === "warning"
         ? {
-            borderColor: "rgba(251, 191, 36, 0.5)",
-            backgroundColor: "rgba(146, 64, 14, 0.35)",
-            textColor: "#fde68a",
-            dotColor: "#fbbf24",
-          }
+          borderColor: "rgba(251, 191, 36, 0.5)",
+          backgroundColor: "rgba(146, 64, 14, 0.35)",
+          textColor: "#fde68a",
+          dotColor: "#fbbf24",
+        }
         : {
-            borderColor: "rgba(243, 112, 33, 0.5)",
-            backgroundColor: "rgba(243, 112, 33, 0.2)",
-            textColor: "#ffedd5",
-            dotColor: "#fdba74",
-          };
+          borderColor: "rgba(243, 112, 33, 0.5)",
+          backgroundColor: "rgba(243, 112, 33, 0.2)",
+          textColor: "#ffedd5",
+          dotColor: "#fdba74",
+        };
   return (
     <div
       style={{

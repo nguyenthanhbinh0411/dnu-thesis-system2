@@ -24,6 +24,7 @@ using ThesisManagement.Api.DTOs.TopicLecturers.Query;
 using ThesisManagement.Api.DTOs.TopicTags.Query;
 using ThesisManagement.Api.DTOs.Topics.Query;
 using ThesisManagement.Api.DTOs.Users.Query;
+using ThesisManagement.Api.DTOs.Classes.Query;
 using ThesisManagement.Api.Models;
 
 namespace ThesisManagement.Api.Helpers
@@ -44,6 +45,40 @@ namespace ThesisManagement.Api.Helpers
 
             if (!string.IsNullOrEmpty(filter.DepartmentCode))
                 query = query.Where(x => x.DepartmentCode.Contains(filter.DepartmentCode));
+
+            if (filter.FromDate.HasValue)
+                query = query.Where(x => x.CreatedAt >= filter.FromDate.Value);
+
+            if (filter.ToDate.HasValue)
+                query = query.Where(x => x.CreatedAt <= filter.ToDate.Value);
+
+            return ApplySorting(query, filter);
+        }
+
+        public static IQueryable<Class> ApplyFilter(this IQueryable<Class> query, ClassFilter filter)
+        {
+            if (!string.IsNullOrEmpty(filter.Search))
+            {
+                query = query.Where(x => x.ClassName.Contains(filter.Search) || 
+                                         x.ClassCode.Contains(filter.Search) ||
+                                         (x.CohortCode != null && x.CohortCode.Contains(filter.Search)) ||
+                                         (x.DepartmentCode != null && x.DepartmentCode.Contains(filter.Search)));
+            }
+
+            if (!string.IsNullOrEmpty(filter.ClassName))
+                query = query.Where(x => x.ClassName.Contains(filter.ClassName));
+
+            if (!string.IsNullOrEmpty(filter.ClassCode))
+                query = query.Where(x => x.ClassCode.Contains(filter.ClassCode));
+
+            if (!string.IsNullOrEmpty(filter.DepartmentCode))
+                query = query.Where(x => x.DepartmentCode != null && x.DepartmentCode.Contains(filter.DepartmentCode));
+
+            if (!string.IsNullOrEmpty(filter.CohortCode))
+                query = query.Where(x => x.CohortCode != null && x.CohortCode.Contains(filter.CohortCode));
+
+            if (!string.IsNullOrEmpty(filter.Status))
+                query = query.Where(x => x.Status == filter.Status);
 
             if (filter.FromDate.HasValue)
                 query = query.Where(x => x.CreatedAt >= filter.FromDate.Value);
@@ -323,6 +358,15 @@ namespace ThesisManagement.Api.Helpers
             // Filter by owner lecturer
             if (!string.IsNullOrEmpty(filter.OwnerLecturerCode))
                 query = query.Where(x => x.Department!.LecturerProfiles!.Any(lp => lp.LecturerCode == filter.OwnerLecturerCode));
+
+            if (filter.DefenseTermId.HasValue)
+            {
+                query = query.Where(x => x.DefenseTermId == filter.DefenseTermId.Value);
+            }
+            else
+            {
+                query = query.Where(x => x.DefenseTermId != null);
+            }
 
 
             if (filter.FromDate.HasValue)

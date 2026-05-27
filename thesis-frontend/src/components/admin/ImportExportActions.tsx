@@ -331,6 +331,8 @@ const ImportExportActions: React.FC<ImportExportActionsProps> = ({
   const [isExporting, setIsExporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [showErrors, setShowErrors] = useState(false);
+  const [createdCodes, setCreatedCodes] = useState<string[]>([]);
+  const [isRollingBack, setIsRollingBack] = useState(false);
   const [exportPreviewRows, setExportPreviewRows] = useState<PreviewRow[]>([]);
   const [isLoadingExportPreview, setIsLoadingExportPreview] = useState(false);
   const [exportPreviewError, setExportPreviewError] = useState<string | null>(
@@ -503,6 +505,7 @@ const ImportExportActions: React.FC<ImportExportActionsProps> = ({
     setShowErrors(false);
     setImportFormat("xlsx");
     setIsParsingFile(false);
+    setCreatedCodes([]);
   };
 
   const closeDialog = () => {
@@ -678,6 +681,9 @@ const ImportExportActions: React.FC<ImportExportActionsProps> = ({
 
       const result = parseImportErrors(payload);
       setImportResult(result);
+      const payloadData = (payload.data ?? {}) as Record<string, unknown>;
+      const codes = Array.isArray(payloadData.createdCodes) ? (payloadData.createdCodes as string[]) : [];
+      setCreatedCodes(codes);
       addToast(`Import ${displayLabel} thành công.`, "success");
       if (onImportSuccess) {
         await onImportSuccess();
@@ -689,6 +695,55 @@ const ImportExportActions: React.FC<ImportExportActionsProps> = ({
       );
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  const handleRollback = async () => {
+    if (createdCodes.length === 0) return;
+    if (
+      !window.confirm(
+        `Bạn có chắc muốn hoàn tác và XÓA SẠCH ${createdCodes.length} bản ghi vừa được tạo mới này không?`
+      )
+    ) {
+      return;
+    }
+
+    setIsRollingBack(true);
+    try {
+      const token = getAccessToken();
+      const rollbackUrl = buildModuleUrl(`/DataExchange/rollback/${moduleName}`);
+      const response = await fetch(rollbackUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(createdCodes),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || "Hoàn tác thất bại.");
+      }
+
+      const payload = (await response.json()) as ApiResponse<unknown>;
+      if (!payload.success) {
+        throw new Error(payload.message || "Hoàn tác thất bại.");
+      }
+
+      addToast(`Đã hoàn tác thành công! Đã xóa ${createdCodes.length} bản ghi vừa tạo.`, "success");
+      setCreatedCodes([]);
+      setImportResult(null);
+      setSelectedFile(null);
+      setParsedRows([]);
+      if (onImportSuccess) {
+        await onImportSuccess();
+      }
+    } catch (error) {
+      console.error("Error during rollback:", error);
+      addToast(error instanceof Error ? error.message : "Hoàn tác thất bại.", "error");
+    } finally {
+      setIsRollingBack(false);
     }
   };
 
@@ -1246,6 +1301,34 @@ const ImportExportActions: React.FC<ImportExportActionsProps> = ({
                               </div>
                             </div>
                           )}
+                        </div>
+                      )}
+
+                      {createdCodes.length > 0 && (
+                        <div style={{ marginTop: 14, display: "flex", gap: 10, alignItems: "center", borderTop: "1px solid #e2e8f0", paddingTop: 14 }}>
+                          <button
+                            type="button"
+                            onClick={handleRollback}
+                            disabled={isRollingBack}
+                            style={{
+                              ...styles.smallButton,
+                              background: "#fee2e2",
+                              color: "#991b1b",
+                              border: "1px solid #fca5a5",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              padding: "6px 12px",
+                              borderRadius: 8,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
+                          >
+                            <X size={14} /> Hoàn tác (Xóa {createdCodes.length} dòng vừa tạo)
+                          </button>
+                          <span style={{ fontSize: 13, color: "#64748b" }}>
+                            Bấm để hoàn tác nếu import nhầm
+                          </span>
                         </div>
                       )}
                     </div>

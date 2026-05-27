@@ -29,6 +29,8 @@ import { fetchData, normalizeUrl } from "../../api/fetchData";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { getAccessToken } from "../../services/auth-session.service";
+import { getActiveDefensePeriodId, getActiveDefensePeriodStatus } from "../../utils/defensePeriod";
+
 import type { ApiResponse } from "../../types/api";
 import type { SubmissionFile } from "../../types/submissionFile";
 import type { Report } from "../../types/report";
@@ -150,8 +152,10 @@ const Reports: React.FC = () => {
 
   const loadStudentDashboard = useCallback(async (userCode: string) => {
     try {
+      const activePeriodId = getActiveDefensePeriodId();
+      const periodParam = activePeriodId ? `&defenseTermId=${activePeriodId}` : "";
       const dashboardRes = (await fetchData(
-        `/reports/student/dashboard?userCode=${encodeURIComponent(userCode)}`,
+        `/reports/student/dashboard?userCode=${encodeURIComponent(userCode)}${periodParam}`,
       )) as ApiResponse<StudentDashboardPayload>;
       if (dashboardRes.success && dashboardRes.data) {
         const dashboard = dashboardRes.data;
@@ -164,6 +168,7 @@ const Reports: React.FC = () => {
     } catch (err) { console.error("Error loading dashboard:", err); }
   }, []);
 
+
   const loadMilestoneTemplates = useCallback(async () => {
     try {
       const res = await fetchData<{ data?: MilestoneTemplate[] }>(
@@ -175,8 +180,10 @@ const Reports: React.FC = () => {
 
   const loadProgressHistory = useCallback(async (userCode: string) => {
     try {
+      const activePeriodId = getActiveDefensePeriodId();
+      const periodParam = activePeriodId ? `&defenseTermId=${activePeriodId}` : "";
       const historyRes = (await fetchData(
-        `/reports/student/progress-history?userCode=${encodeURIComponent(userCode)}&page=1&pageSize=50`,
+        `/reports/student/progress-history?userCode=${encodeURIComponent(userCode)}&page=1&pageSize=50${periodParam}`,
       )) as ApiResponse<StudentProgressHistoryPayload>;
       if (historyRes.success && historyRes.data) {
         const items = historyRes.data.items || [];
@@ -184,6 +191,7 @@ const Reports: React.FC = () => {
       }
     } catch (err) { console.error("Error loading history:", err); }
   }, []);
+
 
   useEffect(() => {
     const userCode = auth.user?.userCode;
@@ -499,6 +507,63 @@ const Reports: React.FC = () => {
         <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Đang tải dữ liệu...</p>
       </div>
     </div>;
+  }
+
+  const isProgressStage = getActiveDefensePeriodStatus()?.toLowerCase() === "progresstracking";
+
+  if (!isProgressStage) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "60vh",
+          textAlign: "center",
+          padding: "40px 24px",
+          fontFamily: '"Be Vietnam Pro", "Segoe UI", sans-serif',
+        }}
+      >
+        <div
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, rgba(243,112,33,0.12) 0%, rgba(243,112,33,0.04) 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 24,
+          }}
+        >
+          <FileText size={36} color="#f37021" strokeWidth={1.5} />
+        </div>
+        <h2
+          style={{
+            fontSize: 22,
+            fontWeight: 700,
+            color: "#1a2736",
+            marginBottom: 10,
+            letterSpacing: "-0.3px",
+          }}
+        >
+          Chưa đến giai đoạn nộp báo cáo tiến độ
+        </h2>
+        <p
+          style={{
+            fontSize: 15,
+            color: "#6B7280",
+            maxWidth: 440,
+            lineHeight: 1.6,
+            margin: 0,
+          }}
+        >
+          Đợt đồ án tốt nghiệp hiện tại chưa bước vào giai đoạn <strong>Theo dõi tiến độ & Nộp báo cáo</strong>.
+          Vui lòng quay lại sau hoặc liên hệ khoa / phòng đào tạo để biết thêm thông tin.
+        </p>
+      </div>
+    );
   }
 
   return (

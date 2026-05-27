@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit, Eye, Filter, Plus, Search, Trash2 } from "lucide-react";
+import { Edit, Eye, Filter, Plus, Search, Trash2, X } from "lucide-react";
 import { fetchData } from "../../api/fetchData";
 import ImportExportActions from "../../components/admin/ImportExportActions";
 import ManagementFormSection, {
@@ -661,56 +661,78 @@ const TagsManagement: React.FC = () => {
       </div>
 
       {activeModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.45)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 80,
-            padding: 14,
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 620,
-              maxHeight: "90vh",
-              background: "#fff",
-              borderRadius: 12,
-              border: "1px solid #e2e8f0",
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-          >
-            <div style={{ padding: 16, borderBottom: "1px solid #e2e8f0" }}>
-              <h3 style={{ margin: 0 }}>
+        <div className="tags-modal-overlay">
+          <div className="tags-detail-modal">
+            <div className="tags-modal-header">
+              <h3>
                 {activeModal === "create"
                   ? "Create Tag"
                   : activeModal === "edit"
                     ? "Update Tag"
                     : "Tag Detail"}
               </h3>
+              <button
+                type="button"
+                className="tags-modal-close-btn"
+                onClick={() => setActiveModal(null)}
+                aria-label="Đóng"
+              >
+                <X size={16} />
+              </button>
             </div>
 
             {activeModal === "detail" ? (
-              <div style={{ padding: 16, display: "grid", gap: 8 }}>
-                {Object.entries(selectedRow || {}).map(([key, value]) => (
-                  <div
-                    key={key}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "180px 1fr",
-                      gap: 8,
-                    }}
-                  >
-                    <strong>{key}</strong>
-                    <span>{toDisplay(value)}</span>
+              <div className="tags-modal-body">
+                {/* Hero Badge Tag */}
+                <div className="tags-detail-hero">
+                  <div className="tags-detail-badge">
+                    🏷️ {selectedRow?.tagName || "Chưa đặt tên Tag"}
                   </div>
-                ))}
+                  <span style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+                    Mã Tag: {selectedRow?.tagCode || "--"}
+                  </span>
+                </div>
+
+                <div className="tags-detail-grid">
+                  <div className="tags-detail-card">
+                    <div className="tags-card-title">Thông tin chi tiết</div>
+                    
+                    <div className="tags-info-row">
+                      <span className="tags-info-label">Tag ID</span>
+                      <span className="tags-info-value">{selectedRow?.tagID ?? "--"}</span>
+                    </div>
+
+                    <div className="tags-info-row">
+                      <span className="tags-info-label">Tag Code</span>
+                      <span className="tags-info-value">{selectedRow?.tagCode ?? "--"}</span>
+                    </div>
+
+                    <div className="tags-info-row">
+                      <span className="tags-info-label">Tên Tag</span>
+                      <span className="tags-info-value">{selectedRow?.tagName ?? "--"}</span>
+                    </div>
+
+                    <div className="tags-info-row">
+                      <span className="tags-info-label">Ngày tạo</span>
+                      <span className="tags-info-value">
+                        {selectedRow?.createdAt ? formatDate(selectedRow.createdAt) : "--"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="tags-detail-card">
+                    <div className="tags-card-title">Mô tả chi tiết</div>
+                    {selectedRow?.description ? (
+                      <div className="tags-description-box">
+                        {selectedRow.description}
+                      </div>
+                    ) : (
+                      <span style={{ color: "#64748b", fontSize: 13, fontStyle: "italic" }}>
+                        Không có mô tả cho tag này.
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             ) : (
               <ManagementFormSection
@@ -733,23 +755,21 @@ const TagsManagement: React.FC = () => {
               />
             )}
 
-            <div
-              style={{
-                padding: 16,
-                borderTop: "1px solid #e2e8f0",
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 8,
-              }}
-            >
+            <div className="tags-modal-footer">
               <button
                 type="button"
+                className="tags-footer-btn-close"
                 onClick={() => setActiveModal(null)}
                 disabled={isSubmitting}
                 style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 8,
-                  padding: "8px 12px",
+                  background: activeModal === "detail" ? "#1e3a5f" : "transparent",
+                  color: activeModal === "detail" ? "#fff" : "#334155",
+                  border: activeModal === "detail" ? "none" : "1px solid #cbd5e1",
+                  borderRadius: 10,
+                  padding: "10px 24px",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
                 }}
               >
                 {activeModal === "detail" ? "Đóng" : "Hủy"}
@@ -763,8 +783,11 @@ const TagsManagement: React.FC = () => {
                     border: "none",
                     background: "#1e3a5f",
                     color: "#fff",
-                    borderRadius: 8,
-                    padding: "8px 12px",
+                    borderRadius: 10,
+                    padding: "10px 24px",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
                   }}
                 >
                   {isSubmitting

@@ -19,6 +19,7 @@ namespace ThesisManagement.Api.DTOs.DataExchange
         public int UpdatedCount { get; set; }
         public int FailedCount { get; set; }
         public List<string> Errors { get; set; } = new();
+        public List<string> CreatedCodes { get; set; } = new();
     }
 
     public class DataExportResultDto

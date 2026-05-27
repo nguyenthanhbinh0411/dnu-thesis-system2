@@ -258,47 +258,68 @@
 .departments-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  z-index: 10005;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 999999 !important;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 16px;
+  padding: 80px 16px 30px;
+  overflow-y: auto;
+  animation: fadeIn 0.15s ease-out;
 }
 
 .departments-modal {
   width: 100%;
   max-width: 1080px;
-  max-height: 90vh;
-  overflow: hidden;
+  margin-bottom: 20px;
   position: relative;
-  background: #fff;
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
+  animation: slideUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 .departments-modal-close {
   position: absolute;
   right: 14px;
-  top: 12px;
-  border: none;
-  background: #f3f4f6;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+  top: 14px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
   cursor: pointer;
   z-index: 2;
+  transition: all 0.12s ease;
+}
+
+.departments-modal-close:hover {
+  background: #f8fafc;
+  color: #1e3a5f;
+  border-color: #1e3a5f;
 }
 
 .departments-form-shell,
 .departments-detail-shell {
   display: grid;
   gap: 16px;
-  padding: 16px 16px 14px;
+  padding: 20px;
 }
 
 .departments-modal-header {
@@ -362,7 +383,7 @@
 
 .departments-badge {
   width: fit-content;
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 4px 10px;
   background: #f0f6ff;
   color: #1e3a5f;
@@ -582,11 +603,11 @@
 
 .departments-detail-card {
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 14px 14px 12px;
-  background: #fafcff;
+  border-radius: 10px;
+  padding: 16px;
+  background: #ffffff;
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .departments-detail-card strong,
@@ -688,6 +709,11 @@
   border: none;
   background: #1e3a5f;
   color: #fff;
+  transition: background 0.12s ease;
+}
+
+.departments-save-btn:hover:not(:disabled) {
+  background: #162d4c;
 }
 
 .departments-cancel-btn:disabled,

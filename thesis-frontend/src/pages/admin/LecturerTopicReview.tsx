@@ -822,6 +822,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
   // Auto assign preview states
   const [autoAssignPreview, setAutoAssignPreview] = useState<AutoAssignPreviewDto[]>([]);
   const [isAutoAssignPreviewOpen, setIsAutoAssignPreviewOpen] = useState(false);
+  const [autoAssignCurrentPage, setAutoAssignCurrentPage] = useState(1);
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
 
   // Manual assign states
@@ -1204,6 +1205,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
       if (response?.success && response.data) {
         setAutoAssignPreview(response.data);
         setIsAutoAssignPreviewOpen(true);
+        setAutoAssignCurrentPage(1);
         if (response.data.length === 0) {
           addToast("Tất cả sinh viên trong đợt bảo vệ hiện hành đều đã có đề tài!", "info");
         }
@@ -3574,10 +3576,11 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                 const catalogTopicsCount = allTopicsList.filter(t => t.type === "CATALOG").length;
                 const selfTopicsCount = allTopicsList.filter(t => t.type !== "CATALOG").length;
 
-                const assignedAdvisorCount = allTopicsList.filter(t => t.supervisorLecturerCode).length;
+                // Sửa theo yêu cầu: tính cả đang chờ (pendingCount) + đã duyệt (approvedCount) / tổng sinh viên (totalStudentsCount)
+                const assignedAdvisorCount = approvedCount + pendingCount;
                 const noAdvisorCount = allTopicsList.filter(t => !t.supervisorLecturerCode).length;
-                const advisorAssignPercent = allTopicsList.length > 0 
-                  ? Math.round((assignedAdvisorCount / allTopicsList.length) * 100) 
+                const advisorAssignPercent = totalStudentsCount > 0 
+                  ? Math.round((assignedAdvisorCount / totalStudentsCount) * 100) 
                   : 0;
 
                 const steps = [
@@ -3714,7 +3717,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                           </div>
                           <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
                             <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{assignedAdvisorCount}</span>
-                            <span style={{ fontSize: "12px", color: "#64748b" }}>/ {allTopicsList.length} đề tài</span>
+                            <span style={{ fontSize: "12px", color: "#64748b" }}>/ {totalStudentsCount} sinh viên</span>
                             <span style={{ marginLeft: "auto", fontSize: "12px", fontWeight: "800", color: "#f37021", background: "#fff7ed", padding: "2px 6px", borderRadius: "6px" }}>
                               {advisorAssignPercent}%
                             </span>
@@ -3853,7 +3856,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                                 )}
                                 <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Đề tài luận văn</th>
                                 <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Trạng thái đề tài</th>
-                                <th style={{ padding: "12px 16px", textAlign: "right", fontWeight: "700" }}>Hành động</th>
+                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Hành động</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -3917,7 +3920,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                                           <span style={{ color: "#94a3b8", fontWeight: "500" }}>-</span>
                                         )}
                                       </td>
-                                      <td style={{ padding: "16px", borderRadius: "0 12px 12px 0", textAlign: "right" }}>
+                                      <td style={{ padding: "16px", borderRadius: "0 12px 12px 0", textAlign: "left" }}>
                                         {(() => {
                                           if (topic) {
                                             const displayMap: TopicDisplay = {
@@ -3938,103 +3941,245 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                                             const isSelfPending = topic.type === "SELF" && mapApiStatusToDisplay(topic.status) === "Chờ duyệt";
 
                                             return (
-                                              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "8px" }}>
+                                              <div style={{
+                                                display: "grid",
+                                                gridTemplateColumns: "repeat(2, 32px)",
+                                                gap: "8px",
+                                                justifyContent: "start",
+                                                alignItems: "center",
+                                              }}>
+                                                {/* Nút xem chi tiết */}
                                                 <button
-                                                  type="button"
-                                                  onClick={() => openEditTopicModal(topic)}
-                                                  title="Sửa đề tài"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openDetailModal(displayMap);
+                                                  }}
+                                                  title="Xem chi tiết đề tài"
                                                   style={{
-                                                    padding: "8px 12px",
-                                                    background: "#f1f5f9",
-                                                    border: "1px solid #e2e8f0",
-                                                    borderRadius: "8px",
-                                                    fontSize: "13px",
-                                                    fontWeight: "700",
-                                                    color: "#475569",
+                                                    padding: "8px",
+                                                    background: "#1F3C88",
+                                                    color: "white",
+                                                    border: "none",
+                                                    borderRadius: "6px",
+                                                    fontSize: "14px",
                                                     cursor: "pointer",
+                                                    transition: "all 0.2s ease",
                                                     display: "flex",
                                                     alignItems: "center",
-                                                    gap: "4px",
-                                                    whiteSpace: "nowrap"
+                                                    justifyContent: "center",
+                                                    width: "32px",
+                                                    height: "32px",
+                                                  }}
+                                                  onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = "#162B61";
+                                                  }}
+                                                  onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = "#1F3C88";
                                                   }}
                                                 >
-                                                  <Edit size={14} />
-                                                  Sửa
+                                                  <Eye size={16} />
                                                 </button>
 
                                                 {isSelfPending && (
                                                   <>
                                                     <button
-                                                      type="button"
-                                                      onClick={() => openConfirmationModal(displayMap)}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openConfirmationModal(displayMap);
+                                                      }}
                                                       title="Duyệt đề tài"
-                                                      disabled={updatingStatus !== null}
+                                                      disabled={
+                                                        updatingStatus ===
+                                                        `approve-${topic.topicID}`
+                                                      }
                                                       style={{
                                                         padding: "8px",
-                                                        background: "#22c55e",
+                                                        background:
+                                                          updatingStatus ===
+                                                          `approve-${topic.topicID}`
+                                                            ? "#9CA3AF"
+                                                            : "#22C55E",
                                                         color: "white",
                                                         border: "none",
-                                                        borderRadius: "8px",
-                                                        cursor: "pointer",
+                                                        borderRadius: "6px",
+                                                        cursor:
+                                                          updatingStatus ===
+                                                          `approve-${topic.topicID}`
+                                                            ? "not-allowed"
+                                                            : "pointer",
+                                                        transition: "all 0.2s ease",
                                                         display: "flex",
                                                         alignItems: "center",
                                                         justifyContent: "center",
                                                         width: "32px",
                                                         height: "32px",
-                                                        transition: "all 0.2s ease"
                                                       }}
-                                                      onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
-                                                      onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+                                                      onMouseEnter={(e) => {
+                                                        if (
+                                                          updatingStatus !==
+                                                          `approve-${topic.topicID}`
+                                                        ) {
+                                                          e.currentTarget.style.background =
+                                                            "#16A34A";
+                                                        }
+                                                      }}
+                                                      onMouseLeave={(e) => {
+                                                        if (
+                                                          updatingStatus !==
+                                                          `approve-${topic.topicID}`
+                                                        ) {
+                                                          e.currentTarget.style.background =
+                                                            "#22C55E";
+                                                        }
+                                                      }}
                                                     >
-                                                      <CheckCircle size={16} />
+                                                      {updatingStatus ===
+                                                      `approve-${topic.topicID}` ? (
+                                                        <Loader2
+                                                          size={16}
+                                                          style={{
+                                                            animation: "spin 1s linear infinite",
+                                                          }}
+                                                        />
+                                                      ) : (
+                                                        <CheckCircle size={16} />
+                                                      )}
                                                     </button>
+
                                                     <button
-                                                      type="button"
-                                                      onClick={() => openCommentModal("revision", topic.topicID, topic.title)}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openCommentModal(
+                                                          "revision",
+                                                          topic.topicID,
+                                                          topic.title,
+                                                        );
+                                                      }}
                                                       title="Yêu cầu sửa đổi đề tài"
-                                                      disabled={updatingStatus !== null}
+                                                      disabled={
+                                                        updatingStatus ===
+                                                        `revision-${topic.topicID}`
+                                                      }
                                                       style={{
                                                         padding: "8px",
-                                                        background: "#f59e0b",
+                                                        background:
+                                                          updatingStatus ===
+                                                          `revision-${topic.topicID}`
+                                                            ? "#9CA3AF"
+                                                            : "#F59E0B",
                                                         color: "white",
                                                         border: "none",
-                                                        borderRadius: "8px",
-                                                        cursor: "pointer",
+                                                        borderRadius: "6px",
+                                                        cursor:
+                                                          updatingStatus ===
+                                                          `revision-${topic.topicID}`
+                                                            ? "not-allowed"
+                                                            : "pointer",
+                                                        transition: "all 0.2s ease",
                                                         display: "flex",
                                                         alignItems: "center",
                                                         justifyContent: "center",
                                                         width: "32px",
                                                         height: "32px",
-                                                        transition: "all 0.2s ease"
                                                       }}
-                                                      onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
-                                                      onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+                                                      onMouseEnter={(e) => {
+                                                        if (
+                                                          updatingStatus !==
+                                                          `revision-${topic.topicID}`
+                                                        ) {
+                                                          e.currentTarget.style.background =
+                                                            "#D97706";
+                                                        }
+                                                      }}
+                                                      onMouseLeave={(e) => {
+                                                        if (
+                                                          updatingStatus !==
+                                                          `revision-${topic.topicID}`
+                                                        ) {
+                                                          e.currentTarget.style.background =
+                                                            "#F59E0B";
+                                                        }
+                                                      }}
                                                     >
-                                                      <Edit size={16} />
+                                                      {updatingStatus ===
+                                                      `revision-${topic.topicID}` ? (
+                                                        <Loader2
+                                                          size={16}
+                                                          style={{
+                                                            animation: "spin 1s linear infinite",
+                                                          }}
+                                                        />
+                                                      ) : (
+                                                        <Edit size={16} />
+                                                      )}
                                                     </button>
+
                                                     <button
-                                                      type="button"
-                                                      onClick={() => openCommentModal("reject", topic.topicID, topic.title)}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openCommentModal(
+                                                          "reject",
+                                                          topic.topicID,
+                                                          topic.title,
+                                                        );
+                                                      }}
                                                       title="Từ chối đề tài"
-                                                      disabled={updatingStatus !== null}
+                                                      disabled={
+                                                        updatingStatus ===
+                                                        `reject-${topic.topicID}`
+                                                      }
                                                       style={{
                                                         padding: "8px",
-                                                        background: "#ef4444",
+                                                        background:
+                                                          updatingStatus ===
+                                                          `reject-${topic.topicID}`
+                                                            ? "#9CA3AF"
+                                                            : "#EF4444",
                                                         color: "white",
                                                         border: "none",
-                                                        borderRadius: "8px",
-                                                        cursor: "pointer",
+                                                        borderRadius: "6px",
+                                                        cursor:
+                                                          updatingStatus ===
+                                                          `reject-${topic.topicID}`
+                                                            ? "not-allowed"
+                                                            : "pointer",
+                                                        transition: "all 0.2s ease",
                                                         display: "flex",
                                                         alignItems: "center",
                                                         justifyContent: "center",
                                                         width: "32px",
                                                         height: "32px",
-                                                        transition: "all 0.2s ease"
                                                       }}
-                                                      onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
-                                                      onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+                                                      onMouseEnter={(e) => {
+                                                        if (
+                                                          updatingStatus !==
+                                                          `reject-${topic.topicID}`
+                                                        ) {
+                                                          e.currentTarget.style.background =
+                                                            "#DC2626";
+                                                        }
+                                                      }}
+                                                      onMouseLeave={(e) => {
+                                                        if (
+                                                          updatingStatus !==
+                                                          `reject-${topic.topicID}`
+                                                        ) {
+                                                          e.currentTarget.style.background =
+                                                            "#EF4444";
+                                                        }
+                                                      }}
                                                     >
-                                                      <X size={16} />
+                                                      {updatingStatus ===
+                                                      `reject-${topic.topicID}` ? (
+                                                        <Loader2
+                                                          size={16}
+                                                          style={{
+                                                            animation: "spin 1s linear infinite",
+                                                          }}
+                                                        />
+                                                      ) : (
+                                                        <X size={16} />
+                                                      )}
                                                     </button>
                                                   </>
                                                 )}
@@ -4087,7 +4232,12 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
 
               {/* TAB 2: TOPICS MANAGEMENT (Embedded Module) */}
               {activeAdminTab === "topics-management" && (() => {
-                const filteredTopics = allTopicsList.filter(topic => {
+                // Lọc theo đợt hiện tại/đã chọn
+                const termTopics = allTopicsList.filter(
+                  (t) => !selectedPeriodId || t.defenseTermId === selectedPeriodId
+                );
+
+                const filteredTopics = termTopics.filter(topic => {
                   const s = topicsSearchTerm.trim().toLowerCase();
                   const student = allStudents.find(st => st.studentCode === topic.proposerStudentCode);
                   const matchesSearch = !s || 
@@ -4127,26 +4277,26 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                 const regCount = registeredCount;
                 const complPercent = completionPercent;
 
-                const approvedCount = allTopicsList.filter(
+                const approvedCount = termTopics.filter(
                   (t) => mapApiStatusToDisplay(t.status) === "Đã duyệt"
                 ).length;
-                const pendingCount = allTopicsList.filter(
+                const pendingCount = termTopics.filter(
                   (t) => mapApiStatusToDisplay(t.status) === "Chờ duyệt"
                 ).length;
-                const revisionCount = allTopicsList.filter(
+                const revisionCount = termTopics.filter(
                   (t) => mapApiStatusToDisplay(t.status) === "Cần sửa đổi"
                 ).length;
-                const rejectedCount = allTopicsList.filter(
+                const rejectedCount = termTopics.filter(
                   (t) => mapApiStatusToDisplay(t.status) === "Từ chối"
                 ).length;
 
-                const catalogTopicsCount = allTopicsList.filter(t => t.type === "CATALOG").length;
-                const selfTopicsCount = allTopicsList.filter(t => t.type !== "CATALOG").length;
+                const catalogTopicsCount = termTopics.filter(t => t.type === "CATALOG").length;
+                const selfTopicsCount = termTopics.filter(t => t.type !== "CATALOG").length;
 
-                const assignedAdvisorCount = allTopicsList.filter(t => t.supervisorLecturerCode).length;
-                const noAdvisorCount = allTopicsList.filter(t => !t.supervisorLecturerCode).length;
-                const advisorAssignPercent = allTopicsList.length > 0 
-                  ? Math.round((assignedAdvisorCount / allTopicsList.length) * 100) 
+                const assignedAdvisorCount = termTopics.filter(t => t.supervisorLecturerCode).length;
+                const noAdvisorCount = termTopics.filter(t => !t.supervisorLecturerCode).length;
+                const advisorAssignPercent = termTopics.length > 0 
+                  ? Math.round((assignedAdvisorCount / termTopics.length) * 100) 
                   : 0;
 
                 const steps = [
@@ -4230,10 +4380,10 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                             <Users size={16} color="#3b82f6" />
                           </div>
                           <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                            <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{allTopicsList.length}</span>
+                            <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{termTopics.length}</span>
                             <span style={{ fontSize: "12px", color: "#64748b" }}>đề tài</span>
                             <span style={{ marginLeft: "auto", fontSize: "12px", fontWeight: "800", color: "#3b82f6", background: "#dbeafe", padding: "2px 6px", borderRadius: "6px" }}>
-                              {allTopicsList.length > 0 ? 100 : 0}%
+                              {termTopics.length > 0 ? 100 : 0}%
                             </span>
                           </div>
                           <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden", marginTop: "12px" }}>
@@ -4249,16 +4399,16 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                           </div>
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", fontSize: "11px" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#475569", fontWeight: "700" }}>
-                              <span>Đăng ký:</span> <span style={{ color: "#1e293b" }}>{allTopicsList.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_REG").length}</span>
+                              <span>Đăng ký:</span> <span style={{ color: "#1e293b" }}>{termTopics.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_REG").length}</span>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#475569", fontWeight: "700" }}>
-                              <span>Báo cáo 1:</span> <span style={{ color: "#1e293b" }}>{allTopicsList.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_PROG1").length}</span>
+                              <span>Báo cáo 1:</span> <span style={{ color: "#1e293b" }}>{termTopics.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_PROG1").length}</span>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#475569", fontWeight: "700" }}>
-                              <span>Báo cáo 2:</span> <span style={{ color: "#1e293b" }}>{allTopicsList.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_PROG2").length}</span>
+                              <span>Báo cáo 2:</span> <span style={{ color: "#1e293b" }}>{termTopics.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_PROG2").length}</span>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#475569", fontWeight: "700" }}>
-                              <span>Hoàn thiện:</span> <span style={{ color: "#1e293b" }}>{allTopicsList.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_FULL").length}</span>
+                              <span>Hoàn thiện:</span> <span style={{ color: "#1e293b" }}>{termTopics.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_FULL").length}</span>
                             </div>
                           </div>
                         </div>
@@ -4271,25 +4421,25 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                           </div>
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", fontSize: "11px" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#166534", fontWeight: "700" }}>
-                              <span>Đạt/Xong:</span> <span>{allTopicsList.filter(t => {
+                              <span>Đạt/Xong:</span> <span>{termTopics.filter(t => {
                                 const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
                                 return st.includes("approved") || st.includes("committee") || st.includes("hoàn thành") || st.includes("đã xong");
                               }).length}</span>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#b45309", fontWeight: "700" }}>
-                              <span>Chờ duyệt:</span> <span>{allTopicsList.filter(t => {
+                              <span>Chờ duyệt:</span> <span>{termTopics.filter(t => {
                                 const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
                                 return st.includes("supervisor") || st.includes("chờ");
                               }).length}</span>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#c2410c", fontWeight: "700" }}>
-                              <span>Cần sửa:</span> <span>{allTopicsList.filter(t => {
+                              <span>Cần sửa:</span> <span>{termTopics.filter(t => {
                                 const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
                                 return st.includes("revision") || st.includes("sửa");
                               }).length}</span>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#991b1b", fontWeight: "700" }}>
-                              <span>Trễ hạn:</span> <span>{allTopicsList.filter(t => {
+                              <span>Trễ hạn:</span> <span>{termTopics.filter(t => {
                                 const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
                                 return st.includes("overdue") || st.includes("trễ") || st.includes("quá hạn");
                               }).length}</span>
@@ -4305,12 +4455,12 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                           </div>
                           <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
                             <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>
-                              {allTopicsList.filter(t => {
+                              {termTopics.filter(t => {
                                 const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
                                 return !st.includes("overdue") && !st.includes("trễ") && !st.includes("quá hạn");
                               }).length}
                             </span>
-                            <span style={{ fontSize: "12px", color: "#64748b" }}>/ {allTopicsList.length} đề tài</span>
+                            <span style={{ fontSize: "12px", color: "#64748b" }}>/ {termTopics.length} đề tài</span>
                             <span style={{
                               marginLeft: "auto",
                               fontSize: "12px",
@@ -4321,22 +4471,22 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                               borderRadius: "6px"
                             }}>
                               {(() => {
-                                const onTimeCount = allTopicsList.filter(t => {
+                                const onTimeCount = termTopics.filter(t => {
                                   const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
                                   return !st.includes("overdue") && !st.includes("trễ") && !st.includes("quá hạn");
                                 }).length;
-                                return allTopicsList.length > 0 ? Math.round((onTimeCount / allTopicsList.length) * 100) : 100;
+                                return termTopics.length > 0 ? Math.round((onTimeCount / termTopics.length) * 100) : 100;
                               })()}%
                             </span>
                           </div>
                           <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden", marginTop: "12px" }}>
                             <div style={{
                               width: `${(() => {
-                                const onTimeCount = allTopicsList.filter(t => {
+                                const onTimeCount = termTopics.filter(t => {
                                   const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
                                   return !st.includes("overdue") && !st.includes("trễ") && !st.includes("quá hạn");
                                 }).length;
-                                return allTopicsList.length > 0 ? Math.round((onTimeCount / allTopicsList.length) * 100) : 100;
+                                return termTopics.length > 0 ? Math.round((onTimeCount / termTopics.length) * 100) : 100;
                               })()}%`,
                               height: "100%",
                               background: "#f37021",
@@ -4347,90 +4497,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                       </div>
                     </div>
 
-                    {/* Lộ trình thực hiện đợt bảo vệ tốt nghiệp */}
-                    <div style={{
-                      background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-                      borderRadius: "16px",
-                      border: "1px solid #e2e8f0",
-                      padding: "20px 24px",
-                      marginBottom: "24px",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                    }}>
-                      {/* Timeline Header */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <TrendingUp size={20} color="#1e3a5f" />
-                          <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#1e3a5f" }}>
-                            Lộ trình thực hiện đợt bảo vệ tốt nghiệp
-                          </h3>
-                        </div>
-                        <div style={{ fontSize: "12px", color: "#64748b", display: "flex", alignItems: "center", gap: "6px", background: "#fff", padding: "6px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontWeight: "700" }}>
-                          <Clock size={14} color="#f37021" /> Giai đoạn đợt: <span style={{ color: "#f37021" }}>{currentPeriod?.status || "Draft"}</span>
-                        </div>
-                      </div>
 
-                      {/* Timeline Steps */}
-                      <div style={{ display: "flex", position: "relative", padding: "0 10px", overflowX: "auto", gap: "8px" }}>
-                        {displaySteps.map((step: any, idx) => {
-                          const isCompleted = milestoneTemplates.length > 0
-                            ? (step.ordinal < currentMilestoneIndex || currentMilestoneIndex === 5)
-                            : (idx < currentIndex || (currentStatus === "Archived" && idx === 6));
-                          const isActive = milestoneTemplates.length > 0
-                            ? (step.ordinal === currentMilestoneIndex)
-                            : (idx === currentIndex && currentStatus !== "Archived");
-                          const color = isCompleted ? "#10b981" : isActive ? "#f37021" : "#cbd5e1";
-
-                          return (
-                            <React.Fragment key={step.key}>
-                              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 2, minWidth: "120px" }}>
-                                <div style={{
-                                  width: "32px",
-                                  height: "32px",
-                                  borderRadius: "50%",
-                                  background: "#fff",
-                                  border: `2.5px solid ${color}`,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  boxShadow: isActive ? "0 0 0 4px rgba(243, 112, 33, 0.2)" : "none",
-                                  transition: "all 0.3s ease",
-                                }}>
-                                  {isCompleted ? (
-                                    <CheckCircle size={18} color="#10b981" />
-                                  ) : isActive ? (
-                                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f37021" }} />
-                                  ) : (
-                                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#cbd5e1" }} />
-                                  )}
-                                </div>
-                                <div style={{ marginTop: "10px", textAlign: "center" }}>
-                                  <div style={{ fontSize: "12px", fontWeight: "800", color: isActive ? "#f37021" : isCompleted ? "#1e293b" : "#94a3b8" }}>
-                                    {step.label}
-                                  </div>
-                                  <div style={{ fontSize: "9px", color: "#94a3b8", marginTop: "2px" }}>
-                                    {step.desc}
-                                  </div>
-                                </div>
-                              </div>
-                              {idx < displaySteps.length - 1 && (
-                                <div style={{
-                                  position: "absolute",
-                                  left: `${((idx + 0.5) * (100 / displaySteps.length))}%`,
-                                  top: "16px",
-                                  width: `${100 / displaySteps.length}%`,
-                                  height: "2px",
-                                  background: milestoneTemplates.length > 0
-                                    ? (step.ordinal < currentMilestoneIndex || currentMilestoneIndex === 5 ? "#10b981" : "#cbd5e1")
-                                    : (idx < currentIndex || (currentStatus === "Archived" && idx < 6) ? "#10b981" : "#cbd5e1"),
-                                  zIndex: 1,
-                                  transition: "all 0.5s ease"
-                                }} />
-                              )}
-                            </React.Fragment>
-                          );
-                        })}
-                      </div>
-                    </div>
 
                     {/* Toolbar */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "16px" }}>
@@ -4468,8 +4535,8 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                         >
                           <option value="all">Tất cả mốc tiến độ</option>
                           <option value="MS_REG">Đăng ký đề tài</option>
-                          <option value="MS_PROG1">Báo cáo tiến độ 1</option>
-                          <option value="MS_PROG2">Báo cáo tiến độ 2</option>
+                          <option value="MS_PROG1">Đề cương</option>
+                          <option value="MS_PROG2">Báo cáo</option>
                           <option value="MS_FULL">Hoàn thiện khóa luận</option>
                         </select>
                         <select
@@ -5295,7 +5362,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 1100,
+            zIndex: 20000,
           }}
           onClick={closeCommentModal}
         >
@@ -5482,7 +5549,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 1100,
+            zIndex: 20000,
           }}
           onClick={closeViewCommentModal}
         >
@@ -5611,7 +5678,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 1100,
+            zIndex: 20000,
           }}
           onClick={closeConfirmationModal}
         >
@@ -5966,7 +6033,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 1100,
+            zIndex: 20000,
           }}
           onClick={closeSuccessModal}
         >
@@ -6212,191 +6279,197 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                       </div>
 
                       {/* Quick Stats Grid */}
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "40px" }}>
-                        <div style={{ padding: "20px", background: "white", borderRadius: "20px", border: "1px solid #f1f5f9", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", display: "flex", alignItems: "center", gap: "16px" }}>
-                          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "rgba(16, 185, 129, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#10b981" }}>
-                            <TrendingUp size={24} />
+                      {!currentLecturerOnly && activeAdminTab !== "overview" && (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "40px" }}>
+                          <div style={{ padding: "20px", background: "white", borderRadius: "20px", border: "1px solid #f1f5f9", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", display: "flex", alignItems: "center", gap: "16px" }}>
+                            <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "rgba(16, 185, 129, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#10b981" }}>
+                              <TrendingUp size={24} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: "11px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase" }}>Nộp đúng hạn</div>
+                              <div style={{ fontSize: "20px", fontWeight: "900", color: "#0f172a" }}>{stats.onTimeRate}%</div>
+                            </div>
                           </div>
-                          <div>
-                            <div style={{ fontSize: "11px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase" }}>Nộp đúng hạn</div>
-                            <div style={{ fontSize: "20px", fontWeight: "900", color: "#0f172a" }}>{stats.onTimeRate}%</div>
-                          </div>
-                        </div>
 
-                        <div style={{ padding: "20px", background: "white", borderRadius: "20px", border: "1px solid #f1f5f9", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", display: "flex", alignItems: "center", gap: "16px" }}>
-                          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "rgba(245, 158, 11, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b" }}>
-                            <Archive size={24} />
+                          <div style={{ padding: "20px", background: "white", borderRadius: "20px", border: "1px solid #f1f5f9", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", display: "flex", alignItems: "center", gap: "16px" }}>
+                            <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "rgba(245, 158, 11, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b" }}>
+                              <Archive size={24} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: "11px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase" }}>Số lần sửa</div>
+                              <div style={{ fontSize: "20px", fontWeight: "900", color: "#0f172a" }}>{stats.revisionCount}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div style={{ fontSize: "11px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase" }}>Số lần sửa</div>
-                            <div style={{ fontSize: "20px", fontWeight: "900", color: "#0f172a" }}>{stats.revisionCount}</div>
-                          </div>
-                        </div>
 
-                        <div style={{ padding: "20px", background: "white", borderRadius: "20px", border: "1px solid #f1f5f9", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", display: "flex", alignItems: "center", gap: "16px" }}>
-                          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "rgba(59, 130, 246, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#3b82f6" }}>
-                            <Clock size={24} />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: "11px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase" }}>Ngày còn lại</div>
-                            <div style={{ fontSize: "20px", fontWeight: "900", color: "#0f172a" }}>
-                              {stats.daysRemaining !== null ? `${stats.daysRemaining} ngày` : "---"}
+                          <div style={{ padding: "20px", background: "white", borderRadius: "20px", border: "1px solid #f1f5f9", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", display: "flex", alignItems: "center", gap: "16px" }}>
+                            <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "rgba(59, 130, 246, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#3b82f6" }}>
+                              <Clock size={24} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: "11px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase" }}>Ngày còn lại</div>
+                              <div style={{ fontSize: "20px", fontWeight: "900", color: "#0f172a" }}>
+                                {stats.daysRemaining !== null ? `${stats.daysRemaining} ngày` : "---"}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Timeline Tracker */}
-                      <div style={{ marginBottom: "40px" }}>
-                        <h3 style={{ fontSize: "14px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "24px", display: "flex", alignItems: "center", gap: "8px" }}>
-                          <Clock size={18} color="#f37021" />
-                          Lộ trình thực hiện
-                        </h3>
-                        <div style={{ display: "flex", alignItems: "flex-start", padding: "0 10px" }}>
-                          {(() => {
-                            const mainMilestone = detailMilestones?.[0];
-                            const currentState = mainMilestone?.state;
-                            const milestoneList = [
-                              { code: "MS_REG", name: "Đăng ký" },
-                              { code: "MS_PROG1", name: "Báo cáo 1" },
-                              { code: "MS_PROG2", name: "Báo cáo 2" },
-                              { code: "MS_FULL", name: currentState === "WaitingForCommittee" ? "Khóa luận hoàn chỉnh" : "Hoàn thiện" }
-                            ];
+                      {!currentLecturerOnly && activeAdminTab !== "overview" && (
+                        <div style={{ marginBottom: "40px" }}>
+                          <h3 style={{ fontSize: "14px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "24px", display: "flex", alignItems: "center", gap: "8px" }}>
+                            <Clock size={18} color="#f37021" />
+                            Lộ trình thực hiện
+                          </h3>
+                          <div style={{ display: "flex", alignItems: "flex-start", padding: "0 10px" }}>
+                            {(() => {
+                              const mainMilestone = detailMilestones?.[0];
+                              const currentState = mainMilestone?.state;
+                              const milestoneList = [
+                                { code: "MS_REG", name: "Đăng ký" },
+                                { code: "MS_PROG1", name: "Báo cáo 1" },
+                                { code: "MS_PROG2", name: "Báo cáo 2" },
+                                { code: "MS_FULL", name: currentState === "WaitingForCommittee" ? "Khóa luận hoàn chỉnh" : "Hoàn thiện" }
+                              ];
 
-                            const firstNotCompletedIdx = [
-                              mainMilestone?.completedAt1,
-                              mainMilestone?.completedAt2,
-                              mainMilestone?.completedAt3,
-                              mainMilestone?.completedAt4
-                            ].findIndex(val => !val);
+                              const firstNotCompletedIdx = [
+                                mainMilestone?.completedAt1,
+                                mainMilestone?.completedAt2,
+                                mainMilestone?.completedAt3,
+                                mainMilestone?.completedAt4
+                              ].findIndex(val => !val);
 
-                            return milestoneList.map((m, idx) => {
-                              const completedAtKey = `completedAt${idx + 1}`;
-                              const completedAtValue = mainMilestone ? (mainMilestone as any)[completedAtKey] : null;
-                              let isCompleted = !!completedAtValue;
-                              if (idx === 3 && currentState === "WaitingForCommittee") isCompleted = true;
+                              return milestoneList.map((m, idx) => {
+                                const completedAtKey = `completedAt${idx + 1}`;
+                                const completedAtValue = mainMilestone ? (mainMilestone as any)[completedAtKey] : null;
+                                let isCompleted = !!completedAtValue;
+                                if (idx === 3 && currentState === "WaitingForCommittee") isCompleted = true;
 
-                              let isCurrent = false;
-                              if (firstNotCompletedIdx === idx && currentState !== "WaitingForCommittee") isCurrent = true;
+                                let isCurrent = false;
+                                if (firstNotCompletedIdx === idx && currentState !== "WaitingForCommittee") isCurrent = true;
 
-                              return (
-                                <React.Fragment key={m.code}>
-                                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, position: "relative" }}>
-                                    <div style={{
-                                      width: "40px",
-                                      height: "40px",
-                                      borderRadius: "14px",
-                                      backgroundColor: isCompleted ? "#10b981" : isCurrent ? "#f37021" : "#f1f5f9",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      color: isCompleted || isCurrent ? "white" : "#94a3b8",
-                                      boxShadow: isCurrent ? "0 0 0 4px rgba(243, 112, 33, 0.2)" : "none",
-                                      zIndex: 2,
-                                      transition: "all 0.3s ease",
-                                    }}>
-                                      {isCompleted ? <CheckCircle size={20} /> : <span style={{ fontWeight: "900", fontSize: "14px" }}>{idx + 1}</span>}
-                                    </div>
-                                    <div style={{ marginTop: "12px", textAlign: "center" }}>
-                                      <div style={{ fontSize: "13px", fontWeight: "800", color: isCurrent ? "#f37021" : "#1e293b" }}>{m.name}</div>
-                                      <div style={{ fontSize: "10px", fontWeight: "600", color: "#94a3b8", marginTop: "2px" }}>
-                                        {isCompleted && completedAtValue ? (
-                                          <span style={{ color: "#10b981" }}>{new Date(completedAtValue).toLocaleDateString("vi-VN", { day: '2-digit', month: '2-digit' })}</span>
-                                        ) : isCurrent ? "Đang làm" : "Chờ tới"}
+                                return (
+                                  <React.Fragment key={m.code}>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, position: "relative" }}>
+                                      <div style={{
+                                        width: "40px",
+                                        height: "40px",
+                                        borderRadius: "14px",
+                                        backgroundColor: isCompleted ? "#10b981" : isCurrent ? "#f37021" : "#f1f5f9",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        color: isCompleted || isCurrent ? "white" : "#94a3b8",
+                                        boxShadow: isCurrent ? "0 0 0 4px rgba(243, 112, 33, 0.2)" : "none",
+                                        zIndex: 2,
+                                        transition: "all 0.3s ease",
+                                      }}>
+                                        {isCompleted ? <CheckCircle size={20} /> : <span style={{ fontWeight: "900", fontSize: "14px" }}>{idx + 1}</span>}
+                                      </div>
+                                      <div style={{ marginTop: "12px", textAlign: "center" }}>
+                                        <div style={{ fontSize: "13px", fontWeight: "800", color: isCurrent ? "#f37021" : "#1e293b" }}>{m.name}</div>
+                                        <div style={{ fontSize: "10px", fontWeight: "600", color: "#94a3b8", marginTop: "2px" }}>
+                                          {isCompleted && completedAtValue ? (
+                                            <span style={{ color: "#10b981" }}>{new Date(completedAtValue).toLocaleDateString("vi-VN", { day: '2-digit', month: '2-digit' })}</span>
+                                          ) : isCurrent ? "Đang làm" : "Chờ tới"}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                  {idx < 3 && (
-                                    <div style={{
-                                      flex: 1,
-                                      height: "4px",
-                                      backgroundColor: !!(mainMilestone as any)?.[`completedAt${idx + 2}`] ? "#10b981" : isCompleted ? "#f37021" : "#f1f5f9",
-                                      marginTop: "18px",
-                                      marginRight: "-20px",
-                                      marginLeft: "-20px",
-                                      zIndex: 1,
-                                      transition: "background-color 0.3s ease",
-                                    }} />
-                                  )}
-                                </React.Fragment>
-                              );
-                            });
-                          })()}
+                                    {idx < 3 && (
+                                      <div style={{
+                                        flex: 1,
+                                        height: "4px",
+                                        backgroundColor: !!(mainMilestone as any)?.[`completedAt${idx + 2}`] ? "#10b981" : isCompleted ? "#f37021" : "#f1f5f9",
+                                        marginTop: "18px",
+                                        marginRight: "-20px",
+                                        marginLeft: "-20px",
+                                        zIndex: 1,
+                                        transition: "background-color 0.3s ease",
+                                      }} />
+                                    )}
+                                  </React.Fragment>
+                                );
+                              });
+                            })()}
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Submissions History Table */}
-                      <div style={{ marginBottom: "40px" }}>
-                        <h3 style={{ fontSize: "14px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
-                          <Archive size={18} color="#f37021" />
-                          Theo dõi Tiến độ & Bài nộp
-                        </h3>
-                        <div style={{ background: "white", borderRadius: "24px", border: "1px solid #f1f5f9", overflowX: "auto", overflowY: "auto", maxHeight: "420px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }} className="custom-scrollbar">
-                          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px" }}>
-                            <thead>
-                              <tr style={{ background: "#f8fafc", borderBottom: "1px solid #f1f5f9", position: "sticky", top: 0, zIndex: 10 }}>
-                                <th style={{ padding: "16px", textAlign: "left", fontSize: "11px", fontWeight: "900", color: "#64748b", textTransform: "uppercase", width: "120px" }}>Mốc / Lần</th>
-                                <th style={{ padding: "16px", textAlign: "left", fontSize: "11px", fontWeight: "900", color: "#64748b", textTransform: "uppercase", width: "200px" }}>Tệp tin</th>
-                                <th style={{ padding: "16px", textAlign: "left", fontSize: "11px", fontWeight: "900", color: "#64748b", textTransform: "uppercase", width: "120px" }}>Ngày nộp</th>
-                                <th style={{ padding: "16px", textAlign: "left", fontSize: "11px", fontWeight: "900", color: "#64748b", textTransform: "uppercase", width: "150px" }}>Trạng thái</th>
-                                <th style={{ padding: "16px", textAlign: "left", fontSize: "11px", fontWeight: "900", color: "#64748b", textTransform: "uppercase" }}>Nhận xét giảng viên</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {detailSubmissions && detailSubmissions.length > 0 ? (
-                                detailSubmissions.map((sub, idx) => (
-                                  <tr key={sub.submissionID} style={{ borderBottom: idx === (detailSubmissions?.length || 0) - 1 ? "none" : "1px solid #f8fafc" }}>
-                                    <td style={{ padding: "16px" }}>
-                                      <div style={{ fontSize: "13px", fontWeight: "800", color: "#1e293b" }}>
-                                        {sub.ordinal === 1 ? "Đăng ký đề tài" : sub.ordinal === 2 ? "Báo cáo tiến độ 1" : sub.ordinal === 3 ? "Báo cáo tiến độ 2" : sub.ordinal === 4 ? "Hoàn thiện khóa luận" : sub.ordinal === 5 ? "Bảo vệ luận văn" : sub.milestoneCode || `Mốc ${sub.ordinal}`}
-                                      </div>
-                                      <div style={{ fontSize: "11px", fontWeight: "600", color: "#94a3b8" }}>Lần nộp: {sub.attemptNumber}</div>
-                                    </td>
-                                    <td style={{ padding: "16px" }}>
-                                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                                        {sub.files && sub.files.length > 0 ? sub.files.map(file => {
-                                          const fileInfo = getFileIconAndColor(file.fileName);
-                                          return (
-                                            <div key={file.fileID} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                              {fileInfo.icon}
-                                              <span style={{ fontSize: "12px", fontWeight: "700", color: "#334155", cursor: "pointer", textDecoration: "underline" }} onClick={() => window.open(normalizeUrl(`/SubmissionFiles/download/${file.fileID}`), '_blank')}>
-                                                {file.fileName}
-                                              </span>
-                                            </div>
-                                          );
-                                        }) : <span style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic" }}>Không có tệp</span>}
-                                      </div>
-                                    </td>
-                                    <td style={{ padding: "16px", fontSize: "13px", color: "#64748b", fontWeight: "600" }}>{new Date(sub.submittedAt).toLocaleDateString("vi-VN")}</td>
-                                    <td style={{ padding: "16px" }}>
-                                      <span style={{ fontSize: "11px", fontWeight: "800", padding: "4px 10px", borderRadius: "20px", background: sub.lecturerState === "APPROVED" ? "#ecfdf5" : sub.lecturerState === "REVISION_REQUIRED" ? "#fff7ed" : "#f1f5f9", color: sub.lecturerState === "APPROVED" ? "#059669" : sub.lecturerState === "REVISION_REQUIRED" ? "#d97706" : "#64748b", border: `1px solid ${sub.lecturerState === "APPROVED" ? "#10b98120" : sub.lecturerState === "REVISION_REQUIRED" ? "#f59e0b20" : "#e2e8f0"}` }}>
-                                        {sub.lecturerState === "APPROVED" ? "Đã duyệt" : sub.lecturerState === "REVISION_REQUIRED" ? "Cần sửa" : sub.lecturerState || "Đang chờ"}
-                                      </span>
-                                    </td>
-                                    <td style={{ padding: "16px" }}>
-                                      {sub.lecturerComment ? (
-                                        <div style={{ fontSize: "13px", color: "#334155", lineHeight: "1.5", fontWeight: "500", background: "#f8fafc", padding: "12px", borderRadius: "12px", border: "1px solid #f1f5f9" }}>
-                                          {sub.lecturerComment}
-                                          <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "4px", fontWeight: "800", textTransform: "uppercase" }}>Mức độ: {sub.feedbackLevel}</div>
+                      {!currentLecturerOnly && activeAdminTab !== "overview" && (
+                        <div style={{ marginBottom: "40px" }}>
+                          <h3 style={{ fontSize: "14px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
+                            <Archive size={18} color="#f37021" />
+                            Theo dõi Tiến độ & Bài nộp
+                          </h3>
+                          <div style={{ background: "white", borderRadius: "24px", border: "1px solid #f1f5f9", overflowX: "auto", overflowY: "auto", maxHeight: "420px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }} className="custom-scrollbar">
+                            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px" }}>
+                              <thead>
+                                <tr style={{ background: "#f8fafc", borderBottom: "1px solid #f1f5f9", position: "sticky", top: 0, zIndex: 10 }}>
+                                  <th style={{ padding: "16px", textAlign: "left", fontSize: "11px", fontWeight: "900", color: "#64748b", textTransform: "uppercase", width: "120px" }}>Mốc / Lần</th>
+                                  <th style={{ padding: "16px", textAlign: "left", fontSize: "11px", fontWeight: "900", color: "#64748b", textTransform: "uppercase", width: "200px" }}>Tệp tin</th>
+                                  <th style={{ padding: "16px", textAlign: "left", fontSize: "11px", fontWeight: "900", color: "#64748b", textTransform: "uppercase", width: "120px" }}>Ngày nộp</th>
+                                  <th style={{ padding: "16px", textAlign: "left", fontSize: "11px", fontWeight: "900", color: "#64748b", textTransform: "uppercase", width: "150px" }}>Trạng thái</th>
+                                  <th style={{ padding: "16px", textAlign: "left", fontSize: "11px", fontWeight: "900", color: "#64748b", textTransform: "uppercase" }}>Nhận xét giảng viên</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {detailSubmissions && detailSubmissions.length > 0 ? (
+                                  detailSubmissions.map((sub, idx) => (
+                                    <tr key={sub.submissionID} style={{ borderBottom: idx === (detailSubmissions?.length || 0) - 1 ? "none" : "1px solid #f8fafc" }}>
+                                      <td style={{ padding: "16px" }}>
+                                        <div style={{ fontSize: "13px", fontWeight: "800", color: "#1e293b" }}>
+                                          {sub.ordinal === 1 ? "Đăng ký đề tài" : sub.ordinal === 2 ? "Đề cương" : sub.ordinal === 3 ? "Báo cáo" : sub.ordinal === 4 ? "Hoàn thiện khóa luận" : sub.ordinal === 5 ? "Bảo vệ luận văn" : sub.milestoneCode || `Mốc ${sub.ordinal}`}
                                         </div>
-                                      ) : <span style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic" }}>Chưa có nhận xét</span>}
+                                        <div style={{ fontSize: "11px", fontWeight: "600", color: "#94a3b8" }}>Lần nộp: {sub.attemptNumber}</div>
+                                      </td>
+                                      <td style={{ padding: "16px" }}>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                          {sub.files && sub.files.length > 0 ? sub.files.map(file => {
+                                            const fileInfo = getFileIconAndColor(file.fileName);
+                                            return (
+                                              <div key={file.fileID} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                {fileInfo.icon}
+                                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#334155", cursor: "pointer", textDecoration: "underline" }} onClick={() => window.open(normalizeUrl(`/SubmissionFiles/download/${file.fileID}`), '_blank')}>
+                                                  {file.fileName}
+                                                </span>
+                                              </div>
+                                            );
+                                          }) : <span style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic" }}>Không có tệp</span>}
+                                        </div>
+                                      </td>
+                                      <td style={{ padding: "16px", fontSize: "13px", color: "#64748b", fontWeight: "600" }}>{new Date(sub.submittedAt).toLocaleDateString("vi-VN")}</td>
+                                      <td style={{ padding: "16px" }}>
+                                        <span style={{ fontSize: "11px", fontWeight: "800", padding: "4px 10px", borderRadius: "20px", background: sub.lecturerState === "APPROVED" ? "#ecfdf5" : sub.lecturerState === "REVISION_REQUIRED" ? "#fff7ed" : "#f1f5f9", color: sub.lecturerState === "APPROVED" ? "#059669" : sub.lecturerState === "REVISION_REQUIRED" ? "#d97706" : "#64748b", border: `1px solid ${sub.lecturerState === "APPROVED" ? "#10b98120" : sub.lecturerState === "REVISION_REQUIRED" ? "#f59e0b20" : "#e2e8f0"}` }}>
+                                          {sub.lecturerState === "APPROVED" ? "Đã duyệt" : sub.lecturerState === "REVISION_REQUIRED" ? "Cần sửa" : sub.lecturerState || "Đang chờ"}
+                                        </span>
+                                      </td>
+                                      <td style={{ padding: "16px" }}>
+                                        {sub.lecturerComment ? (
+                                          <div style={{ fontSize: "13px", color: "#334155", lineHeight: "1.5", fontWeight: "500", background: "#f8fafc", padding: "12px", borderRadius: "12px", border: "1px solid #f1f5f9" }}>
+                                            {sub.lecturerComment}
+                                            <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "4px", fontWeight: "800", textTransform: "uppercase" }}>Mức độ: {sub.feedbackLevel}</div>
+                                          </div>
+                                        ) : <span style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic" }}>Chưa có nhận xét</span>}
+                                      </td>
+                                    </tr>
+                                  ))
+                                ) : (
+                                  <tr>
+                                    <td colSpan={5} style={{ padding: "60px", textAlign: "center", color: "#94a3b8", fontSize: "14px" }}>
+                                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+                                        <Archive size={40} strokeWidth={1} color="#e2e8f0" />
+                                        Chưa có lịch sử bài nộp nào
+                                      </div>
                                     </td>
                                   </tr>
-                                ))
-                              ) : (
-                                <tr>
-                                  <td colSpan={5} style={{ padding: "60px", textAlign: "center", color: "#94a3b8", fontSize: "14px" }}>
-                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
-                                      <Archive size={40} strokeWidth={1} color="#e2e8f0" />
-                                      Chưa có lịch sử bài nộp nào
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* AI Assitant Thẩm định DNU-GPT */}
                       <div style={{ marginTop: "8px" }}>
@@ -7015,7 +7088,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
               background: "#FFFFFF",
               borderRadius: "24px",
               padding: "32px",
-              maxWidth: "1000px",
+              maxWidth: "1300px",
               width: "95%",
               maxHeight: "90vh",
               overflow: "hidden",
@@ -7042,55 +7115,101 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
               </button>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", paddingRight: 8, marginBottom: 20 }}>
+            {/* Premium Stat Cards */}
+            {autoAssignPreview.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "20px", flexShrink: 0 }}>
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "16px", padding: "16px", display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: "rgba(30, 58, 95, 0.08)", color: "#1e3a5f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "10px", fontWeight: "900", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tổng sinh viên quá hạn</div>
+                    <div style={{ fontSize: "18px", fontWeight: "800", color: "#1e3a5f", marginTop: "2px" }}>{autoAssignPreview.length}</div>
+                  </div>
+                </div>
+
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "16px", padding: "16px", display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: "rgba(22, 101, 52, 0.08)", color: "#166534", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <TagIcon size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "10px", fontWeight: "900", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Ghép khớp Tag</div>
+                    <div style={{ fontSize: "18px", fontWeight: "800", color: "#166534", marginTop: "2px" }}>{autoAssignPreview.filter(item => !item.isFallback).length}</div>
+                  </div>
+                </div>
+
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "16px", padding: "16px", display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: "rgba(153, 27, 27, 0.08)", color: "#991b1b", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <AlertCircle size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "10px", fontWeight: "900", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Gán mặc định</div>
+                    <div style={{ fontSize: "18px", fontWeight: "800", color: "#991b1b", marginTop: "2px" }}>{autoAssignPreview.filter(item => item.isFallback).length}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ flex: 1, overflowY: "auto", paddingRight: 8, marginBottom: 12 }}>
               {autoAssignPreview.length === 0 ? (
                 <div style={{ padding: 48, textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
                   Không có sinh viên nào cần phân công hoặc không tìm thấy ứng viên ghép nối phù hợp.
                 </div>
               ) : (
-                <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ background: "#f1f5f9", color: "#475569", borderBottom: "2px solid #e2e8f0" }}>
-                      <th style={{ padding: "12px", textAlign: "left" }}>Sinh viên quá hạn</th>
-                      <th style={{ padding: "12px", textAlign: "left" }}>Đề tài ghép nối tự động</th>
-                      <th style={{ padding: "12px", textAlign: "left" }}>Giảng viên hướng dẫn ghép</th>
-                      <th style={{ padding: "12px", textAlign: "center" }}>Mức độ khớp</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {autoAssignPreview.map((item, index) => (
-                      <tr key={index} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                        <td style={{ padding: "12px" }}>
-                          <div style={{ fontWeight: "700", color: "#0f172a" }}>{item.studentName}</div>
-                          <div style={{ fontSize: "11px", color: "#64748b" }}>{item.studentCode} ({item.studentDepartment})</div>
-                        </td>
-                        <td style={{ padding: "12px" }}>
-                          <div style={{ fontWeight: "600", color: "#1e3a5f" }}>{item.topicTitle}</div>
-                          {item.catalogTopicCode && (
-                            <span style={{ fontSize: "10px", background: "#e0f2fe", color: "#0369a1", padding: "2px 6px", borderRadius: 4, display: "inline-block", marginTop: 4, fontWeight: "700" }}>
-                              Catalog: {item.catalogTopicCode}
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ padding: "12px" }}>
-                          <div style={{ fontWeight: "600", color: "#334155" }}>{item.supervisorLecturerName}</div>
-                          <div style={{ fontSize: "11px", color: "#64748b" }}>{item.supervisorLecturerCode}</div>
-                        </td>
-                        <td style={{ padding: "12px", textAlign: "center" }}>
-                          {item.isFallback ? (
-                            <span style={{ background: "#fee2e2", color: "#991b1b", padding: "4px 8px", borderRadius: 99, fontSize: 11, fontWeight: "700" }}>Gán Mặc Định</span>
-                          ) : (
-                            <span style={{ background: "#dcfce7", color: "#166534", padding: "4px 8px", borderRadius: 99, fontSize: 11, fontWeight: "700" }}>
-                              Khớp {item.matchTagsCount} Tag
-                            </span>
-                          )}
-                        </td>
+                <>
+                  <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ background: "#f1f5f9", color: "#475569", borderBottom: "2px solid #e2e8f0" }}>
+                        <th style={{ padding: "12px", textAlign: "left" }}>Sinh viên quá hạn</th>
+                        <th style={{ padding: "12px", textAlign: "left" }}>Đề tài ghép nối tự động</th>
+                        <th style={{ padding: "12px", textAlign: "left" }}>Giảng viên hướng dẫn ghép</th>
+                        <th style={{ padding: "12px", textAlign: "center", whiteSpace: "nowrap" }}>Mức độ khớp</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {autoAssignPreview
+                        .slice((autoAssignCurrentPage - 1) * 10, autoAssignCurrentPage * 10)
+                        .map((item, index) => (
+                          <tr key={index} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                            <td style={{ padding: "12px" }}>
+                              <div style={{ fontWeight: "700", color: "#0f172a" }}>{item.studentName}</div>
+                              <div style={{ fontSize: "11px", color: "#64748b" }}>{item.studentCode} ({item.studentDepartment})</div>
+                            </td>
+                            <td style={{ padding: "12px" }}>
+                              <div style={{ fontWeight: "600", color: "#1e3a5f" }}>{item.topicTitle}</div>
+                              {item.catalogTopicCode && (
+                                <span style={{ fontSize: "10px", background: "#e0f2fe", color: "#0369a1", padding: "2px 6px", borderRadius: 4, display: "inline-block", marginTop: 4, fontWeight: "700" }}>
+                                  Catalog: {item.catalogTopicCode}
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ padding: "12px" }}>
+                              <div style={{ fontWeight: "600", color: "#334155" }}>{item.supervisorLecturerName}</div>
+                              <div style={{ fontSize: "11px", color: "#64748b" }}>{item.supervisorLecturerCode}</div>
+                            </td>
+                            <td style={{ padding: "12px", textAlign: "center", whiteSpace: "nowrap" }}>
+                              {item.isFallback ? (
+                                <span style={{ background: "#fee2e2", color: "#991b1b", padding: "4px 8px", borderRadius: 99, fontSize: 11, fontWeight: "700", display: "inline-block", whiteSpace: "nowrap" }}>Gán Mặc Định</span>
+                              ) : (
+                                <span style={{ background: "#dcfce7", color: "#166534", padding: "4px 8px", borderRadius: 99, fontSize: 11, fontWeight: "700", display: "inline-block", whiteSpace: "nowrap" }}>
+                                  Khớp {item.matchTagsCount} Tag
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </>
               )}
             </div>
+
+            {/* Pagination controls using internal renderPagination helper */}
+            {autoAssignPreview.length > 0 && (
+              <div style={{ flexShrink: 0, marginBottom: "16px" }}>
+                {renderPagination(autoAssignCurrentPage, Math.ceil(autoAssignPreview.length / 10), setAutoAssignCurrentPage)}
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", flexShrink: 0 }}>
               <button

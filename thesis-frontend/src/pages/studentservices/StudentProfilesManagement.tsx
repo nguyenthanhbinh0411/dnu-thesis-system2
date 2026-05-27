@@ -25,6 +25,7 @@ import { useToast } from "../../context/useToast";
 import type { ApiResponse } from "../../types/api";
 import { useActiveDefensePeriodId } from "../../utils/defensePeriod";
 import "./StudentProfilesManagement.css";
+import TablePagination from "../../components/TablePagination/TablePagination";
 
 type DefensePeriod = {
   defenseTermId: number;
@@ -865,27 +866,18 @@ const StudentProfilesManagement: React.FC = () => {
         </table>
       </div>
 
-      <div className="spm-paging">
-        <div>
-          Tổng bản ghi: <strong>{totalCount}</strong>
-        </div>
-        <div className="spm-paging-controls">
-          <label>
-            Page size
-            <select
-              value={pageSize}
-              onChange={(event) => {
-                setPageSize(Number(event.target.value));
-                setPage(1);
-              }}
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-          </label>
-        </div>
-      </div>
+      <TablePagination
+        totalCount={totalCount}
+        page={page}
+        pageCount={pageCount}
+        pageSize={pageSize}
+        isLoading={isLoading}
+        onPageChange={(nextPage) => setPage(nextPage)}
+        onPageSizeChange={(nextPageSize) => {
+          setPageSize(nextPageSize);
+          setPage(1);
+        }}
+      />
 
       {detailModal.isOpen && detailModal.row && (
         <div className="spm-modal-overlay" onClick={closeDetail}>

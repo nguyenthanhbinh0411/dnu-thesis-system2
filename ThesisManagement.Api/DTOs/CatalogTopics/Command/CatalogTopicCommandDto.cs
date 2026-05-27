@@ -9,7 +9,8 @@ namespace ThesisManagement.Api.DTOs.CatalogTopics.Command
         string? AssignedStatus,
         DateTime? AssignedAt,
         string? LecturerCode = null,
-        string? LecturerName = null);
+        string? LecturerName = null,
+        int? DefenseTermId = null);
 
     public record CatalogTopicUpdateDto(
         string? Title,
@@ -20,5 +21,6 @@ namespace ThesisManagement.Api.DTOs.CatalogTopics.Command
         IEnumerable<int>? TagIDs = null,
         IEnumerable<string>? TagCodes = null,
         string? LecturerCode = null,
-        string? LecturerName = null);
+        string? LecturerName = null,
+        int? DefenseTermId = null);
 }

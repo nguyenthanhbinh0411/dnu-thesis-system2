@@ -49,6 +49,9 @@ import {
   submitTopicWorkflow,
 } from "../../services/topic-workflow.service";
 import ChatbotPopup from "../../components/ChatbotPopup";
+import { getActiveDefensePeriodId, getActiveDefensePeriodStatus } from "../../utils/defensePeriod";
+
+
 
 
 type TopicRenameRequestModalProps = {
@@ -78,6 +81,7 @@ type CatalogTopicWithTags = {
   assignedAt: string | null;
   createdAt: string;
   lastUpdated: string;
+  defenseTermId?: number | null;
   tags: Array<{
     tagID: number;
     tagCode: string;
@@ -202,11 +206,13 @@ const TopicRegistration: React.FC = () => {
 
   const filteredCatalogTopics = useMemo(() => {
     return catalogTopics.filter(t =>
+      t.defenseTermId !== null && t.defenseTermId !== undefined &&
+      (!selectedDefenseTermId || t.defenseTermId === selectedDefenseTermId) &&
       (t.title.toLowerCase().includes(catalogSearchQuery.toLowerCase()) ||
         t.catalogTopicCode.toLowerCase().includes(catalogSearchQuery.toLowerCase())) &&
       (!catalogTagFilter || (t.tags && t.tags.some(tag => tag.tagCode === catalogTagFilter)))
     );
-  }, [catalogTopics, catalogSearchQuery, catalogTagFilter]);
+  }, [catalogTopics, catalogSearchQuery, catalogTagFilter, selectedDefenseTermId]);
   const [editFormData, setEditFormData] = useState<TopicFormData>({
     topicCode: "",
     title: "",
@@ -310,11 +316,13 @@ const TopicRegistration: React.FC = () => {
 
       // Check if student already has a topic
       let studentTopic: Topic | null = null;
+      const activePeriodId = getActiveDefensePeriodId();
       if (userCode) {
         try {
-          const topicsRes = await fetchData(
-            `/Topics/get-list?ProposerUserCode=${userCode}`,
-          );
+          const topicsQuery = activePeriodId
+            ? `/Topics/get-list?ProposerUserCode=${userCode}&DefenseTermId=${activePeriodId}`
+            : `/Topics/get-list?ProposerUserCode=${userCode}`;
+          const topicsRes = await fetchData(topicsQuery);
           const topics = (topicsRes as ApiResponse<Topic[]>)?.data || [];
           studentTopic =
             topics.find(
@@ -337,13 +345,16 @@ const TopicRegistration: React.FC = () => {
 
       // Determine initial defense term to select
       let termIdToSet: DefensePeriodId | null = null;
-      if (studentTopic?.defenseTermId) {
+      if (activePeriodId) {
+        termIdToSet = activePeriodId;
+      } else if (studentTopic?.defenseTermId) {
         termIdToSet = studentTopic.defenseTermId;
       } else if (studentProfileDefenseTermId) {
         termIdToSet = studentProfileDefenseTermId;
       } else if (defenseTermRes && defenseTermRes.length > 0) {
         termIdToSet = defenseTermRes[0].defenseTermId;
       }
+
 
       if (termIdToSet) {
         setSelectedDefenseTermId(termIdToSet);
@@ -1521,7 +1532,9 @@ const TopicRegistration: React.FC = () => {
                 setSelectedDefenseTermId(picked ? picked.defenseTermId : null);
               }}
               required
+              disabled={!!getActiveDefensePeriodId()}
               style={{
+
                 width: "100%",
                 padding: "12px 16px",
                 border: "2px solid #ddd",
@@ -2037,6 +2050,69 @@ const TopicRegistration: React.FC = () => {
     );
   }
 
+
+  const selectedTerm = defenseTerms.find(
+    (term) => String(term.defenseTermId) === String(selectedDefenseTermId)
+  );
+  const isDraftStage =
+    selectedTerm?.status?.toLowerCase() === "draft" ||
+    getActiveDefensePeriodStatus()?.toLowerCase() === "draft";
+
+  if (isDraftStage && !existingTopic) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "60vh",
+          textAlign: "center",
+          padding: "40px 24px",
+          fontFamily: '"Be Vietnam Pro", "Segoe UI", sans-serif',
+        }}
+      >
+        <div
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, rgba(243,112,33,0.12) 0%, rgba(243,112,33,0.04) 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 24,
+          }}
+        >
+          <BookOpen size={36} color="#f37021" strokeWidth={1.5} />
+        </div>
+        <h2
+          style={{
+            fontSize: 22,
+            fontWeight: 700,
+            color: "#1a2736",
+            marginBottom: 10,
+            letterSpacing: "-0.3px",
+          }}
+        >
+          Chưa mở cổng đăng ký đề tài
+        </h2>
+        <p
+          style={{
+            fontSize: 15,
+            color: "#6B7280",
+            maxWidth: 440,
+            lineHeight: 1.6,
+            margin: 0,
+          }}
+        >
+          Đợt đồ án tốt nghiệp hiện tại đang ở giai đoạn <strong>Soạn thảo (Chuẩn bị)</strong>.
+          Vui lòng quay lại sau hoặc liên hệ khoa / phòng đào tạo để biết thêm thông tin.
+        </p>
+        <ChatbotPopup />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 lg:p-10 font-sans text-slate-900">

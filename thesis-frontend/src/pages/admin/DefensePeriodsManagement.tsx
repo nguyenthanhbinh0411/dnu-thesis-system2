@@ -944,6 +944,10 @@ const DefensePeriodsManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<MainTab>("overview");
   const [rows, setRows] = useState<DefensePeriod[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const selectedIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
   const [loading, setLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(18);
   const [refreshing, setRefreshing] = useState(false);
@@ -1014,17 +1018,19 @@ const DefensePeriodsManagement: React.FC = () => {
         status: mapStatus(r.status)
       }));
       setRows(data);
-      // Auto select the active (unfinished) period if it exists.
-      const unfinished = data.find((r: DefensePeriod) => r.status !== "Closed" && r.status !== "Archived");
-      if (unfinished) {
-        setSelectedId(unfinished.defenseTermId);
-        setActiveDefensePeriodId(unfinished.defenseTermId);
-        window.dispatchEvent(new Event("storage"));
+      
+      const currentSelectedId = selectedIdRef.current;
+      const currentExists = currentSelectedId ? data.find(r => r.defenseTermId === currentSelectedId) : null;
+      
+      if (currentExists) {
+        // Keep currently selected period (manual selection)
       } else {
-        // If there's no active period, keep the currently selectedId if it's a valid past period,
-        // otherwise set to null.
-        if (selectedId && data.find(r => r.defenseTermId === selectedId)) {
-          // Keep current selection (historical period being viewed)
+        // Auto select the active (unfinished) period if it exists.
+        const unfinished = data.find((r: DefensePeriod) => r.status !== "Closed" && r.status !== "Archived");
+        if (unfinished) {
+          setSelectedId(unfinished.defenseTermId);
+          setActiveDefensePeriodId(unfinished.defenseTermId);
+          window.dispatchEvent(new Event("storage"));
         } else {
           setSelectedId(null);
           setActiveDefensePeriodId(null);
@@ -1037,7 +1043,7 @@ const DefensePeriodsManagement: React.FC = () => {
     } finally {
       if (!isSilent) setLoading(false);
     }
-  }, [addToast, selectedId]);
+  }, [addToast]);
 
   const loadSnapshots = useCallback(async () => {
     if (!selectedId) return;
@@ -3224,7 +3230,7 @@ const DefensePeriodsManagement: React.FC = () => {
                     <Plus size={16} /> Thêm sinh viên
                   </button>
                 </div>
-                <DefenseTermStudentsSection ref={studentSectionRef} defenseTermId={selectedId} />
+                <DefenseTermStudentsSection key={selectedId ?? "null"} ref={studentSectionRef} defenseTermId={selectedId} />
               </div>
             )}
             {activeTab === "lecturers" && (
@@ -3235,7 +3241,7 @@ const DefensePeriodsManagement: React.FC = () => {
                     <Plus size={16} /> Thêm giảng viên
                   </button>
                 </div>
-                <DefenseTermLecturersSection ref={lecturerSectionRef} defenseTermId={selectedId} />
+                <DefenseTermLecturersSection key={selectedId ?? "null"} ref={lecturerSectionRef} defenseTermId={selectedId} />
               </div>
             )}
             {activeTab === "operations" && renderOperations()}

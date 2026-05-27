@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ThesisManagement.Api.Models
 {
@@ -11,6 +12,13 @@ namespace ThesisManagement.Api.Models
         public int DepartmentID { get; set; }
         public string? DepartmentCode { get; set; }
         public string? CohortCode { get; set; }
+
+        [Column("COHORT_ID")]
+        public int? CohortID { get; set; }
+
+        [Column("COHORT_NAME")]
+        public string? CohortName { get; set; }
+
         public int? EnrollmentYear { get; set; }
         public string? Status { get; set; }
         public DateTime? CreatedAt { get; set; }

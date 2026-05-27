@@ -489,25 +489,142 @@ const DefenseTermLecturersPickerModal: React.FC<
     }));
   };
 
-  const selectAllVisible = () => {
-    const nextIds = new Set(selectedIds);
-    visibleRows.forEach((row) => {
-      if (row.lecturerProfileID > 0) {
-        nextIds.add(row.lecturerProfileID);
-        setSelectedCache((prev) => ({ ...prev, [row.lecturerProfileID]: row }));
-        setPrimaryDrafts((prev) => ({
-          ...prev,
-          [row.lecturerProfileID]: prev[row.lecturerProfileID] ?? row.isPrimary,
-        }));
+  const selectAllRecords = async () => {
+    if (defenseTermId == null) return;
+    setLoading(true);
+    setError(null);
+    try {
+      if (activeTab === "all") {
+        const response = await listLecturerProfiles({
+          search: filters.search,
+          departmentCode: filters.departmentCode,
+          degree: filters.degree,
+          tagCodes: filters.tagCodes,
+          tags: filters.tags,
+          lecturerCode: filters.lecturerCode,
+          userCode: filters.userCode,
+          page: 1,
+          pageSize: Math.max(1000, totalCount),
+          defenseTermId: defenseTermId ?? undefined,
+          excludeDefenseTermId: defenseTermId ?? undefined,
+        });
+        const normalized = response.data.map(toLecturerSelection);
+        setSelectedCache((prev) => {
+          const next = { ...prev };
+          normalized.forEach((item) => {
+            next[item.lecturerProfileID] = item;
+          });
+          return next;
+        });
+        setPrimaryDrafts((prev) => {
+          const next = { ...prev };
+          normalized.forEach((item) => {
+            next[item.lecturerProfileID] = next[item.lecturerProfileID] ?? item.isPrimary;
+          });
+          return next;
+        });
+        setSelectedIds((prev) => {
+          const nextIds = new Set(prev);
+          normalized.forEach((item) => {
+            if (item.lecturerProfileID > 0) {
+              nextIds.add(item.lecturerProfileID);
+            }
+          });
+          return Array.from(nextIds);
+        });
+      } else {
+        const response = await listDefenseTermLecturers({
+          defenseTermId,
+          search: filters.search,
+          lecturerCode: filters.lecturerCode,
+          userCode: filters.userCode,
+          isPrimary: filters.isPrimary
+            ? filters.isPrimary.toLowerCase() === "true"
+            : undefined,
+          page: 1,
+          pageSize: Math.max(1000, totalCount),
+          sortBy: "lecturerCode",
+          sortDescending: false,
+        });
+        const normalized = response.data.map(toAssignedSelection);
+        setSelectedCache((prev) => {
+          const next = { ...prev };
+          normalized.forEach((item) => {
+            next[item.lecturerProfileID] = item;
+          });
+          return next;
+        });
+        setPrimaryDrafts((prev) => {
+          const next = { ...prev };
+          normalized.forEach((item) => {
+            next[item.lecturerProfileID] = next[item.lecturerProfileID] ?? item.isPrimary;
+          });
+          return next;
+        });
+        setSelectedIds((prev) => {
+          const nextIds = new Set(prev);
+          normalized.forEach((item) => {
+            if (item.lecturerProfileID > 0) {
+              nextIds.add(item.lecturerProfileID);
+            }
+          });
+          return Array.from(nextIds);
+        });
       }
-    });
-    setSelectedIds(Array.from(nextIds));
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error ? loadError.message : "Không thể chọn tất cả giảng viên."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const clearVisible = () => {
-    const nextIds = new Set(selectedIds);
-    visibleRows.forEach((row) => nextIds.delete(row.lecturerProfileID));
-    setSelectedIds(Array.from(nextIds));
+  const clearAllMatchedRecords = async () => {
+    if (defenseTermId == null) return;
+    setLoading(true);
+    setError(null);
+    try {
+      let matchedIds: number[] = [];
+      if (activeTab === "all") {
+        const response = await listLecturerProfiles({
+          search: filters.search,
+          departmentCode: filters.departmentCode,
+          degree: filters.degree,
+          tagCodes: filters.tagCodes,
+          tags: filters.tags,
+          lecturerCode: filters.lecturerCode,
+          userCode: filters.userCode,
+          page: 1,
+          pageSize: Math.max(1000, totalCount),
+          defenseTermId: defenseTermId ?? undefined,
+          excludeDefenseTermId: defenseTermId ?? undefined,
+        });
+        matchedIds = response.data.map((r) => Number(r.lecturerProfileID ?? r.LecturerProfileID ?? r.id ?? r.Id ?? 0)).filter((id) => id > 0);
+      } else {
+        const response = await listDefenseTermLecturers({
+          defenseTermId,
+          search: filters.search,
+          lecturerCode: filters.lecturerCode,
+          userCode: filters.userCode,
+          isPrimary: filters.isPrimary
+            ? filters.isPrimary.toLowerCase() === "true"
+            : undefined,
+          page: 1,
+          pageSize: Math.max(1000, totalCount),
+          sortBy: "lecturerCode",
+          sortDescending: false,
+        });
+        matchedIds = response.data.map((r) => Number(r.lecturerProfileID ?? r.LecturerProfileID ?? r.id ?? r.Id ?? 0)).filter((id) => id > 0);
+      }
+      setSelectedIds((prev) => prev.filter((id) => !matchedIds.includes(id)));
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error ? loadError.message : "Không thể bỏ chọn tất cả giảng viên."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const confirmSelection = async () => {
@@ -775,14 +892,16 @@ const DefenseTermLecturersPickerModal: React.FC<
                   <button
                     type="button"
                     style={buttonPrimary}
-                    onClick={selectAllVisible}
+                    onClick={() => void selectAllRecords()}
+                    disabled={loading}
                   >
                     <CheckSquare size={15} /> Chọn tất cả đang lọc
                   </button>
                   <button
                     type="button"
                     style={buttonGhost}
-                    onClick={clearVisible}
+                    onClick={() => void clearAllMatchedRecords()}
+                    disabled={loading}
                   >
                     <Square size={15} /> Bỏ chọn đang lọc
                   </button>
@@ -872,10 +991,11 @@ const DefenseTermLecturersPickerModal: React.FC<
                         <input
                           type="checkbox"
                           checked={isAllVisibleSelected}
+                          disabled={loading}
                           onChange={() =>
                             isAllVisibleSelected
-                              ? clearVisible()
-                              : selectAllVisible()
+                              ? void clearAllMatchedRecords()
+                              : void selectAllRecords()
                           }
                         />
                       </th>

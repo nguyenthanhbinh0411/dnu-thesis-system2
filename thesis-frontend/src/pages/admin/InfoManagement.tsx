@@ -10,6 +10,7 @@ import {
 import StudentProfilesManagement from "../studentservices/StudentProfilesManagement";
 import LecturerProfilesManagement from "../studentservices/LecturerProfilesManagement";
 import DepartmentsManagement from "../studentservices/DepartmentsManagement";
+import ClassesManagement from "../studentservices/ClassesManagement";
 import TagsManagement from "../studentservices/TagsManagement";
 import CatalogTopicsWarehousePage from "../studentservices/CatalogTopicsWarehousePage";
 import RoomsManagement from "./RoomsManagement";
@@ -19,7 +20,7 @@ const DEEP_BLUE_PRIMARY = "#1e3a5f";
 
 const InfoManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
-    "students" | "lecturers" | "departments" | "tags" | "catalogtopics" | "rooms" | "users"
+    "students" | "lecturers" | "departments" | "classes" | "tags" | "catalogtopics" | "rooms" | "users"
   >("students");
 
   return (
@@ -124,6 +125,7 @@ const InfoManagement: React.FC = () => {
               { id: "students", label: "Sinh viên", icon: <Users size={18} /> },
               { id: "lecturers", label: "Giảng viên", icon: <GraduationCap size={18} /> },
               { id: "departments", label: "Khoa/Bộ môn", icon: <Building2 size={18} /> },
+              { id: "classes", label: "Lớp", icon: <Building2 size={18} /> },
               { id: "tags", label: "Tags", icon: <BookOpen size={18} /> },
               { id: "catalogtopics", label: "Kho đề tài", icon: <ClipboardList size={18} /> },
               { id: "rooms", label: "Phòng bảo vệ", icon: <Building2 size={18} /> },
@@ -157,6 +159,7 @@ const InfoManagement: React.FC = () => {
             {activeTab === "students" && <StudentProfilesManagement />}
             {activeTab === "lecturers" && <LecturerProfilesManagement />}
             {activeTab === "departments" && <DepartmentsManagement />}
+            {activeTab === "classes" && <ClassesManagement />}
             {activeTab === "tags" && <TagsManagement />}
             {activeTab === "catalogtopics" && <CatalogTopicsWarehousePage />}
             {activeTab === "rooms" && <RoomsManagement />}

@@ -50,5 +50,21 @@ namespace ThesisManagement.Api.Controllers
                 return BadRequest(ApiResponse<object>.Fail(ex.Message, 400));
             }
         }
+
+        [HttpPost("rollback/{module}")]
+        public async Task<IActionResult> Rollback(string module, [FromBody] List<string> createdCodes)
+        {
+            try
+            {
+                await _dataExchangeService.RollbackAsync(module, createdCodes);
+                var response = ApiResponse<object>.SuccessResponse(null);
+                response.Message = "Rollback successful";
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ApiResponse<object>.Fail(ex.Message, 400));
+            }
+        }
     }
 }

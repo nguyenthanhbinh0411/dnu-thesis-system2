@@ -7,6 +7,7 @@ import {
   UserPlus,
   UserRoundCog,
   Users,
+  X,
 } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { fetchData, FetchDataError } from "../../api/fetchData";
@@ -1183,109 +1184,151 @@ const UsersManagement: React.FC = () => {
       )}
 
       {showDetailModal && canDetail && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.45)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 80,
-            padding: 14,
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 700,
-              background: "#fff",
-              borderRadius: 12,
-              border: "1px solid #e2e8f0",
-              maxHeight: "85vh",
-              overflowY: "auto",
-            }}
-          >
-            <div style={{ padding: 16, borderBottom: "1px solid #e2e8f0" }}>
-              <h3 style={{ margin: 0 }}>Chi tiết tài khoản</h3>
-            </div>
-            <div style={{ padding: 16, display: "grid", gap: 8 }}>
-              {Object.entries(selectedUser || {}).map(([key, value]) => (
-                <div
-                  key={key}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "200px 1fr",
-                    gap: 8,
-                  }}
-                >
-                  <strong>{key}</strong>
-                  <span>{String(value ?? "")}</span>
-                </div>
-              ))}
-
-              <div
-                style={{
-                  marginTop: 10,
-                  paddingTop: 12,
-                  borderTop: "1px dashed #cbd5e1",
-                  display: "grid",
-                  gap: 8,
-                }}
-              >
-                <h4 style={{ margin: 0, color: "#0f172a" }}>
-                  Thông tin hồ sơ liên kết theo userCode
-                </h4>
-                {selectedLinkedProfile ? (
-                  <>
-                    <div style={{ color: "#475569", fontSize: 13 }}>
-                      Nguồn dữ liệu:{" "}
-                      {selectedLinkedProfile.profileType === "student"
-                        ? "StudentProfiles"
-                        : "LecturerProfiles"}
-                    </div>
-                    {Object.entries(selectedLinkedProfile.data).map(
-                      ([key, value]) => (
-                        <div
-                          key={`linked-${key}`}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "200px 1fr",
-                            gap: 8,
-                          }}
-                        >
-                          <strong>{key}</strong>
-                          <span>{String(value ?? "")}</span>
-                        </div>
-                      ),
-                    )}
-                  </>
-                ) : (
-                  <div style={{ color: "#64748b" }}>
-                    Không tìm thấy hồ sơ StudentProfile/LecturerProfile theo
-                    userCode.
-                  </div>
-                )}
-              </div>
-            </div>
-            <div
-              style={{
-                padding: 16,
-                borderTop: "1px solid #e2e8f0",
-                display: "flex",
-                justifyContent: "flex-end",
-              }}
-            >
+        <div className="users-modal-overlay">
+          <div className="users-detail-modal">
+            <div className="users-modal-header-premium">
+              <h3>Chi tiết tài khoản</h3>
               <button
                 type="button"
+                className="users-modal-close-btn"
                 onClick={() => {
                   setShowDetailModal(false);
                   setSelectedLinkedProfile(null);
                 }}
-                style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 8,
-                  padding: "8px 12px",
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="users-modal-body-premium">
+              {/* Profile Hero Card */}
+              <div className="users-profile-hero">
+                <div className="users-profile-avatar">
+                  {String(selectedUser?.fullName ?? selectedUser?.userCode ?? "U").charAt(0).toUpperCase()}
+                </div>
+                <div className="users-profile-hero-info">
+                  <h4>{String(selectedUser?.fullName ?? "Chưa cập nhật họ tên")}</h4>
+                  <span>Mã tài khoản: {String(selectedUser?.userCode ?? "--")}</span>
+                  <div>
+                    <span className={`users-role-badge-premium ${String(selectedUser?.role ?? "").toLowerCase()}`}>
+                      {String(selectedUser?.role ?? "--")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="users-grid-details">
+                {/* Account Details Card */}
+                <div className="users-detail-card-premium">
+                  <div className="users-card-section-title">Thông tin tài khoản</div>
+                  
+                  <div className="users-info-row">
+                    <span className="users-info-label">User ID</span>
+                    <span className="users-info-value">{String(selectedUser?.userID ?? selectedUser?.id ?? "--")}</span>
+                  </div>
+                  
+                  <div className="users-info-row">
+                    <span className="users-info-label">User Code</span>
+                    <span className="users-info-value">{String(selectedUser?.userCode ?? "--")}</span>
+                  </div>
+
+                  <div className="users-info-row">
+                    <span className="users-info-label">Email tài khoản</span>
+                    <span className="users-info-value" style={{ wordBreak: "break-all" }}>{String(selectedUser?.email ?? "--")}</span>
+                  </div>
+
+                  <div className="users-info-row">
+                    <span className="users-info-label">Vai trò</span>
+                    <span className="users-info-value">{String(selectedUser?.role ?? "--")}</span>
+                  </div>
+                  
+                  <div className="users-info-row">
+                    <span className="users-info-label">Ngày tạo</span>
+                    <span className="users-info-value">{selectedUser?.createdAt ? new Date(String(selectedUser.createdAt)).toLocaleString("vi-VN") : "--"}</span>
+                  </div>
+
+                  <div className="users-info-row">
+                    <span className="users-info-label">Cập nhật cuối</span>
+                    <span className="users-info-value">{selectedUser?.lastUpdated ? new Date(String(selectedUser.lastUpdated)).toLocaleString("vi-VN") : "--"}</span>
+                  </div>
+                </div>
+
+                {/* Linked Profile Details Card */}
+                <div className="users-detail-card-premium">
+                  <div className="users-card-section-title">Hồ sơ liên kết hệ thống</div>
+                  {selectedLinkedProfile ? (
+                    <>
+                      <div className="users-info-row" style={{ background: "#f8fafc", padding: "6px 8px", borderRadius: 6, marginBottom: 8 }}>
+                        <span className="users-info-label">Loại hồ sơ</span>
+                        <span className="users-info-value" style={{ color: "#1e3a5f" }}>
+                          {selectedLinkedProfile.profileType === "student" ? "Hồ sơ Sinh viên" : "Hồ sơ Giảng viên"}
+                        </span>
+                      </div>
+                      
+                      <div className="users-info-row">
+                        <span className="users-info-label">Họ tên hồ sơ</span>
+                        <span className="users-info-value">{String(selectedLinkedProfile.data.fullName ?? "--")}</span>
+                      </div>
+
+                      <div className="users-info-row">
+                        <span className="users-info-label">Mã số định danh</span>
+                        <span className="users-info-value">
+                          {String(selectedLinkedProfile.data.studentCode ?? selectedLinkedProfile.data.lecturerCode ?? "--")}
+                        </span>
+                      </div>
+
+                      <div className="users-info-row">
+                        <span className="users-info-label">Email liên lạc</span>
+                        <span className="users-info-value" style={{ wordBreak: "break-all" }}>
+                          {String(selectedLinkedProfile.data.studentEmail ?? selectedLinkedProfile.data.email ?? "--")}
+                        </span>
+                      </div>
+
+                      <div className="users-info-row">
+                        <span className="users-info-label">Số điện thoại</span>
+                        <span className="users-info-value">{String(selectedLinkedProfile.data.phoneNumber ?? "--")}</span>
+                      </div>
+
+                      {selectedLinkedProfile.profileType === "student" ? (
+                        <>
+                          <div className="users-info-row">
+                            <span className="users-info-label">Lớp hành chính</span>
+                            <span className="users-info-value">{String(selectedLinkedProfile.data.clazz ?? "--")}</span>
+                          </div>
+                          <div className="users-info-row">
+                            <span className="users-info-label">Chuyên ngành</span>
+                            <span className="users-info-value">{String(selectedLinkedProfile.data.major ?? "--")}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="users-info-row">
+                            <span className="users-info-label">Học vị</span>
+                            <span className="users-info-value">{String(selectedLinkedProfile.data.degree ?? "--")}</span>
+                          </div>
+                          <div className="users-info-row">
+                            <span className="users-info-label">Bộ môn / Khoa</span>
+                            <span className="users-info-value">{String(selectedLinkedProfile.data.departmentCode ?? "--")}</span>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ padding: "30px 10px", textAlign: "center", color: "#64748b", fontSize: 13, background: "#f8fafc", borderRadius: 12, border: "1px dashed #cbd5e1" }}>
+                      Không tìm thấy hồ sơ cá nhân liên kết với mã tài khoản này.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="users-modal-footer-premium">
+              <button
+                type="button"
+                className="users-footer-btn-close"
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setSelectedLinkedProfile(null);
                 }}
               >
                 Đóng

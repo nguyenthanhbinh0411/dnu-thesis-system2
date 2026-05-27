@@ -49,6 +49,7 @@ namespace ThesisManagement.Api.Application.Command.CatalogTopics
 
             entity.AssignedStatus = dto.AssignedStatus;
             entity.AssignedAt = dto.AssignedAt;
+            entity.DefenseTermId = dto.DefenseTermId;
 
             if (dto.LecturerCode != null)
             {
@@ -186,6 +187,7 @@ namespace ThesisManagement.Api.Application.Command.CatalogTopics
                 entity.AssignedAt,
                 entity.LecturerCode,
                 entity.LecturerName,
+                entity.DefenseTermId,
                 entity.CreatedAt,
                 entity.LastUpdated,
                 tags);

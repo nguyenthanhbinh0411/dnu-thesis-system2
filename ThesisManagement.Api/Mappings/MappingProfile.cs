@@ -7,6 +7,8 @@ using ThesisManagement.Api.DTOs.ConversationMembers.Query;
 using ThesisManagement.Api.DTOs.Conversations.Query;
 using ThesisManagement.Api.DTOs.DefenseTerms.Query;
 using ThesisManagement.Api.DTOs.Departments.Query;
+using ThesisManagement.Api.DTOs.Classes.Query;
+using ThesisManagement.Api.DTOs.Classes.Command;
 using ThesisManagement.Api.DTOs.LecturerProfiles.Query;
 using ThesisManagement.Api.DTOs.LecturerTags.Query;
 using ThesisManagement.Api.DTOs.MilestoneTemplates.Query;
@@ -38,6 +40,8 @@ namespace ThesisManagement.Api.Mappings
         {
             CreateMap<Department, DepartmentReadDto>();
             CreateMap<Cohort, CohortReadDto>();
+            CreateMap<Class, ClassReadDto>()
+                .ForMember(dest => dest.DepartmentName, opt => opt.MapFrom(src => src.Department != null ? src.Department.Name : null));
             CreateMap<User, UserReadDto>();
             CreateMap<User, LoginResponseDto>();
             CreateMap<StudentProfile, StudentProfileReadDto>();

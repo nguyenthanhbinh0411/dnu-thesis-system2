@@ -5782,17 +5782,17 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
             foreach (var row in studentIdentityRows)
             {
-                if (row.UserID > 0)
+                if (row.UserID.HasValue && row.UserID.Value > 0)
                 {
-                    userIds.Add(row.UserID);
+                    userIds.Add(row.UserID.Value);
                 }
             }
 
             foreach (var row in lecturerIdentityRows)
             {
-                if (row.UserID > 0)
+                if (row.UserID.HasValue && row.UserID.Value > 0)
                 {
-                    userIds.Add(row.UserID);
+                    userIds.Add(row.UserID.Value);
                 }
             }
 

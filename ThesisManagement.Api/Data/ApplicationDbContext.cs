@@ -123,7 +123,7 @@ namespace ThesisManagement.Api.Data
                 b.HasKey(x => x.StudentProfileID);
                 b.Property(x => x.StudentCode).HasMaxLength(30).IsRequired();
                 b.HasIndex(x => x.StudentCode).IsUnique();
-                b.HasOne(x => x.User).WithOne(x => x.StudentProfile).HasForeignKey<StudentProfile>(x => x.UserID);
+                b.HasOne(x => x.User).WithOne(x => x.StudentProfile).HasForeignKey<StudentProfile>(x => x.UserID).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
                 b.HasOne(x => x.Department).WithMany().HasForeignKey(x => x.DepartmentID).OnDelete(DeleteBehavior.SetNull);
                 b.HasOne(x => x.Class).WithMany(x => x.StudentProfiles).HasForeignKey(x => x.ClassID).OnDelete(DeleteBehavior.SetNull);
                 b.Property(x => x.StudentImage).HasMaxLength(255);
@@ -140,6 +140,7 @@ namespace ThesisManagement.Api.Data
                 b.Property(x => x.Status).HasMaxLength(50).HasDefaultValue("Đang học");
                 b.Property(x => x.GraduationYear);
                 b.Property(x => x.Notes);
+                b.Property(x => x.GPA).HasPrecision(18, 2);
 
                 b.Property(x => x.DefenseTermId);
                 b.HasOne(x => x.DefenseTerm)
@@ -218,12 +219,18 @@ namespace ThesisManagement.Api.Data
                 b.Property(x => x.AssignedStatus).HasMaxLength(20);
                 b.Property(x => x.LecturerCode).HasMaxLength(30).HasColumnType("VARCHAR2(30)");
                 b.Property(x => x.LecturerName).HasMaxLength(150);
+                b.Property(x => x.DefenseTermId).HasColumnName("DEFENSETERMID");
                 b.HasOne(x => x.Department).WithMany(x => x.CatalogTopics).HasForeignKey(x => x.DepartmentCode).HasPrincipalKey(x => x.DepartmentCode);
                 b.HasOne(x => x.Lecturer)
                     .WithMany()
                     .HasForeignKey(x => x.LecturerCode)
                     .HasPrincipalKey(x => x.LecturerCode)
                     .OnDelete(DeleteBehavior.SetNull);
+                b.HasOne(x => x.DefenseTerm)
+                    .WithMany()
+                    .HasForeignKey(x => x.DefenseTermId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                b.HasIndex(x => x.DefenseTermId);
                 b.Property(x => x.CreatedAt).HasDefaultValueSql("SYSTIMESTAMP");
                 b.Property(x => x.LastUpdated).HasDefaultValueSql("SYSTIMESTAMP");
             });
@@ -1076,7 +1083,8 @@ namespace ThesisManagement.Api.Data
                     .HasColumnName("REVISION_STATUS")
                     .HasConversion<string>()
                     .HasMaxLength(50)
-                    .HasDefaultValue(RevisionStatus.WaitingStudent);
+                    .HasDefaultValue(RevisionStatus.WaitingStudent)
+                    .HasSentinel(RevisionStatus.NotRequired);
                 b.Property(x => x.SecretaryComment).HasColumnName("SECRETARY_COMMENT").HasColumnType("NCLOB");
                 b.Property(x => x.SecretaryUserCode).HasColumnName("SECRETARY_USER_CODE").HasMaxLength(50);
                 b.Property(x => x.SecretaryApprovedAt).HasColumnName("SECRETARY_APPROVED_AT");

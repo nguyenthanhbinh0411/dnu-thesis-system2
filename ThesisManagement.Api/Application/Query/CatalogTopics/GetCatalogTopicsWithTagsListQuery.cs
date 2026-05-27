@@ -42,6 +42,15 @@ namespace ThesisManagement.Api.Application.Query.CatalogTopics
             if (!string.IsNullOrWhiteSpace(filter.LecturerCode))
                 query = query.Where(x => x.LecturerCode == filter.LecturerCode);
 
+            if (filter.DefenseTermId.HasValue)
+            {
+                query = query.Where(x => x.DefenseTermId == filter.DefenseTermId.Value);
+            }
+            else
+            {
+                query = query.Where(x => x.DefenseTermId != null);
+            }
+
             if (!string.IsNullOrWhiteSpace(filter.AssignedStatus))
             {
                 if (filter.AssignedStatus == "Chưa giao")
@@ -121,6 +130,7 @@ namespace ThesisManagement.Api.Application.Query.CatalogTopics
                 x.AssignedAt,
                 x.LecturerCode,
                 x.LecturerName,
+                x.DefenseTermId,
                 x.CreatedAt,
                 x.LastUpdated,
                 tagsByTopicId.TryGetValue(x.CatalogTopicID, out var tags)

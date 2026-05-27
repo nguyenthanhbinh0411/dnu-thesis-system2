@@ -12,6 +12,7 @@ namespace ThesisManagement.Api.DTOs.CatalogTopics.Query
         DateTime? AssignedAt,
         string? LecturerCode,
         string? LecturerName,
+        int? DefenseTermId,
         DateTime? CreatedAt,
         DateTime? LastUpdated);
 }

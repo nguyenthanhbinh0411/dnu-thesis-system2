@@ -206,6 +206,28 @@ const extractLecturerDefenseAccess = (
   };
 };
 
+export const fetchCurrentDefensePeriodGeneric = async (): Promise<CurrentDefensePeriod | null> => {
+  try {
+    const response = await fetchData<ApiResponse<any>>("/defense-periods/current");
+    const data = response?.data || response;
+    if (data) {
+      const periodId = normalizeDefensePeriodId(data.defenseTermId || data.periodId || data.id);
+      if (periodId) {
+        return {
+          periodId,
+          name: data.name || data.title || `Đợt ${periodId}`,
+          status: data.status || data.state || "UNKNOWN",
+          startDate: data.startDate || null,
+          endDate: data.endDate || null,
+        };
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 export const fetchCurrentDefensePeriod = async (
   role: CurrentDefenseRole,
 ): Promise<CurrentDefensePeriodResult> => {
@@ -222,6 +244,14 @@ export const fetchCurrentDefensePeriod = async (
     );
 
     if (!period) {
+      const genericPeriod = await fetchCurrentDefensePeriodGeneric();
+      if (genericPeriod) {
+        return {
+          ok: true,
+          period: genericPeriod,
+        };
+      }
+
       return {
         ok: false,
         status: null,
@@ -235,6 +265,14 @@ export const fetchCurrentDefensePeriod = async (
       period,
     };
   } catch (error) {
+    const genericPeriod = await fetchCurrentDefensePeriodGeneric();
+    if (genericPeriod) {
+      return {
+        ok: true,
+        period: genericPeriod,
+      };
+    }
+
     if (error instanceof FetchDataError) {
       const status = typeof error.status === "number" ? error.status : null;
       const apiMessage = readApiErrorMessage(error.data);
@@ -292,6 +330,19 @@ export const fetchCurrentLecturerDefenseAccess = async (): Promise<CurrentLectur
     );
 
     if (!period) {
+      const genericPeriod = await fetchCurrentDefensePeriodGeneric();
+      if (genericPeriod) {
+        return {
+          ok: true,
+          period: genericPeriod,
+          councilListLocked: null,
+          hasCommitteeAccess: false,
+          committeeCount: 0,
+          isSecretary: false,
+          hasPendingRevisions: false,
+        };
+      }
+
       return {
         ok: false,
         status: null,
@@ -312,6 +363,19 @@ export const fetchCurrentLecturerDefenseAccess = async (): Promise<CurrentLectur
       hasPendingRevisions: access.hasPendingRevisions,
     };
   } catch (error) {
+    const genericPeriod = await fetchCurrentDefensePeriodGeneric();
+    if (genericPeriod) {
+      return {
+        ok: true,
+        period: genericPeriod,
+        councilListLocked: null,
+        hasCommitteeAccess: false,
+        committeeCount: 0,
+        isSecretary: false,
+        hasPendingRevisions: false,
+      };
+    }
+
     if (error instanceof FetchDataError) {
       const status = typeof error.status === "number" ? error.status : null;
       const apiMessage = readApiErrorMessage(error.data);

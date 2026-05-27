@@ -811,7 +811,7 @@ const DefenseTermStudentsSection = forwardRef<
                   {row.classCode || "--"}
                 </td>
                 <td style={{ padding: "10px 12px", verticalAlign: "top", fontSize: 13, color: "#0f172a" }}>
-                  {row.facultyCode || "--"}
+                  {row.departmentCode || "--"}
                 </td>
                 <td style={{ padding: "10px 12px", verticalAlign: "top", fontSize: 13, color: "#0f172a" }}>
                   {row.gpa ?? "--"}
@@ -1323,8 +1323,8 @@ const DefenseTermStudentsSection = forwardRef<
                           const currentState = mainMilestone?.state;
                           const milestoneList = [
                             { code: "MS_REG", name: "Đăng ký" },
-                            { code: "MS_PROG1", name: "Báo cáo 1" },
-                            { code: "MS_PROG2", name: "Báo cáo 2" },
+                            { code: "MS_PROG1", name: "Đề cương" },
+                            { code: "MS_PROG2", name: "Báo cáo" },
                             { 
                               code: "MS_FULL", 
                               name: currentState === "WaitingForCommittee" ? "Khóa luận hoàn chỉnh" : "Hoàn thiện" 
@@ -1458,8 +1458,8 @@ const DefenseTermStudentsSection = forwardRef<
                                       <td style={{ padding: "16px" }}>
                                         <div style={{ fontSize: "13px", fontWeight: "800", color: "#1e293b" }}>
                                           {sub.ordinal === 1 ? "Đăng ký đề tài" :
-                                           sub.ordinal === 2 ? "Báo cáo tiến độ 1" :
-                                           sub.ordinal === 3 ? "Báo cáo tiến độ 2" :
+                                           sub.ordinal === 2 ? "Đề cương" :
+                                           sub.ordinal === 3 ? "Báo cáo" :
                                            sub.ordinal === 4 ? "Hoàn thiện khóa luận" :
                                            sub.ordinal === 5 ? "Bảo vệ luận văn" :
                                            sub.milestoneCode || `Mốc ${sub.ordinal}`}
