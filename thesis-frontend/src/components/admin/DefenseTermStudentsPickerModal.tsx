@@ -419,21 +419,124 @@ const DefenseTermStudentsPickerModal: React.FC<
     setSelectedCache((prev) => ({ ...prev, [id]: row }));
   };
 
-  const selectAllVisible = () => {
-    const nextIds = new Set(selectedIds);
-    visibleRows.forEach((row) => {
-      if (row.studentProfileID > 0) {
-        nextIds.add(row.studentProfileID);
-        setSelectedCache((prev) => ({ ...prev, [row.studentProfileID]: row }));
+  const selectAllRecords = async () => {
+    if (defenseTermId == null) return;
+    setLoading(true);
+    setError(null);
+    try {
+      if (activeTab === "all") {
+        const response = await listStudentProfiles({
+          search: filters.search,
+          minGPA: filters.minGPA,
+          maxGPA: filters.maxGPA,
+          classCode: filters.classCode,
+          facultyCode: filters.facultyCode,
+          departmentCode: filters.departmentCode,
+          studentCode: filters.studentCode,
+          userCode: filters.userCode,
+          page: 1,
+          pageSize: Math.max(1000, totalCount),
+          defenseTermId: defenseTermId ?? undefined,
+          excludeDefenseTermId: defenseTermId ?? undefined,
+        });
+        const normalized = response.data.map(toStudentSelection);
+        setSelectedCache((prev) => {
+          const next = { ...prev };
+          normalized.forEach((item) => {
+            next[item.studentProfileID] = item;
+          });
+          return next;
+        });
+        setSelectedIds((prev) => {
+          const nextIds = new Set(prev);
+          normalized.forEach((item) => {
+            if (item.studentProfileID > 0) {
+              nextIds.add(item.studentProfileID);
+            }
+          });
+          return Array.from(nextIds);
+        });
+      } else {
+        const response = await listDefenseTermStudents({
+          defenseTermId,
+          search: filters.search,
+          studentCode: filters.studentCode,
+          userCode: filters.userCode,
+          page: 1,
+          pageSize: Math.max(1000, totalCount),
+          sortBy: "studentCode",
+          sortDescending: false,
+        });
+        const normalized = response.data.map(toAssignedSelection);
+        setSelectedCache((prev) => {
+          const next = { ...prev };
+          normalized.forEach((item) => {
+            next[item.studentProfileID] = item;
+          });
+          return next;
+        });
+        setSelectedIds((prev) => {
+          const nextIds = new Set(prev);
+          normalized.forEach((item) => {
+            if (item.studentProfileID > 0) {
+              nextIds.add(item.studentProfileID);
+            }
+          });
+          return Array.from(nextIds);
+        });
       }
-    });
-    setSelectedIds(Array.from(nextIds));
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error ? loadError.message : "Không thể chọn tất cả sinh viên."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const clearVisible = () => {
-    const nextIds = new Set(selectedIds);
-    visibleRows.forEach((row) => nextIds.delete(row.studentProfileID));
-    setSelectedIds(Array.from(nextIds));
+  const clearAllMatchedRecords = async () => {
+    if (defenseTermId == null) return;
+    setLoading(true);
+    setError(null);
+    try {
+      let matchedIds: number[] = [];
+      if (activeTab === "all") {
+        const response = await listStudentProfiles({
+          search: filters.search,
+          minGPA: filters.minGPA,
+          maxGPA: filters.maxGPA,
+          classCode: filters.classCode,
+          facultyCode: filters.facultyCode,
+          departmentCode: filters.departmentCode,
+          studentCode: filters.studentCode,
+          userCode: filters.userCode,
+          page: 1,
+          pageSize: Math.max(1000, totalCount),
+          defenseTermId: defenseTermId ?? undefined,
+          excludeDefenseTermId: defenseTermId ?? undefined,
+        });
+        matchedIds = response.data.map((r) => Number(r.studentProfileID ?? r.StudentProfileID ?? r.id ?? r.Id ?? 0)).filter((id) => id > 0);
+      } else {
+        const response = await listDefenseTermStudents({
+          defenseTermId,
+          search: filters.search,
+          studentCode: filters.studentCode,
+          userCode: filters.userCode,
+          page: 1,
+          pageSize: Math.max(1000, totalCount),
+          sortBy: "studentCode",
+          sortDescending: false,
+        });
+        matchedIds = response.data.map((r) => Number(r.studentProfileID ?? r.StudentProfileID ?? r.id ?? r.Id ?? 0)).filter((id) => id > 0);
+      }
+      setSelectedIds((prev) => prev.filter((id) => !matchedIds.includes(id)));
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error ? loadError.message : "Không thể bỏ chọn tất cả sinh viên."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const selectByGpa = async () => {
@@ -743,14 +846,16 @@ const DefenseTermStudentsPickerModal: React.FC<
                   <button
                     type="button"
                     style={sectionButtonPrimary}
-                    onClick={selectAllVisible}
+                    onClick={() => void selectAllRecords()}
+                    disabled={loading}
                   >
                     <CheckSquare size={15} /> Chọn tất cả đang lọc
                   </button>
                   <button
                     type="button"
                     style={sectionButtonGhost}
-                    onClick={clearVisible}
+                    onClick={() => void clearAllMatchedRecords()}
+                    disabled={loading}
                   >
                     <Square size={15} /> Bỏ chọn đang lọc
                   </button>
@@ -860,10 +965,11 @@ const DefenseTermStudentsPickerModal: React.FC<
                         <input
                           type="checkbox"
                           checked={isAllVisibleSelected}
+                          disabled={loading}
                           onChange={() =>
                             isAllVisibleSelected
-                              ? clearVisible()
-                              : selectAllVisible()
+                              ? void clearAllMatchedRecords()
+                              : void selectAllRecords()
                           }
                         />
                       </th>

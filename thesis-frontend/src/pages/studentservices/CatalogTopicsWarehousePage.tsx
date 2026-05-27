@@ -24,6 +24,12 @@ type CatalogTopicTagDto = {
   tagName: string;
 };
 
+type DefensePeriod = {
+  defenseTermId: number;
+  name: string;
+  status: string;
+};
+
 type CatalogTopicWithTagsDto = {
   catalogTopicID: number;
   catalogTopicCode: string;
@@ -34,6 +40,7 @@ type CatalogTopicWithTagsDto = {
   assignedAt: string;
   lecturerCode?: string | null;
   lecturerName?: string | null;
+  defenseTermId?: number | null;
   createdAt: string;
   lastUpdated: string;
   tags: CatalogTopicTagDto[];
@@ -66,6 +73,7 @@ type CatalogTopicEditForm = {
   assignedAt: string;
   tagCodes: string;
   lecturerCode?: string;
+  defenseTermId?: number | null;
 };
 
 type ModalMode = "detail" | "edit" | null;
@@ -87,6 +95,7 @@ type WarehouseFilters = {
   tagName: string;
   fromDate: string;
   toDate: string;
+  defenseTermId: string;
 };
 
 type SortableField =
@@ -244,6 +253,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
 
   const [rows, setRows] = useState<CatalogTopicWithTagsDto[]>([]);
   const [tagLookup, setTagLookup] = useState<TagLookupDto[]>([]);
+  const [periods, setPeriods] = useState<DefensePeriod[]>([]);
   const [isLoadingRows, setIsLoadingRows] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [hasActivePeriod, setHasActivePeriod] = useState<boolean | null>(null);
@@ -260,6 +270,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
     tagName: "",
     fromDate: "",
     toDate: "",
+    defenseTermId: "",
   });
   const [sortBy, setSortBy] = useState<SortableField>("lastUpdated");
   const [sortDescending, setSortDescending] = useState(true);
@@ -280,6 +291,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
     assignedStatus: "",
     assignedAt: "",
     tagCodes: "",
+    defenseTermId: null,
   });
 
   useEffect(() => {
@@ -309,6 +321,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
         tagName: filters.tagName,
         fromDate: filters.fromDate,
         toDate: filters.toDate,
+        defenseTermId: filters.defenseTermId,
         sortBy,
         sortDescending,
       }),
@@ -321,6 +334,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
       filters.tagName,
       filters.title,
       filters.toDate,
+      filters.defenseTermId,
       page,
       pageSize,
       searchKeyword,
@@ -364,7 +378,8 @@ const CatalogTopicsWarehousePage: React.FC = () => {
       }
 
       const normalized = normalizeCatalogTopicsWithTags(response.data);
-      setRows(normalized.items);
+      const validItems = normalized.items.filter(x => x.defenseTermId !== null && x.defenseTermId !== undefined);
+      setRows(validItems);
       setTotalCount(
         Number(response.totalCount || 0) > 0
           ? Number(response.totalCount || 0)
@@ -412,6 +427,23 @@ const CatalogTopicsWarehousePage: React.FC = () => {
   }, [loadTags]);
 
   useEffect(() => {
+    const fetchPeriods = async () => {
+      try {
+        const response = await fetchData<ApiResponse<DefensePeriod[]>>(
+          "/defense-periods?pageSize=200",
+          { method: "GET" }
+        );
+        if (response?.success && response.data) {
+          setPeriods(response.data);
+        }
+      } catch {
+        setPeriods([]);
+      }
+    };
+    void fetchPeriods();
+  }, []);
+
+  useEffect(() => {
     const checkActivePeriod = async () => {
       try {
         const response = await fetchData<ApiResponse<any>>("/defense-periods/current");
@@ -446,6 +478,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
       tagName: "",
       fromDate: "",
       toDate: "",
+      defenseTermId: "",
     });
     setSortBy("lastUpdated");
     setSortDescending(true);
@@ -549,6 +582,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
         assignedStatus: String(payload.assignedStatus ?? row.assignedStatus ?? ""),
         assignedAt: normalizeDateTimeInput((payload.assignedAt as string | null | undefined) ?? row.assignedAt),
         tagCodes: tags.length > 0 ? tags.map((tag) => tag.tagCode).join(", ") : row.tags.map((tag) => tag.tagCode).join(", "),
+        defenseTermId: payload.defenseTermId !== undefined ? (payload.defenseTermId as number | null) : (row.defenseTermId ?? null),
       });
     } catch (error) {
       addToast(
@@ -563,6 +597,10 @@ const CatalogTopicsWarehousePage: React.FC = () => {
 
   const saveEdit = async () => {
     if (!selectedTopic) return;
+    if (!editForm.defenseTermId) {
+      addToast("Vui lòng chọn đợt bảo vệ liên kết cho đề tài.", "warning");
+      return;
+    }
     setIsModalSaving(true);
     try {
       const normalizedCodes = selectedTagCodes;
@@ -580,6 +618,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
           assignedAt: editForm.assignedAt ? new Date(editForm.assignedAt).toISOString() : null,
           tagIDs: resolvedTags.map((tag) => tag.tagID),
           tagCodes: normalizedCodes,
+          defenseTermId: editForm.defenseTermId,
         },
       });
 
@@ -699,6 +738,26 @@ const CatalogTopicsWarehousePage: React.FC = () => {
             {sortDescending ? "DESC" : "ASC"}
           </button>
 
+          <select
+            value={filters.defenseTermId}
+            onChange={(event) => updateFilter("defenseTermId", event.target.value)}
+            className="warehouse-select"
+            style={{
+              minWidth: 180,
+              borderColor: filters.defenseTermId ? "#1e3a5f" : "#cbd5e1",
+              background: filters.defenseTermId ? "#f0f6ff" : "#fff",
+              color: filters.defenseTermId ? "#1e3a5f" : "inherit",
+              fontWeight: filters.defenseTermId ? "700" : "500",
+            }}
+          >
+            <option value="">Tất cả đợt bảo vệ</option>
+            {periods.map((p) => (
+              <option key={p.defenseTermId} value={p.defenseTermId}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+
           <button
             type="button"
             onClick={handleResetStatus}
@@ -807,6 +866,26 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                 onChange={(event) => updateFilter("toDate", event.target.value)}
               />
             </label>
+            <label className="warehouse-filter-field">
+              <span>Đợt bảo vệ</span>
+              <select
+                value={filters.defenseTermId}
+                onChange={(event) => updateFilter("defenseTermId", event.target.value)}
+                style={{
+                  border: "1px solid #cbd5e1",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  background: "#fff",
+                }}
+              >
+                <option value="">Tất cả đợt</option>
+                {periods.map((p) => (
+                  <option key={p.defenseTermId} value={p.defenseTermId}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div
@@ -830,14 +909,15 @@ const CatalogTopicsWarehousePage: React.FC = () => {
             style={{ width: "100%", tableLayout: "fixed", minWidth: 0 }}
           >
             <colgroup>
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "15%" }} />
-              <col style={{ width: "20%" }} />
+              <col style={{ width: "9%" }} />
+              <col style={{ width: "13%" }} />
+              <col style={{ width: "17%" }} />
               <col style={{ width: "6%" }} />
-              <col style={{ width: "15%" }} />
-              <col style={{ width: "12%" }} />
+              <col style={{ width: "13%" }} />
               <col style={{ width: "10%" }} />
-              <col style={{ width: "12%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "11%" }} />
             </colgroup>
             <thead>
               <tr>
@@ -895,6 +975,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                     Trạng thái
                   </button>
                 </th>
+                <th>Đợt bảo vệ</th>
                 <th>Tags</th>
                 <th style={{ textAlign: "center" }}>Thao tác</th>
               </tr>
@@ -903,7 +984,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
               {isLoadingRows ? (
                 Array.from({ length: 5 }).map((_, index) => (
                   <tr key={`skeleton-${index}`}>
-                    {Array.from({ length: 8 }).map((__, idx) => (
+                    {Array.from({ length: 9 }).map((__, idx) => (
                       <td key={`skeleton-${index}-${idx}`}>
                         <div
                           style={{
@@ -919,7 +1000,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8}>Không có dữ liệu kho đề tài.</td>
+                  <td colSpan={9}>Không có dữ liệu kho đề tài.</td>
                 </tr>
               ) : (
                 rows.map((row) => (
@@ -987,6 +1068,31 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                         }}>
                           Chưa giao
                         </span>
+                      )}
+                    </td>
+                    <td>
+                      {row.defenseTermId ? (
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "3px 8px",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            background: "#f1f5f9",
+                            color: "#334155",
+                            border: "1px solid #cbd5e1",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            maxWidth: "100%",
+                          }}
+                          title={periods.find((p) => p.defenseTermId === row.defenseTermId)?.name || `Đợt #${row.defenseTermId}`}
+                        >
+                          {periods.find((p) => p.defenseTermId === row.defenseTermId)?.name || `Đợt #${row.defenseTermId}`}
+                        </span>
+                      ) : (
+                        <span style={{ color: "#94a3b8", fontSize: 13 }}>Chưa gán đợt</span>
                       )}
                     </td>
                     <td>
@@ -1156,70 +1262,33 @@ const CatalogTopicsWarehousePage: React.FC = () => {
       </div>
 
       {modalMode && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 150,
-            background: "rgba(15,23,42,0.58)",
-            backdropFilter: "blur(4px)",
-            padding: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              width: "min(1400px, 100%)",
-              maxHeight: "92vh",
-              overflow: "hidden",
-              borderRadius: 24,
-              background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
-              border: "1px solid rgba(148,163,184,0.28)",
-              boxShadow: "0 28px 80px rgba(15,23,42,0.35)",
-              display: "grid",
-              gridTemplateRows: "auto 1fr auto",
-            }}
-          >
-            <div
-              style={{
-                padding: 24,
-                borderBottom: "1px solid rgba(148,163,184,0.18)",
-                background:
-                  "linear-gradient(135deg, rgba(30, 58, 95, 0.08), rgba(14,165,233,0.05))",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: 16,
-              }}
-            >
+        <div className="warehouse-modal-overlay">
+          <div className="warehouse-detail-modal">
+            <div className="warehouse-modal-header">
               <div>
                 <div
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 8,
-                    padding: "6px 10px",
+                    padding: "6px 12px",
                     borderRadius: 999,
-                    background: "rgba(30, 58, 95, 0.12)",
-                    color: "#1e3a5f",
-                    fontSize: 12,
+                    background: "rgba(255, 255, 255, 0.15)",
+                    color: "#fff",
+                    fontSize: 11,
                     fontWeight: 800,
                     textTransform: "uppercase",
-                    letterSpacing: 0.06,
+                    letterSpacing: "0.06em",
                   }}
                 >
-                  Data exchange
+                  FIT DNU THESIS
                 </div>
-                <h3 style={{ margin: "10px 0 6px", fontSize: 28, lineHeight: 1.1, color: "#0f172a" }}>
+                <h3>
                   {modalMode === "detail"
                     ? `Chi tiết ${selectedTopic?.catalogTopicCode || "đề tài"}`
                     : `Sửa ${selectedTopic?.catalogTopicCode || "đề tài"}`}
                 </h3>
-                <p style={{ margin: 0, color: "#64748b", lineHeight: 1.6, maxWidth: 860 }}>
+                <p>
                   {modalMode === "detail"
                     ? "Xem đầy đủ thông tin đề tài, danh sách tag và danh sách giảng viên đủ điều kiện."
                     : "Chỉnh sửa thông tin đề tài và cập nhật quan hệ tag theo tagCode."}
@@ -1228,25 +1297,15 @@ const CatalogTopicsWarehousePage: React.FC = () => {
 
               <button
                 type="button"
+                className="warehouse-modal-close-btn"
                 onClick={closeModal}
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 12,
-                  border: "1px solid #e2e8f0",
-                  background: "#fff",
-                  display: "grid",
-                  placeItems: "center",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                }}
                 aria-label="Đóng"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ overflow: "auto", padding: 24, display: "grid", gap: 16 }}>
+            <div className="warehouse-modal-body">
               {isModalLoading ? (
                 <div
                   style={{
@@ -1262,149 +1321,141 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                   <Loader2 size={18} className="spin" /> Đang tải dữ liệu...
                 </div>
               ) : modalMode === "detail" ? (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "0.95fr 1.05fr",
-                    gap: 16,
-                    alignItems: "start",
-                  }}
-                >
-                  <div style={sectionCardStyle}>
-                    <div style={{ display: "grid", gap: 8 }}>
-                      <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>Thông tin chính</div>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", lineHeight: 1.25 }}>
+                <div className="warehouse-detail-layout-redesign">
+                  {/* 1. TOP HERO CARD: Title, Status, Specialized Tags, and Summary */}
+                  <div className="warehouse-detail-hero-card">
+                    <div className="warehouse-hero-header">
+                      <h1 className="warehouse-hero-title">
                         {selectedTopic?.title || "--"}
-                      </div>
-                      <div style={{ color: "#475569", lineHeight: 1.6 }}>{selectedTopic?.summary || "--"}</div>
+                      </h1>
+                      <span className={`warehouse-status-badge ${selectedTopic?.assignedStatus === "đã giao" ? "assigned" : "unassigned"}`}>
+                        {selectedTopic?.assignedStatus || "Chưa giao"}
+                      </span>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+                    {/* Tags chuyên ngành directly under title */}
+                    <div className="warehouse-hero-tags">
+                      {selectedTopic?.tags?.length ? (
+                        selectedTopic.tags.map((tag) => (
+                          <span key={tag.tagID} className="warehouse-tag-pill">
+                            <strong className="tag-code-badge">{tag.tagCode}</strong>
+                            <span className="tag-name-label">{tag.tagName}</span>
+                          </span>
+                        ))
+                      ) : (
+                        <span className="warehouse-no-tags-label">Chưa gắn tag chuyên ngành</span>
+                      )}
+                    </div>
+
+                    {/* Topic summary description */}
+                    <div className="warehouse-hero-summary">
+                      <div className="summary-label">Mô tả / Tóm tắt đề tài</div>
+                      <p className="summary-text">{selectedTopic?.summary || "Chưa có tóm tắt chi tiết cho đề tài này."}</p>
+                    </div>
+                  </div>
+
+                  {/* 2. GRID INFO: Metadata attributes and key information */}
+                  <div className="warehouse-detail-metadata-card">
+                    <div className="warehouse-card-title">Thông tin hệ thống</div>
+                    <div className="warehouse-metadata-grid">
                       {[
                         ["Mã đề tài", selectedTopic?.catalogTopicCode],
+                        ["Đợt bảo vệ", selectedTopic?.defenseTermId ? (periods.find((p) => p.defenseTermId === selectedTopic.defenseTermId)?.name || `Đợt #${selectedTopic.defenseTermId}`) : "Chưa gán đợt"],
                         ["Khoa/Bộ môn", selectedTopic?.departmentCode],
-                        ["Trạng thái", selectedTopic?.assignedStatus || "Chưa giao"],
-                        ["Assigned at", formatDateTime(selectedTopic?.assignedAt ?? null)],
-                        ["Created at", formatDateTime(selectedTopic?.createdAt ?? null)],
-                        ["Last updated", formatDateTime(selectedTopic?.lastUpdated ?? null)],
+                        ["Giao lúc", formatDateTime(selectedTopic?.assignedAt ?? null) || "--"],
+                        ["Ngày tạo", formatDateTime(selectedTopic?.createdAt ?? null)],
+                        ["Cập nhật cuối", formatDateTime(selectedTopic?.lastUpdated ?? null)],
                       ].map(([label, value]) => (
-                        <div
-                          key={label}
-                          style={{
-                            border: "1px solid #e2e8f0",
-                            borderRadius: 14,
-                            background: "linear-gradient(180deg, #fff, #f8fafc)",
-                            padding: 12,
-                            display: "grid",
-                            gap: 6,
-                          }}
-                        >
-                          <div style={{ color: "#64748b", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>{label}</div>
-                          <div style={{ color: "#0f172a", fontWeight: 700, lineHeight: 1.4 }}>{value || "--"}</div>
+                        <div key={label} className="metadata-row">
+                          <span className="metadata-label">{label}</span>
+                          <span className="metadata-value">{value || "--"}</span>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: 16 }}>
-                    <div style={sectionCardStyle}>
-                      <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>Tags</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                        {selectedTopic?.tags?.length ? (
-                          selectedTopic.tags.map((tag) => (
-                            <span
-                              key={tag.tagID}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 6,
-                                padding: "7px 10px",
-                                borderRadius: 999,
-                                background: "#f0f6ff",
-                                border: "1px solid #bfdbfe",
-                                color: "#1e3a5f",
-                                fontSize: 13,
-                                fontWeight: 700,
-                              }}
-                            >
-                              {tag.tagCode}
-                              <span style={{ color: "#1e3a5f", fontWeight: 600 }}>{tag.tagName}</span>
-                            </span>
-                          ))
-                        ) : (
-                          <div style={{ color: "#64748b", fontSize: 13 }}>Chưa có tag.</div>
-                        )}
-                      </div>
+                  {/* 3. FULL WIDTH BOTTOM SECTION: Eligible Lecturers Table */}
+                  <div className="warehouse-detail-lecturers-card">
+                    <div className="warehouse-card-title-container">
+                      <div className="warehouse-card-title">Giảng viên đủ điều kiện</div>
+                      <span className="lecturers-count-badge">
+                        {selectedTopic?.eligibleLecturers?.length || 0} giảng viên
+                      </span>
                     </div>
-
-                    <div style={sectionCardStyle}>
-                      <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>Giảng viên đủ điều kiện</div>
-                      {selectedTopic?.eligibleLecturers?.length ? (
-                        <div style={{ overflowX: "auto" }}>
-                          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
-                            <thead>
-                              <tr>
-                                <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid #e2e8f0", color: "#334155", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.04 }}>Giảng viên</th>
-                                <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid #e2e8f0", color: "#334155", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.04 }}>Khoa</th>
-                                <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid #e2e8f0", color: "#334155", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.04 }}>Học vị</th>
-                                <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid #e2e8f0", color: "#334155", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.04 }}>Quota</th>
-                                <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid #e2e8f0", color: "#334155", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.04 }}>Tag</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {selectedTopic.eligibleLecturers.map((lecturer) => (
-                                <tr key={lecturer.lecturerProfileID} style={{ verticalAlign: "top" }}>
-                                  <td style={{ padding: "12px", borderBottom: "1px solid #f1f5f9", whiteSpace: "nowrap" }}>
-                                    <div style={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.4, whiteSpace: "nowrap" }}>{lecturer.fullName}</div>
-                                    <div style={{ color: "#64748b", fontSize: 13, marginTop: 4, lineHeight: 1.4, whiteSpace: "nowrap" }}>
-                                      {lecturer.email || "--"} · {lecturer.phoneNumber || "--"}
+                    
+                    {selectedTopic?.eligibleLecturers?.length ? (
+                      <div className="warehouse-table-wrapper">
+                        <table className="warehouse-lecturers-table">
+                          <thead>
+                            <tr>
+                              <th>Giảng viên</th>
+                              <th>Khoa</th>
+                              <th>Học vị</th>
+                              <th>Hạn ngạch (Quota HD / BV)</th>
+                              <th>Tag chuyên môn</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedTopic.eligibleLecturers.map((lecturer) => {
+                              const guidingCount = lecturer.currentGuidingCount ?? 0;
+                              const guideQuota = lecturer.guideQuota ?? 1;
+                              const quotaPercent = Math.min(100, Math.round((guidingCount / Math.max(1, guideQuota)) * 100));
+                              return (
+                                <tr key={lecturer.lecturerProfileID}>
+                                  <td>
+                                    <div className="warehouse-lecturer-profile">
+                                      <div className="warehouse-lecturer-avatar">
+                                        {lecturer.fullName.charAt(0)}
+                                      </div>
+                                      <div className="warehouse-lecturer-info">
+                                        <strong>{lecturer.fullName}</strong>
+                                        <span>{lecturer.email || lecturer.phoneNumber || "--"}</span>
+                                      </div>
                                     </div>
                                   </td>
-                                  <td style={{ padding: "12px", borderBottom: "1px solid #f1f5f9", color: "#334155" }}>
-                                    {lecturer.departmentCode || "--"}
+                                  <td>
+                                    <span className="lecturer-dept-badge">{lecturer.departmentCode || "--"}</span>
                                   </td>
-                                  <td style={{ padding: "12px", borderBottom: "1px solid #f1f5f9" }}>
-                                    <span className="status-badge in-progress">{lecturer.degree || "--"}</span>
+                                  <td>
+                                    <span className="lecturer-degree-badge">
+                                      {lecturer.degree || "--"}
+                                    </span>
                                   </td>
-                                  <td style={{ padding: "12px", borderBottom: "1px solid #f1f5f9", color: "#334155" }}>
-                                    <div style={{ display: "grid", gap: 4 }}>
-                                      <span>Hướng dẫn: {lecturer.currentGuidingCount}/{lecturer.guideQuota}</span>
-                                      <span>Bảo vệ: {lecturer.defenseQuota}</span>
+                                  <td>
+                                    <div className="warehouse-quota-cell">
+                                      <div className="quota-text-info">
+                                        <span>HD: <strong>{guidingCount}</strong>/{guideQuota}</span>
+                                        <span>BV: <strong>{lecturer.defenseQuota}</strong></span>
+                                      </div>
+                                      <div className="warehouse-quota-progress">
+                                        <div className="warehouse-quota-fill" style={{ width: `${quotaPercent}%` }} />
+                                      </div>
                                     </div>
                                   </td>
-                                  <td style={{ padding: "12px", borderBottom: "1px solid #f1f5f9" }}>
+                                  <td>
                                     {Array.isArray(lecturer.tags) && lecturer.tags.length > 0 ? (
-                                      <div style={{ display: "flex", flexWrap: "nowrap", gap: 6, overflowX: "auto" }}>
+                                      <div className="lecturer-tags-list">
                                         {lecturer.tags.map((tag) => (
-                                          <span
-                                            key={`${lecturer.lecturerProfileID}-${tag.tagID}`}
-                                            style={{
-                                              padding: "4px 8px",
-                                              borderRadius: 999,
-                                              background: "#eff6ff",
-                                              border: "1px solid #bfdbfe",
-                                              color: "#1d4ed8",
-                                              fontSize: 12,
-                                              fontWeight: 700,
-                                            }}
-                                          >
+                                          <span key={`${lecturer.lecturerProfileID}-${tag.tagID}`} className="lecturer-spec-tag">
                                             {tag.tagCode}
                                           </span>
                                         ))}
                                       </div>
                                     ) : (
-                                      <span style={{ color: "#64748b", fontSize: 13 }}>--</span>
+                                      <span className="no-tags-placeholder">--</span>
                                     )}
                                   </td>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <div style={{ color: "#64748b", fontSize: 13 }}>Chưa có giảng viên đủ điều kiện.</div>
-                      )}
-                    </div>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="warehouse-no-lecturers">
+                        Chưa có giảng viên nào trong bộ môn khớp với tags chuyên ngành của đề tài này.
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -1451,15 +1502,33 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                         </label>
                       </div>
 
-                      <label style={{ display: "grid", gap: 6 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>Assigned at</span>
-                        <input
-                          type="datetime-local"
-                          value={editForm.assignedAt}
-                          onChange={(event) => setEditForm((prev) => ({ ...prev, assignedAt: event.target.value }))}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: "10px 12px", background: "#fff" }}
-                        />
-                      </label>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+                        <label style={{ display: "grid", gap: 6 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>Assigned at</span>
+                          <input
+                            type="datetime-local"
+                            value={editForm.assignedAt}
+                            onChange={(event) => setEditForm((prev) => ({ ...prev, assignedAt: event.target.value }))}
+                            style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: "10px 12px", background: "#fff" }}
+                          />
+                        </label>
+                        <label style={{ display: "grid", gap: 6 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>Đợt bảo vệ</span>
+                          <select
+                            value={editForm.defenseTermId ?? ""}
+                            onChange={(event) => setEditForm((prev) => ({ ...prev, defenseTermId: event.target.value ? Number(event.target.value) : null }))}
+                            style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: "10px 12px", background: "#fff", height: 42 }}
+                            required
+                          >
+                            <option value="">-- Chọn đợt bảo vệ --</option>
+                            {periods.map((p) => (
+                              <option key={p.defenseTermId} value={p.defenseTermId}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
 
                       <label style={{ display: "grid", gap: 6 }}>
                         <span style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>Tags</span>
@@ -1641,7 +1710,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 170,
+            zIndex: 1000000,
             background: "rgba(15,23,42,0.62)",
             backdropFilter: "blur(4px)",
             padding: 16,

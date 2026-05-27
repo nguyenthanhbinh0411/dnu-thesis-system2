@@ -112,6 +112,13 @@ export const getActiveDefensePeriodId = (): number | null => {
   );
 };
 
+export const getActiveDefensePeriodStatus = (): string | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return window.localStorage.getItem("activeDefensePeriodStatus");
+};
+
 export const setActiveDefensePeriodId = (periodId: number | null): void => {
   if (typeof window === "undefined") {
     return;

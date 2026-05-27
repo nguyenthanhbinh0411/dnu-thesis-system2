@@ -7,5 +7,6 @@ namespace ThesisManagement.Api.Services.DataExchange
     {
         Task<DataImportResultDto> ImportAsync(string module, IFormFile file, string? format);
         Task<DataExportResultDto> ExportAsync(string module, string? format);
+        Task RollbackAsync(string module, List<string> createdCodes);
     }
 }

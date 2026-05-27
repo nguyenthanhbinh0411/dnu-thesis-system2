@@ -20,6 +20,7 @@ using ThesisManagement.Api.Application.Common.Heuristics;
 using ThesisManagement.Api.Application.Common.Resilience;
 
 using ThesisManagement.Api.Application.Command.Departments;
+using ThesisManagement.Api.Application.Command.Classes;
 using ThesisManagement.Api.Application.Command.LecturerProfiles;
 using ThesisManagement.Api.Application.Command.LecturerTags;
 using ThesisManagement.Api.Application.Command.MilestoneTemplates;
@@ -52,6 +53,7 @@ using ThesisManagement.Api.Application.Query.DefenseTerms;
 using ThesisManagement.Api.Application.Query.DefenseTermLecturers;
 using ThesisManagement.Api.Application.Query.DefenseTermStudents;
 using ThesisManagement.Api.Application.Query.Departments;
+using ThesisManagement.Api.Application.Query.Classes;
 using ThesisManagement.Api.Application.Query.LecturerProfiles;
 using ThesisManagement.Api.Application.Query.LecturerTags;
 using ThesisManagement.Api.Application.Query.MilestoneTemplates;
@@ -324,6 +326,15 @@ builder.Services.AddScoped<IGetDepartmentUpdateQuery, GetDepartmentUpdateQuery>(
 builder.Services.AddScoped<ICreateDepartmentCommand, CreateDepartmentCommand>();
 builder.Services.AddScoped<IUpdateDepartmentCommand, UpdateDepartmentCommand>();
 builder.Services.AddScoped<IDeleteDepartmentCommand, DeleteDepartmentCommand>();
+
+builder.Services.AddScoped<IGetClassesListQuery, GetClassesListQuery>();
+builder.Services.AddScoped<IGetClassDetailQuery, GetClassDetailQuery>();
+builder.Services.AddScoped<IGetClassCreateQuery, GetClassCreateQuery>();
+builder.Services.AddScoped<IGetClassUpdateQuery, GetClassUpdateQuery>();
+builder.Services.AddScoped<ICreateClassCommand, CreateClassCommand>();
+builder.Services.AddScoped<IUpdateClassCommand, UpdateClassCommand>();
+builder.Services.AddScoped<IDeleteClassCommand, DeleteClassCommand>();
+
 builder.Services.AddScoped<IGetCohortsListQuery, GetCohortsListQuery>();
 builder.Services.AddScoped<IGetCohortDetailQuery, GetCohortDetailQuery>();
 builder.Services.AddScoped<IGetCohortCreateQuery, GetCohortCreateQuery>();

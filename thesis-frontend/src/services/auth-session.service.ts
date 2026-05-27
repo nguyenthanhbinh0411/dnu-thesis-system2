@@ -250,6 +250,8 @@ export function clearAuthSession(): void {
     APP_USER_KEY,
     STUDENT_CODE_KEY,
     LECTURER_CODE_KEY,
+    "activeDefensePeriodId",
+    "activeDefensePeriodStatus",
   ];
 
   keys.forEach((key) => removeFromAllStorage(key));

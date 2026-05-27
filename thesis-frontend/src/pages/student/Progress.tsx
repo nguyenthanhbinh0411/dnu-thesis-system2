@@ -12,6 +12,8 @@ import type { ApiResponse } from "../../types/api";
 import type { MilestoneTemplate } from "../../types/milestoneTemplate";
 import type { ProgressMilestone } from "../../types/progressMilestone";
 import type { Topic } from "../../types/topic";
+import { getActiveDefensePeriodId } from "../../utils/defensePeriod";
+
 
 interface Milestone {
   id: number;
@@ -44,9 +46,12 @@ const Progress: React.FC = () => {
       try {
         // First, fetch the student's topic
         console.log("Fetching topics for userCode:", auth.user.userCode);
+        const activePeriodId = getActiveDefensePeriodId();
+        const periodParam = activePeriodId ? `&DefenseTermId=${activePeriodId}` : "";
         const topicsRes = (await fetchData(
-          `/Topics/get-list?ProposerUserCode=${auth.user.userCode}`,
+          `/Topics/get-list?ProposerUserCode=${auth.user.userCode}${periodParam}`,
         )) as ApiResponse<Topic[]>;
+
         console.log("Topics response:", topicsRes);
         console.log("Topics data:", topicsRes.data);
         const hasTopic = topicsRes.data && topicsRes.data.length > 0;

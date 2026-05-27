@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
 using ThesisManagement.Api.DTOs.DataExchange;
 using ThesisManagement.Api.Models;
+using ThesisManagement.Api.Data;
 
 namespace ThesisManagement.Api.Services.DataExchange
 {
@@ -13,12 +14,14 @@ namespace ThesisManagement.Api.Services.DataExchange
         private readonly IUnitOfWork _uow;
         private readonly ICodeGenerator _codeGenerator;
         private readonly IAuthService _authService;
+        private readonly ApplicationDbContext _db;
 
-        public DataExchangeService(IUnitOfWork uow, ICodeGenerator codeGenerator, IAuthService authService)
+        public DataExchangeService(IUnitOfWork uow, ICodeGenerator codeGenerator, IAuthService authService, ApplicationDbContext db)
         {
             _uow = uow;
             _codeGenerator = codeGenerator;
             _authService = authService;
+            _db = db;
             ExcelPackage.License.SetNonCommercialPersonal("ThesisManagement.Api");
         }
 
@@ -39,10 +42,14 @@ namespace ThesisManagement.Api.Services.DataExchange
             {
                 try
                 {
-                    var upsertResult = await UpsertRowAsync(normalizedModule, row);
+                    var (upsertResult, code) = await UpsertRowAsync(normalizedModule, row);
                     if (upsertResult == UpsertAction.Created)
                     {
                         result.CreatedCount++;
+                        if (!string.IsNullOrWhiteSpace(code))
+                        {
+                            result.CreatedCodes.Add(code);
+                        }
                     }
                     else if (upsertResult == UpsertAction.Updated)
                     {
@@ -62,6 +69,94 @@ namespace ThesisManagement.Api.Services.DataExchange
             }
 
             return result;
+        }
+
+        public async Task RollbackAsync(string module, List<string> createdCodes)
+        {
+            if (createdCodes == null || createdCodes.Count == 0)
+                return;
+
+            var normalizedModule = NormalizeModule(module);
+            switch (normalizedModule)
+            {
+                case "students":
+                    var students = await _uow.StudentProfiles.Query()
+                        .Where(x => createdCodes.Contains(x.StudentCode))
+                        .ToListAsync();
+                    foreach (var s in students)
+                    {
+                        _uow.StudentProfiles.Remove(s);
+                    }
+                    break;
+
+                case "lecturers":
+                    var lecturers = await _uow.LecturerProfiles.Query()
+                        .Where(x => createdCodes.Contains(x.LecturerCode))
+                        .ToListAsync();
+                    var lecturerIds = lecturers.Select(x => x.LecturerProfileID).ToList();
+                    var lecturerTags = await _uow.LecturerTags.Query()
+                        .Where(x => lecturerIds.Contains(x.LecturerProfileID))
+                        .ToListAsync();
+                    foreach (var lt in lecturerTags)
+                    {
+                        _uow.LecturerTags.Remove(lt);
+                    }
+                    foreach (var l in lecturers)
+                    {
+                        _uow.LecturerProfiles.Remove(l);
+                    }
+                    break;
+
+                case "departments":
+                    var departments = await _uow.Departments.Query()
+                        .Where(x => createdCodes.Contains(x.DepartmentCode!))
+                        .ToListAsync();
+                    foreach (var d in departments)
+                    {
+                        _uow.Departments.Remove(d);
+                    }
+                    break;
+
+                case "catalogtopics":
+                    var catalogs = await _uow.CatalogTopics.Query()
+                        .Where(x => createdCodes.Contains(x.CatalogTopicCode))
+                        .ToListAsync();
+                    var catalogIds = catalogs.Select(x => x.CatalogTopicID).ToList();
+                    var topicTags = await _uow.CatalogTopicTags.Query()
+                        .Where(x => catalogIds.Contains(x.CatalogTopicID))
+                        .ToListAsync();
+                    foreach (var tt in topicTags)
+                    {
+                        _uow.CatalogTopicTags.Remove(tt);
+                    }
+                    foreach (var c in catalogs)
+                    {
+                        _uow.CatalogTopics.Remove(c);
+                    }
+                    break;
+
+                case "topics":
+                    var topics = await _uow.Topics.Query()
+                        .Where(x => createdCodes.Contains(x.TopicCode))
+                        .ToListAsync();
+                    foreach (var t in topics)
+                    {
+                        _uow.Topics.Remove(t);
+                    }
+                    break;
+
+                case "tags":
+                    var tags = await _uow.Tags.Query()
+                        .Where(x => createdCodes.Contains(x.TagCode))
+                        .ToListAsync();
+                    foreach (var tg in tags)
+                    {
+                        _uow.Tags.Remove(tg);
+                    }
+                    break;
+            }
+
+            await _uow.SaveChangesAsync();
         }
 
         public Task<DataExportResultDto> ExportAsync(string module, string? format)
@@ -109,7 +204,7 @@ namespace ThesisManagement.Api.Services.DataExchange
             });
         }
 
-        private async Task<UpsertAction> UpsertRowAsync(string module, Dictionary<string, string> row)
+        private async Task<(UpsertAction Action, string Code)> UpsertRowAsync(string module, Dictionary<string, string> row)
         {
             return module switch
             {
@@ -119,11 +214,11 @@ namespace ThesisManagement.Api.Services.DataExchange
                 "catalogtopics" => await UpsertCatalogTopicAsync(row),
                 "topics" => await UpsertTopicAsync(row),
                 "tags" => await UpsertTagAsync(row),
-                _ => UpsertAction.Failed
+                _ => (UpsertAction.Failed, string.Empty)
             };
         }
 
-        private async Task<UpsertAction> UpsertCatalogTopicAsync(Dictionary<string, string> row)
+        private async Task<(UpsertAction Action, string Code)> UpsertCatalogTopicAsync(Dictionary<string, string> row)
         {
             var catalogTopicCode = Get(row, "catalogTopicCode");
             var title = Required(row, "title");
@@ -152,13 +247,52 @@ namespace ThesisManagement.Api.Services.DataExchange
             CatalogTopic? entity = null;
             if (!string.IsNullOrWhiteSpace(catalogTopicCode))
             {
-                entity = await _uow.CatalogTopics.GetByCodeAsync(catalogTopicCode);
+                var trimmedCode = catalogTopicCode.Trim();
+                var local = _db.CatalogTopics.Local
+                    .FirstOrDefault(x => string.Equals(x.CatalogTopicCode, trimmedCode, StringComparison.OrdinalIgnoreCase));
+                if (local != null)
+                {
+                    entity = local;
+                }
+                else
+                {
+                    entity = await _uow.CatalogTopics.GetByCodeAsync(trimmedCode);
+                }
             }
 
             var departmentCode = Get(row, "departmentCode");
             var department = !string.IsNullOrWhiteSpace(departmentCode)
                 ? await _uow.Departments.GetByCodeAsync(departmentCode)
                 : null;
+
+            var lecturerCodeVal = Get(row, "lecturerCode") ?? Get(row, "lecturer_code");
+            var lecturerNameVal = Get(row, "lecturerName") ?? Get(row, "lecturer_name") ?? Get(row, "fullName") ?? Get(row, "full_name");
+            LecturerProfile? lecturer = null;
+            if (!string.IsNullOrWhiteSpace(lecturerCodeVal))
+            {
+                lecturer = await _uow.LecturerProfiles.GetByCodeAsync(lecturerCodeVal.Trim());
+            }
+
+            var finalLecturerCode = lecturer?.LecturerCode ?? lecturerCodeVal;
+            var finalLecturerName = lecturer?.FullName ?? lecturerNameVal;
+
+            var defenseTermIdStr = Get(row, "defenseTermId") ?? Get(row, "defense_term_id");
+            var defenseTermCodeVal = Get(row, "defenseTermCode") ?? Get(row, "defense_term_code") ?? Get(row, "termCode") ?? Get(row, "term_code");
+            int? parsedDefenseTermId = null;
+
+            if (!string.IsNullOrWhiteSpace(defenseTermIdStr) && int.TryParse(defenseTermIdStr, out var idVal))
+            {
+                parsedDefenseTermId = idVal;
+            }
+            else if (!string.IsNullOrWhiteSpace(defenseTermCodeVal))
+            {
+                var term = await _uow.DefenseTerms.Query()
+                    .FirstOrDefaultAsync(x => x.TermCode == defenseTermCodeVal.Trim());
+                if (term != null)
+                {
+                    parsedDefenseTermId = term.DefenseTermId;
+                }
+            }
 
             var action = UpsertAction.Updated;
 
@@ -175,6 +309,9 @@ namespace ThesisManagement.Api.Services.DataExchange
                     DepartmentID = department?.DepartmentID,
                     AssignedStatus = Get(row, "assignedStatus"),
                     AssignedAt = ParseDate(Get(row, "assignedAt")),
+                    LecturerCode = finalLecturerCode,
+                    LecturerName = finalLecturerName,
+                    DefenseTermId = parsedDefenseTermId,
                     CreatedAt = DateTime.UtcNow,
                     LastUpdated = DateTime.UtcNow
                 };
@@ -191,9 +328,19 @@ namespace ThesisManagement.Api.Services.DataExchange
                 entity.DepartmentID = department?.DepartmentID;
                 entity.AssignedStatus = Get(row, "assignedStatus") ?? entity.AssignedStatus;
                 entity.AssignedAt = ParseDate(Get(row, "assignedAt")) ?? entity.AssignedAt;
+                if (!string.IsNullOrWhiteSpace(finalLecturerCode))
+                {
+                    entity.LecturerCode = finalLecturerCode;
+                }
+                if (!string.IsNullOrWhiteSpace(finalLecturerName))
+                {
+                    entity.LecturerName = finalLecturerName;
+                }
+                if (!string.IsNullOrWhiteSpace(defenseTermIdStr) || !string.IsNullOrWhiteSpace(defenseTermCodeVal))
+                {
+                    entity.DefenseTermId = parsedDefenseTermId;
+                }
                 entity.LastUpdated = DateTime.UtcNow;
-
-                _uow.CatalogTopics.Update(entity);
                 await _uow.SaveChangesAsync();
             }
 
@@ -202,7 +349,7 @@ namespace ThesisManagement.Api.Services.DataExchange
                 await SyncCatalogTopicTagsAsync(entity.CatalogTopicID, incomingTagCodes, existingTagMap);
             }
 
-            return action;
+            return (action, entity.CatalogTopicCode);
         }
 
         private async Task SyncCatalogTopicTagsAsync(
@@ -230,15 +377,23 @@ namespace ThesisManagement.Api.Services.DataExchange
                 }
             }
 
+            var catalogTopic = await _uow.CatalogTopics.GetByIdAsync(catalogTopicId);
+            var catalogTopicCode = catalogTopic?.CatalogTopicCode;
+
             foreach (var tagId in tagIds)
             {
                 if (existingLinks.Any(x => x.TagID == tagId))
                     continue;
 
+                var tag = existingTagMap.Values.FirstOrDefault(x => x.TagID == tagId);
+                var tagCode = tag?.TagCode;
+
                 await _uow.CatalogTopicTags.AddAsync(new CatalogTopicTag
                 {
                     CatalogTopicID = catalogTopicId,
                     TagID = tagId,
+                    CatalogTopicCode = catalogTopicCode,
+                    TagCode = tagCode,
                     CreatedAt = DateTime.UtcNow
                 });
             }
@@ -246,7 +401,7 @@ namespace ThesisManagement.Api.Services.DataExchange
             await _uow.SaveChangesAsync();
         }
 
-        private async Task<UpsertAction> UpsertTagAsync(Dictionary<string, string> row)
+        private async Task<(UpsertAction Action, string Code)> UpsertTagAsync(Dictionary<string, string> row)
         {
             var tagCode = Get(row, "tagCode");
             var tagName = Required(row, "tagName");
@@ -254,7 +409,17 @@ namespace ThesisManagement.Api.Services.DataExchange
             Tag? entity = null;
             if (!string.IsNullOrWhiteSpace(tagCode))
             {
-                entity = await _uow.Tags.GetByCodeAsync(tagCode);
+                var trimmedCode = tagCode.Trim();
+                var local = _db.Tags.Local
+                    .FirstOrDefault(x => string.Equals(x.TagCode, trimmedCode, StringComparison.OrdinalIgnoreCase));
+                if (local != null)
+                {
+                    entity = local;
+                }
+                else
+                {
+                    entity = await _uow.Tags.GetByCodeAsync(trimmedCode);
+                }
             }
 
             if (entity == null)
@@ -269,24 +434,21 @@ namespace ThesisManagement.Api.Services.DataExchange
 
                 await _uow.Tags.AddAsync(entity);
                 await _uow.SaveChangesAsync();
-                return UpsertAction.Created;
+                return (UpsertAction.Created, entity.TagCode);
             }
 
             entity.TagName = tagName;
             entity.Description = Get(row, "description") ?? entity.Description;
 
-            _uow.Tags.Update(entity);
             await _uow.SaveChangesAsync();
-            return UpsertAction.Updated;
+            return (UpsertAction.Updated, entity.TagCode);
         }
 
-        private async Task<UpsertAction> UpsertStudentAsync(Dictionary<string, string> row)
+        private async Task<(UpsertAction Action, string Code)> UpsertStudentAsync(Dictionary<string, string> row)
         {
             var studentCode = Get(row, "studentCode");
             var effectiveStudentCode = string.IsNullOrWhiteSpace(studentCode) ? _codeGenerator.Generate("STU") : studentCode!.Trim();
-            var effectiveUserCode = effectiveStudentCode;
 
-            var user = await EnsureImportUserAsync(effectiveUserCode, effectiveStudentCode, "Student");
             var departmentCode = Get(row, "departmentCode");
             var department = !string.IsNullOrWhiteSpace(departmentCode)
                 ? await _uow.Departments.GetByCodeAsync(departmentCode)
@@ -331,7 +493,17 @@ namespace ThesisManagement.Api.Services.DataExchange
             StudentProfile? entity = null;
             if (!string.IsNullOrWhiteSpace(studentCode))
             {
-                entity = await _uow.StudentProfiles.GetByCodeAsync(studentCode);
+                var trimmedCode = studentCode.Trim();
+                var local = _db.StudentProfiles.Local
+                    .FirstOrDefault(x => string.Equals(x.StudentCode, trimmedCode, StringComparison.OrdinalIgnoreCase));
+                if (local != null)
+                {
+                    entity = local;
+                }
+                else
+                {
+                    entity = await _uow.StudentProfiles.GetByCodeAsync(trimmedCode);
+                }
             }
 
             if (entity == null)
@@ -339,8 +511,8 @@ namespace ThesisManagement.Api.Services.DataExchange
                 entity = new StudentProfile
                 {
                     StudentCode = effectiveStudentCode,
-                    UserCode = user.UserCode,
-                    UserID = user.UserID,
+                    UserCode = null,
+                    UserID = null,
                     DepartmentCode = department?.DepartmentCode,
                     DepartmentID = department?.DepartmentID,
                     ClassID = finalClassId,
@@ -364,7 +536,7 @@ namespace ThesisManagement.Api.Services.DataExchange
                 await _uow.StudentProfiles.AddAsync(entity);
                 await _uow.SaveChangesAsync();
 
-                return UpsertAction.Created;
+                return (UpsertAction.Created, entity.StudentCode);
             }
 
             // Duplicate student code: only update defense term and class, and do not change other personal information
@@ -391,18 +563,16 @@ namespace ThesisManagement.Api.Services.DataExchange
             if (hasStudentChanges || finalDefenseTermId != null)
             {
                 entity.LastUpdated = DateTime.UtcNow;
-                _uow.StudentProfiles.Update(entity);
                 await _uow.SaveChangesAsync();
             }
 
-            return UpsertAction.Updated;
+            return (UpsertAction.Updated, entity.StudentCode);
         }
 
-        private async Task<UpsertAction> UpsertLecturerAsync(Dictionary<string, string> row)
+        private async Task<(UpsertAction Action, string Code)> UpsertLecturerAsync(Dictionary<string, string> row)
         {
             var lecturerCode = Get(row, "lecturerCode");
             var effectiveLecturerCode = string.IsNullOrWhiteSpace(lecturerCode) ? _codeGenerator.Generate("LEC") : lecturerCode!.Trim();
-            var effectiveUserCode = effectiveLecturerCode;
 
             // Robust column detection for tags (support multiple aliases)
             var tagColumnNames = new[] { "tagCodes", "tags", "tag", "tag_codes", "tag code", "tag codes" };
@@ -427,7 +597,6 @@ namespace ThesisManagement.Api.Services.DataExchange
                 existingTagMap[tagCode] = tag;
             }
 
-            var user = await EnsureImportUserAsync(effectiveUserCode, effectiveLecturerCode, "Lecturer");
             var departmentCode = Get(row, "departmentCode");
             var department = !string.IsNullOrWhiteSpace(departmentCode)
                 ? await _uow.Departments.GetByCodeAsync(departmentCode)
@@ -455,7 +624,17 @@ namespace ThesisManagement.Api.Services.DataExchange
             LecturerProfile? entity = null;
             if (!string.IsNullOrWhiteSpace(lecturerCode))
             {
-                entity = await _uow.LecturerProfiles.GetByCodeAsync(lecturerCode);
+                var trimmedCode = lecturerCode.Trim();
+                var local = _db.LecturerProfiles.Local
+                    .FirstOrDefault(x => string.Equals(x.LecturerCode, trimmedCode, StringComparison.OrdinalIgnoreCase));
+                if (local != null)
+                {
+                    entity = local;
+                }
+                else
+                {
+                    entity = await _uow.LecturerProfiles.GetByCodeAsync(trimmedCode);
+                }
             }
 
             if (entity == null)
@@ -463,8 +642,8 @@ namespace ThesisManagement.Api.Services.DataExchange
                 entity = new LecturerProfile
                 {
                     LecturerCode = effectiveLecturerCode,
-                    UserCode = user.UserCode,
-                    UserID = user.UserID,
+                    UserCode = null,
+                    UserID = null,
                     DepartmentCode = department?.DepartmentCode,
                     DepartmentID = department?.DepartmentID,
                     FullName = Get(row, "fullName"),
@@ -493,7 +672,7 @@ namespace ThesisManagement.Api.Services.DataExchange
                     await SyncLecturerTagsAsync(entity.LecturerProfileID, entity.LecturerCode, incomingTagCodes, existingTagMap, Get(row, "assignedByUserCode"));
                 }
 
-                return UpsertAction.Created;
+                return (UpsertAction.Created, entity.LecturerCode);
             }
 
             // Duplicate lecturer code: only update the defense term and do not change personal information
@@ -526,17 +705,20 @@ namespace ThesisManagement.Api.Services.DataExchange
             if (finalDefenseTermId != null && entity.DefenseTermId != finalDefenseTermId)
             {
                 entity.DefenseTermId = finalDefenseTermId;
+                if (currentGuidingCountVal == null)
+                {
+                    entity.CurrentGuidingCount = 0;
+                }
                 hasLecturerChanges = true;
             }
 
             if (hasLecturerChanges || finalDefenseTermId != null)
             {
                 entity.LastUpdated = DateTime.UtcNow;
-                _uow.LecturerProfiles.Update(entity);
                 await _uow.SaveChangesAsync();
             }
 
-            return UpsertAction.Updated;
+            return (UpsertAction.Updated, entity.LecturerCode);
         }
 
         private async Task SyncLecturerTagsAsync(
@@ -628,7 +810,7 @@ namespace ThesisManagement.Api.Services.DataExchange
                 user = new User
                 {
                     UserCode = normalizedCode,
-                    PasswordHash = _authService.HashPassword(passwordSeed),
+                    PasswordHash = _authService.HashPassword(System.Guid.NewGuid().ToString("N")),
                     Role = expectedRole,
                     CreatedAt = DateTime.UtcNow,
                     LastUpdated = DateTime.UtcNow
@@ -650,7 +832,7 @@ namespace ThesisManagement.Api.Services.DataExchange
             return user;
         }
 
-        private async Task<UpsertAction> UpsertDepartmentAsync(Dictionary<string, string> row)
+        private async Task<(UpsertAction Action, string Code)> UpsertDepartmentAsync(Dictionary<string, string> row)
         {
             var departmentCode = Get(row, "departmentCode");
             var name = Required(row, "name");
@@ -658,7 +840,17 @@ namespace ThesisManagement.Api.Services.DataExchange
             Department? entity = null;
             if (!string.IsNullOrWhiteSpace(departmentCode))
             {
-                entity = await _uow.Departments.GetByCodeAsync(departmentCode);
+                var trimmedCode = departmentCode.Trim();
+                var local = _db.Departments.Local
+                    .FirstOrDefault(x => string.Equals(x.DepartmentCode, trimmedCode, StringComparison.OrdinalIgnoreCase));
+                if (local != null)
+                {
+                    entity = local;
+                }
+                else
+                {
+                    entity = await _uow.Departments.GetByCodeAsync(trimmedCode);
+                }
             }
 
             if (entity == null)
@@ -674,19 +866,18 @@ namespace ThesisManagement.Api.Services.DataExchange
 
                 await _uow.Departments.AddAsync(entity);
                 await _uow.SaveChangesAsync();
-                return UpsertAction.Created;
+                return (UpsertAction.Created, entity.DepartmentCode);
             }
 
             entity.Name = name;
             entity.Description = Get(row, "description") ?? entity.Description;
             entity.LastUpdated = DateTime.UtcNow;
 
-            _uow.Departments.Update(entity);
             await _uow.SaveChangesAsync();
-            return UpsertAction.Updated;
+            return (UpsertAction.Updated, entity.DepartmentCode);
         }
 
-        private async Task<UpsertAction> UpsertTopicAsync(Dictionary<string, string> row)
+        private async Task<(UpsertAction Action, string Code)> UpsertTopicAsync(Dictionary<string, string> row)
         {
             var topicCode = Get(row, "topicCode");
             var title = Required(row, "title");
@@ -695,7 +886,17 @@ namespace ThesisManagement.Api.Services.DataExchange
             Topic? entity = null;
             if (!string.IsNullOrWhiteSpace(topicCode))
             {
-                entity = await _uow.Topics.GetByCodeAsync(topicCode);
+                var trimmedCode = topicCode.Trim();
+                var local = _db.Topics.Local
+                    .FirstOrDefault(x => string.Equals(x.TopicCode, trimmedCode, StringComparison.OrdinalIgnoreCase));
+                if (local != null)
+                {
+                    entity = local;
+                }
+                else
+                {
+                    entity = await _uow.Topics.GetByCodeAsync(trimmedCode);
+                }
             }
 
             var proposerUserCode = Get(row, "proposerUserCode");
@@ -737,7 +938,7 @@ namespace ThesisManagement.Api.Services.DataExchange
 
                 await _uow.Topics.AddAsync(entity);
                 await _uow.SaveChangesAsync();
-                return UpsertAction.Created;
+                return (UpsertAction.Created, entity.TopicCode);
             }
 
             entity.Title = title;
@@ -760,9 +961,8 @@ namespace ThesisManagement.Api.Services.DataExchange
             entity.LecturerComment = Get(row, "lecturerComment") ?? entity.LecturerComment;
             entity.LastUpdated = DateTime.UtcNow;
 
-            _uow.Topics.Update(entity);
             await _uow.SaveChangesAsync();
-            return UpsertAction.Updated;
+            return (UpsertAction.Updated, entity.TopicCode);
         }
 
         private List<Dictionary<string, string>> ExportStudentRows()
@@ -877,6 +1077,9 @@ namespace ThesisManagement.Api.Services.DataExchange
                     ["departmentCode"] = x.DepartmentCode ?? string.Empty,
                     ["assignedStatus"] = x.AssignedStatus ?? string.Empty,
                     ["assignedAt"] = x.AssignedAt?.ToString("yyyy-MM-dd") ?? string.Empty,
+                    ["lecturerCode"] = x.LecturerCode ?? string.Empty,
+                    ["lecturerName"] = x.LecturerName ?? string.Empty,
+                    ["defenseTermId"] = x.DefenseTermId?.ToString() ?? string.Empty,
                     ["tagCodes"] = tagCodesByCatalogTopicId.TryGetValue(x.CatalogTopicID, out var tagCodes)
                         ? tagCodes
                         : string.Empty

@@ -64,6 +64,7 @@ namespace ThesisManagement.Api.Application.Command.CatalogTopics
                 AssignedAt = dto.AssignedAt,
                 LecturerCode = lecturerCode,
                 LecturerName = lecturerName,
+                DefenseTermId = dto.DefenseTermId,
                 CreatedAt = DateTime.UtcNow,
                 LastUpdated = DateTime.UtcNow
             };

@@ -6,7 +6,7 @@ namespace ThesisManagement.Api.Models
     {
         public int StudentProfileID { get; set; }
         public string StudentCode { get; set; } = null!;
-        public int UserID { get; set; } // Keep for internal use
+        public int? UserID { get; set; } // Keep for internal use
         public string? UserCode { get; set; } // New: reference by code
         public int? DepartmentID { get; set; } // Keep for internal use
         public string? DepartmentCode { get; set; } // New: reference by code

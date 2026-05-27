@@ -25,6 +25,10 @@ import { normalizeRole, ROLE_LECTURER, ROLE_STUDENT } from "../../utils/role";
 import { FetchDataError, fetchData } from "../../api/fetchData";
 import type { StudentProfile } from "../../types/studentProfile";
 import type { LecturerProfile } from "../../types/lecturer-profile";
+import {
+  fetchCurrentDefensePeriod,
+  fetchCurrentLecturerDefenseAccess,
+} from "../../services/current-defense-period.service";
 
 type LoginApiResponse = ApiResponse<unknown> & {
   userCode?: string;

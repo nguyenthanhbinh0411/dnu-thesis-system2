@@ -22,6 +22,14 @@ import { useToast } from "../../context/useToast";
 import { getLecturerCode } from "../../services/auth-session.service";
 import type { ApiResponse } from "../../types/api";
 import type { Department } from "../../types/department";
+import ImportExportActions from "../../components/admin/ImportExportActions";
+
+
+type DefensePeriod = {
+  defenseTermId: number;
+  name: string;
+  status: string;
+};
 
 type CatalogTopicTagDto = {
   tagID: number;
@@ -39,6 +47,7 @@ type CatalogTopicWithTagsDto = {
   assignedAt: string;
   lecturerCode?: string | null;
   lecturerName?: string | null;
+  defenseTermId?: number | null;
   createdAt: string;
   lastUpdated: string;
   tags: CatalogTopicTagDto[];
@@ -75,6 +84,7 @@ type ProposalForm = {
   summary: string;
   departmentCode: string;
   tagCodes: string[];
+  defenseTermId?: number | null;
 };
 
 type LecturerFilters = {
@@ -82,6 +92,7 @@ type LecturerFilters = {
   catalogTopicCode: string;
   departmentCode: string;
   tagCode: string;
+  defenseTermId: string;
 };
 
 type SortableField =
@@ -124,12 +135,13 @@ const LecturerCatalogTopicsPage: React.FC = () => {
   const { addToast } = useToast();
   const currentLecturerCode = getLecturerCode();
 
-  // Tab State: "shared" = Kho đề tài dùng chung, "my-proposals" = Đề tài tôi đã đề xuất
+  // Tab State: "shared" = Kho đề tài có sẵn, "my-proposals" = Đề tài tôi đã đề xuất
   const [activeTab, setActiveTab] = useState<"shared" | "my-proposals">("shared");
 
   const [rows, setRows] = useState<CatalogTopicWithTagsDto[]>([]);
   const [tagLookup, setTagLookup] = useState<TagLookupDto[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [periods, setPeriods] = useState<DefensePeriod[]>([]);
   
   const [isLoadingRows, setIsLoadingRows] = useState(false);
   const [isLoadingTags, setIsLoadingTags] = useState(false);
@@ -144,6 +156,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
     catalogTopicCode: "",
     departmentCode: "",
     tagCode: "",
+    defenseTermId: "",
   });
 
   const [sortBy, setSortBy] = useState<SortableField>("lastUpdated");
@@ -164,6 +177,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
     summary: "",
     departmentCode: "",
     tagCodes: [],
+    defenseTermId: null,
   });
 
   // Tag search within modal picker
@@ -229,6 +243,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
       if (filters.catalogTopicCode) params.append("catalogTopicCode", filters.catalogTopicCode);
       if (filters.departmentCode) params.append("departmentCode", filters.departmentCode);
       if (filters.tagCode) params.append("tagCode", filters.tagCode);
+      if (filters.defenseTermId) params.append("defenseTermId", filters.defenseTermId);
 
       // If activeTab is "my-proposals", only fetch topics proposed by current lecturer
       if (activeTab === "my-proposals" && currentLecturerCode) {
@@ -244,9 +259,10 @@ const LecturerCatalogTopicsPage: React.FC = () => {
         const items = Array.isArray(response.data)
           ? response.data
           : (response.data.items || response.data.records || []);
-        const total = response.totalCount ?? response.data.totalCount ?? items.length;
+        const validItems = items.filter((x: any) => x.defenseTermId !== null && x.defenseTermId !== undefined);
+        const total = response.totalCount ?? response.data.totalCount ?? validItems.length;
         
-        setRows(items);
+        setRows(validItems);
         setTotalCount(total);
       } else {
         setRows([]);
@@ -269,6 +285,20 @@ const LecturerCatalogTopicsPage: React.FC = () => {
   useEffect(() => {
     void loadDepartments();
     void loadTags();
+    const fetchPeriods = async () => {
+      try {
+        const response = await fetchData<ApiResponse<DefensePeriod[]>>(
+          "/defense-periods",
+          { method: "GET" }
+        );
+        if (response?.success && response.data) {
+          setPeriods(response.data);
+        }
+      } catch {
+        setPeriods([]);
+      }
+    };
+    void fetchPeriods();
   }, [loadDepartments, loadTags]);
 
   const handleTabChange = (tab: "shared" | "my-proposals") => {
@@ -281,6 +311,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
       catalogTopicCode: "",
       departmentCode: "",
       tagCode: "",
+      defenseTermId: "",
     });
   };
 
@@ -297,6 +328,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
       catalogTopicCode: "",
       departmentCode: "",
       tagCode: "",
+      defenseTermId: "",
     });
     setSortBy("lastUpdated");
     setSortDescending(true);
@@ -352,6 +384,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
       summary: "",
       departmentCode: "",
       tagCodes: [],
+      defenseTermId: null,
     });
     setModalMode("propose");
   };
@@ -366,6 +399,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
       summary: row.summary || "",
       departmentCode: row.departmentCode || "",
       tagCodes: row.tags?.map((t) => t.tagCode) || [],
+      defenseTermId: row.defenseTermId ?? null,
     });
     setModalMode("edit");
   };
@@ -377,6 +411,10 @@ const LecturerCatalogTopicsPage: React.FC = () => {
     }
     if (!proposalForm.summary.trim()) {
       addToast("Vui lòng mô tả tóm tắt nội dung đề tài.", "warning");
+      return;
+    }
+    if (!proposalForm.defenseTermId) {
+      addToast("Vui lòng chọn đợt bảo vệ liên kết cho đề tài.", "warning");
       return;
     }
 
@@ -392,6 +430,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
             departmentCode: proposalForm.departmentCode || null,
             assignedStatus: "Chưa giao",
             assignedAt: null,
+            defenseTermId: proposalForm.defenseTermId,
           },
         });
 
@@ -417,6 +456,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
               assignedAt: null,
               tagIDs: selectedTagObjects.map((t) => t.tagID),
               tagCodes: selectedTagObjects.map((t) => t.tagCode),
+              defenseTermId: proposalForm.defenseTermId,
             },
           });
         }
@@ -440,6 +480,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
               assignedAt: null,
               tagIDs: selectedTagObjects.map((t) => t.tagID),
               tagCodes: selectedTagObjects.map((t) => t.tagCode),
+              defenseTermId: proposalForm.defenseTermId,
             },
           }
         );
@@ -747,7 +788,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
             Kho đề tài có sẵn
           </h1>
           <p style={{ fontSize: "14px", color: "#64748b", margin: 0 }}>
-            Khám phá danh sách đề tài mẫu dùng chung toàn hệ thống, hoặc đóng góp các ý tưởng đề tài mới của riêng bạn.
+            Khám phá danh sách đề tài mẫu có sẵn trong hệ thống, hoặc đóng góp các ý tưởng đề tài mới của riêng bạn.
           </p>
         </div>
 
@@ -767,7 +808,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
           className={`tab-btn ${activeTab === "shared" ? "active" : ""}`}
         >
           <BookOpen size={16} />
-          Đề tài dùng chung
+          Kho đề tài có sẵn
         </button>
         <button
           type="button"
@@ -849,6 +890,12 @@ const LecturerCatalogTopicsPage: React.FC = () => {
               {sortDescending ? <ArrowDownWideNarrow size={16} /> : <ArrowUpWideNarrow size={16} />}
               {sortDescending ? "Giảm dần" : "Tăng dần"}
             </button>
+
+            <ImportExportActions
+              moduleName="catalogtopics"
+              moduleLabel="Kho đề tài có sẵn"
+              onImportSuccess={loadRows}
+            />
           </div>
         </div>
 
@@ -907,6 +954,22 @@ const LecturerCatalogTopicsPage: React.FC = () => {
               </select>
             </label>
 
+            <label className="filter-input-label">
+              <span>Đợt bảo vệ</span>
+              <select
+                value={filters.defenseTermId}
+                onChange={(e) => updateFilter("defenseTermId", e.target.value)}
+                style={inputStyle}
+              >
+                <option value="">-- Tất cả đợt --</option>
+                {periods.map((p) => (
+                  <option key={p.defenseTermId} value={p.defenseTermId}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end" }}>
               <button
                 type="button"
@@ -927,20 +990,21 @@ const LecturerCatalogTopicsPage: React.FC = () => {
           <table className="topics-table-premium">
             <thead>
               <tr>
-                <th style={{ width: "12%" }}>Mã đề tài</th>
-                <th style={{ width: "25%" }}>Tiêu đề đề tài</th>
-                <th style={{ width: "25%" }}>Nội dung tóm tắt</th>
-                <th style={{ width: "10%" }}>Khoa</th>
-                <th style={{ width: "13%" }}>Người đề xuất</th>
-                <th style={{ width: "15%" }}>Tags liên quan</th>
-                <th style={{ width: "10%", textAlign: "center" }}>Hành động</th>
+                <th style={{ width: "16%" }}>Mã đề tài</th>
+                <th style={{ width: "24%" }}>Tiêu đề đề tài</th>
+                <th style={{ width: "16%" }}>Nội dung tóm tắt</th>
+                <th style={{ width: "6%" }}>Khoa</th>
+                <th style={{ width: "10%" }}>Người đề xuất</th>
+                <th style={{ width: "10%" }}>Đợt bảo vệ</th>
+                <th style={{ width: "10%" }}>Tags liên quan</th>
+                <th style={{ width: "8%", textAlign: "center" }}>Hành động</th>
               </tr>
             </thead>
             <tbody>
               {isLoadingRows ? (
                 Array.from({ length: 5 }).map((_, index) => (
                   <tr key={`skeleton-${index}`}>
-                    {Array.from({ length: 7 }).map((__, idx) => (
+                    {Array.from({ length: 8 }).map((__, idx) => (
                       <td key={`skeleton-${index}-${idx}`}>
                         <div
                           style={{
@@ -957,7 +1021,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: "48px", color: "#64748b" }}>
+                  <td colSpan={8} style={{ textAlign: "center", padding: "48px", color: "#64748b" }}>
                     Chưa có đề tài nào trong kho phù hợp với bộ lọc hiện tại.
                   </td>
                 </tr>
@@ -967,8 +1031,23 @@ const LecturerCatalogTopicsPage: React.FC = () => {
 
                   return (
                     <tr key={`catalogtopic-${row.catalogTopicID}`}>
-                      <td style={{ fontWeight: 700, color: "var(--primary-navy)" }}>{row.catalogTopicCode}</td>
-                      <td style={{ fontWeight: 600, color: "#1e293b", wordBreak: "break-word" }}>{row.title}</td>
+                      <td style={{ fontWeight: 700, color: "var(--primary-navy)", wordBreak: "break-all", whiteSpace: "normal" }}>{row.catalogTopicCode}</td>
+                      <td style={{ fontWeight: 600, color: "#1e293b" }}>
+                        <div
+                          title={row.title || ""}
+                          style={{
+                            display: "-webkit-box",
+                            WebkitBoxOrient: "vertical",
+                            WebkitLineClamp: 2,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "normal",
+                            lineHeight: "1.5"
+                          }}
+                        >
+                          {row.title}
+                        </div>
+                      </td>
                       <td>
                         <div
                           title={row.summary || ""}
@@ -1000,6 +1079,31 @@ const LecturerCatalogTopicsPage: React.FC = () => {
                           </div>
                         ) : (
                           <span style={{ color: "#94a3b8", fontStyle: "italic", fontSize: "13px" }}>Admin hệ thống</span>
+                        )}
+                      </td>
+                      <td>
+                        {row.defenseTermId ? (
+                          <span
+                            style={{
+                              display: "inline-block",
+                              padding: "4px 10px",
+                              borderRadius: 9999,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              background: "#f1f5f9",
+                              color: "#334155",
+                              border: "1px solid #cbd5e1",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              maxWidth: "100%",
+                            }}
+                            title={periods.find((p) => p.defenseTermId === row.defenseTermId)?.name || `Đợt #${row.defenseTermId}`}
+                          >
+                            {periods.find((p) => p.defenseTermId === row.defenseTermId)?.name || `Đợt #${row.defenseTermId}`}
+                          </span>
+                        ) : (
+                          <span style={{ color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>Chưa gán đợt</span>
                         )}
                       </td>
                       <td>
@@ -1166,6 +1270,13 @@ const LecturerCatalogTopicsPage: React.FC = () => {
                     </div>
                   </div>
 
+                  <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "12px", border: "1px solid #e2e8f0", gridColumn: "span 2" }}>
+                    <div style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Đợt bảo vệ</div>
+                    <div style={{ fontWeight: 700, color: "var(--primary-navy)", marginTop: "4px" }}>
+                      {selectedTopic.defenseTermId ? (periods.find((p) => p.defenseTermId === selectedTopic.defenseTermId)?.name || `Đợt #${selectedTopic.defenseTermId}`) : "Chưa gán đợt"}
+                    </div>
+                  </div>
+
                   <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
                     <div style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Ngày tạo</div>
                     <div style={{ fontWeight: 600, color: "#334155", fontSize: "13px", marginTop: "4px" }}>
@@ -1239,7 +1350,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
                       <div>
                         <div style={{ fontWeight: 800, color: "#334155" }}>Quản trị hệ thống (Admin)</div>
                         <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
-                          Đề tài mẫu chuẩn dùng chung hệ thống
+                          Đề tài mẫu chuẩn của hệ thống
                         </div>
                       </div>
                     </div>
@@ -1314,7 +1425,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
                   {modalMode === "propose" ? "Đề xuất đề tài chuẩn mới" : "Chỉnh sửa đề tài đề xuất"}
                 </h3>
                 <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#64748b" }}>
-                  Điền các thông tin của đề tài dưới đây để đưa vào kho dùng chung.
+                  Điền các thông tin của đề tài dưới đây để đưa vào kho đề tài mẫu.
                 </p>
               </div>
               <button
@@ -1357,6 +1468,26 @@ const LecturerCatalogTopicsPage: React.FC = () => {
                   {departments.map((d) => (
                     <option key={d.departmentCode} value={d.departmentCode}>
                       {d.name} ({d.departmentCode})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* DefenseTerm input */}
+              <div style={{ display: "grid", gap: "6px" }}>
+                <label style={{ fontSize: "14px", fontWeight: 700, color: "#334155" }}>
+                  Đợt bảo vệ liên kết
+                </label>
+                <select
+                  value={proposalForm.defenseTermId ?? ""}
+                  onChange={(e) => setProposalForm((prev) => ({ ...prev, defenseTermId: e.target.value ? Number(e.target.value) : null }))}
+                  style={inputStyle}
+                  required
+                >
+                  <option value="">-- Chọn đợt bảo vệ liên kết --</option>
+                  {periods.map((p) => (
+                    <option key={p.defenseTermId} value={p.defenseTermId}>
+                      {p.name}
                     </option>
                   ))}
                 </select>

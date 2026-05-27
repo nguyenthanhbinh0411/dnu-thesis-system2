@@ -38,6 +38,7 @@ import type { SubmissionFile } from "../../types/submissionFile";
 import type { MilestoneTemplate } from "../../types/milestoneTemplate";
 import { useAuth } from "../../hooks/useAuth";
 import { useActiveDefensePeriodId } from "../../utils/defensePeriod";
+import TablePagination from "../../components/TablePagination/TablePagination";
 
 interface Student {
   studentCode: string;
@@ -80,6 +81,12 @@ const LecturerStudents: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   /** Milestone templates - dùng để lấy deadline thực của từng mốc */
   const [milestoneTemplates, setMilestoneTemplates] = useState<MilestoneTemplate[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
 
   // ---- Override Failure Modal state ----
   const [overrideModal, setOverrideModal] = useState<{
@@ -256,14 +263,24 @@ const LecturerStudents: React.FC = () => {
     // Fetch fresh data for the specific student when opening modal
     try {
       const [submissionsResp, milestonesResp, filesResp] = await Promise.all([
-        fetchData<{ data: ProgressSubmission[] }>(`/ProgressSubmissions/get-list?StudentProfileCode=${student.studentCode}&Page=1&PageSize=100`),
+        fetchData<{ data: ProgressSubmission[] }>(`/ProgressSubmissions/get-list?StudentProfileCode=${student.studentCode}&DefenseTermId=${activeDefenseTermId}&Page=1&PageSize=100`),
         fetchData<{ data: ProgressMilestone[] }>(`/ProgressMilestones/get-list?TopicCode=${student.topic.topicCode}&Page=1&PageSize=100`),
         fetchData<{ data: SubmissionFile[] }>(`/SubmissionFiles/get-list?UploadedByUserCode=${student.studentCode}`),
       ]);
 
-      const submissions = submissionsResp?.data || [];
       const milestones = milestonesResp?.data || [];
-      const allFiles = filesResp?.data || [];
+      const topicMilestoneIds = milestones.map((m) => m.milestoneID);
+
+      // Lọc các bản nộp theo đúng mốc tiến độ (milestoneID) của topic hiện tại
+      const submissions = (submissionsResp?.data || []).filter((sub) =>
+        topicMilestoneIds.includes(sub.milestoneID)
+      );
+
+      // Lọc các tệp tin theo đúng ID bản nộp của topic hiện tại trong đợt này
+      const submissionIds = submissions.map((s) => s.submissionID);
+      const allFiles = (filesResp?.data || []).filter((file) =>
+        submissionIds.includes(file.submissionID)
+      );
 
       const stats = calculateStats(milestones, submissions);
 
@@ -409,7 +426,7 @@ const LecturerStudents: React.FC = () => {
         // Fetch topics supervised by lecturer + milestone templates (song song)
         // Lọc theo DefenseTermId để chỉ lấy đề tài của đợt hiện tại
         const [topicsResponse, templatesResponse] = await Promise.all([
-          fetchData<{ data: Topic[] }>(`/Topics/get-list?SupervisorUserCode=${user.userCode}&DefenseTermId=${activeDefenseTermId}`),
+          fetchData<{ data: Topic[] }>(`/Topics/get-list?SupervisorUserCode=${user.userCode}&DefenseTermId=${activeDefenseTermId}&PageSize=100`),
           fetchData<{ data: MilestoneTemplate[] }>(`/MilestoneTemplates/get-list?Page=1&PageSize=50`),
         ]);
         const topics: Topic[] = topicsResponse.data || [];
@@ -586,6 +603,10 @@ const LecturerStudents: React.FC = () => {
       setSortOrder("asc");
     }
   };
+
+  const totalCount = filteredAndSortedStudents.length;
+  const pageCount = Math.ceil(totalCount / pageSize) || 1;
+  const paginatedStudents = filteredAndSortedStudents.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="dashboard-root" style={{ padding: "24px", maxWidth: "1400px", margin: "0 auto" }}>
@@ -881,33 +902,6 @@ const LecturerStudents: React.FC = () => {
               <div style={{ height: "4px", background: "#F37021", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
             </div>
 
-            {/* Thẻ đỏ: Đang trễ tiến độ */}
-            <div
-              className="premium-card"
-              style={{
-                cursor: "pointer",
-                borderColor: students.some(isStudentOverdue) ? "#fecaca" : undefined,
-                background: students.some(isStudentOverdue) ? "linear-gradient(135deg, #fff5f5 0%, #fee2e2 100%)" : undefined,
-              }}
-              onClick={() => setStatusFilter(statusFilter === "overdue" ? "all" : "overdue")}
-            >
-              <div>
-                <div className="stat-icon-wrapper" style={{ background: "rgba(220,38,38,0.1)" }}>
-                  <ShieldAlert size={24} color="#dc2626" />
-                </div>
-                <div style={{ fontSize: "14px", color: students.some(isStudentOverdue) ? "#dc2626" : "#64748b", fontWeight: "700", marginBottom: "4px" }}>
-                  ⚠️ Đang trễ tiến độ
-                </div>
-                <div style={{ fontSize: "32px", fontWeight: "800", color: students.some(isStudentOverdue) ? "#dc2626" : "#1e293b" }}>
-                  {students.filter(isStudentOverdue).length}
-                </div>
-                {statusFilter === "overdue" && (
-                  <div style={{ fontSize: "10px", color: "#dc2626", fontWeight: "700", marginTop: "4px" }}>ĐANG LỌC ▼</div>
-                )}
-              </div>
-              <div style={{ height: "4px", background: "#dc2626", borderRadius: "2px", width: students.some(isStudentOverdue) ? "40%" : "0%", marginTop: "12px", transition: "width 0.4s" }} />
-            </div>
-
             <div className="premium-card">
               <div>
                 <div className="stat-icon-wrapper" style={{ background: "rgba(16, 185, 129, 0.1)" }}>
@@ -957,7 +951,7 @@ const LecturerStudents: React.FC = () => {
           {/* Students List */}
           {viewMode === "card" ? (
             <div style={{ display: "grid", gap: "16px" }}>
-              {filteredAndSortedStudents.map((student) => {
+              {paginatedStudents.map((student) => {
                 const overdue = isStudentOverdue(student);
                 return (
                 <div
@@ -1539,7 +1533,7 @@ const LecturerStudents: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredAndSortedStudents.map((student, index) => (
+                    {paginatedStudents.map((student, index) => (
                       <tr
                         key={student.studentCode}
                         style={{
@@ -1767,6 +1761,21 @@ const LecturerStudents: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+          {totalCount > 0 && (
+            <div style={{ marginTop: "24px" }}>
+              <TablePagination
+                totalCount={totalCount}
+                page={page}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                onPageChange={(nextPage) => setPage(nextPage)}
+                onPageSizeChange={(nextPageSize) => {
+                  setPageSize(nextPageSize);
+                  setPage(1);
+                }}
+              />
             </div>
           )}
         </>
@@ -2135,8 +2144,8 @@ const LecturerStudents: React.FC = () => {
                           const currentState = mainMilestone?.state;
                           const milestoneList = [
                             { code: "MS_REG", name: "Đăng ký" },
-                            { code: "MS_PROG1", name: "Báo cáo 1" },
-                            { code: "MS_PROG2", name: "Báo cáo 2" },
+                            { code: "MS_PROG1", name: "Đề cương" },
+                            { code: "MS_PROG2", name: "Báo cáo" },
                             { 
                               code: "MS_FULL", 
                               name: currentState === "WaitingForCommittee" ? "Khóa luận hoàn chỉnh" : "Hoàn thiện" 
@@ -2270,8 +2279,8 @@ const LecturerStudents: React.FC = () => {
                                       <td style={{ padding: "16px" }}>
                                         <div style={{ fontSize: "13px", fontWeight: "800", color: "#1e293b" }}>
                                           {sub.ordinal === 1 ? "Đăng ký đề tài" :
-                                           sub.ordinal === 2 ? "Báo cáo tiến độ 1" :
-                                           sub.ordinal === 3 ? "Báo cáo tiến độ 2" :
+                                           sub.ordinal === 2 ? "Đề cương" :
+                                           sub.ordinal === 3 ? "Báo cáo" :
                                            sub.ordinal === 4 ? "Hoàn thiện khóa luận" :
                                            sub.ordinal === 5 ? "Bảo vệ luận văn" :
                                            sub.milestoneCode || `Mốc ${sub.ordinal}`}
@@ -2517,87 +2526,6 @@ const LecturerStudents: React.FC = () => {
                       ))}
                     </div>
 
-                    {/* === Quản lý nộp muộn === */}
-                    {detailModal.student.milestones && detailModal.student.milestones.length > 0 && (() => {
-                      const ms = detailModal.student.milestones![0];
-                      const deadline = ms.deadline ? new Date(ms.deadline) : null;
-                      const isOverdue = deadline ? deadline < new Date() : false;
-                      const alreadyAllowed = ms.allowLateSubmit === true;
-                      return (
-                        <div style={{
-                          backgroundColor: "white", borderRadius: "16px",
-                          border: isOverdue ? "2px solid #fecaca" : "1px solid #e2e8f0",
-                          overflow: "hidden", marginBottom: "16px",
-                        }}>
-                          <div style={{
-                            padding: "12px 16px",
-                            background: isOverdue
-                              ? "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)"
-                              : "#f8fafc",
-                            borderBottom: "1px solid #f1f5f9",
-                            display: "flex", alignItems: "center", gap: "8px",
-                          }}>
-                            <span style={{ fontSize: "15px" }}>{isOverdue ? "⏰" : "📋"}</span>
-                            <span style={{ fontWeight: "800", fontSize: "12px", color: isOverdue ? "#b91c1c" : "#0f172a" }}>
-                              QUẢN LÝ NỘP MUỘN
-                            </span>
-                            {alreadyAllowed && (
-                              <span style={{ marginLeft: "auto", fontSize: "10px", fontWeight: "800", background: "#16a34a", color: "white", padding: "2px 8px", borderRadius: "20px" }}>
-                                ĐÃ CẤP PHÉP
-                              </span>
-                            )}
-                            {isOverdue && !alreadyAllowed && (
-                              <span style={{ marginLeft: "auto", fontSize: "10px", fontWeight: "800", background: "#dc2626", color: "white", padding: "2px 8px", borderRadius: "20px" }}>
-                                QUÁ HẠN
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ padding: "14px 16px" }}>
-                            <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "10px" }}>
-                              <b>Deadline:</b>{" "}
-                              {deadline
-                                ? <span style={{ color: isOverdue ? "#dc2626" : "#16a34a", fontWeight: "700" }}>
-                                    {deadline.toLocaleDateString("vi-VN")}{isOverdue ? " (Quá hạn)" : ""}
-                                  </span>
-                                : <span style={{ color: "#94a3b8" }}>Chưa có</span>
-                              }
-                            </div>
-                            {alreadyAllowed ? (
-                              <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "8px", padding: "10px", marginBottom: "10px", fontSize: "11px", color: "#15803d" }}>
-                                ✅ Đã cấp phép — SV có thể nộp 1 lần dù quá deadline.
-                                {ms.lateSubmitGrantedBy && <span> Cấp bởi <b>{ms.lateSubmitGrantedBy}</b>{ms.lateSubmitGrantedAt ? ` ngày ${new Date(ms.lateSubmitGrantedAt).toLocaleDateString("vi-VN")}` : ""}.</span>}
-                                <div style={{ marginTop: "4px", color: "#16a34a" }}>Phép tự reset sau khi SV nộp báo cáo.</div>
-                              </div>
-                            ) : isOverdue ? (
-                              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "8px", padding: "10px", marginBottom: "10px", fontSize: "11px", color: "#92400e" }}>
-                                ⏳ SV hiện không thể nộp báo cáo vì đã quá deadline. Cấp phép để cho phép nộp 1 lần.
-                              </div>
-                            ) : (
-                              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "10px", marginBottom: "10px", fontSize: "11px", color: "#64748b" }}>
-                                Deadline chưa qua — SV có thể nộp bình thường.
-                              </div>
-                            )}
-                            <button
-                              style={{
-                                width: "100%", padding: "10px 0",
-                                background: alreadyAllowed
-                                  ? "#fef2f2" : "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
-                                color: alreadyAllowed ? "#dc2626" : "white",
-                                border: alreadyAllowed ? "1px solid #fecaca" : "none",
-                                borderRadius: "10px", fontSize: "12px", fontWeight: "700", cursor: "pointer",
-                              }}
-                              onClick={() => handleAllowLateSubmit(
-                                ms.milestoneID,
-                                !alreadyAllowed,
-                                detailModal.student!.studentName
-                              )}
-                            >
-                              {alreadyAllowed ? "❌ Thu hồi phép nộp muộn" : "✅ Cấp phép nộp muộn"}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })()}
 
                   </div>
                 </div>

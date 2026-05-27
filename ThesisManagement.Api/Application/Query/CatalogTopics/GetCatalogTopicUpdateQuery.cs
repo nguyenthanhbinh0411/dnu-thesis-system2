@@ -51,6 +51,7 @@ namespace ThesisManagement.Api.Application.Query.CatalogTopics
                 entity.AssignedAt,
                 entity.LecturerCode,
                 entity.LecturerName,
+                entity.DefenseTermId,
                 entity.CreatedAt,
                 entity.LastUpdated,
                 tags);

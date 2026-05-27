@@ -149,3 +149,543 @@
   justify-content: center !important;
   gap: 6px !important;
 }
+
+/* Modal Detail Native Styles - High Performance */
+.warehouse-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 999999 !important;
+  padding: 80px 16px 30px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.warehouse-detail-modal {
+  width: 100%;
+  max-width: 1120px;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.warehouse-modal-header {
+  background: #ffffff;
+  color: #0f172a;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #1e3a5f;
+}
+
+.warehouse-modal-header h3 {
+  margin: 0 0 4px !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+
+.warehouse-modal-header p {
+  margin: 0 !important;
+  color: #64748b !important;
+  font-size: 13px !important;
+}
+
+.warehouse-modal-close-btn {
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.warehouse-modal-close-btn:hover {
+  background: #f8fafc;
+  color: #1e3a5f;
+  border-color: #1e3a5f;
+}
+
+.warehouse-modal-body {
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+  background: #ffffff;
+}
+
+.warehouse-grid-layout {
+  display: grid;
+  grid-template-columns: 0.95fr 1.05fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.warehouse-detail-card {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.warehouse-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+.warehouse-topic-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.warehouse-topic-summary {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.55;
+  background: #f8fafc;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  border-left: 3px solid #cbd5e1;
+}
+
+.warehouse-grid-attributes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.warehouse-attribute-box {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.warehouse-attribute-label {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.warehouse-attribute-value {
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.warehouse-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #f0f6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a5f;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.12s ease;
+}
+
+.warehouse-tag-pill:hover {
+  background: #dbeafe;
+}
+
+.warehouse-lecturers-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.warehouse-lecturers-table th {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 2px solid #e2e8f0;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.warehouse-lecturers-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.warehouse-lecturer-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.warehouse-lecturer-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #f0f6ff;
+  color: #1e3a5f;
+  border: 1px solid #bfdbfe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.warehouse-lecturer-info strong {
+  display: block;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.warehouse-lecturer-info span {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.warehouse-badge-role {
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.warehouse-quota-cell {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: #334155;
+}
+
+.warehouse-quota-progress {
+  width: 100%;
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.warehouse-quota-fill {
+  height: 100%;
+  background: #f37021;
+  border-radius: 99px;
+}
+
+.warehouse-modal-footer {
+  padding: 12px 20px;
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.warehouse-footer-btn-close {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.warehouse-footer-btn-close:hover {
+  background: #f8fafc;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Layout Redesign for warehouse topic detail */
+.warehouse-detail-layout-redesign {
+  display: grid;
+  gap: 16px;
+}
+
+.warehouse-detail-hero-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.warehouse-hero-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.warehouse-hero-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.4;
+  flex: 1 1 400px;
+}
+
+.warehouse-status-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.warehouse-status-badge.assigned {
+  background: #f0f6ff;
+  color: #1e3a5f;
+  border: 1px solid #bfdbfe;
+}
+
+.warehouse-status-badge.unassigned {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.warehouse-hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.warehouse-no-tags-label {
+  color: #64748b;
+  font-size: 13px;
+  font-style: italic;
+}
+
+.warehouse-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #f0f6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a5f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tag-code-badge {
+  font-weight: 700;
+  color: #1e3a5f;
+}
+
+.tag-name-label {
+  color: #475569;
+  font-size: 12px;
+}
+
+.warehouse-hero-summary {
+  background: #f8fafc;
+  border-left: 4px solid #1e3a5f;
+  border-radius: 0 8px 8px 0;
+  padding: 12px 16px;
+  border-top: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.summary-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+
+.summary-text {
+  margin: 0;
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.6;
+}
+
+/* System Metadata Card */
+.warehouse-detail-metadata-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.warehouse-metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.metadata-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #f8fafc;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.metadata-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.metadata-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* Lecturers Section */
+.warehouse-detail-lecturers-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.warehouse-card-title-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.lecturers-count-badge {
+  background: #f0f6ff;
+  color: #1e3a5f;
+  border: 1px solid #bfdbfe;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.warehouse-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.lecturer-dept-badge {
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.lecturer-degree-badge {
+  background: #f0f6ff;
+  color: #1e3a5f;
+  border: 1px solid #bfdbfe;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.quota-text-info {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 4px;
+}
+
+.quota-text-info strong {
+  color: #0f172a;
+}
+
+.lecturer-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lecturer-spec-tag {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.warehouse-no-lecturers {
+  padding: 20px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+}
+
+.no-tags-placeholder {
+  color: #94a3b8;
+  font-size: 13px;
+}
+

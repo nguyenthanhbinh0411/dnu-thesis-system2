@@ -182,6 +182,9 @@ const StudentLayout: React.FC = () => {
         if (result.ok) {
           const periodName = result.period.name || `Đợt ${result.period.periodId}`;
           setActiveDefensePeriodId(result.period.periodId);
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem("activeDefensePeriodStatus", result.period.status || "");
+          }
           setHeaderPeriod({
             label: `${periodName} (#${result.period.periodId})`,
             tone: "normal",
@@ -192,6 +195,9 @@ const StudentLayout: React.FC = () => {
 
         if (result.code === "NOT_MAPPED") {
           setActiveDefensePeriodId(null);
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem("activeDefensePeriodStatus");
+          }
           setHeaderPeriod({
             label: "Chưa có mapping đợt",
             tone: "warning",
@@ -202,8 +208,37 @@ const StudentLayout: React.FC = () => {
 
         if (result.code === "AMBIGUOUS" || result.code === "INVALID_CONTRACT") {
           setActiveDefensePeriodId(null);
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem("activeDefensePeriodStatus");
+          }
           setHeaderPeriod({
             label: result.code === "AMBIGUOUS" ? "Dữ liệu đợt mơ hồ" : "Snapshot đợt không hợp lệ",
+            tone: "error",
+            tooltip: result.message,
+          });
+          return;
+        }
+
+        if (result.code && result.code.includes("NOT_FOUND")) {
+          setActiveDefensePeriodId(null);
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem("activeDefensePeriodStatus");
+          }
+          setHeaderPeriod({
+            label: "Chưa mở đợt bảo vệ",
+            tone: "warning",
+            tooltip: result.message,
+          });
+          return;
+        }
+
+        if (result.code && result.code.includes("PROFILE_NOT_FOUND")) {
+          setActiveDefensePeriodId(null);
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem("activeDefensePeriodStatus");
+          }
+          setHeaderPeriod({
+            label: "Chưa liên kết hồ sơ",
             tone: "error",
             tooltip: result.message,
           });
@@ -228,6 +263,9 @@ const StudentLayout: React.FC = () => {
       } catch (error) {
         if (cancelled) return;
 
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem("activeDefensePeriodStatus");
+        }
         setHeaderPeriod({
           label: "Không xác định đợt",
           tone: "error",

@@ -27,6 +27,7 @@ import TablePagination from "../../components/TablePagination/TablePagination";
 import { fetchData, normalizeUrl } from "../../api/fetchData";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../context/useToast";
+import { getActiveDefensePeriodStatus } from "../../utils/defensePeriod";
 import {
   getAccessToken,
   getLecturerCode,
@@ -65,8 +66,8 @@ const normalizeLecturerState = (state: string | null | undefined): string => {
 
 const getMilestoneDisplayName = (code: string | null, ordinal: number | null): string => {
   if (code === "MS_REG") return "Đăng ký đề tài";
-  if (code === "MS_PROG1" || ordinal === 2) return "Báo cáo tiến độ 1";
-  if (code === "MS_PROG2" || ordinal === 3) return "Báo cáo tiến độ 2";
+  if (code === "MS_PROG1" || ordinal === 2) return "Đề cương";
+  if (code === "MS_PROG2" || ordinal === 3) return "Báo cáo";
   if (code === "MS_FULL" || ordinal === 4) return "Hoàn thiện khóa luận";
   if (code === "MS_DEFENSE" || ordinal === 5) return "Bảo vệ luận văn";
   return code || `Mốc ${ordinal || "không xác định"}`;
@@ -507,14 +508,14 @@ const LecturerReports: React.FC = () => {
     ordinal: number | null,
   ) => {
     if (milestoneCode === "MS_REG") return "Đăng ký đề tài";
-    if (milestoneCode === "MS_PROG1") return "Báo cáo tiến độ lần 1";
-    if (milestoneCode === "MS_PROG2") return "Báo cáo tiến độ lần 2";
+    if (milestoneCode === "MS_PROG1") return "Đề cương";
+    if (milestoneCode === "MS_PROG2") return "Báo cáo";
     if (milestoneCode === "MS_FULL" || ordinal === 4) return "Báo cáo hoàn thiện";
 
     // Fallback for generated codes or unexpected ordinals
     if (ordinal === 1) return "Đăng ký đề tài";
-    if (ordinal === 2) return "Báo cáo tiến độ lần 1";
-    if (ordinal === 3) return "Báo cáo tiến độ lần 2";
+    if (ordinal === 2) return "Đề cương";
+    if (ordinal === 3) return "Báo cáo";
     if (ordinal === 4) return "Báo cáo hoàn thiện";
 
     return milestoneCode;
@@ -668,6 +669,90 @@ const LecturerReports: React.FC = () => {
       addToast("Không thể xuất phiếu đánh giá", "error");
     }
   };
+
+  const isProgressStage = getActiveDefensePeriodStatus()?.toLowerCase() === "progresstracking";
+
+  if (!loading && !isProgressStage) {
+    return (
+      <div className="dashboard-root" style={{ padding: "24px", maxWidth: "1400px", margin: "0 auto" }}>
+        {/* Header */}
+        <div style={{ marginBottom: "32px" }}>
+          <h1
+            style={{
+              fontSize: "28px",
+              fontWeight: "700",
+              color: "#1a1a1a",
+              marginBottom: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+            }}
+          >
+            <FileText size={32} color="#F37021" />
+            Nhận xét báo cáo
+          </h1>
+          <p style={{ fontSize: "14px", color: "#666" }}>
+            Xem và nhận xét các báo cáo của sinh viên
+          </p>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "50vh",
+            textAlign: "center",
+            padding: "40px 24px",
+            background: "white",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+            fontFamily: '"Be Vietnam Pro", "Segoe UI", sans-serif',
+          }}
+        >
+          <div
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, rgba(243,112,33,0.12) 0%, rgba(243,112,33,0.04) 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 24,
+            }}
+          >
+            <BookOpen size={36} color="#f37021" strokeWidth={1.5} />
+          </div>
+          <h2
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              color: "#1a2736",
+              marginBottom: 10,
+              letterSpacing: "-0.3px",
+            }}
+          >
+            Chưa mở giai đoạn nhận xét báo cáo
+          </h2>
+          <p
+            style={{
+              fontSize: 15,
+              color: "#6B7280",
+              maxWidth: 440,
+              lineHeight: 1.6,
+              margin: 0,
+            }}
+          >
+            Đợt đồ án tốt nghiệp hiện tại chưa bước vào giai đoạn <strong>Theo dõi & Đánh giá tiến độ</strong>.
+            Vui lòng quay lại sau hoặc liên hệ khoa / phòng đào tạo để biết thêm thông tin.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-root" style={{ padding: "24px", maxWidth: "1400px", margin: "0 auto" }}>

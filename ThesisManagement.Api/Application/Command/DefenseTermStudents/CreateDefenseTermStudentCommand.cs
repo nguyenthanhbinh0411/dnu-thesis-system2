@@ -18,11 +18,13 @@ namespace ThesisManagement.Api.Application.Command.DefenseTermStudents
     {
         private readonly IUnitOfWork _uow;
         private readonly IMapper _mapper;
+        private readonly IAuthService _authService;
 
-        public CreateDefenseTermStudentCommand(IUnitOfWork uow, IMapper mapper)
+        public CreateDefenseTermStudentCommand(IUnitOfWork uow, IMapper mapper, IAuthService authService)
         {
             _uow = uow;
             _mapper = mapper;
+            _authService = authService;
         }
 
         public async Task<OperationResult<DefenseTermStudentReadDto>> ExecuteAsync(DefenseTermStudentCreateDto dto)
@@ -38,6 +40,43 @@ namespace ThesisManagement.Api.Application.Command.DefenseTermStudents
             var student = await ResolveStudentProfileAsync(dto);
             if (student == null)
                 return OperationResult<DefenseTermStudentReadDto>.Failed("Student profile not found", 404);
+
+            // Automatically initialize/activate user account on first-time selection into defense period
+            if (student.UserID == null || string.IsNullOrWhiteSpace(student.UserCode))
+            {
+                var newUser = new User
+                {
+                    UserCode = student.StudentCode,
+                    PasswordHash = _authService.HashPassword(student.StudentCode),
+                    Role = "Student",
+                    CreatedAt = DateTime.UtcNow,
+                    LastUpdated = DateTime.UtcNow
+                };
+
+                await _uow.Users.AddAsync(newUser);
+                await _uow.SaveChangesAsync(); // Save to generate the UserID
+
+                student.UserID = newUser.UserID;
+                student.UserCode = newUser.UserCode;
+                _uow.StudentProfiles.Update(student);
+                await _uow.SaveChangesAsync();
+            }
+            else
+            {
+                var hasPreviousTerm = await _uow.DefenseTermStudents.Query()
+                    .AnyAsync(x => x.StudentProfileID == student.StudentProfileID);
+
+                if (!hasPreviousTerm)
+                {
+                    var user = await _uow.Users.GetByIdAsync(student.UserID.Value);
+                    if (user != null)
+                    {
+                        user.PasswordHash = _authService.HashPassword(student.StudentCode);
+                        user.LastUpdated = DateTime.UtcNow;
+                        _uow.Users.Update(user);
+                    }
+                }
+            }
 
             var userCode = await ResolveUserCodeAsync(dto.UserCode, student);
             if (string.IsNullOrWhiteSpace(userCode))
@@ -88,9 +127,9 @@ namespace ThesisManagement.Api.Application.Command.DefenseTermStudents
             if (!string.IsNullOrWhiteSpace(student.UserCode))
                 return student.UserCode.Trim();
 
-            if (student.UserID > 0)
+            if (student.UserID.HasValue && student.UserID.Value > 0)
             {
-                var user = await _uow.Users.GetByIdAsync(student.UserID);
+                var user = await _uow.Users.GetByIdAsync(student.UserID.Value);
                 if (user != null && !string.IsNullOrWhiteSpace(user.UserCode))
                     return user.UserCode.Trim();
             }

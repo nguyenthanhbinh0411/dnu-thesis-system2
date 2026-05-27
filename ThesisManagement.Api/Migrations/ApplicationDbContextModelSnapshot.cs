@@ -52,6 +52,10 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnName("CREATEDAT")
                         .HasDefaultValueSql("SYSTIMESTAMP");
 
+                    b.Property<int?>("DefenseTermId")
+                        .HasColumnType("NUMBER(10)")
+                        .HasColumnName("DEFENSETERMID");
+
                     b.Property<string>("DepartmentCode")
                         .HasColumnType("NVARCHAR2(30)")
                         .HasColumnName("DEPARTMENTCODE");
@@ -91,6 +95,8 @@ namespace ThesisManagement.Api.Migrations
 
                     b.HasIndex("CatalogTopicCode")
                         .IsUnique();
+
+                    b.HasIndex("DefenseTermId");
 
                     b.HasIndex("DepartmentCode");
 
@@ -262,6 +268,14 @@ namespace ThesisManagement.Api.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("NVARCHAR2(50)")
                         .HasColumnName("COHORT_CODE");
+
+                    b.Property<int?>("CohortID")
+                        .HasColumnType("NUMBER(10)")
+                        .HasColumnName("COHORT_ID");
+
+                    b.Property<string>("CohortName")
+                        .HasColumnType("NVARCHAR2(2000)")
+                        .HasColumnName("COHORT_NAME");
 
                     b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -1949,7 +1963,7 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnType("NVARCHAR2(40)")
                         .HasColumnName("USERCODE");
 
-                    b.Property<int>("UserID")
+                    b.Property<int?>("UserID")
                         .HasColumnType("NUMBER(10)")
                         .HasColumnName("USERID");
 
@@ -3046,7 +3060,7 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnType("NVARCHAR2(2000)")
                         .HasColumnName("USERCODE");
 
-                    b.Property<int>("UserID")
+                    b.Property<int?>("UserID")
                         .HasColumnType("NUMBER(10)")
                         .HasColumnName("USERID");
 
@@ -3062,7 +3076,8 @@ namespace ThesisManagement.Api.Migrations
                         .IsUnique();
 
                     b.HasIndex("UserID")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"USERID\" IS NOT NULL");
 
                     b.ToTable("STUDENTPROFILES");
                 });
@@ -4246,6 +4261,11 @@ namespace ThesisManagement.Api.Migrations
 
             modelBuilder.Entity("ThesisManagement.Api.Models.CatalogTopic", b =>
                 {
+                    b.HasOne("ThesisManagement.Api.Models.DefenseTerm", "DefenseTerm")
+                        .WithMany()
+                        .HasForeignKey("DefenseTermId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ThesisManagement.Api.Models.Department", "Department")
                         .WithMany("CatalogTopics")
                         .HasForeignKey("DepartmentCode")
@@ -4256,6 +4276,8 @@ namespace ThesisManagement.Api.Migrations
                         .HasForeignKey("LecturerCode")
                         .HasPrincipalKey("LecturerCode")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("DefenseTerm");
 
                     b.Navigation("Department");
 
@@ -4809,8 +4831,7 @@ namespace ThesisManagement.Api.Migrations
                     b.HasOne("ThesisManagement.Api.Models.User", "User")
                         .WithOne("StudentProfile")
                         .HasForeignKey("ThesisManagement.Api.Models.StudentProfile", "UserID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Class");
 

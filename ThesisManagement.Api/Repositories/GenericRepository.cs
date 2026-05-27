@@ -61,8 +61,14 @@ namespace ThesisManagement.Api.Repositories
 
             var parameter = Expression.Parameter(typeof(TEntity), "x");
             var property = Expression.Property(parameter, codeProperty.Name);
-            var constant = Expression.Constant(code);
-            var equal = Expression.Equal(property, constant);
+            
+            // Perform case-insensitive database comparison: x.Code.ToUpper() == upperCode
+            var toUpperMethod = typeof(string).GetMethod("ToUpper", Type.EmptyTypes);
+            var propertyToUpper = Expression.Call(property, toUpperMethod!);
+            
+            var upperCode = code.Trim().ToUpper();
+            var constant = Expression.Constant(upperCode);
+            var equal = Expression.Equal(propertyToUpper, constant);
             var lambda = Expression.Lambda<Func<TEntity, bool>>(equal, parameter);
 
             return await _dbSet.FirstOrDefaultAsync(lambda);

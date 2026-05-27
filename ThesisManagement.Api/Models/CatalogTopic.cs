@@ -17,10 +17,12 @@ namespace ThesisManagement.Api.Models
         public string? LecturerName { get; set; } // New: lecturer name of proposer
         public DateTime? CreatedAt { get; set; }
         public DateTime? LastUpdated { get; set; }
+        public int? DefenseTermId { get; set; }
 
         // Navigation properties
         public Department? Department { get; set; }
         public LecturerProfile? Lecturer { get; set; }
+        public DefenseTerm? DefenseTerm { get; set; }
         public ICollection<CatalogTopicTag>? CatalogTopicTags { get; set; }
         public ICollection<Topic>? Topics { get; set; }
     }
