@@ -745,6 +745,11 @@ namespace ThesisManagement.Api.Controllers
 
         private async Task<ActionResult<ApiResponse<bool>>> SubmitRevision(int periodId, [FromForm] StudentRevisionSubmissionDto request, [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey = null)
         {
+            if (await IsActivePeriodPausedAsync())
+            {
+                return Conflict(ApiResponse<bool>.Fail("Đợt đồ án tốt nghiệp đang tạm dừng. Không thể thực hiện thao tác này.", 409));
+            }
+
             var validPeriodAssignment = await IsAssignmentInPeriodAsync(periodId, request.AssignmentId);
             if (!validPeriodAssignment)
             {

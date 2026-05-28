@@ -55,13 +55,13 @@ const createFields = fields;
 const editFields = fields.filter((field) => field.name !== "departmentCode");
 
 const filterFields: FieldDef[] = [
-  { name: "departmentCode", label: "Mã khoa/bộ môn" },
-  { name: "name", label: "Tên khoa/bộ môn" },
+  { name: "departmentCode", label: "Mã khoa" },
+  { name: "name", label: "Tên khoa" },
 ];
 
 const columns: ColumnDef[] = [
-  { key: "departmentCode", label: "Mã khoa/bộ môn", aliases: ["code"] },
-  { key: "name", label: "Tên khoa/bộ môn", aliases: ["departmentName"] },
+  { key: "departmentCode", label: "Mã khoa", aliases: ["code"] },
+  { key: "name", label: "Tên khoa", aliases: ["departmentName"] },
   { key: "description", label: "Mô tả", aliases: ["departmentDescription"] },
 ];
 
@@ -254,7 +254,7 @@ const DepartmentsManagement: React.FC = () => {
       const { data, totalCount: apiTotal } = await requestApiData<unknown>(
         `/Departments/get-list${query}`,
         { method: "GET" },
-        "Không thể tải danh sách khoa/bộ môn.",
+        "Không thể tải danh sách khoa.",
       );
       const normalized = normalizeList(data);
       setRows(normalized.items);
@@ -263,7 +263,7 @@ const DepartmentsManagement: React.FC = () => {
       addToast(
         error instanceof Error
           ? error.message
-          : "Không thể tải danh sách khoa/bộ môn.",
+          : "Không thể tải danh sách khoa.",
         "error",
       );
       setRows([]);
@@ -336,7 +336,7 @@ const DepartmentsManagement: React.FC = () => {
       const { data } = await requestApiData<RecordData>(
         `/Departments/get-detail/${encodeURIComponent(token)}`,
         { method: "GET" },
-        "Không thể tải chi tiết khoa/bộ môn.",
+        "Không thể tải chi tiết khoa.",
       );
       setSelectedRow(data);
     } catch {
@@ -473,7 +473,7 @@ const DepartmentsManagement: React.FC = () => {
   return (
     <div className="departments-module">
       <div className="departments-header">
-        <h1>Quản lý khoa/bộ môn</h1>
+        <h1>Quản lý khoa</h1>
         <p>
           Dữ liệu chuẩn theo schema Departments (departmentCode, name,
           description).
@@ -501,7 +501,7 @@ const DepartmentsManagement: React.FC = () => {
           </button>
           <ImportExportActions
             moduleName="departments"
-            moduleLabel="Quản lý khoa/bộ môn"
+            moduleLabel="Quản lý khoa"
             onImportSuccess={loadRows}
           />
           <button
@@ -844,11 +844,11 @@ const DepartmentsManagement: React.FC = () => {
                 isSubmitting={isSubmitting}
                 note={
                   activeModal === "create"
-                    ? "Nhập thông tin khoa/bộ môn mới theo schema Departments. Trường có dấu * là bắt buộc."
-                    : "Chỉnh sửa tên và mô tả khoa/bộ môn. Mã khoa/bộ môn được giữ nguyên khi cập nhật."
+                    ? "Nhập thông tin khoa mới theo schema Departments. Trường có dấu * là bắt buộc."
+                    : "Chỉnh sửa tên và mô tả khoa. Mã khoa được giữ nguyên khi cập nhật."
                 }
                 submitLabel={
-                  activeModal === "create" ? "Tạo khoa/bộ môn" : "Lưu cập nhật"
+                  activeModal === "create" ? "Tạo khoa" : "Lưu cập nhật"
                 }
                 showCloseButton={false}
               />

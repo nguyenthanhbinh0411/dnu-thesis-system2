@@ -255,7 +255,7 @@ const multiRoleWrap: React.CSSProperties = {
 function buildFilterSummary(filters: LecturerPickerFilters): string[] {
   const parts: string[] = [];
   if (filters.departmentCode)
-    parts.push(`Khoa/Bộ môn: ${filters.departmentCode}`);
+    parts.push(`Khoa: ${filters.departmentCode}`);
   if (filters.degree) parts.push(`Học vị: ${filters.degree}`);
   if (filters.tagCodes) parts.push(`Tag codes: ${filters.tagCodes}`);
   if (filters.tags) parts.push(`Tags: ${filters.tags}`);
@@ -723,7 +723,7 @@ const DefenseTermLecturersPickerModal: React.FC<
 
                   <label style={{ display: "grid", gap: 6 }}>
                     <span style={{ fontSize: 11, fontWeight: 600 }}>
-                      Khoa/Bộ môn
+                      Khoa
                     </span>
                     <input
                       value={filters.departmentCode}
@@ -1002,7 +1002,7 @@ const DefenseTermLecturersPickerModal: React.FC<
                       <th style={{ padding: 12 }}>Giảng viên</th>
                       <th style={{ padding: 12 }}>Mã GV</th>
                       <th style={{ padding: 12 }}>User</th>
-                      <th style={{ padding: 12 }}>Khoa/Bộ môn</th>
+                      <th style={{ padding: 12 }}>Khoa</th>
                       <th style={{ padding: 12 }}>Học vị</th>
                       <th style={{ padding: 12 }}>Chính</th>
                     </tr>

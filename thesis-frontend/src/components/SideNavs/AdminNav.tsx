@@ -57,7 +57,7 @@ const AdminNav: React.FC<AdminNavProps> = ({
     },
     {
       path: `${basePath}/departments`,
-      label: "Quản lý khoa/bộ môn",
+      label: "Quản lý khoa",
       icon: <Building2 size={18} />,
     },
     // `Quản lý đợt` removed: home page now manages defense periods (điều hành đợt is the dashboard)
@@ -68,7 +68,7 @@ const AdminNav: React.FC<AdminNavProps> = ({
     },
     {
       path: `${basePath}/tags`,
-      label: "Quản lý tags",
+      label: "Quản lý Tag",
       icon: <BookOpen size={18} />,
     },
     {
@@ -147,7 +147,7 @@ const AdminNav: React.FC<AdminNavProps> = ({
     },
     {
       path: `${basePath}/departments`,
-      label: "Quản lý khoa/bộ môn",
+      label: "Quản lý khoa",
       icon: <Building2 size={18} />,
     },
     {
@@ -157,7 +157,7 @@ const AdminNav: React.FC<AdminNavProps> = ({
     },
     {
       path: `${basePath}/tags`,
-      label: "Quản lý tags",
+      label: "Quản lý Tag",
       icon: <BookOpen size={18} />,
     },
     {

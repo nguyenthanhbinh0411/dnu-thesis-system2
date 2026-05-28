@@ -1111,7 +1111,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                                 fontWeight: 600,
                               }}
                             >
-                              {tag.tagCode || tag.tagName}
+                              {tag.tagName || tag.tagCode}
                             </span>
                           ))}
                         </div>
@@ -1361,7 +1361,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                       {[
                         ["Mã đề tài", selectedTopic?.catalogTopicCode],
                         ["Đợt bảo vệ", selectedTopic?.defenseTermId ? (periods.find((p) => p.defenseTermId === selectedTopic.defenseTermId)?.name || `Đợt #${selectedTopic.defenseTermId}`) : "Chưa gán đợt"],
-                        ["Khoa/Bộ môn", selectedTopic?.departmentCode],
+                        ["Khoa", selectedTopic?.departmentCode],
                         ["Giao lúc", formatDateTime(selectedTopic?.assignedAt ?? null) || "--"],
                         ["Ngày tạo", formatDateTime(selectedTopic?.createdAt ?? null)],
                         ["Cập nhật cuối", formatDateTime(selectedTopic?.lastUpdated ?? null)],
@@ -1437,7 +1437,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                                       <div className="lecturer-tags-list">
                                         {lecturer.tags.map((tag) => (
                                           <span key={`${lecturer.lecturerProfileID}-${tag.tagID}`} className="lecturer-spec-tag">
-                                            {tag.tagCode}
+                                            {tag.tagName || tag.tagCode}
                                           </span>
                                         ))}
                                       </div>
@@ -1453,7 +1453,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                       </div>
                     ) : (
                       <div className="warehouse-no-lecturers">
-                        Chưa có giảng viên nào trong bộ môn khớp với tags chuyên ngành của đề tài này.
+                        Chưa có giảng viên nào trong khoa khớp với tags chuyên ngành của đề tài này.
                       </div>
                     )}
                   </div>
@@ -1484,7 +1484,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
 
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
                         <label style={{ display: "grid", gap: 6 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>Mã khoa/bộ môn</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>Mã khoa</span>
                           <input
                             value={editForm.departmentCode}
                             onChange={(event) => setEditForm((prev) => ({ ...prev, departmentCode: event.target.value }))}
@@ -1643,7 +1643,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                           {selectedTopic?.tags?.map((tag) => (
                             <span key={tag.tagID} style={{ padding: "6px 10px", borderRadius: 999, background: "#f0f6ff", border: "1px solid #bfdbfe", color: "#1e3a5f", fontSize: 12, fontWeight: 700 }}>
-                              {tag.tagCode}
+                              {tag.tagName || tag.tagCode}
                             </span>
                           ))}
                         </div>

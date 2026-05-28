@@ -427,7 +427,7 @@ export const ClassesManagement: React.FC = () => {
           </div>
 
           <div>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "6px" }}>Khoa/Bộ môn</label>
+            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "6px" }}>Khoa</label>
             <select
               value={filterDeptCode}
               onChange={(e) => setFilterDeptCode(e.target.value)}
@@ -514,7 +514,7 @@ export const ClassesManagement: React.FC = () => {
             <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
               <th style={{ padding: "16px 20px", color: "#475569", fontWeight: 700 }}>Mã lớp</th>
               <th style={{ padding: "16px 20px", color: "#475569", fontWeight: 700 }}>Tên lớp học</th>
-              <th style={{ padding: "16px 20px", color: "#475569", fontWeight: 700 }}>Khoa/Bộ môn</th>
+              <th style={{ padding: "16px 20px", color: "#475569", fontWeight: 700 }}>Khoa</th>
               <th style={{ padding: "16px 20px", color: "#475569", fontWeight: 700 }}>Khóa học</th>
               <th style={{ padding: "16px 20px", color: "#475569", fontWeight: 700 }}>Năm nhập học</th>
               <th style={{ padding: "16px 20px", color: "#475569", fontWeight: 700 }}>Trạng thái</th>
@@ -701,7 +701,7 @@ export const ClassesManagement: React.FC = () => {
                   </div>
 
                   <div>
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#64748b", marginBottom: "4px" }}>Khoa/Bộ môn</label>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#64748b", marginBottom: "4px" }}>Khoa</label>
                     <div style={{ fontSize: "15px", color: "#334155" }}>{selectedRow.departmentName || selectedRow.departmentCode || "--"}</div>
                   </div>
 
@@ -879,14 +879,14 @@ export const ClassesManagement: React.FC = () => {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>Khoa/Bộ môn <span style={{ color: "#d93025" }}>*</span></label>
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>Khoa <span style={{ color: "#d93025" }}>*</span></label>
                   <select
                     required
                     value={departmentId}
                     onChange={(e) => setDepartmentId(Number(e.target.value))}
                     style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: "10px", fontSize: "14px", outline: "none" }}
                   >
-                    <option value={0} disabled>Chọn Khoa/Bộ môn</option>
+                    <option value={0} disabled>Chọn Khoa</option>
                     {departments.map((dept) => (
                       <option key={dept.departmentID} value={dept.departmentID}>
                         {dept.name}

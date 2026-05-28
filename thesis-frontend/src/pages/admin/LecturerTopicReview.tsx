@@ -126,7 +126,7 @@ const TOPIC_FIELDS = [
   { key: "SupervisorLecturerCode", label: "Mã giảng viên HD", category: "Giảng viên" },
   { key: "SupervisorUserCode", label: "Mã user giảng viên", category: "Giảng viên" },
   { key: "SupervisorName", label: "Giảng viên hướng dẫn", category: "Giảng viên" },
-  { key: "DepartmentCode", label: "Bộ môn quản lý", category: "Quản lý" },
+  { key: "DepartmentCode", label: "Khoa quản lý", category: "Quản lý" },
   { key: "LecturerComment", label: "Nhận xét giảng viên", category: "Quản lý" },
   { key: "ResubmitCount", label: "Số lần nộp lại", category: "Tiến độ" },
   { key: "NumChapters", label: "Số chương", category: "Cấu trúc" },
@@ -148,7 +148,7 @@ const GROUPED_LECTURER_FIELDS = [
   { key: "TopicTags", label: "Tag đề tài", category: "Phân loại" },
   { key: "ProposerStudentCode", label: "Mã SV", category: "Sinh viên" },
   { key: "ProposerName", label: "Sinh viên thực hiện", category: "Sinh viên" },
-  { key: "DepartmentCode", label: "Bộ môn", category: "Quản lý" },
+  { key: "DepartmentCode", label: "Khoa", category: "Quản lý" },
   { key: "LecturerComment", label: "Nhận xét giảng viên", category: "Quản lý" },
   { key: "Score", label: "Điểm số", category: "Kết quả" },
   { key: "Status", label: "Trạng thái", category: "Trạng thái" },
@@ -160,7 +160,7 @@ const STUDENT_FIELDS = [
   { key: "Gender", label: "Giới tính", category: "Thông tin cơ bản" },
   { key: "DateOfBirth", label: "Ngày sinh", category: "Thông tin cơ bản" },
   { key: "FacultyCode", label: "Khoa", category: "Đơn vị" },
-  { key: "DepartmentCode", label: "Bộ môn", category: "Đơn vị" },
+  { key: "DepartmentCode", label: "Khoa", category: "Đơn vị" },
   { key: "ClassCode", label: "Lớp", category: "Đơn vị" },
   { key: "EnrollmentYear", label: "Khóa học", category: "Tiến độ" },
   { key: "GraduationYear", label: "Năm tốt nghiệp", category: "Tiến độ" },
@@ -176,21 +176,21 @@ const STUDENT_FIELDS = [
 ];
 
 const EXPORT_REPORTS = [
-  { 
-    key: "assigned-topics", 
-    label: "Phân công đề tài & Giảng viên hướng dẫn", 
-    desc: "Báo cáo chi tiết các đề tài đã được gán sinh viên và giảng viên hướng dẫn.", 
-    icon: <FileSpreadsheet size={20} />, 
-    type: "modular", 
-    fields: TOPIC_FIELDS 
+  {
+    key: "assigned-topics",
+    label: "Phân công đề tài & Giảng viên hướng dẫn",
+    desc: "Báo cáo chi tiết các đề tài đã được gán sinh viên và giảng viên hướng dẫn.",
+    icon: <FileSpreadsheet size={20} />,
+    type: "modular",
+    fields: TOPIC_FIELDS
   },
-  { 
-    key: "lecturers-grouped-students", 
-    label: "Danh sách hướng dẫn gộp theo giảng viên", 
-    desc: "Báo cáo danh sách sinh viên theo từng giảng viên hướng dẫn, có gộp cột giảng viên.", 
-    icon: <LayoutDashboard size={20} />, 
-    type: "modular", 
-    fields: GROUPED_LECTURER_FIELDS 
+  {
+    key: "lecturers-grouped-students",
+    label: "Danh sách hướng dẫn gộp theo giảng viên",
+    desc: "Báo cáo danh sách sinh viên theo từng giảng viên hướng dẫn, có gộp cột giảng viên.",
+    icon: <LayoutDashboard size={20} />,
+    type: "modular",
+    fields: GROUPED_LECTURER_FIELDS
   },
   {
     key: "all-students",
@@ -401,7 +401,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
       addToast("Vui lòng nhập tên đề tài.", "warning");
       return;
     }
-    
+
     setIsTopicSaving(true);
     try {
       const payload: any = {
@@ -414,7 +414,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
         supervisorLecturerCode: topicFormSupervisorCode || null,
         status: "Đang chờ"
       };
-      
+
       if (selectedPeriodId) {
         payload.defenseTermId = selectedPeriodId;
       }
@@ -426,7 +426,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
           payload.proposerUserID = studentProfile.studentProfileID;
         }
       }
-      
+
       if (topicFormSupervisorCode) {
         const lecturerProfile = allLecturers.find(l => l.lecturerCode === topicFormSupervisorCode);
         if (lecturerProfile) {
@@ -461,7 +461,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
       addToast("Vui lòng nhập tên đề tài.", "warning");
       return;
     }
-    
+
     setIsTopicSaving(true);
     try {
       const payload: any = {
@@ -476,7 +476,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
         supervisorLecturerCode: topicFormSupervisorCode || null,
         status: topicFormStatus
       };
-      
+
       if (selectedPeriodId) {
         payload.defenseTermId = selectedPeriodId;
       }
@@ -487,7 +487,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
           payload.proposerStudentProfileID = studentProfile.studentProfileID;
         }
       }
-      
+
       if (topicFormSupervisorCode) {
         const lecturerProfile = allLecturers.find(l => l.lecturerCode === topicFormSupervisorCode);
         if (lecturerProfile) {
@@ -517,7 +517,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
 
   const handleDeleteTopic = async (topic: Topic) => {
     if (!window.confirm(`Bạn có chắc chắn muốn xóa đề tài "${topic.title}" không?`)) return;
-    
+
     setIsTopicDeleting(topic.topicID);
     try {
       const response = await fetchData<ApiResponse<any>>(`/Topics/delete/${encodeURIComponent(topic.topicCode)}`, {
@@ -546,7 +546,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
     try {
       // 1. Fetch complete details to prevent wiping other properties
       const getRes = await fetchData<ApiResponse<any>>(`/LecturerProfiles/get-update/${encodeURIComponent(code)}`);
-      
+
       if (!getRes?.success || !getRes.data) {
         addToast(getRes?.message || "Không thể tải thông tin giảng viên để cập nhật.", "error");
         setIsQuotaSaving(false);
@@ -609,7 +609,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
 
     if (item.type === "client-side") {
       setIsExporting(true);
-      
+
       const fieldsToExport = fields || selectedFields;
       if (!fieldsToExport || fieldsToExport.length === 0) {
         addToast("Vui lòng chọn ít nhất một trường dữ liệu để xuất.", "warning");
@@ -638,11 +638,11 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
       try {
         const rows = students.map((student) => {
           const rowData: Record<string, any> = {};
-          
+
           fieldsToExport.forEach(key => {
             const fieldObj = STUDENT_FIELDS.find(f => f.key === key);
             const label = fieldObj ? fieldObj.label : key;
-            
+
             let val: any = "";
             if (key === "StudentCode") val = student.studentCode;
             else if (key === "FullName") val = student.fullName;
@@ -675,14 +675,14 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
             }
             rowData[label] = val ?? "";
           });
-          
+
           return rowData;
         });
 
         const worksheet = XLSX.utils.json_to_sheet(rows);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Danh sách");
-        
+
         // Auto-fit column widths
         const maxLens = fieldsToExport.map(key => {
           const label = STUDENT_FIELDS.find(f => f.key === key)?.label || key;
@@ -700,22 +700,22 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
 
         const arrayBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
         const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        
+
         const downloadUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
-        
+
         const dateStr = new Date().toISOString().split('T')[0];
         const selectedPeriod = periods.find(p => p.defenseTermId === selectedPeriodId);
         const termSuffix = selectedPeriod?.name?.replace(/\s+/g, "_") || 'period';
-        
+
         let reportPrefix = "danh_sach_sinh_vien_trong_dot";
         if (studentFilter === "has-topic") reportPrefix = "danh_sach_sinh_vien_da_co_de_tai";
         else if (studentFilter === "no-topic") reportPrefix = "danh_sach_sinh_vien_chua_co_de_tai";
-        
+
         const fileName = `${reportPrefix}_${termSuffix}_${dateStr}.xlsx`;
         link.download = fileName;
-        
+
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -783,7 +783,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
           if (contentType.includes("text/html")) {
             errorMessage = "Lỗi hệ thống: Máy chủ trả về HTML thay vì file. Có thể sai đường dẫn API.";
           }
-        } catch (e) {}
+        } catch (e) { }
         addToast(errorMessage, "error");
         return;
       }
@@ -1439,7 +1439,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
     if (selectedExportFields.includes("studentCode")) headers.push("Mã Sinh Viên");
     if (selectedExportFields.includes("fullName")) headers.push("Họ và Tên");
     if (selectedExportFields.includes("classCode")) headers.push("Lớp");
-    if (selectedExportFields.includes("departmentCode")) headers.push("Bộ Môn");
+    if (selectedExportFields.includes("departmentCode")) headers.push("Khoa");
     if (selectedExportFields.includes("status")) headers.push("Trạng Thái Đăng Ký");
     if (selectedExportFields.includes("topicTitle")) headers.push("Tên Đề Tài");
     if (selectedExportFields.includes("supervisorName")) headers.push("Giảng Viên Hướng Dẫn");
@@ -1447,7 +1447,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
     const rows = list.map((student, index) => {
       const topic = getStudentRegistrationInfo(student.studentCode);
       const rowData: any[] = [];
-      
+
       if (selectedExportFields.includes("STT")) {
         rowData.push(index + 1);
       }
@@ -1474,7 +1474,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
         const lecturer = allLecturers.find(l => l.lecturerCode === supervisorLecturerCode);
         rowData.push(topic ? (lecturer ? lecturer.fullName : (supervisorLecturerCode || "")) : "");
       }
-      
+
       return rowData;
     });
 
@@ -1738,15 +1738,15 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
         prev.map((topic) =>
           topic.topicID === topicID
             ? {
-                ...topic,
-                title: detail.topic.title,
-                description: detail.topic.summary,
-                status,
-                comments:
-                  detail.latestLecturerComment ||
-                  detail.topic.lecturerComment ||
-                  topic.comments,
-              }
+              ...topic,
+              title: detail.topic.title,
+              description: detail.topic.summary,
+              status,
+              comments:
+                detail.latestLecturerComment ||
+                detail.topic.lecturerComment ||
+                topic.comments,
+            }
             : topic,
         ),
       );
@@ -2402,770 +2402,530 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
             </p>
           </div>
 
-      {/* Toolbar */}
-      <div
-        style={{
-          background: "white",
-          borderRadius: "12px",
-          padding: "20px",
-          marginBottom: "24px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-          border: "1px solid #E5E7EB",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: "16px",
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          {/* Search Box */}
-          <div style={{ flex: "1 1 400px", position: "relative" }}>
-            <Search
-              size={18}
-              color="#9CA3AF"
-              style={{
-                position: "absolute",
-                left: "12px",
-                top: "50%",
-                transform: "translateY(-50%)",
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Tìm kiếm tên đề tài, mã đề tài, sinh viên..."
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              style={{
-                width: "100%",
-                padding: "10px 12px 10px 40px",
-                border: "1px solid #D1D5DB",
-                borderRadius: "8px",
-                fontSize: "14px",
-                outline: "none",
-                transition: "all 0.2s ease",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "#1e3a5f";
-                e.currentTarget.style.boxShadow =
-                  "0 0 0 3px rgba(243, 112, 33, 0.1)";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "#D1D5DB";
-                e.currentTarget.style.boxShadow = "none";
-              }}
-            />
-          </div>
-
-          {/* Filter Section */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-
-
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <Filter size={16} color="#6B7280" />
-              <select
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                style={{
-                  padding: "8px 12px",
-                  border: "1px solid #D1D5DB",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  outline: "none",
-                  background: "white",
-                  minWidth: "180px",
-                }}
-              >
-                <option value="all">Tất cả trạng thái</option>
-                <option value="Chờ duyệt">Chờ duyệt</option>
-                <option value="Đã duyệt">Đã duyệt</option>
-                <option value="Cần sửa đổi">Cần sửa đổi</option>
-                <option value="Từ chối">Từ chối</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {error && (
-        <div
-          style={{
-            background: "#FEE2E2",
-            border: "1px solid #EF4444",
-            borderRadius: "8px",
-            padding: "16px",
-            marginBottom: "24px",
-            color: "#DC2626",
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div style={{ textAlign: "center", padding: "48px" }}>
-          <Loader2
-            size={32}
-            color="#F59E0B"
-            style={{ animation: "spin 1s linear infinite" }}
-          />
-          <p style={{ marginTop: "16px", color: "#666" }}>
-            Đang tải danh sách đề tài...
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* Stats Cards */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: "24px",
-              marginBottom: "32px",
-            }}
-          >
-            <div className="premium-card">
-              <div>
-                <div className="stat-icon-wrapper" style={{ background: "rgba(30, 58, 95, 0.1)" }}>
-                  <BookOpen size={24} color="#1e3a5f" />
-                </div>
-                <div style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", marginBottom: "4px" }}>
-                  Tổng đề tài
-                </div>
-                <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>
-                  {stats.total}
-                </div>
-              </div>
-              <div style={{ height: "4px", background: "#1e3a5f", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
-            </div>
-
-            <div className="premium-card">
-              <div>
-                <div className="stat-icon-wrapper" style={{ background: "rgba(34, 197, 94, 0.1)" }}>
-                  <CheckCircle size={24} color="#22C55E" />
-                </div>
-                <div style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", marginBottom: "4px" }}>
-                  Đã duyệt
-                </div>
-                <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>
-                  {stats.approved}
-                </div>
-              </div>
-              <div style={{ height: "4px", background: "#22C55E", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
-            </div>
-
-            <div className="premium-card">
-              <div>
-                <div className="stat-icon-wrapper" style={{ background: "rgba(245, 158, 11, 0.1)" }}>
-                  <Clock size={24} color="#F59E0B" />
-                </div>
-                <div style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", marginBottom: "4px" }}>
-                  Chờ duyệt
-                </div>
-                <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>
-                  {stats.pending}
-                </div>
-              </div>
-              <div style={{ height: "4px", background: "#F59E0B", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
-            </div>
-
-            <div className="premium-card">
-              <div>
-                <div className="stat-icon-wrapper" style={{ background: "rgba(239, 68, 68, 0.1)" }}>
-                  <AlertCircle size={24} color="#EF4444" />
-                </div>
-                <div style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", marginBottom: "4px" }}>
-                  Từ chối
-                </div>
-                <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>
-                  {stats.rejected}
-                </div>
-              </div>
-              <div style={{ height: "4px", background: "#EF4444", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
-            </div>
-
-          </div>
-
-          {/* Topics Table */}
+          {/* Toolbar */}
           <div
             style={{
               background: "white",
-              borderRadius: "24px",
-              border: "1px solid #D9E1F2",
+              borderRadius: "12px",
               padding: "20px",
+              marginBottom: "24px",
               boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+              border: "1px solid #E5E7EB",
             }}
           >
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", fontSize: "14px" }}>
-                <thead>
-                  <tr
+            <div
+              style={{
+                display: "flex",
+                gap: "16px",
+                flexWrap: "wrap",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              {/* Search Box */}
+              <div style={{ flex: "1 1 400px", position: "relative" }}>
+                <Search
+                  size={18}
+                  color="#9CA3AF"
+                  style={{
+                    position: "absolute",
+                    left: "12px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm tên đề tài, mã đề tài, sinh viên..."
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px 10px 40px",
+                    border: "1px solid #D1D5DB",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    outline: "none",
+                    transition: "all 0.2s ease",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "#1e3a5f";
+                    e.currentTarget.style.boxShadow =
+                      "0 0 0 3px rgba(243, 112, 33, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "#D1D5DB";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+              </div>
+
+              {/* Filter Section */}
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+
+
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Filter size={16} color="#6B7280" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
                     style={{
-                      borderBottom: "1px solid #E5ECFB",
-                      background: "#F8FAFF",
+                      padding: "8px 12px",
+                      border: "1px solid #D1D5DB",
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      cursor: "pointer",
+                      outline: "none",
+                      background: "white",
+                      minWidth: "180px",
                     }}
                   >
-                    <th
-                      style={{
-                        padding: "12px 16px",
-                        textAlign: "left",
-                        fontWeight: "600",
-                        color: "#1F3C88",
-                      }}
-                    >
-                      Mã đề tài
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 16px",
-                        textAlign: "left",
-                        fontWeight: "600",
-                        color: "#1F3C88",
-                      }}
-                    >
-                      Tên đề tài
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 16px",
-                        textAlign: "left",
-                        fontWeight: "600",
-                        color: "#1F3C88",
-                        minWidth: "140px",
-                      }}
-                    >
-                      Sinh viên
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 16px",
-                        textAlign: "left",
-                        fontWeight: "600",
-                        color: "#1F3C88",
-                        minWidth: "140px",
-                      }}
-                    >
-                      Loại đề tài
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 16px",
-                        textAlign: "left",
-                        fontWeight: "600",
-                        color: "#1F3C88",
-                      }}
-                    >
-                      Ngày nộp
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 16px",
-                        textAlign: "left",
-                        fontWeight: "600",
-                        color: "#1F3C88",
-                        minWidth: "150px",
-                      }}
-                    >
-                      Trạng thái
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 8px",
-                        textAlign: "center",
-                        fontWeight: "600",
-                        color: "#1F3C88",
-                        width: "120px",
-                      }}
-                    >
-                      Hành động
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topics.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={7}
+                    <option value="all">Tất cả trạng thái</option>
+                    <option value="Chờ duyệt">Chờ duyệt</option>
+                    <option value="Đã duyệt">Đã duyệt</option>
+                    <option value="Cần sửa đổi">Cần sửa đổi</option>
+                    <option value="Từ chối">Từ chối</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div
+              style={{
+                background: "#FEE2E2",
+                border: "1px solid #EF4444",
+                borderRadius: "8px",
+                padding: "16px",
+                marginBottom: "24px",
+                color: "#DC2626",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div style={{ textAlign: "center", padding: "48px" }}>
+              <Loader2
+                size={32}
+                color="#F59E0B"
+                style={{ animation: "spin 1s linear infinite" }}
+              />
+              <p style={{ marginTop: "16px", color: "#666" }}>
+                Đang tải danh sách đề tài...
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Stats Cards */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gap: "24px",
+                  marginBottom: "32px",
+                }}
+              >
+                <div className="premium-card">
+                  <div>
+                    <div className="stat-icon-wrapper" style={{ background: "rgba(30, 58, 95, 0.1)" }}>
+                      <BookOpen size={24} color="#1e3a5f" />
+                    </div>
+                    <div style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", marginBottom: "4px" }}>
+                      Tổng đề tài
+                    </div>
+                    <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>
+                      {stats.total}
+                    </div>
+                  </div>
+                  <div style={{ height: "4px", background: "#1e3a5f", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
+                </div>
+
+                <div className="premium-card">
+                  <div>
+                    <div className="stat-icon-wrapper" style={{ background: "rgba(34, 197, 94, 0.1)" }}>
+                      <CheckCircle size={24} color="#22C55E" />
+                    </div>
+                    <div style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", marginBottom: "4px" }}>
+                      Đã duyệt
+                    </div>
+                    <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>
+                      {stats.approved}
+                    </div>
+                  </div>
+                  <div style={{ height: "4px", background: "#22C55E", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
+                </div>
+
+                <div className="premium-card">
+                  <div>
+                    <div className="stat-icon-wrapper" style={{ background: "rgba(245, 158, 11, 0.1)" }}>
+                      <Clock size={24} color="#F59E0B" />
+                    </div>
+                    <div style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", marginBottom: "4px" }}>
+                      Chờ duyệt
+                    </div>
+                    <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>
+                      {stats.pending}
+                    </div>
+                  </div>
+                  <div style={{ height: "4px", background: "#F59E0B", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
+                </div>
+
+                <div className="premium-card">
+                  <div>
+                    <div className="stat-icon-wrapper" style={{ background: "rgba(239, 68, 68, 0.1)" }}>
+                      <AlertCircle size={24} color="#EF4444" />
+                    </div>
+                    <div style={{ fontSize: "14px", color: "#64748b", fontWeight: "600", marginBottom: "4px" }}>
+                      Từ chối
+                    </div>
+                    <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>
+                      {stats.rejected}
+                    </div>
+                  </div>
+                  <div style={{ height: "4px", background: "#EF4444", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
+                </div>
+
+              </div>
+
+              {/* Topics Table */}
+              <div
+                style={{
+                  background: "white",
+                  borderRadius: "24px",
+                  border: "1px solid #D9E1F2",
+                  padding: "20px",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                }}
+              >
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", fontSize: "14px" }}>
+                    <thead>
+                      <tr
                         style={{
-                          padding: "32px",
-                          textAlign: "center",
-                          color: "#4A5775",
+                          borderBottom: "1px solid #E5ECFB",
+                          background: "#F8FAFF",
                         }}
                       >
-                        Không có đề tài nào
-                      </td>
-                    </tr>
-                  ) : (
-                    topics
-                      .sort((a, b) => {
-                        const priorityOrder = {
-                          "Chờ duyệt": 1,
-                          "Cần sửa đổi": 2,
-                          "Đã duyệt": 3,
-                          "Từ chối": 4,
-                        };
-
-                        const aPriority =
-                          priorityOrder[
-                            a.status as keyof typeof priorityOrder
-                          ] || 5;
-                        const bPriority =
-                          priorityOrder[
-                            b.status as keyof typeof priorityOrder
-                          ] || 5;
-
-                        return aPriority - bPriority;
-                      })
-                      .map((topic) => (
-                        <tr
-                          key={topic.topicID}
+                        <th
                           style={{
-                            borderBottom: "1px solid #E5ECFB",
-                            cursor: "pointer",
-                            transition: "background 0.2s ease",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "#F8FAFF";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "white";
+                            padding: "12px 16px",
+                            textAlign: "left",
+                            fontWeight: "600",
+                            color: "#1F3C88",
                           }}
                         >
-                          {/* Mã đề tài */}
+                          Mã đề tài
+                        </th>
+                        <th
+                          style={{
+                            padding: "12px 16px",
+                            textAlign: "left",
+                            fontWeight: "600",
+                            color: "#1F3C88",
+                          }}
+                        >
+                          Tên đề tài
+                        </th>
+                        <th
+                          style={{
+                            padding: "12px 16px",
+                            textAlign: "left",
+                            fontWeight: "600",
+                            color: "#1F3C88",
+                            minWidth: "140px",
+                          }}
+                        >
+                          Sinh viên
+                        </th>
+                        <th
+                          style={{
+                            padding: "12px 16px",
+                            textAlign: "left",
+                            fontWeight: "600",
+                            color: "#1F3C88",
+                            minWidth: "140px",
+                          }}
+                        >
+                          Loại đề tài
+                        </th>
+                        <th
+                          style={{
+                            padding: "12px 16px",
+                            textAlign: "left",
+                            fontWeight: "600",
+                            color: "#1F3C88",
+                          }}
+                        >
+                          Ngày nộp
+                        </th>
+                        <th
+                          style={{
+                            padding: "12px 16px",
+                            textAlign: "left",
+                            fontWeight: "600",
+                            color: "#1F3C88",
+                            minWidth: "150px",
+                          }}
+                        >
+                          Trạng thái
+                        </th>
+                        <th
+                          style={{
+                            padding: "12px 8px",
+                            textAlign: "center",
+                            fontWeight: "600",
+                            color: "#1F3C88",
+                            width: "120px",
+                          }}
+                        >
+                          Hành động
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {topics.length === 0 ? (
+                        <tr>
                           <td
+                            colSpan={7}
                             style={{
-                              padding: "12px 16px",
-                              fontWeight: "600",
-                              color: "#1F3C88",
-                            }}
-                          >
-                            {topic.topicCode}
-                          </td>
-
-                          {/* Tên đề tài */}
-                          <td
-                            style={{
-                              padding: "12px 16px",
-                              color: "#1a1a1a",
-                              maxWidth: "300px",
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontWeight: "600",
-                                color: "#1F3C88",
-                                display: "-webkit-box",
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: "vertical",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                lineHeight: "1.4",
-                                maxHeight: "2.8em", // line-height * 2
-                                marginBottom: "4px",
-                              }}
-                              title={topic.title}
-                            >
-                              {topic.title}
-                            </div>
-                            {topic.lecturerProfile && (
-                              <div
-                                style={{
-                                  fontSize: "12px",
-                                  color: "#666",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "4px",
-                                  marginTop: "4px",
-                                }}
-                              >
-                                <User size={12} />
-                                GVHD: {topic.lecturerProfile.fullName}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Sinh viên */}
-                          <td
-                            style={{
-                              padding: "12px 16px",
-                              color: "#4A5775",
-                              minWidth: "140px",
-                            }}
-                          >
-                            <div style={{ fontWeight: "500" }}>
-                              {topic.studentName}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                color: "#666",
-                                marginTop: "2px",
-                              }}
-                            >
-                              {topic.studentCode}
-                            </div>
-                          </td>
-
-                          {/* Loại đề tài */}
-                          <td
-                            style={{
-                              padding: "12px 16px",
-                              color: "#4A5775",
-                              minWidth: "150px",
-                            }}
-                          >
-                            <span
-                              style={{
-                                display: "inline-block",
-                                padding: "4px 8px",
-                                borderRadius: "12px",
-                                fontSize: "12px",
-                                fontWeight: "500",
-                                background:
-                                  topic.category === "Đề tài catalog"
-                                    ? "#E0F2FE"
-                                    : "#FEF3C7",
-                                color:
-                                  topic.category === "Đề tài catalog"
-                                    ? "#0369A1"
-                                    : "#92400E",
-                              }}
-                            >
-                              {topic.category}
-                            </span>
-                          </td>
-
-                          {/* Ngày nộp */}
-                          <td
-                            style={{
-                              padding: "12px 16px",
-                              color: "#4A5775",
-                              fontSize: "13px",
-                            }}
-                          >
-                            {new Date(topic.submissionDate).toLocaleDateString(
-                              "vi-VN",
-                            )}
-                          </td>
-
-                          {/* Trạng thái */}
-                          <td
-                            style={{
-                              padding: "12px 16px",
-                              minWidth: "140px",
-                            }}
-                          >
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                padding: "6px 12px",
-                                borderRadius: "20px",
-                                fontSize: "12px",
-                                fontWeight: "600",
-                                background:
-                                  topic.status === "Đã duyệt"
-                                    ? "#DCFCE7"
-                                    : topic.status === "Từ chối"
-                                      ? "#FEE2E2"
-                                      : topic.status === "Cần sửa đổi"
-                                        ? "#FEF3C7"
-                                        : "#FEF3C7",
-                                color:
-                                  topic.status === "Đã duyệt"
-                                    ? "#166534"
-                                    : topic.status === "Từ chối"
-                                      ? "#991B1B"
-                                      : topic.status === "Cần sửa đổi"
-                                        ? "#92400E"
-                                        : "#92400E",
-                              }}
-                            >
-                              {getStatusIcon(topic.status)}
-                              {getStatusText(topic.status)}
-                            </span>
-                          </td>
-
-                          {/* Hành động */}
-                          <td
-                            style={{
-                              padding: "12px 16px",
+                              padding: "32px",
                               textAlign: "center",
+                              color: "#4A5775",
                             }}
                           >
-                            <div
+                            Không có đề tài nào
+                          </td>
+                        </tr>
+                      ) : (
+                        topics
+                          .sort((a, b) => {
+                            const priorityOrder = {
+                              "Chờ duyệt": 1,
+                              "Cần sửa đổi": 2,
+                              "Đã duyệt": 3,
+                              "Từ chối": 4,
+                            };
+
+                            const aPriority =
+                              priorityOrder[
+                              a.status as keyof typeof priorityOrder
+                              ] || 5;
+                            const bPriority =
+                              priorityOrder[
+                              b.status as keyof typeof priorityOrder
+                              ] || 5;
+
+                            return aPriority - bPriority;
+                          })
+                          .map((topic) => (
+                            <tr
+                              key={topic.topicID}
                               style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "8px",
-                                flexWrap: "wrap",
+                                borderBottom: "1px solid #E5ECFB",
+                                cursor: "pointer",
+                                transition: "background 0.2s ease",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "#F8FAFF";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "white";
                               }}
                             >
-                              {/* Nút xem chi tiết */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openDetailModal(topic);
-                                }}
-                                title="Xem chi tiết đề tài"
+                              {/* Mã đề tài */}
+                              <td
                                 style={{
-                                  padding: "8px",
-                                  background: "#1F3C88",
-                                  color: "white",
-                                  border: "none",
-                                  borderRadius: "6px",
-                                  fontSize: "14px",
-                                  cursor: "pointer",
-                                  transition: "all 0.2s ease",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  width: "32px",
-                                  height: "32px",
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = "#162B61";
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = "#1F3C88";
+                                  padding: "12px 16px",
+                                  fontWeight: "600",
+                                  color: "#1F3C88",
                                 }}
                               >
-                                <Eye size={16} />
-                              </button>
+                                {topic.topicCode}
+                              </td>
 
-                              {/* Nút hành động theo trạng thái */}
-                              {topic.status === "Chờ duyệt" && (
-                                <>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openConfirmationModal(topic);
-                                    }}
-                                    title="Duyệt đề tài"
-                                    disabled={
-                                      updatingStatus ===
-                                      `approve-${topic.topicID}`
-                                    }
+                              {/* Tên đề tài */}
+                              <td
+                                style={{
+                                  padding: "12px 16px",
+                                  color: "#1a1a1a",
+                                  maxWidth: "300px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontWeight: "600",
+                                    color: "#1F3C88",
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: "vertical",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    lineHeight: "1.4",
+                                    maxHeight: "2.8em", // line-height * 2
+                                    marginBottom: "4px",
+                                  }}
+                                  title={topic.title}
+                                >
+                                  {topic.title}
+                                </div>
+                                {topic.lecturerProfile && (
+                                  <div
                                     style={{
-                                      padding: "8px",
-                                      background:
-                                        updatingStatus ===
-                                        `approve-${topic.topicID}`
-                                          ? "#9CA3AF"
-                                          : "#22C55E",
-                                      color: "white",
-                                      border: "none",
-                                      borderRadius: "6px",
-                                      cursor:
-                                        updatingStatus ===
-                                        `approve-${topic.topicID}`
-                                          ? "not-allowed"
-                                          : "pointer",
-                                      transition: "all 0.2s ease",
+                                      fontSize: "12px",
+                                      color: "#666",
                                       display: "flex",
                                       alignItems: "center",
-                                      justifyContent: "center",
-                                      width: "32px",
-                                      height: "32px",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      if (
-                                        updatingStatus !==
-                                        `approve-${topic.topicID}`
-                                      ) {
-                                        e.currentTarget.style.background =
-                                          "#16A34A";
-                                      }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      if (
-                                        updatingStatus !==
-                                        `approve-${topic.topicID}`
-                                      ) {
-                                        e.currentTarget.style.background =
-                                          "#22C55E";
-                                      }
+                                      gap: "4px",
+                                      marginTop: "4px",
                                     }}
                                   >
-                                    {updatingStatus ===
-                                    `approve-${topic.topicID}` ? (
-                                      <Loader2
-                                        size={16}
-                                        style={{
-                                          animation: "spin 1s linear infinite",
-                                        }}
-                                      />
-                                    ) : (
-                                      <CheckCircle size={16} />
-                                    )}
-                                  </button>
+                                    <User size={12} />
+                                    GVHD: {topic.lecturerProfile.fullName}
+                                  </div>
+                                )}
+                              </td>
 
+                              {/* Sinh viên */}
+                              <td
+                                style={{
+                                  padding: "12px 16px",
+                                  color: "#4A5775",
+                                  minWidth: "140px",
+                                }}
+                              >
+                                <div style={{ fontWeight: "500" }}>
+                                  {topic.studentName}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "12px",
+                                    color: "#666",
+                                    marginTop: "2px",
+                                  }}
+                                >
+                                  {topic.studentCode}
+                                </div>
+                              </td>
+
+                              {/* Loại đề tài */}
+                              <td
+                                style={{
+                                  padding: "12px 16px",
+                                  color: "#4A5775",
+                                  minWidth: "150px",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    display: "inline-block",
+                                    padding: "4px 8px",
+                                    borderRadius: "12px",
+                                    fontSize: "12px",
+                                    fontWeight: "500",
+                                    background:
+                                      topic.category === "Đề tài catalog"
+                                        ? "#E0F2FE"
+                                        : "#FEF3C7",
+                                    color:
+                                      topic.category === "Đề tài catalog"
+                                        ? "#0369A1"
+                                        : "#92400E",
+                                  }}
+                                >
+                                  {topic.category}
+                                </span>
+                              </td>
+
+                              {/* Ngày nộp */}
+                              <td
+                                style={{
+                                  padding: "12px 16px",
+                                  color: "#4A5775",
+                                  fontSize: "13px",
+                                }}
+                              >
+                                {new Date(topic.submissionDate).toLocaleDateString(
+                                  "vi-VN",
+                                )}
+                              </td>
+
+                              {/* Trạng thái */}
+                              <td
+                                style={{
+                                  padding: "12px 16px",
+                                  minWidth: "140px",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    padding: "6px 12px",
+                                    borderRadius: "20px",
+                                    fontSize: "12px",
+                                    fontWeight: "600",
+                                    background:
+                                      topic.status === "Đã duyệt"
+                                        ? "#DCFCE7"
+                                        : topic.status === "Từ chối"
+                                          ? "#FEE2E2"
+                                          : topic.status === "Cần sửa đổi"
+                                            ? "#FEF3C7"
+                                            : "#FEF3C7",
+                                    color:
+                                      topic.status === "Đã duyệt"
+                                        ? "#166534"
+                                        : topic.status === "Từ chối"
+                                          ? "#991B1B"
+                                          : topic.status === "Cần sửa đổi"
+                                            ? "#92400E"
+                                            : "#92400E",
+                                  }}
+                                >
+                                  {getStatusIcon(topic.status)}
+                                  {getStatusText(topic.status)}
+                                </span>
+                              </td>
+
+                              {/* Hành động */}
+                              <td
+                                style={{
+                                  padding: "12px 16px",
+                                  textAlign: "center",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "8px",
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  {/* Nút xem chi tiết */}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      openCommentModal(
-                                        "revision",
-                                        topic.topicID,
-                                        topic.title,
-                                      );
+                                      openDetailModal(topic);
                                     }}
-                                    title="Yêu cầu sửa đổi đề tài"
-                                    disabled={
-                                      updatingStatus ===
-                                      `revision-${topic.topicID}`
-                                    }
+                                    title="Xem chi tiết đề tài"
                                     style={{
                                       padding: "8px",
-                                      background:
-                                        updatingStatus ===
-                                        `revision-${topic.topicID}`
-                                          ? "#9CA3AF"
-                                          : "#F59E0B",
+                                      background: "#1F3C88",
                                       color: "white",
                                       border: "none",
                                       borderRadius: "6px",
-                                      cursor:
-                                        updatingStatus ===
-                                        `revision-${topic.topicID}`
-                                          ? "not-allowed"
-                                          : "pointer",
-                                      transition: "all 0.2s ease",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      width: "32px",
-                                      height: "32px",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      if (
-                                        updatingStatus !==
-                                        `revision-${topic.topicID}`
-                                      ) {
-                                        e.currentTarget.style.background =
-                                          "#D97706";
-                                      }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      if (
-                                        updatingStatus !==
-                                        `revision-${topic.topicID}`
-                                      ) {
-                                        e.currentTarget.style.background =
-                                          "#F59E0B";
-                                      }
-                                    }}
-                                  >
-                                    {updatingStatus ===
-                                    `revision-${topic.topicID}` ? (
-                                      <Loader2
-                                        size={16}
-                                        style={{
-                                          animation: "spin 1s linear infinite",
-                                        }}
-                                      />
-                                    ) : (
-                                      <Edit size={16} />
-                                    )}
-                                  </button>
-
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openCommentModal(
-                                        "reject",
-                                        topic.topicID,
-                                        topic.title,
-                                      );
-                                    }}
-                                    title="Từ chối đề tài"
-                                    disabled={
-                                      updatingStatus ===
-                                      `reject-${topic.topicID}`
-                                    }
-                                    style={{
-                                      padding: "8px",
-                                      background:
-                                        updatingStatus ===
-                                        `reject-${topic.topicID}`
-                                          ? "#9CA3AF"
-                                          : "#EF4444",
-                                      color: "white",
-                                      border: "none",
-                                      borderRadius: "6px",
-                                      cursor:
-                                        updatingStatus ===
-                                        `reject-${topic.topicID}`
-                                          ? "not-allowed"
-                                          : "pointer",
-                                      transition: "all 0.2s ease",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      width: "32px",
-                                      height: "32px",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      if (
-                                        updatingStatus !==
-                                        `reject-${topic.topicID}`
-                                      ) {
-                                        e.currentTarget.style.background =
-                                          "#DC2626";
-                                      }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      if (
-                                        updatingStatus !==
-                                        `reject-${topic.topicID}`
-                                      ) {
-                                        e.currentTarget.style.background =
-                                          "#EF4444";
-                                      }
-                                    }}
-                                  >
-                                    {updatingStatus ===
-                                    `reject-${topic.topicID}` ? (
-                                      <Loader2
-                                        size={16}
-                                        style={{
-                                          animation: "spin 1s linear infinite",
-                                        }}
-                                      />
-                                    ) : (
-                                      <AlertCircle size={16} />
-                                    )}
-                                  </button>
-                                </>
-                              )}
-
-                              {topic.status !== "Chờ duyệt" &&
-                                topic.comments && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openViewCommentModal(
-                                        topic.comments || "Không có nhận xét",
-                                        topic.title,
-                                      );
-                                    }}
-                                    title="Xem nhận xét của giảng viên"
-                                    style={{
-                                      padding: "8px",
-                                      background: "#8B5CF6",
-                                      color: "white",
-                                      border: "none",
-                                      borderRadius: "6px",
+                                      fontSize: "14px",
                                       cursor: "pointer",
                                       transition: "all 0.2s ease",
                                       display: "flex",
@@ -3175,2179 +2935,2419 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                                       height: "32px",
                                     }}
                                     onMouseEnter={(e) => {
-                                      e.currentTarget.style.background =
-                                        "#7C3AED";
+                                      e.currentTarget.style.background = "#162B61";
                                     }}
                                     onMouseLeave={(e) => {
-                                      e.currentTarget.style.background =
-                                        "#8B5CF6";
+                                      e.currentTarget.style.background = "#1F3C88";
                                     }}
                                   >
-                                    <MessageCircle size={16} />
+                                    <Eye size={16} />
                                   </button>
-                                )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: "8px",
-                marginTop: "24px",
-                padding: "16px",
-              }}
-            >
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                title="Trang trước"
-                style={{
-                  padding: "8px 12px",
-                  background: currentPage === 1 ? "#F3F4F6" : "#FFFFFF",
-                  color: currentPage === 1 ? "#9CA3AF" : "#374151",
-                  border: "1px solid #D1D5DB",
-                  borderRadius: "6px",
-                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                  fontSize: "14px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-              >
-                <ChevronLeft size={16} />
-                Trước
-              </button>
+                                  {/* Nút hành động theo trạng thái */}
+                                  {topic.status === "Chờ duyệt" && (
+                                    <>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openConfirmationModal(topic);
+                                        }}
+                                        title="Duyệt đề tài"
+                                        disabled={
+                                          updatingStatus ===
+                                          `approve-${topic.topicID}`
+                                        }
+                                        style={{
+                                          padding: "8px",
+                                          background:
+                                            updatingStatus ===
+                                              `approve-${topic.topicID}`
+                                              ? "#9CA3AF"
+                                              : "#22C55E",
+                                          color: "white",
+                                          border: "none",
+                                          borderRadius: "6px",
+                                          cursor:
+                                            updatingStatus ===
+                                              `approve-${topic.topicID}`
+                                              ? "not-allowed"
+                                              : "pointer",
+                                          transition: "all 0.2s ease",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          width: "32px",
+                                          height: "32px",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          if (
+                                            updatingStatus !==
+                                            `approve-${topic.topicID}`
+                                          ) {
+                                            e.currentTarget.style.background =
+                                              "#16A34A";
+                                          }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          if (
+                                            updatingStatus !==
+                                            `approve-${topic.topicID}`
+                                          ) {
+                                            e.currentTarget.style.background =
+                                              "#22C55E";
+                                          }
+                                        }}
+                                      >
+                                        {updatingStatus ===
+                                          `approve-${topic.topicID}` ? (
+                                          <Loader2
+                                            size={16}
+                                            style={{
+                                              animation: "spin 1s linear infinite",
+                                            }}
+                                          />
+                                        ) : (
+                                          <CheckCircle size={16} />
+                                        )}
+                                      </button>
 
-              <div style={{ display: "flex", gap: "4px" }}>
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openCommentModal(
+                                            "revision",
+                                            topic.topicID,
+                                            topic.title,
+                                          );
+                                        }}
+                                        title="Yêu cầu sửa đổi đề tài"
+                                        disabled={
+                                          updatingStatus ===
+                                          `revision-${topic.topicID}`
+                                        }
+                                        style={{
+                                          padding: "8px",
+                                          background:
+                                            updatingStatus ===
+                                              `revision-${topic.topicID}`
+                                              ? "#9CA3AF"
+                                              : "#F59E0B",
+                                          color: "white",
+                                          border: "none",
+                                          borderRadius: "6px",
+                                          cursor:
+                                            updatingStatus ===
+                                              `revision-${topic.topicID}`
+                                              ? "not-allowed"
+                                              : "pointer",
+                                          transition: "all 0.2s ease",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          width: "32px",
+                                          height: "32px",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          if (
+                                            updatingStatus !==
+                                            `revision-${topic.topicID}`
+                                          ) {
+                                            e.currentTarget.style.background =
+                                              "#D97706";
+                                          }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          if (
+                                            updatingStatus !==
+                                            `revision-${topic.topicID}`
+                                          ) {
+                                            e.currentTarget.style.background =
+                                              "#F59E0B";
+                                          }
+                                        }}
+                                      >
+                                        {updatingStatus ===
+                                          `revision-${topic.topicID}` ? (
+                                          <Loader2
+                                            size={16}
+                                            style={{
+                                              animation: "spin 1s linear infinite",
+                                            }}
+                                          />
+                                        ) : (
+                                          <Edit size={16} />
+                                        )}
+                                      </button>
 
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => handlePageChange(pageNum)}
-                      title={`Đến trang ${pageNum}`}
-                      style={{
-                        padding: "8px 12px",
-                        background:
-                          currentPage === pageNum ? "#1F3C88" : "#FFFFFF",
-                        color: currentPage === pageNum ? "white" : "#374151",
-                        border: "1px solid #D1D5DB",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        fontSize: "14px",
-                        minWidth: "40px",
-                      }}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openCommentModal(
+                                            "reject",
+                                            topic.topicID,
+                                            topic.title,
+                                          );
+                                        }}
+                                        title="Từ chối đề tài"
+                                        disabled={
+                                          updatingStatus ===
+                                          `reject-${topic.topicID}`
+                                        }
+                                        style={{
+                                          padding: "8px",
+                                          background:
+                                            updatingStatus ===
+                                              `reject-${topic.topicID}`
+                                              ? "#9CA3AF"
+                                              : "#EF4444",
+                                          color: "white",
+                                          border: "none",
+                                          borderRadius: "6px",
+                                          cursor:
+                                            updatingStatus ===
+                                              `reject-${topic.topicID}`
+                                              ? "not-allowed"
+                                              : "pointer",
+                                          transition: "all 0.2s ease",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          width: "32px",
+                                          height: "32px",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          if (
+                                            updatingStatus !==
+                                            `reject-${topic.topicID}`
+                                          ) {
+                                            e.currentTarget.style.background =
+                                              "#DC2626";
+                                          }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          if (
+                                            updatingStatus !==
+                                            `reject-${topic.topicID}`
+                                          ) {
+                                            e.currentTarget.style.background =
+                                              "#EF4444";
+                                          }
+                                        }}
+                                      >
+                                        {updatingStatus ===
+                                          `reject-${topic.topicID}` ? (
+                                          <Loader2
+                                            size={16}
+                                            style={{
+                                              animation: "spin 1s linear infinite",
+                                            }}
+                                          />
+                                        ) : (
+                                          <AlertCircle size={16} />
+                                        )}
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {topic.status !== "Chờ duyệt" &&
+                                    topic.comments && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openViewCommentModal(
+                                            topic.comments || "Không có nhận xét",
+                                            topic.title,
+                                          );
+                                        }}
+                                        title="Xem nhận xét của giảng viên"
+                                        style={{
+                                          padding: "8px",
+                                          background: "#8B5CF6",
+                                          color: "white",
+                                          border: "none",
+                                          borderRadius: "6px",
+                                          cursor: "pointer",
+                                          transition: "all 0.2s ease",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          width: "32px",
+                                          height: "32px",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.background =
+                                            "#7C3AED";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.background =
+                                            "#8B5CF6";
+                                        }}
+                                      >
+                                        <MessageCircle size={16} />
+                                      </button>
+                                    )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                title="Trang sau"
-                style={{
-                  padding: "8px 12px",
-                  background:
-                    currentPage === totalPages ? "#F3F4F6" : "#FFFFFF",
-                  color: currentPage === totalPages ? "#9CA3AF" : "#374151",
-                  border: "1px solid #D1D5DB",
-                  borderRadius: "6px",
-                  cursor:
-                    currentPage === totalPages ? "not-allowed" : "pointer",
-                  fontSize: "14px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-              >
-                Sau
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          )}
-
-          {/* Page info */}
-          <div
-            style={{
-              textAlign: "center",
-              marginTop: "16px",
-              fontSize: "14px",
-              color: "#6B7280",
-            }}
-          >
-            Hiển thị {topics.length} đề tài trên tổng số {totalCount} đề tài
-            {totalPages > 1 && ` (Trang ${currentPage}/${totalPages})`}
-          </div>
-        </>
-      )}
-    </>
-  ) : (
-    <div className="admin-ops-root" style={{
-      minHeight: "100vh",
-      background: "#f8fafc",
-      color: "#1e293b",
-      fontFamily: "'Be Vietnam Pro', sans-serif",
-      padding: "0 0 40px 0"
-    }}>
-      {/* 1. Premium Header Section */}
-      <div style={{
-        background: "#1e3a5f",
-        padding: "40px 32px 80px 32px",
-        position: "relative",
-        overflow: "hidden"
-      }}>
-        {/* Background Accents */}
-        <div style={{
-          position: "absolute",
-          top: "-50%",
-          right: "-10%",
-          width: "600px",
-          height: "600px",
-          background: "radial-gradient(circle, rgba(243, 112, 33, 0.1) 0%, transparent 70%)",
-          filter: "blur(60px)"
-        }} />
-
-        <div style={{
-          maxWidth: 1600,
-          margin: "0 auto",
-          position: "relative",
-          zIndex: 2,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-end",
-          gap: 24,
-          flexWrap: "wrap"
-        }}>
-          <div>
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              marginBottom: 16
-            }}>
-              <div style={{
-                background: "rgba(255, 255, 255, 0.15)",
-                backdropFilter: "blur(8px)",
-                padding: "8px 16px",
-                borderRadius: 99,
-                color: "white",
-                fontSize: 12,
-                fontWeight: 700,
-                letterSpacing: "0.05em",
-                textTransform: "uppercase",
-                border: "1px solid rgba(255, 255, 255, 0.2)"
-              }}>
-                Hệ thống Quản lý Đồ án
-              </div>
-              <div style={{
-                height: 4,
-                width: 4,
-                borderRadius: "50%",
-                background: "rgba(255, 255, 255, 0.3)"
-              }} />
-              <div style={{
-                color: "rgba(255, 255, 255, 0.7)",
-                fontSize: 12,
-                fontWeight: 500
-              }}>
-                Phân công Hướng dẫn
-              </div>
-            </div>
-
-            <h1 style={{
-              fontSize: 42,
-              fontWeight: 900,
-              color: "white",
-              margin: 0,
-              letterSpacing: "-0.03em",
-              lineHeight: 1
-            }}>
-              Phân công GVHD và <span style={{ color: "#f37021" }}>theo dõi</span>
-            </h1>
-            
-            <div style={{
-              fontSize: 16,
-              color: "rgba(255, 255, 255, 0.7)",
-              marginTop: 12,
-              maxWidth: 600,
-              fontWeight: 500,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flexWrap: "wrap"
-            }}>
-              <span>Giám sát đăng ký và phân công giảng viên hướng dẫn đợt:</span>
-              <span style={{
-                background: "rgba(255, 255, 255, 0.15)",
-                border: "1px solid rgba(255, 255, 255, 0.3)",
-                borderRadius: "10px",
-                padding: "4px 12px",
-                color: "white",
-                fontSize: "14px",
-                fontWeight: 700,
-              }}>
-                {periods.find((p) => p.defenseTermId === selectedPeriodId)?.name || "Chưa chọn đợt"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Main Content Wrapper */}
-      <div style={{
-        maxWidth: 1600,
-        margin: "-48px auto 0 auto",
-        padding: "0 32px",
-        position: "relative",
-        zIndex: 10
-      }}>
-        {!selectedPeriodId ? (
-          <div style={{
-            background: "white",
-            borderRadius: 28,
-            padding: "80px 40px",
-            border: "1px solid #e2e8f0",
-            boxShadow: "0 10px 30px rgba(15,23,42,0.06)",
-            textAlign: "center",
-            maxWidth: 600,
-            margin: "40px auto"
-          }}>
-            <div style={{
-              width: 80,
-              height: 80,
-              borderRadius: "50%",
-              background: "#eff6ff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 24px auto",
-              color: "#1e3a5f"
-            }}>
-              <BookOpen size={40} />
-            </div>
-            <h2 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", marginBottom: "12px" }}>
-              Chưa có đợt bảo vệ hiện hành
-            </h2>
-            <p style={{ fontSize: "15px", color: "#64748b", lineHeight: 1.6, marginBottom: "28px" }}>
-              Hệ thống chưa ghi nhận đợt đồ án tốt nghiệp hiện hành nào đang diễn ra. Vui lòng tạo đợt mới hoặc kích hoạt đợt tại module Quản lý đợt.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <a
-                href="/admin/defense-periods"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: "48px",
-                  borderRadius: "14px",
-                  background: "#1e3a5f",
-                  color: "white",
-                  fontSize: "15px",
-                  fontWeight: 700,
-                  textDecoration: "none",
-                  transition: "background 0.2s"
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "#12253f"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "#1e3a5f"}
-              >
-                Quản lý đợt bảo vệ
-              </a>
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* 2.1 Tab Navigation (Sticky) */}
-            <div style={{
-              background: "rgba(255, 255, 255, 0.95)",
-              backdropFilter: "blur(16px)",
-              borderRadius: 20,
-              padding: "8px",
-              display: "flex",
-              gap: 4,
-              boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.1)",
-              marginBottom: 24,
-              position: "sticky",
-              top: 16,
-              zIndex: 100,
-              border: "1px solid rgba(255, 255, 255, 0.8)",
-            }}>
-              {[
-                { key: "overview" as const, label: "Tình hình đăng ký", icon: <Users size={18} />, badge: (overdueCount > 0 || stats.pending > 0) ? `${overdueCount} QH - ${stats.pending} Chờ` : null, badgeColor: "#ef4444" },
-                { key: "topics-management" as const, label: "Quản lý đề tài và tiến độ", icon: <BookOpen size={18} />, badge: allTopicsList.length ? String(allTopicsList.length) : null, badgeColor: "#1e3a5f" },
-                { key: "lecturer-quota" as const, label: "Định mức & Điều phối tải Giảng viên", icon: <Award size={18} />, badge: allLecturers.length ? String(allLecturers.length) : null, badgeColor: "#8b5cf6" },
-                { key: "export" as const, label: "Xuất bản Báo cáo", icon: <Download size={18} />, badge: null, badgeColor: "" },
-              ].map((tab) => {
-                const isActive = activeAdminTab === tab.key;
-                return (
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginTop: "24px",
+                    padding: "16px",
+                  }}
+                >
                   <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setActiveAdminTab(tab.key)}
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    title="Trang trước"
                     style={{
-                      flex: 1,
+                      padding: "8px 12px",
+                      background: currentPage === 1 ? "#F3F4F6" : "#FFFFFF",
+                      color: currentPage === 1 ? "#9CA3AF" : "#374151",
+                      border: "1px solid #D1D5DB",
+                      borderRadius: "6px",
+                      cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                      fontSize: "14px",
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      gap: 10,
-                      padding: "12px 14px",
-                      borderRadius: 14,
-                      border: "none",
-                      background: isActive ? "#1e3a5f" : "transparent",
-                      color: isActive ? "white" : "#64748b",
-                      fontSize: 13,
-                      fontWeight: 700,
-                      whiteSpace: "nowrap",
-                      cursor: "pointer",
-                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      gap: "4px",
                     }}
                   >
-                    {tab.icon}
-                    {tab.label}
-                    {tab.badge && (
-                      <span style={{
-                        background: isActive ? "white" : tab.badgeColor,
-                        color: isActive ? tab.badgeColor : "white",
-                        padding: "2px 8px",
-                        borderRadius: 8,
-                        fontSize: 11,
-                        fontWeight: 800
-                      }}>
-                        {tab.badge}
-                      </span>
-                    )}
+                    <ChevronLeft size={16} />
+                    Trước
                   </button>
-                );
-              })}
-            </div>
 
-            {/* 2.2 Dynamic Content Area */}
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => handlePageChange(pageNum)}
+                          title={`Đến trang ${pageNum}`}
+                          style={{
+                            padding: "8px 12px",
+                            background:
+                              currentPage === pageNum ? "#1F3C88" : "#FFFFFF",
+                            color: currentPage === pageNum ? "white" : "#374151",
+                            border: "1px solid #D1D5DB",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            minWidth: "40px",
+                          }}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    title="Trang sau"
+                    style={{
+                      padding: "8px 12px",
+                      background:
+                        currentPage === totalPages ? "#F3F4F6" : "#FFFFFF",
+                      color: currentPage === totalPages ? "#9CA3AF" : "#374151",
+                      border: "1px solid #D1D5DB",
+                      borderRadius: "6px",
+                      cursor:
+                        currentPage === totalPages ? "not-allowed" : "pointer",
+                      fontSize: "14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    Sau
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+
+              {/* Page info */}
+              <div
+                style={{
+                  textAlign: "center",
+                  marginTop: "16px",
+                  fontSize: "14px",
+                  color: "#6B7280",
+                }}
+              >
+                Hiển thị {topics.length} đề tài trên tổng số {totalCount} đề tài
+                {totalPages > 1 && ` (Trang ${currentPage}/${totalPages})`}
+              </div>
+            </>
+          )}
+        </>
+      ) : (
+        <div className="admin-ops-root" style={{
+          minHeight: "100vh",
+          background: "#f8fafc",
+          color: "#1e293b",
+          fontFamily: "'Be Vietnam Pro', sans-serif",
+          padding: "0 0 40px 0"
+        }}>
+          {/* 1. Premium Header Section */}
+          <div style={{
+            background: "#1e3a5f",
+            padding: "40px 32px 80px 32px",
+            position: "relative",
+            overflow: "hidden"
+          }}>
+            {/* Background Accents */}
             <div style={{
-              animation: "fadeIn 0.4s ease",
-              minHeight: 500
+              position: "absolute",
+              top: "-50%",
+              right: "-10%",
+              width: "600px",
+              height: "600px",
+              background: "radial-gradient(circle, rgba(243, 112, 33, 0.1) 0%, transparent 70%)",
+              filter: "blur(60px)"
+            }} />
+
+            <div style={{
+              maxWidth: 1600,
+              margin: "0 auto",
+              position: "relative",
+              zIndex: 2,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-end",
+              gap: 24,
+              flexWrap: "wrap"
             }}>
-              {/* TAB 1: OVERVIEW */}
-              {/* TAB 1: OVERVIEW */}
-              {activeAdminTab === "overview" && (() => {
-                const currentPeriod = periods.find((p) => p.defenseTermId === selectedPeriodId);
-                const currentStatus = currentPeriod?.status || "Draft";
-
-                // Calculations for detailed progress stats
-                const totalStudentsCount = allStudents.length;
-                const regCount = registeredCount;
-                const complPercent = completionPercent;
-
-                const approvedCount = allTopicsList.filter(
-                  (t) => mapApiStatusToDisplay(t.status) === "Đã duyệt"
-                ).length;
-                const pendingCount = allTopicsList.filter(
-                  (t) => mapApiStatusToDisplay(t.status) === "Chờ duyệt"
-                ).length;
-                const revisionCount = allTopicsList.filter(
-                  (t) => mapApiStatusToDisplay(t.status) === "Cần sửa đổi"
-                ).length;
-                const rejectedCount = allTopicsList.filter(
-                  (t) => mapApiStatusToDisplay(t.status) === "Từ chối"
-                ).length;
-
-                const catalogTopicsCount = allTopicsList.filter(t => t.type === "CATALOG").length;
-                const selfTopicsCount = allTopicsList.filter(t => t.type !== "CATALOG").length;
-
-                // Sửa theo yêu cầu: tính cả đang chờ (pendingCount) + đã duyệt (approvedCount) / tổng sinh viên (totalStudentsCount)
-                const assignedAdvisorCount = approvedCount + pendingCount;
-                const noAdvisorCount = allTopicsList.filter(t => !t.supervisorLecturerCode).length;
-                const advisorAssignPercent = totalStudentsCount > 0 
-                  ? Math.round((assignedAdvisorCount / totalStudentsCount) * 100) 
-                  : 0;
-
-                const steps = [
-                  { key: "Draft", label: "Soạn thảo", desc: "Khởi tạo đợt" },
-                  { key: "Registration", label: "Đăng ký & Phân công", desc: "Đăng ký & Phân công" },
-                  { key: "ProgressTracking", label: "Tiến độ", desc: "Theo dõi thực hiện" },
-                  { key: "CommitteePreparation", label: "Hội đồng", desc: "Chuẩn bị hội đồng" },
-                  { key: "Running", label: "Bảo vệ", desc: "Chấm điểm & Bảo vệ" },
-                  { key: "Finalization", label: "Hậu bảo vệ", desc: "Tổng kết & Nộp lại" },
-                  { key: "Archived", label: "Đóng & Lưu trữ", desc: "Kết thúc & Lưu trữ" },
-                ];
-
-                const statusOrder: Record<string, number> = {
-                  draft: 0,
-                  registration: 1,
-                  assignment: 1,
-                  progresstracking: 2,
-                  committeepreparation: 3,
-                  running: 4,
-                  paused: 4,
-                  scoringlocked: 5,
-                  finalization: 5,
-                  finalized: 5,
-                  published: 5,
-                  closed: 6,
-                  archived: 6
-                };
-
-                const normalizedKey = String(currentStatus).toLowerCase().trim();
-                const currentIndex = statusOrder[normalizedKey] ?? 0;
-
-                const milestoneStatusOrder: Record<string, number> = {
-                  draft: 0,
-                  registration: 1,
-                  assignment: 1,
-                  progresstracking: 2,
-                  committeepreparation: 3,
-                  running: 4,
-                  paused: 4,
-                  scoringlocked: 5,
-                  finalization: 5,
-                  finalized: 5,
-                  published: 5,
-                  closed: 5,
-                  archived: 5
-                };
-                const currentMilestoneIndex = milestoneStatusOrder[normalizedKey] ?? 0;
-
-                const displaySteps = milestoneTemplates.length > 0
-                  ? milestoneTemplates.map((m: any) => ({
-                      key: m.milestoneTemplateCode,
-                      label: m.name,
-                      desc: m.deadline ? `Hạn: ${new Date(m.deadline).toLocaleDateString("vi-VN")}` : m.description || "",
-                      ordinal: m.ordinal
-                    }))
-                  : steps;
-
-                return (
-                  <>
-                    {/* Detailed Progress Statistics Header */}
-                    <div style={{
-                      background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-                      borderRadius: "16px",
-                      border: "1px solid #e2e8f0",
-                      padding: "24px",
-                      marginBottom: "32px",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                    }}>
-                      {/* Detailed Progress Stats Grid */}
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-                        {/* Card 1: Sinh viên đăng ký */}
-                        <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Tỷ lệ đăng ký đề tài</span>
-                            <Users size={16} color="#3b82f6" />
-                          </div>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                            <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{regCount}</span>
-                            <span style={{ fontSize: "12px", color: "#64748b" }}>/ {totalStudentsCount} SV</span>
-                            <span style={{ marginLeft: "auto", fontSize: "12px", fontWeight: "800", color: "#3b82f6", background: "#dbeafe", padding: "2px 6px", borderRadius: "6px" }}>
-                              {complPercent}%
-                            </span>
-                          </div>
-                          <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden", marginTop: "12px" }}>
-                            <div style={{ width: `${complPercent}%`, height: "100%", background: "#3b82f6", borderRadius: "3px" }} />
-                          </div>
-                        </div>
-
-                        {/* Card 2: Phê duyệt đề tài */}
-                        <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Trạng thái phê duyệt</span>
-                            <CheckCircle size={16} color="#10b981" />
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", fontSize: "12px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#166534", fontWeight: "700" }}>
-                              <span>Đã duyệt:</span> <span>{approvedCount}</span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#b45309", fontWeight: "700" }}>
-                              <span>Chờ duyệt:</span> <span>{pendingCount}</span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#92400e", fontWeight: "700" }}>
-                              <span>Cần sửa:</span> <span>{revisionCount}</span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#991b1b", fontWeight: "700" }}>
-                              <span>Từ chối:</span> <span>{rejectedCount}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Card 3: Phân loại đề tài */}
-                        <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Phân loại nguồn đề tài</span>
-                            <BookOpen size={16} color="#8b5cf6" />
-                          </div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#1e293b", fontWeight: "700" }}>
-                              <span style={{ color: "#64748b", fontWeight: "600" }}>Đề tài Catalog:</span>
-                              <span style={{ background: "#f3e8ff", color: "#6b21a8", padding: "1px 6px", borderRadius: "4px" }}>{catalogTopicsCount}</span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#1e293b", fontWeight: "700" }}>
-                              <span style={{ color: "#64748b", fontWeight: "600" }}>Đề tài Tự chọn:</span>
-                              <span style={{ background: "#fef3c7", color: "#92400e", padding: "1px 6px", borderRadius: "4px" }}>{selfTopicsCount}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Card 4: Tỷ lệ phân công GVHD */}
-                        <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Tỷ lệ phân công GVHD</span>
-                            <Award size={16} color="#f37021" />
-                          </div>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                            <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{assignedAdvisorCount}</span>
-                            <span style={{ fontSize: "12px", color: "#64748b" }}>/ {totalStudentsCount} sinh viên</span>
-                            <span style={{ marginLeft: "auto", fontSize: "12px", fontWeight: "800", color: "#f37021", background: "#fff7ed", padding: "2px 6px", borderRadius: "6px" }}>
-                              {advisorAssignPercent}%
-                            </span>
-                          </div>
-                          <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden", marginTop: "12px" }}>
-                            <div style={{ width: `${advisorAssignPercent}%`, height: "100%", background: "#f37021", borderRadius: "3px" }} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                  {/* Student Table */}
+              <div>
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  marginBottom: 16
+                }}>
                   <div style={{
-                    background: "white",
-                    borderRadius: "24px",
-                    border: "1px solid #D9E1F2",
-                    padding: "24px",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                    background: "rgba(255, 255, 255, 0.15)",
+                    backdropFilter: "blur(8px)",
+                    padding: "8px 16px",
+                    borderRadius: 99,
+                    color: "white",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: "0.05em",
+                    textTransform: "uppercase",
+                    border: "1px solid rgba(255, 255, 255, 0.2)"
                   }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "16px" }}>
-                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", flex: 1 }}>
-                        <div style={{ position: "relative", minWidth: 320 }}>
-                          <Search size={18} color="#9CA3AF" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }} />
-                          <input
-                            type="text"
-                            placeholder="Tìm theo Mã SV, Tên SV, Lớp, Đề tài, Giảng viên..."
-                            value={regSearchTerm}
-                            onChange={(e) => setRegSearchTerm(e.target.value)}
-                            style={{
-                              width: "100%",
-                              padding: "10px 14px 10px 42px",
-                              border: "1px solid #CBD5E1",
-                              borderRadius: "12px",
-                              fontSize: "14px",
-                              outline: "none"
-                            }}
-                          />
-                        </div>
-                        <select
-                          value={regStatusFilter}
-                          onChange={(e) => setRegStatusFilter(e.target.value as any)}
-                          style={{
-                            padding: "10px 16px",
-                            border: "1px solid #CBD5E1",
-                            borderRadius: "12px",
-                            fontSize: "14px",
-                            outline: "none",
-                            background: "white",
-                            minWidth: 180,
-                            fontWeight: "600",
-                            color: "#475569"
-                          }}
-                        >
-                          <option value="all">Tất cả trạng thái</option>
-                          <option value="has_topic">Đã có đề tài</option>
-                          <option value="no_topic">Chưa có đề tài</option>
-                          <option value="pending_approval">Chờ duyệt đề tài tự chọn</option>
-                        </select>
-                      </div>
+                    Hệ thống Quản lý Đồ án
+                  </div>
+                  <div style={{
+                    height: 4,
+                    width: 4,
+                    borderRadius: "50%",
+                    background: "rgba(255, 255, 255, 0.3)"
+                  }} />
+                  <div style={{
+                    color: "rgba(255, 255, 255, 0.7)",
+                    fontSize: 12,
+                    fontWeight: 500
+                  }}>
+                    Phân công Hướng dẫn
+                  </div>
+                </div>
 
-                      <div style={{ display: "flex", gap: "12px" }}>
-                        <button
-                          type="button"
-                          onClick={handleOpenBulkManualModal}
-                          style={{
-                            padding: "10px 24px",
-                            background: "#1e3a5f",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "24px",
-                            fontWeight: "800",
-                            fontSize: "14px",
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            boxShadow: "0 4px 12px rgba(30, 58, 95, 0.15)",
-                            transition: "all 0.2s ease"
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
-                        >
-                          <Edit size={16} /> Ghép thủ công SV quá hạn
-                        </button>
+                <h1 style={{
+                  fontSize: 42,
+                  fontWeight: 900,
+                  color: "white",
+                  margin: 0,
+                  letterSpacing: "-0.03em",
+                  lineHeight: 1
+                }}>
+                  Phân công GVHD và <span style={{ color: "#f37021" }}>theo dõi</span>
+                </h1>
 
-                        <button
-                          type="button"
-                          onClick={handleAutoAssignPreview}
-                          style={{
-                            padding: "10px 24px",
-                            background: "#f37021",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "24px",
-                            fontWeight: "800",
-                            fontSize: "14px",
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            boxShadow: "0 4px 12px rgba(243, 112, 33, 0.3)",
-                            transition: "all 0.2s ease"
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
-                        >
-                          <Zap size={16} fill="white" /> Tự động ghép GV
-                        </button>
-                      </div>
-                    </div>
+                <div style={{
+                  fontSize: 16,
+                  color: "rgba(255, 255, 255, 0.7)",
+                  marginTop: 12,
+                  maxWidth: 600,
+                  fontWeight: 500,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap"
+                }}>
+                  <span>Giám sát đăng ký và phân công giảng viên hướng dẫn đợt:</span>
+                  <span style={{
+                    background: "rgba(255, 255, 255, 0.15)",
+                    border: "1px solid rgba(255, 255, 255, 0.3)",
+                    borderRadius: "10px",
+                    padding: "4px 12px",
+                    color: "white",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                  }}>
+                    {periods.find((p) => p.defenseTermId === selectedPeriodId)?.name || "Chưa chọn đợt"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
 
-                    {isStudentsLoading ? (
-                      <div style={{ textAlign: "center", padding: "64px" }}>
-                        <Loader2 size={36} color="#1e3a5f" style={{ animation: "spin 1s linear infinite", margin: "0 auto 16px auto" }} />
-                        <p style={{ color: "#64748b", fontWeight: 600 }}>Đang tải danh sách điều hành đăng ký...</p>
-                      </div>
-                    ) : studentsError ? (
-                      <div style={{ padding: 32, background: "#fee2e2", border: "1px solid #fca5a5", color: "#b91c1c", borderRadius: 16, textAlign: "center", fontWeight: 600 }}>
-                        {studentsError}
-                      </div>
-                    ) : filteredStudents.length === 0 ? (
-                      <div style={{ padding: 48, textAlign: "center", color: "#64748b", fontStyle: "italic", fontWeight: 600 }}>
-                        Không tìm thấy sinh viên nào phù hợp với bộ lọc.
-                      </div>
-                    ) : (
+          {/* 2. Main Content Wrapper */}
+          <div style={{
+            maxWidth: 1600,
+            margin: "-48px auto 0 auto",
+            padding: "0 32px",
+            position: "relative",
+            zIndex: 10
+          }}>
+            {!selectedPeriodId ? (
+              <div style={{
+                background: "white",
+                borderRadius: 28,
+                padding: "80px 40px",
+                border: "1px solid #e2e8f0",
+                boxShadow: "0 10px 30px rgba(15,23,42,0.06)",
+                textAlign: "center",
+                maxWidth: 600,
+                margin: "40px auto"
+              }}>
+                <div style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: "50%",
+                  background: "#eff6ff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 24px auto",
+                  color: "#1e3a5f"
+                }}>
+                  <BookOpen size={40} />
+                </div>
+                <h2 style={{ fontSize: "24px", fontWeight: 800, color: "#0f172a", marginBottom: "12px" }}>
+                  Chưa có đợt bảo vệ hiện hành
+                </h2>
+                <p style={{ fontSize: "15px", color: "#64748b", lineHeight: 1.6, marginBottom: "28px" }}>
+                  Hệ thống chưa ghi nhận đợt đồ án tốt nghiệp hiện hành nào đang diễn ra. Vui lòng tạo đợt mới hoặc kích hoạt đợt tại module Quản lý đợt.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <a
+                    href="/admin/defense-periods"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      height: "48px",
+                      borderRadius: "14px",
+                      background: "#1e3a5f",
+                      color: "white",
+                      fontSize: "15px",
+                      fontWeight: 700,
+                      textDecoration: "none",
+                      transition: "background 0.2s"
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "#12253f"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = "#1e3a5f"}
+                  >
+                    Quản lý đợt bảo vệ
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* 2.1 Tab Navigation (Sticky) */}
+                <div style={{
+                  background: "rgba(255, 255, 255, 0.95)",
+                  backdropFilter: "blur(16px)",
+                  borderRadius: 20,
+                  padding: "8px",
+                  display: "flex",
+                  gap: 4,
+                  boxShadow: "0 15px 30px -10px rgba(0, 0, 0, 0.1)",
+                  marginBottom: 24,
+                  position: "sticky",
+                  top: 16,
+                  zIndex: 100,
+                  border: "1px solid rgba(255, 255, 255, 0.8)",
+                }}>
+                  {[
+                    { key: "overview" as const, label: "Tình hình đăng ký", icon: <Users size={18} />, badge: (overdueCount > 0 || stats.pending > 0) ? `${overdueCount} QH - ${stats.pending} Chờ` : null, badgeColor: "#ef4444" },
+                    { key: "topics-management" as const, label: "Quản lý đề tài và tiến độ", icon: <BookOpen size={18} />, badge: allTopicsList.length ? String(allTopicsList.length) : null, badgeColor: "#1e3a5f" },
+                    { key: "lecturer-quota" as const, label: "Định mức & Điều phối tải Giảng viên", icon: <Award size={18} />, badge: allLecturers.length ? String(allLecturers.length) : null, badgeColor: "#8b5cf6" },
+                    { key: "export" as const, label: "Xuất bản Báo cáo", icon: <Download size={18} />, badge: null, badgeColor: "" },
+                  ].map((tab) => {
+                    const isActive = activeAdminTab === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setActiveAdminTab(tab.key)}
+                        style={{
+                          flex: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 10,
+                          padding: "12px 14px",
+                          borderRadius: 14,
+                          border: "none",
+                          background: isActive ? "#1e3a5f" : "transparent",
+                          color: isActive ? "white" : "#64748b",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          whiteSpace: "nowrap",
+                          cursor: "pointer",
+                          transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                        }}
+                      >
+                        {tab.icon}
+                        {tab.label}
+                        {tab.badge && (
+                          <span style={{
+                            background: isActive ? "white" : tab.badgeColor,
+                            color: isActive ? tab.badgeColor : "white",
+                            padding: "2px 8px",
+                            borderRadius: 8,
+                            fontSize: 11,
+                            fontWeight: 800
+                          }}>
+                            {tab.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 2.2 Dynamic Content Area */}
+                <div style={{
+                  animation: "fadeIn 0.4s ease",
+                  minHeight: 500
+                }}>
+                  {/* TAB 1: OVERVIEW */}
+                  {/* TAB 1: OVERVIEW */}
+                  {activeAdminTab === "overview" && (() => {
+                    const currentPeriod = periods.find((p) => p.defenseTermId === selectedPeriodId);
+                    const currentStatus = currentPeriod?.status || "Draft";
+
+                    // Calculations for detailed progress stats
+                    const totalStudentsCount = allStudents.length;
+                    const regCount = registeredCount;
+                    const complPercent = completionPercent;
+
+                    const approvedCount = allTopicsList.filter(
+                      (t) => mapApiStatusToDisplay(t.status) === "Đã duyệt"
+                    ).length;
+                    const pendingCount = allTopicsList.filter(
+                      (t) => mapApiStatusToDisplay(t.status) === "Chờ duyệt"
+                    ).length;
+                    const revisionCount = allTopicsList.filter(
+                      (t) => mapApiStatusToDisplay(t.status) === "Cần sửa đổi"
+                    ).length;
+                    const rejectedCount = allTopicsList.filter(
+                      (t) => mapApiStatusToDisplay(t.status) === "Từ chối"
+                    ).length;
+
+                    const catalogTopicsCount = allTopicsList.filter(t => t.type === "CATALOG").length;
+                    const selfTopicsCount = allTopicsList.filter(t => t.type !== "CATALOG").length;
+
+                    // Sửa theo yêu cầu: tính cả đang chờ (pendingCount) + đã duyệt (approvedCount) / tổng sinh viên (totalStudentsCount)
+                    const assignedAdvisorCount = approvedCount + pendingCount;
+                    const noAdvisorCount = allTopicsList.filter(t => !t.supervisorLecturerCode).length;
+                    const advisorAssignPercent = totalStudentsCount > 0
+                      ? Math.round((assignedAdvisorCount / totalStudentsCount) * 100)
+                      : 0;
+
+                    const steps = [
+                      { key: "Draft", label: "Soạn thảo", desc: "Khởi tạo đợt" },
+                      { key: "Registration", label: "Đăng ký & Phân công", desc: "Đăng ký & Phân công" },
+                      { key: "ProgressTracking", label: "Tiến độ", desc: "Theo dõi thực hiện" },
+                      { key: "CommitteePreparation", label: "Hội đồng", desc: "Chuẩn bị hội đồng" },
+                      { key: "Running", label: "Bảo vệ", desc: "Chấm điểm & Bảo vệ" },
+                      { key: "Finalization", label: "Hậu bảo vệ", desc: "Tổng kết & Nộp lại" },
+                      { key: "Archived", label: "Đóng & Lưu trữ", desc: "Kết thúc & Lưu trữ" },
+                    ];
+
+                    const statusOrder: Record<string, number> = {
+                      draft: 0,
+                      registration: 1,
+                      assignment: 1,
+                      progresstracking: 2,
+                      committeepreparation: 3,
+                      running: 4,
+                      paused: 4,
+                      scoringlocked: 5,
+                      finalization: 5,
+                      finalized: 5,
+                      published: 5,
+                      closed: 6,
+                      archived: 6
+                    };
+
+                    const normalizedKey = String(currentStatus).toLowerCase().trim();
+                    const currentIndex = statusOrder[normalizedKey] ?? 0;
+
+                    const milestoneStatusOrder: Record<string, number> = {
+                      draft: 0,
+                      registration: 1,
+                      assignment: 1,
+                      progresstracking: 2,
+                      committeepreparation: 3,
+                      running: 4,
+                      paused: 4,
+                      scoringlocked: 5,
+                      finalization: 5,
+                      finalized: 5,
+                      published: 5,
+                      closed: 5,
+                      archived: 5
+                    };
+                    const currentMilestoneIndex = milestoneStatusOrder[normalizedKey] ?? 0;
+
+                    const displaySteps = milestoneTemplates.length > 0
+                      ? milestoneTemplates.map((m: any) => ({
+                        key: m.milestoneTemplateCode,
+                        label: m.name,
+                        desc: m.deadline ? `Hạn: ${new Date(m.deadline).toLocaleDateString("vi-VN")}` : m.description || "",
+                        ordinal: m.ordinal
+                      }))
+                      : steps;
+
+                    return (
                       <>
+                        {/* Detailed Progress Statistics Header */}
+                        <div style={{
+                          background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+                          borderRadius: "16px",
+                          border: "1px solid #e2e8f0",
+                          padding: "24px",
+                          marginBottom: "32px",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
+                        }}>
+                          {/* Detailed Progress Stats Grid */}
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
+                            {/* Card 1: Sinh viên đăng ký */}
+                            <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Tỷ lệ đăng ký đề tài</span>
+                                <Users size={16} color="#3b82f6" />
+                              </div>
+                              <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                                <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{regCount}</span>
+                                <span style={{ fontSize: "12px", color: "#64748b" }}>/ {totalStudentsCount} SV</span>
+                                <span style={{ marginLeft: "auto", fontSize: "12px", fontWeight: "800", color: "#3b82f6", background: "#dbeafe", padding: "2px 6px", borderRadius: "6px" }}>
+                                  {complPercent}%
+                                </span>
+                              </div>
+                              <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden", marginTop: "12px" }}>
+                                <div style={{ width: `${complPercent}%`, height: "100%", background: "#3b82f6", borderRadius: "3px" }} />
+                              </div>
+                            </div>
+
+                            {/* Card 2: Phê duyệt đề tài */}
+                            <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Trạng thái phê duyệt</span>
+                                <CheckCircle size={16} color="#10b981" />
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", fontSize: "12px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#166534", fontWeight: "700" }}>
+                                  <span>Đã duyệt:</span> <span>{approvedCount}</span>
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#b45309", fontWeight: "700" }}>
+                                  <span>Chờ duyệt:</span> <span>{pendingCount}</span>
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#92400e", fontWeight: "700" }}>
+                                  <span>Cần sửa:</span> <span>{revisionCount}</span>
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#991b1b", fontWeight: "700" }}>
+                                  <span>Từ chối:</span> <span>{rejectedCount}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card 3: Phân loại đề tài */}
+                            <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Phân loại nguồn đề tài</span>
+                                <BookOpen size={16} color="#8b5cf6" />
+                              </div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#1e293b", fontWeight: "700" }}>
+                                  <span style={{ color: "#64748b", fontWeight: "600" }}>Đề tài Catalog:</span>
+                                  <span style={{ background: "#f3e8ff", color: "#6b21a8", padding: "1px 6px", borderRadius: "4px" }}>{catalogTopicsCount}</span>
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#1e293b", fontWeight: "700" }}>
+                                  <span style={{ color: "#64748b", fontWeight: "600" }}>Đề tài Tự chọn:</span>
+                                  <span style={{ background: "#fef3c7", color: "#92400e", padding: "1px 6px", borderRadius: "4px" }}>{selfTopicsCount}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card 4: Tỷ lệ phân công GVHD */}
+                            <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Tỷ lệ phân công GVHD</span>
+                                <Award size={16} color="#f37021" />
+                              </div>
+                              <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                                <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{assignedAdvisorCount}</span>
+                                <span style={{ fontSize: "12px", color: "#64748b" }}>/ {totalStudentsCount} sinh viên</span>
+                                <span style={{ marginLeft: "auto", fontSize: "12px", fontWeight: "800", color: "#f37021", background: "#fff7ed", padding: "2px 6px", borderRadius: "6px" }}>
+                                  {advisorAssignPercent}%
+                                </span>
+                              </div>
+                              <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden", marginTop: "12px" }}>
+                                <div style={{ width: `${advisorAssignPercent}%`, height: "100%", background: "#f37021", borderRadius: "3px" }} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Student Table */}
+                        <div style={{
+                          background: "white",
+                          borderRadius: "24px",
+                          border: "1px solid #D9E1F2",
+                          padding: "24px",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                        }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "16px" }}>
+                            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", flex: 1 }}>
+                              <div style={{ position: "relative", minWidth: 320 }}>
+                                <Search size={18} color="#9CA3AF" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }} />
+                                <input
+                                  type="text"
+                                  placeholder="Tìm theo Mã SV, Tên SV, Lớp, Đề tài, Giảng viên..."
+                                  value={regSearchTerm}
+                                  onChange={(e) => setRegSearchTerm(e.target.value)}
+                                  style={{
+                                    width: "100%",
+                                    padding: "10px 14px 10px 42px",
+                                    border: "1px solid #CBD5E1",
+                                    borderRadius: "12px",
+                                    fontSize: "14px",
+                                    outline: "none"
+                                  }}
+                                />
+                              </div>
+                              <select
+                                value={regStatusFilter}
+                                onChange={(e) => setRegStatusFilter(e.target.value as any)}
+                                style={{
+                                  padding: "10px 16px",
+                                  border: "1px solid #CBD5E1",
+                                  borderRadius: "12px",
+                                  fontSize: "14px",
+                                  outline: "none",
+                                  background: "white",
+                                  minWidth: 180,
+                                  fontWeight: "600",
+                                  color: "#475569"
+                                }}
+                              >
+                                <option value="all">Tất cả trạng thái</option>
+                                <option value="has_topic">Đã có đề tài</option>
+                                <option value="no_topic">Chưa có đề tài</option>
+                                <option value="pending_approval">Chờ duyệt đề tài tự chọn</option>
+                              </select>
+                            </div>
+
+                            <div style={{ display: "flex", gap: "12px" }}>
+                              <button
+                                type="button"
+                                onClick={handleOpenBulkManualModal}
+                                style={{
+                                  padding: "10px 24px",
+                                  background: "#1e3a5f",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "24px",
+                                  fontWeight: "800",
+                                  fontSize: "14px",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  boxShadow: "0 4px 12px rgba(30, 58, 95, 0.15)",
+                                  transition: "all 0.2s ease"
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+                              >
+                                <Edit size={16} /> Ghép thủ công SV quá hạn
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={handleAutoAssignPreview}
+                                style={{
+                                  padding: "10px 24px",
+                                  background: "#f37021",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "24px",
+                                  fontWeight: "800",
+                                  fontSize: "14px",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  boxShadow: "0 4px 12px rgba(243, 112, 33, 0.3)",
+                                  transition: "all 0.2s ease"
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+                              >
+                                <Zap size={16} fill="white" /> Tự động ghép GV
+                              </button>
+                            </div>
+                          </div>
+
+                          {isStudentsLoading ? (
+                            <div style={{ textAlign: "center", padding: "64px" }}>
+                              <Loader2 size={36} color="#1e3a5f" style={{ animation: "spin 1s linear infinite", margin: "0 auto 16px auto" }} />
+                              <p style={{ color: "#64748b", fontWeight: 600 }}>Đang tải danh sách điều hành đăng ký...</p>
+                            </div>
+                          ) : studentsError ? (
+                            <div style={{ padding: 32, background: "#fee2e2", border: "1px solid #fca5a5", color: "#b91c1c", borderRadius: 16, textAlign: "center", fontWeight: 600 }}>
+                              {studentsError}
+                            </div>
+                          ) : filteredStudents.length === 0 ? (
+                            <div style={{ padding: 48, textAlign: "center", color: "#64748b", fontStyle: "italic", fontWeight: 600 }}>
+                              Không tìm thấy sinh viên nào phù hợp với bộ lọc.
+                            </div>
+                          ) : (
+                            <>
+                              <div style={{ overflowX: "auto" }}>
+                                <table style={{ width: "100%", fontSize: "14px", borderCollapse: "separate", borderSpacing: "0 8px" }}>
+                                  <thead>
+                                    <tr style={{ background: "#f8fafc", color: "#475569" }}>
+                                      <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Sinh viên</th>
+                                      <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Khoa</th>
+                                      <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Lớp</th>
+                                      {regStatusFilter === "no_topic" && (
+                                        <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Trạng thái đăng ký</th>
+                                      )}
+                                      <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Đề tài luận văn</th>
+                                      <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Trạng thái đề tài</th>
+                                      <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Hành động</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {filteredStudents
+                                      .slice((regCurrentPage - 1) * 10, regCurrentPage * 10)
+                                      .map((student) => {
+                                        const topic = getStudentRegistrationInfo(student.studentCode);
+                                        return (
+                                          <tr key={student.studentCode} style={{ background: "#fcfdfe", borderRadius: "16px", border: "1px solid #f1f5f9" }}>
+                                            <td style={{ padding: "16px", borderRadius: "12px 0 0 12px" }}>
+                                              <div style={{ fontWeight: "700", color: "#1e293b" }}>{student.fullName}</div>
+                                              <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{student.studentCode}</div>
+                                            </td>
+                                            <td style={{ padding: "16px", color: "#475569", fontWeight: "600" }}>
+                                              {student.departmentCode || "-"}
+                                            </td>
+                                            <td style={{ padding: "16px", color: "#475569", fontWeight: "600" }}>
+                                              {student.classCode || "-"}
+                                            </td>
+                                            {regStatusFilter === "no_topic" && (
+                                              <td style={{ padding: "16px" }}>
+                                                <span style={{
+                                                  display: "inline-block",
+                                                  padding: "6px 12px",
+                                                  borderRadius: "99px",
+                                                  fontSize: "12px",
+                                                  fontWeight: "800",
+                                                  background: "#fee2e2",
+                                                  color: "#991b1b"
+                                                }}>
+                                                  Chưa đăng ký
+                                                </span>
+                                              </td>
+                                            )}
+                                            <td style={{ padding: "16px", maxWidth: 360 }}>
+                                              {topic ? (
+                                                <div>
+                                                  <div style={{ fontWeight: "700", color: "#1e3a5f", lineHeight: "1.4" }} title={topic.title}>{topic.title}</div>
+                                                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px", fontWeight: "600" }}>
+                                                    GVHD: {allLecturers.find(l => l.lecturerCode === topic.supervisorLecturerCode)?.fullName || topic.supervisorLecturerCode}
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <span style={{ color: "#94a3b8", fontStyle: "italic", fontWeight: "500" }}>Chưa chỉ định đề tài & GVHD</span>
+                                              )}
+                                            </td>
+                                            <td style={{ padding: "16px" }}>
+                                              {topic ? (
+                                                <span style={{
+                                                  display: "inline-block",
+                                                  padding: "6px 12px",
+                                                  borderRadius: "99px",
+                                                  fontSize: "12px",
+                                                  fontWeight: "800",
+                                                  background: topic.status === "Đã duyệt" ? "#dcfce7" : topic.status === "Từ chối" ? "#fee2e2" : "#fef3c7",
+                                                  color: topic.status === "Đã duyệt" ? "#166534" : topic.status === "Từ chối" ? "#991b1b" : "#b45309"
+                                                }}>
+                                                  {topic.status}
+                                                </span>
+                                              ) : (
+                                                <span style={{ color: "#94a3b8", fontWeight: "500" }}>-</span>
+                                              )}
+                                            </td>
+                                            <td style={{ padding: "16px", borderRadius: "0 12px 12px 0", textAlign: "left" }}>
+                                              {(() => {
+                                                if (topic) {
+                                                  const displayMap: TopicDisplay = {
+                                                    topicID: topic.topicID,
+                                                    topicCode: topic.topicCode,
+                                                    title: topic.title,
+                                                    description: topic.summary || "",
+                                                    studentCode: topic.proposerStudentCode || "",
+                                                    studentName: student.fullName || "",
+                                                    submissionDate: topic.createdAt || "",
+                                                    status: mapApiStatusToDisplay(topic.status),
+                                                    category: topic.type === "CATALOG" ? "Đề tài catalog" : "Đề tài tự chọn",
+                                                    comments: topic.lecturerComment || "",
+                                                    studentProfile: student,
+                                                    supervisorLecturerCode: topic.supervisorLecturerCode,
+                                                  };
+
+                                                  const isSelfPending = topic.type === "SELF" && mapApiStatusToDisplay(topic.status) === "Chờ duyệt";
+
+                                                  return (
+                                                    <div style={{
+                                                      display: "grid",
+                                                      gridTemplateColumns: "repeat(2, 32px)",
+                                                      gap: "8px",
+                                                      justifyContent: "start",
+                                                      alignItems: "center",
+                                                    }}>
+                                                      {/* Nút xem chi tiết */}
+                                                      <button
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          openDetailModal(displayMap);
+                                                        }}
+                                                        title="Xem chi tiết đề tài"
+                                                        style={{
+                                                          padding: "8px",
+                                                          background: "#1F3C88",
+                                                          color: "white",
+                                                          border: "none",
+                                                          borderRadius: "6px",
+                                                          fontSize: "14px",
+                                                          cursor: "pointer",
+                                                          transition: "all 0.2s ease",
+                                                          display: "flex",
+                                                          alignItems: "center",
+                                                          justifyContent: "center",
+                                                          width: "32px",
+                                                          height: "32px",
+                                                        }}
+                                                        onMouseEnter={(e) => {
+                                                          e.currentTarget.style.background = "#162B61";
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                          e.currentTarget.style.background = "#1F3C88";
+                                                        }}
+                                                      >
+                                                        <Eye size={16} />
+                                                      </button>
+
+                                                      {isSelfPending && (
+                                                        <>
+                                                          <button
+                                                            onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              openConfirmationModal(displayMap);
+                                                            }}
+                                                            title="Duyệt đề tài"
+                                                            disabled={
+                                                              updatingStatus ===
+                                                              `approve-${topic.topicID}`
+                                                            }
+                                                            style={{
+                                                              padding: "8px",
+                                                              background:
+                                                                updatingStatus ===
+                                                                  `approve-${topic.topicID}`
+                                                                  ? "#9CA3AF"
+                                                                  : "#22C55E",
+                                                              color: "white",
+                                                              border: "none",
+                                                              borderRadius: "6px",
+                                                              cursor:
+                                                                updatingStatus ===
+                                                                  `approve-${topic.topicID}`
+                                                                  ? "not-allowed"
+                                                                  : "pointer",
+                                                              transition: "all 0.2s ease",
+                                                              display: "flex",
+                                                              alignItems: "center",
+                                                              justifyContent: "center",
+                                                              width: "32px",
+                                                              height: "32px",
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                              if (
+                                                                updatingStatus !==
+                                                                `approve-${topic.topicID}`
+                                                              ) {
+                                                                e.currentTarget.style.background =
+                                                                  "#16A34A";
+                                                              }
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                              if (
+                                                                updatingStatus !==
+                                                                `approve-${topic.topicID}`
+                                                              ) {
+                                                                e.currentTarget.style.background =
+                                                                  "#22C55E";
+                                                              }
+                                                            }}
+                                                          >
+                                                            {updatingStatus ===
+                                                              `approve-${topic.topicID}` ? (
+                                                              <Loader2
+                                                                size={16}
+                                                                style={{
+                                                                  animation: "spin 1s linear infinite",
+                                                                }}
+                                                              />
+                                                            ) : (
+                                                              <CheckCircle size={16} />
+                                                            )}
+                                                          </button>
+
+                                                          <button
+                                                            onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              openCommentModal(
+                                                                "revision",
+                                                                topic.topicID,
+                                                                topic.title,
+                                                              );
+                                                            }}
+                                                            title="Yêu cầu sửa đổi đề tài"
+                                                            disabled={
+                                                              updatingStatus ===
+                                                              `revision-${topic.topicID}`
+                                                            }
+                                                            style={{
+                                                              padding: "8px",
+                                                              background:
+                                                                updatingStatus ===
+                                                                  `revision-${topic.topicID}`
+                                                                  ? "#9CA3AF"
+                                                                  : "#F59E0B",
+                                                              color: "white",
+                                                              border: "none",
+                                                              borderRadius: "6px",
+                                                              cursor:
+                                                                updatingStatus ===
+                                                                  `revision-${topic.topicID}`
+                                                                  ? "not-allowed"
+                                                                  : "pointer",
+                                                              transition: "all 0.2s ease",
+                                                              display: "flex",
+                                                              alignItems: "center",
+                                                              justifyContent: "center",
+                                                              width: "32px",
+                                                              height: "32px",
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                              if (
+                                                                updatingStatus !==
+                                                                `revision-${topic.topicID}`
+                                                              ) {
+                                                                e.currentTarget.style.background =
+                                                                  "#D97706";
+                                                              }
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                              if (
+                                                                updatingStatus !==
+                                                                `revision-${topic.topicID}`
+                                                              ) {
+                                                                e.currentTarget.style.background =
+                                                                  "#F59E0B";
+                                                              }
+                                                            }}
+                                                          >
+                                                            {updatingStatus ===
+                                                              `revision-${topic.topicID}` ? (
+                                                              <Loader2
+                                                                size={16}
+                                                                style={{
+                                                                  animation: "spin 1s linear infinite",
+                                                                }}
+                                                              />
+                                                            ) : (
+                                                              <Edit size={16} />
+                                                            )}
+                                                          </button>
+
+                                                          <button
+                                                            onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              openCommentModal(
+                                                                "reject",
+                                                                topic.topicID,
+                                                                topic.title,
+                                                              );
+                                                            }}
+                                                            title="Từ chối đề tài"
+                                                            disabled={
+                                                              updatingStatus ===
+                                                              `reject-${topic.topicID}`
+                                                            }
+                                                            style={{
+                                                              padding: "8px",
+                                                              background:
+                                                                updatingStatus ===
+                                                                  `reject-${topic.topicID}`
+                                                                  ? "#9CA3AF"
+                                                                  : "#EF4444",
+                                                              color: "white",
+                                                              border: "none",
+                                                              borderRadius: "6px",
+                                                              cursor:
+                                                                updatingStatus ===
+                                                                  `reject-${topic.topicID}`
+                                                                  ? "not-allowed"
+                                                                  : "pointer",
+                                                              transition: "all 0.2s ease",
+                                                              display: "flex",
+                                                              alignItems: "center",
+                                                              justifyContent: "center",
+                                                              width: "32px",
+                                                              height: "32px",
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                              if (
+                                                                updatingStatus !==
+                                                                `reject-${topic.topicID}`
+                                                              ) {
+                                                                e.currentTarget.style.background =
+                                                                  "#DC2626";
+                                                              }
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                              if (
+                                                                updatingStatus !==
+                                                                `reject-${topic.topicID}`
+                                                              ) {
+                                                                e.currentTarget.style.background =
+                                                                  "#EF4444";
+                                                              }
+                                                            }}
+                                                          >
+                                                            {updatingStatus ===
+                                                              `reject-${topic.topicID}` ? (
+                                                              <Loader2
+                                                                size={16}
+                                                                style={{
+                                                                  animation: "spin 1s linear infinite",
+                                                                }}
+                                                              />
+                                                            ) : (
+                                                              <X size={16} />
+                                                            )}
+                                                          </button>
+                                                        </>
+                                                      )}
+                                                    </div>
+                                                  );
+                                                }
+
+                                                // Topic does not exist -> manual assign
+                                                return (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setManualAssignModal({ isOpen: true, student });
+                                                      setManualTopicTitle("");
+                                                      setManualSupervisorCode("");
+                                                    }}
+                                                    style={{
+                                                      padding: "8px 16px",
+                                                      background: "#f37021",
+                                                      border: "none",
+                                                      borderRadius: "8px",
+                                                      fontSize: "13px",
+                                                      fontWeight: "800",
+                                                      color: "white",
+                                                      cursor: "pointer",
+                                                      boxShadow: "0 2px 6px rgba(243, 112, 33, 0.15)",
+                                                      transition: "all 0.2s ease"
+                                                    }}
+                                                    onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
+                                                    onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+                                                  >
+                                                    Gán thủ công
+                                                  </button>
+                                                );
+                                              })()}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                  </tbody>
+                                </table>
+                              </div>
+                              {renderPagination(regCurrentPage, Math.ceil(filteredStudents.length / 10), setRegCurrentPage)}
+                            </>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+
+                  {/* TAB 2: TOPICS MANAGEMENT (Embedded Module) */}
+                  {activeAdminTab === "topics-management" && (() => {
+                    // Lọc theo đợt hiện tại/đã chọn
+                    const termTopics = allTopicsList.filter(
+                      (t) => !selectedPeriodId || t.defenseTermId === selectedPeriodId
+                    );
+
+                    const filteredTopics = termTopics.filter(topic => {
+                      const s = topicsSearchTerm.trim().toLowerCase();
+                      const student = allStudents.find(st => st.studentCode === topic.proposerStudentCode);
+                      const matchesSearch = !s ||
+                        (topic.topicCode || "").toLowerCase().includes(s) ||
+                        (topic.title || "").toLowerCase().includes(s) ||
+                        (topic.proposerStudentCode || "").toLowerCase().includes(s) ||
+                        (student?.fullName || "").toLowerCase().includes(s);
+
+                      const milestone = topicMilestones[topic.topicID];
+
+                      // Lọc theo mốc tiến độ hiện tại
+                      const matchesMilestone = topicsTypeFilter === "all" || (milestone && milestone.milestoneTemplateCode === topicsTypeFilter);
+
+                      // Lọc theo trạng thái thực hiện mốc
+                      const milestoneState = milestone?.state || "Chờ khởi động";
+                      const matchesMilestoneState = topicsStatusFilter === "all" || (() => {
+                        const filterVal = topicsStatusFilter.toLowerCase().trim();
+                        const stateVal = milestoneState.toLowerCase().trim();
+                        if (filterVal === "chờ khởi động") return stateVal.includes("khởi động");
+                        if (filterVal === "đang thực hiện") return stateVal.includes("thực hiện") || stateVal.includes("tiến hành") || stateVal.includes("draft") || stateVal.includes("notstarted") || stateVal.includes("progress");
+                        if (filterVal === "chờ duyệt") return stateVal.includes("chờ duyệt") || stateVal.includes("waiting") || stateVal.includes("chờ");
+                        if (filterVal === "đã hoàn thành") return stateVal.includes("hoàn thành") || stateVal.includes("đã xong") || stateVal.includes("approved") || stateVal.includes("committee") || stateVal.includes("đạt");
+                        if (filterVal === "cần sửa đổi") return stateVal.includes("sửa đổi") || stateVal.includes("cần sửa") || stateVal.includes("revision");
+                        if (filterVal === "quá hạn") return stateVal.includes("trễ") || stateVal.includes("quá hạn") || stateVal.includes("overdue");
+                        return stateVal === filterVal;
+                      })();
+
+                      return matchesSearch && matchesMilestone && matchesMilestoneState;
+                    });
+                    const paginatedTopics = filteredTopics.slice((topicsCurrentPage - 1) * 10, topicsCurrentPage * 10);
+
+                    const currentPeriod = periods.find((p) => p.defenseTermId === selectedPeriodId);
+                    const currentStatus = currentPeriod?.status || "Draft";
+
+                    // Calculations for detailed progress stats
+                    const totalStudentsCount = allStudents.length;
+                    const regCount = registeredCount;
+                    const complPercent = completionPercent;
+
+                    const approvedCount = termTopics.filter(
+                      (t) => mapApiStatusToDisplay(t.status) === "Đã duyệt"
+                    ).length;
+                    const pendingCount = termTopics.filter(
+                      (t) => mapApiStatusToDisplay(t.status) === "Chờ duyệt"
+                    ).length;
+                    const revisionCount = termTopics.filter(
+                      (t) => mapApiStatusToDisplay(t.status) === "Cần sửa đổi"
+                    ).length;
+                    const rejectedCount = termTopics.filter(
+                      (t) => mapApiStatusToDisplay(t.status) === "Từ chối"
+                    ).length;
+
+                    const catalogTopicsCount = termTopics.filter(t => t.type === "CATALOG").length;
+                    const selfTopicsCount = termTopics.filter(t => t.type !== "CATALOG").length;
+
+                    const assignedAdvisorCount = termTopics.filter(t => t.supervisorLecturerCode).length;
+                    const noAdvisorCount = termTopics.filter(t => !t.supervisorLecturerCode).length;
+                    const advisorAssignPercent = termTopics.length > 0
+                      ? Math.round((assignedAdvisorCount / termTopics.length) * 100)
+                      : 0;
+
+                    const steps = [
+                      { key: "Draft", label: "Soạn thảo", desc: "Khởi tạo đợt" },
+                      { key: "Registration", label: "Đăng ký & Phân công", desc: "Đăng ký & Phân công" },
+                      { key: "ProgressTracking", label: "Tiến độ", desc: "Theo dõi thực hiện" },
+                      { key: "CommitteePreparation", label: "Hội đồng", desc: "Chuẩn bị hội đồng" },
+                      { key: "Running", label: "Bảo vệ", desc: "Chấm điểm & Bảo vệ" },
+                      { key: "Finalization", label: "Hậu bảo vệ", desc: "Tổng kết & Nộp lại" },
+                      { key: "Archived", label: "Đóng & Lưu trữ", desc: "Kết thúc & Lưu trữ" },
+                    ];
+
+                    const statusOrder: Record<string, number> = {
+                      draft: 0,
+                      registration: 1,
+                      assignment: 1,
+                      progresstracking: 2,
+                      committeepreparation: 3,
+                      running: 4,
+                      paused: 4,
+                      scoringlocked: 5,
+                      finalization: 5,
+                      finalized: 5,
+                      published: 5,
+                      closed: 6,
+                      archived: 6
+                    };
+
+                    const normalizedKey = String(currentStatus).toLowerCase().trim();
+                    const currentIndex = statusOrder[normalizedKey] ?? 0;
+
+                    const milestoneStatusOrder: Record<string, number> = {
+                      draft: 0,
+                      registration: 1,
+                      assignment: 1,
+                      progresstracking: 2,
+                      committeepreparation: 3,
+                      running: 4,
+                      paused: 4,
+                      scoringlocked: 5,
+                      finalization: 5,
+                      finalized: 5,
+                      published: 5,
+                      closed: 5,
+                      archived: 5
+                    };
+                    const currentMilestoneIndex = milestoneStatusOrder[normalizedKey] ?? 0;
+
+                    const displaySteps = milestoneTemplates.length > 0
+                      ? milestoneTemplates.map((m: any) => ({
+                        key: m.milestoneTemplateCode,
+                        label: m.name,
+                        desc: m.deadline ? `Hạn: ${new Date(m.deadline).toLocaleDateString("vi-VN")}` : m.description || "",
+                        ordinal: m.ordinal
+                      }))
+                      : steps;
+
+                    return (
+                      <div style={{
+                        background: "white",
+                        borderRadius: "24px",
+                        border: "1px solid #D9E1F2",
+                        padding: "24px",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                      }}>
+                        {/* Detailed Progress Statistics Header */}
+                        <div style={{
+                          background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+                          borderRadius: "16px",
+                          border: "1px solid #e2e8f0",
+                          padding: "24px",
+                          marginBottom: "32px",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
+                        }}>
+                          {/* Detailed Progress Stats Grid */}
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
+                            {/* Card 1: Tổng số đề tài */}
+                            <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Đề tài đang thực hiện</span>
+                                <Users size={16} color="#3b82f6" />
+                              </div>
+                              <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                                <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{termTopics.length}</span>
+                                <span style={{ fontSize: "12px", color: "#64748b" }}>đề tài</span>
+                                <span style={{ marginLeft: "auto", fontSize: "12px", fontWeight: "800", color: "#3b82f6", background: "#dbeafe", padding: "2px 6px", borderRadius: "6px" }}>
+                                  {termTopics.length > 0 ? 100 : 0}%
+                                </span>
+                              </div>
+                              <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden", marginTop: "12px" }}>
+                                <div style={{ width: "100%", height: "100%", background: "#3b82f6", borderRadius: "3px" }} />
+                              </div>
+                            </div>
+
+                            {/* Card 2: Phân bổ mốc tiến độ */}
+                            <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Phân bổ mốc tiến độ</span>
+                                <Clock size={16} color="#8b5cf6" />
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", fontSize: "11px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#475569", fontWeight: "700" }}>
+                                  <span>Đăng ký:</span> <span style={{ color: "#1e293b" }}>{termTopics.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_REG").length}</span>
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#475569", fontWeight: "700" }}>
+                                  <span>Báo cáo 1:</span> <span style={{ color: "#1e293b" }}>{termTopics.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_PROG1").length}</span>
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#475569", fontWeight: "700" }}>
+                                  <span>Báo cáo 2:</span> <span style={{ color: "#1e293b" }}>{termTopics.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_PROG2").length}</span>
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#475569", fontWeight: "700" }}>
+                                  <span>Hoàn thiện:</span> <span style={{ color: "#1e293b" }}>{termTopics.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_FULL").length}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card 3: Trạng thái thực hiện mốc */}
+                            <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Trạng thái thực hiện</span>
+                                <CheckCircle size={16} color="#10b981" />
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", fontSize: "11px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#166534", fontWeight: "700" }}>
+                                  <span>Đạt/Xong:</span> <span>{termTopics.filter(t => {
+                                    const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
+                                    return st.includes("approved") || st.includes("committee") || st.includes("hoàn thành") || st.includes("đã xong");
+                                  }).length}</span>
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#b45309", fontWeight: "700" }}>
+                                  <span>Chờ duyệt:</span> <span>{termTopics.filter(t => {
+                                    const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
+                                    return st.includes("supervisor") || st.includes("chờ");
+                                  }).length}</span>
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#c2410c", fontWeight: "700" }}>
+                                  <span>Cần sửa:</span> <span>{termTopics.filter(t => {
+                                    const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
+                                    return st.includes("revision") || st.includes("sửa");
+                                  }).length}</span>
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#991b1b", fontWeight: "700" }}>
+                                  <span>Trễ hạn:</span> <span>{termTopics.filter(t => {
+                                    const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
+                                    return st.includes("overdue") || st.includes("trễ") || st.includes("quá hạn");
+                                  }).length}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card 4: Tỷ lệ đúng hạn */}
+                            <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Tỷ lệ đúng hạn tiến độ</span>
+                                <Award size={16} color="#f37021" />
+                              </div>
+                              <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                                <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>
+                                  {termTopics.filter(t => {
+                                    const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
+                                    return !st.includes("overdue") && !st.includes("trễ") && !st.includes("quá hạn");
+                                  }).length}
+                                </span>
+                                <span style={{ fontSize: "12px", color: "#64748b" }}>/ {termTopics.length} đề tài</span>
+                                <span style={{
+                                  marginLeft: "auto",
+                                  fontSize: "12px",
+                                  fontWeight: "800",
+                                  color: "#f37021",
+                                  background: "#fff7ed",
+                                  padding: "2px 6px",
+                                  borderRadius: "6px"
+                                }}>
+                                  {(() => {
+                                    const onTimeCount = termTopics.filter(t => {
+                                      const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
+                                      return !st.includes("overdue") && !st.includes("trễ") && !st.includes("quá hạn");
+                                    }).length;
+                                    return termTopics.length > 0 ? Math.round((onTimeCount / termTopics.length) * 100) : 100;
+                                  })()}%
+                                </span>
+                              </div>
+                              <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden", marginTop: "12px" }}>
+                                <div style={{
+                                  width: `${(() => {
+                                    const onTimeCount = termTopics.filter(t => {
+                                      const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
+                                      return !st.includes("overdue") && !st.includes("trễ") && !st.includes("quá hạn");
+                                    }).length;
+                                    return termTopics.length > 0 ? Math.round((onTimeCount / termTopics.length) * 100) : 100;
+                                  })()}%`,
+                                  height: "100%",
+                                  background: "#f37021",
+                                  borderRadius: "3px"
+                                }} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+
+
+                        {/* Toolbar */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "16px" }}>
+                          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", flex: 1 }}>
+                            <div style={{ position: "relative", minWidth: 300 }}>
+                              <Search size={18} color="#9CA3AF" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }} />
+                              <input
+                                type="text"
+                                placeholder="Tìm mã đề tài, tên đề tài, mã sinh viên, tên sinh viên..."
+                                value={topicsSearchTerm}
+                                onChange={(e) => setTopicsSearchTerm(e.target.value)}
+                                style={{
+                                  width: "100%",
+                                  padding: "10px 14px 10px 42px",
+                                  border: "1px solid #CBD5E1",
+                                  borderRadius: "12px",
+                                  fontSize: "14px",
+                                  outline: "none"
+                                }}
+                              />
+                            </div>
+                            <select
+                              value={topicsTypeFilter}
+                              onChange={(e) => setTopicsTypeFilter(e.target.value)}
+                              style={{
+                                padding: "10px 16px",
+                                border: "1px solid #CBD5E1",
+                                borderRadius: "12px",
+                                fontSize: "14px",
+                                outline: "none",
+                                background: "white",
+                                fontWeight: "600",
+                                color: "#475569"
+                              }}
+                            >
+                              <option value="all">Tất cả mốc tiến độ</option>
+                              <option value="MS_REG">Đăng ký đề tài</option>
+                              <option value="MS_PROG1">Đề cương</option>
+                              <option value="MS_PROG2">Báo cáo</option>
+                              <option value="MS_FULL">Hoàn thiện khóa luận</option>
+                            </select>
+                            <select
+                              value={topicsStatusFilter}
+                              onChange={(e) => setTopicsStatusFilter(e.target.value)}
+                              style={{
+                                padding: "10px 16px",
+                                border: "1px solid #CBD5E1",
+                                borderRadius: "12px",
+                                fontSize: "14px",
+                                outline: "none",
+                                background: "white",
+                                fontWeight: "600",
+                                color: "#475569"
+                              }}
+                            >
+                              <option value="all">Tất cả trạng thái tiến độ</option>
+                              <option value="Chờ khởi động">Chờ khởi động</option>
+                              <option value="Đang thực hiện">Đang thực hiện</option>
+                              <option value="Chờ duyệt">Chờ duyệt</option>
+                              <option value="Đã hoàn thành">Đã hoàn thành/Đạt</option>
+                              <option value="Cần sửa đổi">Cần sửa đổi</option>
+                              <option value="Quá hạn">Quá hạn/Trễ hạn</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Topics List Table */}
                         <div style={{ overflowX: "auto" }}>
                           <table style={{ width: "100%", fontSize: "14px", borderCollapse: "separate", borderSpacing: "0 8px" }}>
                             <thead>
                               <tr style={{ background: "#f8fafc", color: "#475569" }}>
-                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Sinh viên</th>
-                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Bộ môn</th>
-                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Lớp</th>
-                                {regStatusFilter === "no_topic" && (
-                                  <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Trạng thái đăng ký</th>
-                                )}
-                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Đề tài luận văn</th>
-                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Trạng thái đề tài</th>
-                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Hành động</th>
+                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Mã đề tài</th>
+                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Thông tin đề tài & Sinh viên</th>
+                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Giảng viên hướng dẫn</th>
+                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Mốc tiến độ hiện tại</th>
+                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Trạng thái thực hiện</th>
+                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Hạn nộp mốc</th>
+                                <th style={{ padding: "12px 16px", textAlign: "right", fontWeight: "700" }}>Thao tác</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {filteredStudents
-                                .slice((regCurrentPage - 1) * 10, regCurrentPage * 10)
-                                .map((student) => {
-                                  const topic = getStudentRegistrationInfo(student.studentCode);
+                              {filteredTopics.length === 0 ? (
+                                <tr>
+                                  <td colSpan={7} style={{ padding: "32px", textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
+                                    Không tìm thấy đề tài nào phù hợp với bộ lọc.
+                                  </td>
+                                </tr>
+                              ) : (
+                                paginatedTopics.map((topic) => {
+                                  const milestone = topicMilestones[topic.topicID];
+                                  const milestoneName = milestone
+                                    ? (milestoneTemplates.find((m: any) => m.milestoneTemplateCode === milestone.milestoneTemplateCode)?.name || milestone.milestoneTemplateCode)
+                                    : "Chưa bắt đầu";
+                                  const milestoneState = milestone?.state || "Chờ khởi động";
+                                  const deadlineDate = milestone?.deadline
+                                    ? new Date(milestone.deadline).toLocaleDateString("vi-VN")
+                                    : "-";
+
+                                  const getMilestoneStyles = (code: string) => {
+                                    const c = String(code).trim().toUpperCase();
+                                    if (c.includes("REG") || c.includes("ĐĂNG KÝ")) {
+                                      return { bg: "#e0e7ff", color: "#4338ca", border: "1px solid rgba(67, 56, 202, 0.15)" };
+                                    }
+                                    if (c.includes("PROG1") || c.includes("1")) {
+                                      return { bg: "#f3e8ff", color: "#6b21a8", border: "1px solid rgba(107, 33, 168, 0.15)" };
+                                    }
+                                    if (c.includes("PROG2") || c.includes("2")) {
+                                      return { bg: "#fce7f3", color: "#be185d", border: "1px solid rgba(190, 24, 93, 0.15)" };
+                                    }
+                                    if (c.includes("FULL") || c.includes("HOÀN THIỆN") || c.includes("HOÀN CHỈNH")) {
+                                      return { bg: "#dcfce7", color: "#15803d", border: "1px solid rgba(21, 128, 61, 0.15)" };
+                                    }
+                                    return { bg: "#f8fafc", color: "#64748b", border: "1px solid rgba(100, 116, 139, 0.1)" };
+                                  };
+                                  const milestoneCode = milestone?.milestoneTemplateCode || "NONE";
+                                  const milestoneStyles = getMilestoneStyles(milestoneCode);
+
+                                  const getStateStyles = (state: string) => {
+                                    const s = String(state).trim().toLowerCase();
+                                    if (s.includes("hoàn thành") || s.includes("đã xong")) {
+                                      return { bg: "#dcfce7", color: "#15803d" };
+                                    }
+                                    if (s.includes("thực hiện") || s.includes("tiến hành")) {
+                                      return { bg: "#dbeafe", color: "#1d4ed8" };
+                                    }
+                                    if (s.includes("trễ") || s.includes("quá hạn") || s.includes("thất bại")) {
+                                      return { bg: "#fee2e2", color: "#b91c1c" };
+                                    }
+                                    if (s.includes("sửa đổi") || s.includes("cần sửa")) {
+                                      return { bg: "#ffedd5", color: "#c2410c" };
+                                    }
+                                    if (s.includes("chờ")) {
+                                      return { bg: "#f1f5f9", color: "#475569" };
+                                    }
+                                    if (s.includes("từ chối")) {
+                                      return { bg: "#fef2f2", color: "#991b1b" };
+                                    }
+                                    return { bg: "#fef3c7", color: "#b45309" };
+                                  };
+                                  const stateStyles = getStateStyles(milestoneState);
+
+                                  const student = allStudents.find(s => s.studentCode === topic.proposerStudentCode);
+                                  const displayMap: TopicDisplay = {
+                                    topicID: topic.topicID,
+                                    topicCode: topic.topicCode,
+                                    title: topic.title,
+                                    description: topic.summary || "",
+                                    studentCode: topic.proposerStudentCode || "",
+                                    studentName: student?.fullName || topic.proposerStudentCode || "",
+                                    submissionDate: topic.createdAt || "",
+                                    status: mapApiStatusToDisplay(topic.status),
+                                    category: topic.type === "CATALOG" ? "Đề tài catalog" : "Đề tài tự chọn",
+                                    comments: topic.lecturerComment || "",
+                                    studentProfile: student,
+                                    supervisorLecturerCode: topic.supervisorLecturerCode,
+                                  };
+
                                   return (
-                                    <tr key={student.studentCode} style={{ background: "#fcfdfe", borderRadius: "16px", border: "1px solid #f1f5f9" }}>
-                                      <td style={{ padding: "16px", borderRadius: "12px 0 0 12px" }}>
-                                        <div style={{ fontWeight: "700", color: "#1e293b" }}>{student.fullName}</div>
-                                        <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{student.studentCode}</div>
+                                    <tr key={topic.topicID} style={{ background: "#fcfdfe", borderRadius: "16px", border: "1px solid #f1f5f9" }}>
+                                      <td style={{ padding: "16px", fontWeight: "700", color: "#1e3a5f", borderRadius: "12px 0 0 12px" }}>
+                                        {topic.topicCode}
                                       </td>
-                                      <td style={{ padding: "16px", color: "#475569", fontWeight: "600" }}>
-                                        {student.departmentCode || "-"}
+                                      <td style={{ padding: "16px", maxWidth: 280 }}>
+                                        <div style={{ fontWeight: "700", color: "#1e293b", lineHeight: "1.4" }} title={topic.title}>{topic.title}</div>
+                                        <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
+                                          SV: {student?.fullName || topic.proposerStudentCode || "-"} ({topic.proposerStudentCode || "-"})
+                                        </div>
                                       </td>
-                                      <td style={{ padding: "16px", color: "#475569", fontWeight: "600" }}>
-                                        {student.classCode || "-"}
-                                      </td>
-                                      {regStatusFilter === "no_topic" && (
-                                        <td style={{ padding: "16px" }}>
-                                          <span style={{
-                                            display: "inline-block",
-                                            padding: "6px 12px",
-                                            borderRadius: "99px",
-                                            fontSize: "12px",
-                                            fontWeight: "800",
-                                            background: "#fee2e2",
-                                            color: "#991b1b"
-                                          }}>
-                                            Chưa đăng ký
-                                          </span>
-                                        </td>
-                                      )}
-                                      <td style={{ padding: "16px", maxWidth: 360 }}>
-                                        {topic ? (
-                                          <div>
-                                            <div style={{ fontWeight: "700", color: "#1e3a5f", lineHeight: "1.4" }} title={topic.title}>{topic.title}</div>
-                                            <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px", fontWeight: "600" }}>
-                                              GVHD: {allLecturers.find(l => l.lecturerCode === topic.supervisorLecturerCode)?.fullName || topic.supervisorLecturerCode}
-                                            </div>
-                                          </div>
-                                        ) : (
-                                          <span style={{ color: "#94a3b8", fontStyle: "italic", fontWeight: "500" }}>Chưa chỉ định đề tài & GVHD</span>
-                                        )}
+                                      <td style={{ padding: "16px", color: "#475569" }}>
+                                        <div style={{ fontWeight: "700", color: "#334155" }}>
+                                          {allLecturers.find(l => l.lecturerCode === topic.supervisorLecturerCode)?.fullName || topic.supervisorLecturerCode || "-"}
+                                        </div>
+                                        {topic.supervisorLecturerCode && <div style={{ fontSize: "11px", color: "#64748b" }}>{topic.supervisorLecturerCode}</div>}
                                       </td>
                                       <td style={{ padding: "16px" }}>
-                                        {topic ? (
-                                          <span style={{
-                                            display: "inline-block",
-                                            padding: "6px 12px",
-                                            borderRadius: "99px",
-                                            fontSize: "12px",
-                                            fontWeight: "800",
-                                            background: topic.status === "Đã duyệt" ? "#dcfce7" : topic.status === "Từ chối" ? "#fee2e2" : "#fef3c7",
-                                            color: topic.status === "Đã duyệt" ? "#166534" : topic.status === "Từ chối" ? "#991b1b" : "#b45309"
-                                          }}>
-                                            {topic.status}
-                                          </span>
-                                        ) : (
-                                          <span style={{ color: "#94a3b8", fontWeight: "500" }}>-</span>
-                                        )}
+                                        <span style={{
+                                          display: "inline-block",
+                                          padding: "6px 12px",
+                                          borderRadius: "99px",
+                                          fontSize: "12px",
+                                          fontWeight: "800",
+                                          background: milestoneStyles.bg,
+                                          color: milestoneStyles.color,
+                                          border: milestoneStyles.border,
+                                          boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
+                                        }}>
+                                          {milestoneName}
+                                        </span>
                                       </td>
-                                      <td style={{ padding: "16px", borderRadius: "0 12px 12px 0", textAlign: "left" }}>
-                                        {(() => {
-                                          if (topic) {
-                                            const displayMap: TopicDisplay = {
-                                              topicID: topic.topicID,
-                                              topicCode: topic.topicCode,
-                                              title: topic.title,
-                                              description: topic.summary || "",
-                                              studentCode: topic.proposerStudentCode || "",
-                                              studentName: student.fullName || "",
-                                              submissionDate: topic.createdAt || "",
-                                              status: mapApiStatusToDisplay(topic.status),
-                                              category: topic.type === "CATALOG" ? "Đề tài catalog" : "Đề tài tự chọn",
-                                              comments: topic.lecturerComment || "",
-                                              studentProfile: student,
-                                              supervisorLecturerCode: topic.supervisorLecturerCode,
-                                            };
-
-                                            const isSelfPending = topic.type === "SELF" && mapApiStatusToDisplay(topic.status) === "Chờ duyệt";
-
-                                            return (
-                                              <div style={{
-                                                display: "grid",
-                                                gridTemplateColumns: "repeat(2, 32px)",
-                                                gap: "8px",
-                                                justifyContent: "start",
-                                                alignItems: "center",
-                                              }}>
-                                                {/* Nút xem chi tiết */}
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    openDetailModal(displayMap);
-                                                  }}
-                                                  title="Xem chi tiết đề tài"
-                                                  style={{
-                                                    padding: "8px",
-                                                    background: "#1F3C88",
-                                                    color: "white",
-                                                    border: "none",
-                                                    borderRadius: "6px",
-                                                    fontSize: "14px",
-                                                    cursor: "pointer",
-                                                    transition: "all 0.2s ease",
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    width: "32px",
-                                                    height: "32px",
-                                                  }}
-                                                  onMouseEnter={(e) => {
-                                                    e.currentTarget.style.background = "#162B61";
-                                                  }}
-                                                  onMouseLeave={(e) => {
-                                                    e.currentTarget.style.background = "#1F3C88";
-                                                  }}
-                                                >
-                                                  <Eye size={16} />
-                                                </button>
-
-                                                {isSelfPending && (
-                                                  <>
-                                                    <button
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        openConfirmationModal(displayMap);
-                                                      }}
-                                                      title="Duyệt đề tài"
-                                                      disabled={
-                                                        updatingStatus ===
-                                                        `approve-${topic.topicID}`
-                                                      }
-                                                      style={{
-                                                        padding: "8px",
-                                                        background:
-                                                          updatingStatus ===
-                                                          `approve-${topic.topicID}`
-                                                            ? "#9CA3AF"
-                                                            : "#22C55E",
-                                                        color: "white",
-                                                        border: "none",
-                                                        borderRadius: "6px",
-                                                        cursor:
-                                                          updatingStatus ===
-                                                          `approve-${topic.topicID}`
-                                                            ? "not-allowed"
-                                                            : "pointer",
-                                                        transition: "all 0.2s ease",
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                        width: "32px",
-                                                        height: "32px",
-                                                      }}
-                                                      onMouseEnter={(e) => {
-                                                        if (
-                                                          updatingStatus !==
-                                                          `approve-${topic.topicID}`
-                                                        ) {
-                                                          e.currentTarget.style.background =
-                                                            "#16A34A";
-                                                        }
-                                                      }}
-                                                      onMouseLeave={(e) => {
-                                                        if (
-                                                          updatingStatus !==
-                                                          `approve-${topic.topicID}`
-                                                        ) {
-                                                          e.currentTarget.style.background =
-                                                            "#22C55E";
-                                                        }
-                                                      }}
-                                                    >
-                                                      {updatingStatus ===
-                                                      `approve-${topic.topicID}` ? (
-                                                        <Loader2
-                                                          size={16}
-                                                          style={{
-                                                            animation: "spin 1s linear infinite",
-                                                          }}
-                                                        />
-                                                      ) : (
-                                                        <CheckCircle size={16} />
-                                                      )}
-                                                    </button>
-
-                                                    <button
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        openCommentModal(
-                                                          "revision",
-                                                          topic.topicID,
-                                                          topic.title,
-                                                        );
-                                                      }}
-                                                      title="Yêu cầu sửa đổi đề tài"
-                                                      disabled={
-                                                        updatingStatus ===
-                                                        `revision-${topic.topicID}`
-                                                      }
-                                                      style={{
-                                                        padding: "8px",
-                                                        background:
-                                                          updatingStatus ===
-                                                          `revision-${topic.topicID}`
-                                                            ? "#9CA3AF"
-                                                            : "#F59E0B",
-                                                        color: "white",
-                                                        border: "none",
-                                                        borderRadius: "6px",
-                                                        cursor:
-                                                          updatingStatus ===
-                                                          `revision-${topic.topicID}`
-                                                            ? "not-allowed"
-                                                            : "pointer",
-                                                        transition: "all 0.2s ease",
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                        width: "32px",
-                                                        height: "32px",
-                                                      }}
-                                                      onMouseEnter={(e) => {
-                                                        if (
-                                                          updatingStatus !==
-                                                          `revision-${topic.topicID}`
-                                                        ) {
-                                                          e.currentTarget.style.background =
-                                                            "#D97706";
-                                                        }
-                                                      }}
-                                                      onMouseLeave={(e) => {
-                                                        if (
-                                                          updatingStatus !==
-                                                          `revision-${topic.topicID}`
-                                                        ) {
-                                                          e.currentTarget.style.background =
-                                                            "#F59E0B";
-                                                        }
-                                                      }}
-                                                    >
-                                                      {updatingStatus ===
-                                                      `revision-${topic.topicID}` ? (
-                                                        <Loader2
-                                                          size={16}
-                                                          style={{
-                                                            animation: "spin 1s linear infinite",
-                                                          }}
-                                                        />
-                                                      ) : (
-                                                        <Edit size={16} />
-                                                      )}
-                                                    </button>
-
-                                                    <button
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        openCommentModal(
-                                                          "reject",
-                                                          topic.topicID,
-                                                          topic.title,
-                                                        );
-                                                      }}
-                                                      title="Từ chối đề tài"
-                                                      disabled={
-                                                        updatingStatus ===
-                                                        `reject-${topic.topicID}`
-                                                      }
-                                                      style={{
-                                                        padding: "8px",
-                                                        background:
-                                                          updatingStatus ===
-                                                          `reject-${topic.topicID}`
-                                                            ? "#9CA3AF"
-                                                            : "#EF4444",
-                                                        color: "white",
-                                                        border: "none",
-                                                        borderRadius: "6px",
-                                                        cursor:
-                                                          updatingStatus ===
-                                                          `reject-${topic.topicID}`
-                                                            ? "not-allowed"
-                                                            : "pointer",
-                                                        transition: "all 0.2s ease",
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                        width: "32px",
-                                                        height: "32px",
-                                                      }}
-                                                      onMouseEnter={(e) => {
-                                                        if (
-                                                          updatingStatus !==
-                                                          `reject-${topic.topicID}`
-                                                        ) {
-                                                          e.currentTarget.style.background =
-                                                            "#DC2626";
-                                                        }
-                                                      }}
-                                                      onMouseLeave={(e) => {
-                                                        if (
-                                                          updatingStatus !==
-                                                          `reject-${topic.topicID}`
-                                                        ) {
-                                                          e.currentTarget.style.background =
-                                                            "#EF4444";
-                                                        }
-                                                      }}
-                                                    >
-                                                      {updatingStatus ===
-                                                      `reject-${topic.topicID}` ? (
-                                                        <Loader2
-                                                          size={16}
-                                                          style={{
-                                                            animation: "spin 1s linear infinite",
-                                                          }}
-                                                        />
-                                                      ) : (
-                                                        <X size={16} />
-                                                      )}
-                                                    </button>
-                                                  </>
-                                                )}
-                                              </div>
-                                            );
-                                          }
-
-                                          // Topic does not exist -> manual assign
-                                          return (
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setManualAssignModal({ isOpen: true, student });
-                                                setManualTopicTitle("");
-                                                setManualSupervisorCode("");
-                                              }}
-                                              style={{
-                                                padding: "8px 16px",
-                                                background: "#f37021",
-                                                border: "none",
-                                                borderRadius: "8px",
-                                                fontSize: "13px",
-                                                fontWeight: "800",
-                                                color: "white",
-                                                cursor: "pointer",
-                                                boxShadow: "0 2px 6px rgba(243, 112, 33, 0.15)",
-                                                transition: "all 0.2s ease"
-                                              }}
-                                              onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
-                                              onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
-                                            >
-                                              Gán thủ công
-                                            </button>
-                                          );
-                                        })()}
+                                      <td style={{ padding: "16px" }}>
+                                        <span style={{
+                                          display: "inline-block",
+                                          padding: "6px 12px",
+                                          borderRadius: "99px",
+                                          fontSize: "12px",
+                                          fontWeight: "800",
+                                          background: stateStyles.bg,
+                                          color: stateStyles.color
+                                        }}>
+                                          {milestoneState}
+                                        </span>
+                                      </td>
+                                      <td style={{ padding: "16px", color: "#475569", fontWeight: "600" }}>
+                                        {deadlineDate}
+                                      </td>
+                                      <td style={{ padding: "16px", borderRadius: "0 12px 12px 0", textAlign: "right" }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => openDetailModal(displayMap)}
+                                          title="Xem chi tiết đề tài"
+                                          style={{
+                                            padding: "8px 12px",
+                                            background: "#f1f5f9",
+                                            border: "1px solid #e2e8f0",
+                                            borderRadius: "8px",
+                                            fontSize: "13px",
+                                            fontWeight: "700",
+                                            color: "#475569",
+                                            cursor: "pointer",
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "4px",
+                                            whiteSpace: "nowrap"
+                                          }}
+                                        >
+                                          <Eye size={14} />
+                                          Chi tiết
+                                        </button>
                                       </td>
                                     </tr>
                                   );
-                                })}
+                                })
+                              )}
                             </tbody>
                           </table>
                         </div>
-                        {renderPagination(regCurrentPage, Math.ceil(filteredStudents.length / 10), setRegCurrentPage)}
-                      </>
-                    )}
-                  </div>
-                </>
-              );
-            })()}
-
-              {/* TAB 2: TOPICS MANAGEMENT (Embedded Module) */}
-              {activeAdminTab === "topics-management" && (() => {
-                // Lọc theo đợt hiện tại/đã chọn
-                const termTopics = allTopicsList.filter(
-                  (t) => !selectedPeriodId || t.defenseTermId === selectedPeriodId
-                );
-
-                const filteredTopics = termTopics.filter(topic => {
-                  const s = topicsSearchTerm.trim().toLowerCase();
-                  const student = allStudents.find(st => st.studentCode === topic.proposerStudentCode);
-                  const matchesSearch = !s || 
-                    (topic.topicCode || "").toLowerCase().includes(s) || 
-                    (topic.title || "").toLowerCase().includes(s) ||
-                    (topic.proposerStudentCode || "").toLowerCase().includes(s) ||
-                    (student?.fullName || "").toLowerCase().includes(s);
-                  
-                  const milestone = topicMilestones[topic.topicID];
-                  
-                  // Lọc theo mốc tiến độ hiện tại
-                  const matchesMilestone = topicsTypeFilter === "all" || (milestone && milestone.milestoneTemplateCode === topicsTypeFilter);
-                  
-                  // Lọc theo trạng thái thực hiện mốc
-                  const milestoneState = milestone?.state || "Chờ khởi động";
-                  const matchesMilestoneState = topicsStatusFilter === "all" || (() => {
-                    const filterVal = topicsStatusFilter.toLowerCase().trim();
-                    const stateVal = milestoneState.toLowerCase().trim();
-                    if (filterVal === "chờ khởi động") return stateVal.includes("khởi động");
-                    if (filterVal === "đang thực hiện") return stateVal.includes("thực hiện") || stateVal.includes("tiến hành") || stateVal.includes("draft") || stateVal.includes("notstarted") || stateVal.includes("progress");
-                    if (filterVal === "chờ duyệt") return stateVal.includes("chờ duyệt") || stateVal.includes("waiting") || stateVal.includes("chờ");
-                    if (filterVal === "đã hoàn thành") return stateVal.includes("hoàn thành") || stateVal.includes("đã xong") || stateVal.includes("approved") || stateVal.includes("committee") || stateVal.includes("đạt");
-                    if (filterVal === "cần sửa đổi") return stateVal.includes("sửa đổi") || stateVal.includes("cần sửa") || stateVal.includes("revision");
-                    if (filterVal === "quá hạn") return stateVal.includes("trễ") || stateVal.includes("quá hạn") || stateVal.includes("overdue");
-                    return stateVal === filterVal;
-                  })();
-                  
-                  return matchesSearch && matchesMilestone && matchesMilestoneState;
-                });
-                const paginatedTopics = filteredTopics.slice((topicsCurrentPage - 1) * 10, topicsCurrentPage * 10);
-
-                const currentPeriod = periods.find((p) => p.defenseTermId === selectedPeriodId);
-                const currentStatus = currentPeriod?.status || "Draft";
-
-                // Calculations for detailed progress stats
-                const totalStudentsCount = allStudents.length;
-                const regCount = registeredCount;
-                const complPercent = completionPercent;
-
-                const approvedCount = termTopics.filter(
-                  (t) => mapApiStatusToDisplay(t.status) === "Đã duyệt"
-                ).length;
-                const pendingCount = termTopics.filter(
-                  (t) => mapApiStatusToDisplay(t.status) === "Chờ duyệt"
-                ).length;
-                const revisionCount = termTopics.filter(
-                  (t) => mapApiStatusToDisplay(t.status) === "Cần sửa đổi"
-                ).length;
-                const rejectedCount = termTopics.filter(
-                  (t) => mapApiStatusToDisplay(t.status) === "Từ chối"
-                ).length;
-
-                const catalogTopicsCount = termTopics.filter(t => t.type === "CATALOG").length;
-                const selfTopicsCount = termTopics.filter(t => t.type !== "CATALOG").length;
-
-                const assignedAdvisorCount = termTopics.filter(t => t.supervisorLecturerCode).length;
-                const noAdvisorCount = termTopics.filter(t => !t.supervisorLecturerCode).length;
-                const advisorAssignPercent = termTopics.length > 0 
-                  ? Math.round((assignedAdvisorCount / termTopics.length) * 100) 
-                  : 0;
-
-                const steps = [
-                  { key: "Draft", label: "Soạn thảo", desc: "Khởi tạo đợt" },
-                  { key: "Registration", label: "Đăng ký & Phân công", desc: "Đăng ký & Phân công" },
-                  { key: "ProgressTracking", label: "Tiến độ", desc: "Theo dõi thực hiện" },
-                  { key: "CommitteePreparation", label: "Hội đồng", desc: "Chuẩn bị hội đồng" },
-                  { key: "Running", label: "Bảo vệ", desc: "Chấm điểm & Bảo vệ" },
-                  { key: "Finalization", label: "Hậu bảo vệ", desc: "Tổng kết & Nộp lại" },
-                  { key: "Archived", label: "Đóng & Lưu trữ", desc: "Kết thúc & Lưu trữ" },
-                ];
-
-                const statusOrder: Record<string, number> = {
-                  draft: 0,
-                  registration: 1,
-                  assignment: 1,
-                  progresstracking: 2,
-                  committeepreparation: 3,
-                  running: 4,
-                  paused: 4,
-                  scoringlocked: 5,
-                  finalization: 5,
-                  finalized: 5,
-                  published: 5,
-                  closed: 6,
-                  archived: 6
-                };
-
-                const normalizedKey = String(currentStatus).toLowerCase().trim();
-                const currentIndex = statusOrder[normalizedKey] ?? 0;
-
-                const milestoneStatusOrder: Record<string, number> = {
-                  draft: 0,
-                  registration: 1,
-                  assignment: 1,
-                  progresstracking: 2,
-                  committeepreparation: 3,
-                  running: 4,
-                  paused: 4,
-                  scoringlocked: 5,
-                  finalization: 5,
-                  finalized: 5,
-                  published: 5,
-                  closed: 5,
-                  archived: 5
-                };
-                const currentMilestoneIndex = milestoneStatusOrder[normalizedKey] ?? 0;
-
-                const displaySteps = milestoneTemplates.length > 0
-                  ? milestoneTemplates.map((m: any) => ({
-                      key: m.milestoneTemplateCode,
-                      label: m.name,
-                      desc: m.deadline ? `Hạn: ${new Date(m.deadline).toLocaleDateString("vi-VN")}` : m.description || "",
-                      ordinal: m.ordinal
-                    }))
-                  : steps;
-
-                return (
-                  <div style={{
-                    background: "white",
-                    borderRadius: "24px",
-                    border: "1px solid #D9E1F2",
-                    padding: "24px",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-                  }}>
-                    {/* Detailed Progress Statistics Header */}
-                    <div style={{
-                      background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-                      borderRadius: "16px",
-                      border: "1px solid #e2e8f0",
-                      padding: "24px",
-                      marginBottom: "32px",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                    }}>
-                      {/* Detailed Progress Stats Grid */}
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-                        {/* Card 1: Tổng số đề tài */}
-                        <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Đề tài đang thực hiện</span>
-                            <Users size={16} color="#3b82f6" />
-                          </div>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                            <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{termTopics.length}</span>
-                            <span style={{ fontSize: "12px", color: "#64748b" }}>đề tài</span>
-                            <span style={{ marginLeft: "auto", fontSize: "12px", fontWeight: "800", color: "#3b82f6", background: "#dbeafe", padding: "2px 6px", borderRadius: "6px" }}>
-                              {termTopics.length > 0 ? 100 : 0}%
-                            </span>
-                          </div>
-                          <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden", marginTop: "12px" }}>
-                            <div style={{ width: "100%", height: "100%", background: "#3b82f6", borderRadius: "3px" }} />
-                          </div>
-                        </div>
-
-                        {/* Card 2: Phân bổ mốc tiến độ */}
-                        <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Phân bổ mốc tiến độ</span>
-                            <Clock size={16} color="#8b5cf6" />
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", fontSize: "11px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#475569", fontWeight: "700" }}>
-                              <span>Đăng ký:</span> <span style={{ color: "#1e293b" }}>{termTopics.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_REG").length}</span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#475569", fontWeight: "700" }}>
-                              <span>Báo cáo 1:</span> <span style={{ color: "#1e293b" }}>{termTopics.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_PROG1").length}</span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#475569", fontWeight: "700" }}>
-                              <span>Báo cáo 2:</span> <span style={{ color: "#1e293b" }}>{termTopics.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_PROG2").length}</span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#475569", fontWeight: "700" }}>
-                              <span>Hoàn thiện:</span> <span style={{ color: "#1e293b" }}>{termTopics.filter(t => topicMilestones[t.topicID]?.milestoneTemplateCode === "MS_FULL").length}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Card 3: Trạng thái thực hiện mốc */}
-                        <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Trạng thái thực hiện</span>
-                            <CheckCircle size={16} color="#10b981" />
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", fontSize: "11px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#166534", fontWeight: "700" }}>
-                              <span>Đạt/Xong:</span> <span>{termTopics.filter(t => {
-                                const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
-                                return st.includes("approved") || st.includes("committee") || st.includes("hoàn thành") || st.includes("đã xong");
-                              }).length}</span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#b45309", fontWeight: "700" }}>
-                              <span>Chờ duyệt:</span> <span>{termTopics.filter(t => {
-                                const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
-                                return st.includes("supervisor") || st.includes("chờ");
-                              }).length}</span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#c2410c", fontWeight: "700" }}>
-                              <span>Cần sửa:</span> <span>{termTopics.filter(t => {
-                                const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
-                                return st.includes("revision") || st.includes("sửa");
-                              }).length}</span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#991b1b", fontWeight: "700" }}>
-                              <span>Trễ hạn:</span> <span>{termTopics.filter(t => {
-                                const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
-                                return st.includes("overdue") || st.includes("trễ") || st.includes("quá hạn");
-                              }).length}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Card 4: Tỷ lệ đúng hạn */}
-                        <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Tỷ lệ đúng hạn tiến độ</span>
-                            <Award size={16} color="#f37021" />
-                          </div>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                            <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>
-                              {termTopics.filter(t => {
-                                const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
-                                return !st.includes("overdue") && !st.includes("trễ") && !st.includes("quá hạn");
-                              }).length}
-                            </span>
-                            <span style={{ fontSize: "12px", color: "#64748b" }}>/ {termTopics.length} đề tài</span>
-                            <span style={{
-                              marginLeft: "auto",
-                              fontSize: "12px",
-                              fontWeight: "800",
-                              color: "#f37021",
-                              background: "#fff7ed",
-                              padding: "2px 6px",
-                              borderRadius: "6px"
-                            }}>
-                              {(() => {
-                                const onTimeCount = termTopics.filter(t => {
-                                  const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
-                                  return !st.includes("overdue") && !st.includes("trễ") && !st.includes("quá hạn");
-                                }).length;
-                                return termTopics.length > 0 ? Math.round((onTimeCount / termTopics.length) * 100) : 100;
-                              })()}%
-                            </span>
-                          </div>
-                          <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden", marginTop: "12px" }}>
-                            <div style={{
-                              width: `${(() => {
-                                const onTimeCount = termTopics.filter(t => {
-                                  const st = topicMilestones[t.topicID]?.state?.toLowerCase() || "";
-                                  return !st.includes("overdue") && !st.includes("trễ") && !st.includes("quá hạn");
-                                }).length;
-                                return termTopics.length > 0 ? Math.round((onTimeCount / termTopics.length) * 100) : 100;
-                              })()}%`,
-                              height: "100%",
-                              background: "#f37021",
-                              borderRadius: "3px"
-                            }} />
-                          </div>
-                        </div>
+                        {renderPagination(topicsCurrentPage, Math.ceil(filteredTopics.length / 10), setTopicsCurrentPage)}
                       </div>
-                    </div>
+                    );
+                  })()}
 
 
 
-                    {/* Toolbar */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "16px" }}>
-                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", flex: 1 }}>
-                        <div style={{ position: "relative", minWidth: 300 }}>
-                          <Search size={18} color="#9CA3AF" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }} />
-                          <input
-                            type="text"
-                            placeholder="Tìm mã đề tài, tên đề tài, mã sinh viên, tên sinh viên..."
-                            value={topicsSearchTerm}
-                            onChange={(e) => setTopicsSearchTerm(e.target.value)}
+                  {/* TAB 4: LECTURER GUIDANCE LOAD */}
+                  {activeAdminTab === "lecturer-quota" && (() => {
+                    const filteredLecturers = allLecturers.filter(lec => {
+                      const s = lecturerLoadSearchTerm.trim().toLowerCase();
+                      const matchesSearch = !s || lec.fullName.toLowerCase().includes(s) || lec.lecturerCode.toLowerCase().includes(s) || (lec.degree || "").toLowerCase().includes(s);
+                      const matchesDept = lecturerLoadDeptFilter === "all" || lec.departmentCode === lecturerLoadDeptFilter;
+                      return matchesSearch && matchesDept;
+                    });
+                    const paginatedLecturers = filteredLecturers.slice((lecturerLoadCurrentPage - 1) * 10, lecturerLoadCurrentPage * 10);
+
+                    // Guidance Quota Calculations
+                    const totalLecs = allLecturers.length;
+                    const totalQuota = allLecturers.reduce((acc, lec) => acc + (lec.guideQuota || 5), 0);
+                    const totalAssignedTopics = allTopicsList.filter(t => t.supervisorLecturerCode && t.status.toLowerCase() !== "rejected").length;
+
+                    const overloadedCount = allLecturers.filter(lec => {
+                      const count = allTopicsList.filter(t => t.supervisorLecturerCode === lec.lecturerCode && t.status.toLowerCase() !== "rejected").length;
+                      return count > (lec.guideQuota || 5);
+                    }).length;
+
+                    const fullCount = allLecturers.filter(lec => {
+                      const count = allTopicsList.filter(t => t.supervisorLecturerCode === lec.lecturerCode && t.status.toLowerCase() !== "rejected").length;
+                      return count === (lec.guideQuota || 5);
+                    }).length;
+
+                    const underCount = allLecturers.filter(lec => {
+                      const count = allTopicsList.filter(t => t.supervisorLecturerCode === lec.lecturerCode && t.status.toLowerCase() !== "rejected").length;
+                      return count < (lec.guideQuota || 5);
+                    }).length;
+
+                    const loadPercent = totalQuota > 0 ? Math.round((totalAssignedTopics / totalQuota) * 100) : 0;
+                    const avgLoad = totalLecs > 0 ? (totalAssignedTopics / totalLecs).toFixed(1) : "0.0";
+
+                    return (
+                      <div style={{
+                        background: "white",
+                        borderRadius: "24px",
+                        border: "1px solid #D9E1F2",
+                        padding: "24px",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                      }}>
+                        {/* Quota & Load Statistics Dashboard */}
+                        <div style={{
+                          background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+                          borderRadius: "16px",
+                          border: "1px solid #e2e8f0",
+                          padding: "20px 24px",
+                          marginBottom: "24px",
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "18px" }}>
+                            <Award size={20} color="#1e3a5f" />
+                            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#1e3a5f" }}>
+                              Báo cáo định mức & Tải lượng hướng dẫn của Giảng viên
+                            </h3>
+                          </div>
+
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
+                            {/* Card 1: Tổng số GV */}
+                            <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Giảng viên tham gia</span>
+                                <Users size={16} color="#3b82f6" />
+                              </div>
+                              <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                                <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{totalLecs}</span>
+                                <span style={{ fontSize: "12px", color: "#64748b" }}>giảng viên</span>
+                              </div>
+                              <p style={{ margin: "8px 0 0 0", fontSize: "11px", color: "#64748b" }}>Tham gia điều hành đợt đồ án</p>
+                            </div>
+
+                            {/* Card 2: Tổng năng lực đợt */}
+                            <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Năng lực nhận hướng dẫn</span>
+                                <TrendingUp size={16} color="#8b5cf6" />
+                              </div>
+                              <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                                <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{totalAssignedTopics}</span>
+                                <span style={{ fontSize: "12px", color: "#64748b" }}>/ {totalQuota} chỉ tiêu</span>
+                                <span style={{ marginLeft: "auto", fontSize: "12px", fontWeight: "800", color: "#8b5cf6", background: "#f3e8ff", padding: "2px 6px", borderRadius: "6px" }}>
+                                  {loadPercent}%
+                                </span>
+                              </div>
+                              <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden", marginTop: "12px" }}>
+                                <div style={{ width: `${loadPercent}%`, height: "100%", background: "#8b5cf6", borderRadius: "3px" }} />
+                              </div>
+                            </div>
+
+                            {/* Card 3: Trạng thái tải của giảng viên */}
+                            <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Trạng thái định mức tải</span>
+                                <Award size={16} color="#f37021" />
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", fontSize: "12px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#166534", fontWeight: "700" }}>
+                                  <span>Dưới tải:</span> <span>{underCount}</span>
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#b45309", fontWeight: "700" }}>
+                                  <span>Đầy tải:</span> <span>{fullCount}</span>
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#991b1b", fontWeight: "700", gridColumn: "1 / span 2" }}>
+                                  <span>Quá chỉ tiêu định mức:</span> <span>{overloadedCount}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card 4: Trung bình phân công */}
+                            <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Phân bổ trung bình đợt</span>
+                                <CheckCircle size={16} color="#10b981" />
+                              </div>
+                              <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+                                <span style={{ fontSize: "20px", fontWeight: "800", color: "#10b981" }}>{avgLoad}</span>
+                                <span style={{ fontSize: "12px", color: "#64748b" }}>đề tài / giảng viên</span>
+                              </div>
+                              <p style={{ margin: "8px 0 0 0", fontSize: "11px", color: "#64748b" }}>Mức phân bổ tải lượng thực tế</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Search and filter toolbar */}
+                        <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
+                          <div style={{ position: "relative", minWidth: 320 }}>
+                            <Search size={18} color="#9CA3AF" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }} />
+                            <input
+                              type="text"
+                              placeholder="Tìm giảng viên theo mã, tên, học vị..."
+                              value={lecturerLoadSearchTerm}
+                              onChange={(e) => setLecturerLoadSearchTerm(e.target.value)}
+                              style={{
+                                width: "100%",
+                                padding: "10px 14px 10px 42px",
+                                border: "1px solid #CBD5E1",
+                                borderRadius: "12px",
+                                fontSize: "14px",
+                                outline: "none"
+                              }}
+                            />
+                          </div>
+
+                          <select
+                            value={lecturerLoadDeptFilter}
+                            onChange={(e) => setLecturerLoadDeptFilter(e.target.value)}
                             style={{
-                              width: "100%",
-                              padding: "10px 14px 10px 42px",
+                              padding: "10px 16px",
                               border: "1px solid #CBD5E1",
                               borderRadius: "12px",
                               fontSize: "14px",
-                              outline: "none"
+                              outline: "none",
+                              background: "white",
+                              minWidth: 200,
+                              fontWeight: "600",
+                              color: "#475569"
                             }}
-                          />
+                          >
+                            <option value="all">Tất cả khoa</option>
+                            {Array.from(new Set(allLecturers.map(l => l.departmentCode).filter(Boolean))).map(dept => (
+                              <option key={dept} value={dept}>{dept}</option>
+                            ))}
+                          </select>
                         </div>
-                        <select
-                          value={topicsTypeFilter}
-                          onChange={(e) => setTopicsTypeFilter(e.target.value)}
-                          style={{
-                            padding: "10px 16px",
-                            border: "1px solid #CBD5E1",
-                            borderRadius: "12px",
-                            fontSize: "14px",
-                            outline: "none",
-                            background: "white",
-                            fontWeight: "600",
-                            color: "#475569"
-                          }}
-                        >
-                          <option value="all">Tất cả mốc tiến độ</option>
-                          <option value="MS_REG">Đăng ký đề tài</option>
-                          <option value="MS_PROG1">Đề cương</option>
-                          <option value="MS_PROG2">Báo cáo</option>
-                          <option value="MS_FULL">Hoàn thiện khóa luận</option>
-                        </select>
-                        <select
-                          value={topicsStatusFilter}
-                          onChange={(e) => setTopicsStatusFilter(e.target.value)}
-                          style={{
-                            padding: "10px 16px",
-                            border: "1px solid #CBD5E1",
-                            borderRadius: "12px",
-                            fontSize: "14px",
-                            outline: "none",
-                            background: "white",
-                            fontWeight: "600",
-                            color: "#475569"
-                          }}
-                        >
-                          <option value="all">Tất cả trạng thái tiến độ</option>
-                          <option value="Chờ khởi động">Chờ khởi động</option>
-                          <option value="Đang thực hiện">Đang thực hiện</option>
-                          <option value="Chờ duyệt">Chờ duyệt</option>
-                          <option value="Đã hoàn thành">Đã hoàn thành/Đạt</option>
-                          <option value="Cần sửa đổi">Cần sửa đổi</option>
-                          <option value="Quá hạn">Quá hạn/Trễ hạn</option>
-                        </select>
-                      </div>
-                    </div>
 
-                    {/* Topics List Table */}
-                    <div style={{ overflowX: "auto" }}>
-                      <table style={{ width: "100%", fontSize: "14px", borderCollapse: "separate", borderSpacing: "0 8px" }}>
-                        <thead>
-                          <tr style={{ background: "#f8fafc", color: "#475569" }}>
-                            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Mã đề tài</th>
-                            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Thông tin đề tài & Sinh viên</th>
-                            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Giảng viên hướng dẫn</th>
-                            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Mốc tiến độ hiện tại</th>
-                            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Trạng thái thực hiện</th>
-                            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Hạn nộp mốc</th>
-                            <th style={{ padding: "12px 16px", textAlign: "right", fontWeight: "700" }}>Thao tác</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredTopics.length === 0 ? (
-                            <tr>
-                              <td colSpan={7} style={{ padding: "32px", textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
-                                Không tìm thấy đề tài nào phù hợp với bộ lọc.
-                              </td>
-                            </tr>
-                          ) : (
-                            paginatedTopics.map((topic) => {
-                              const milestone = topicMilestones[topic.topicID];
-                              const milestoneName = milestone
-                                ? (milestoneTemplates.find((m: any) => m.milestoneTemplateCode === milestone.milestoneTemplateCode)?.name || milestone.milestoneTemplateCode)
-                                : "Chưa bắt đầu";
-                              const milestoneState = milestone?.state || "Chờ khởi động";
-                              const deadlineDate = milestone?.deadline
-                                ? new Date(milestone.deadline).toLocaleDateString("vi-VN")
-                                : "-";
-
-                              const getMilestoneStyles = (code: string) => {
-                                const c = String(code).trim().toUpperCase();
-                                if (c.includes("REG") || c.includes("ĐĂNG KÝ")) {
-                                  return { bg: "#e0e7ff", color: "#4338ca", border: "1px solid rgba(67, 56, 202, 0.15)" };
-                                }
-                                if (c.includes("PROG1") || c.includes("1")) {
-                                  return { bg: "#f3e8ff", color: "#6b21a8", border: "1px solid rgba(107, 33, 168, 0.15)" };
-                                }
-                                if (c.includes("PROG2") || c.includes("2")) {
-                                  return { bg: "#fce7f3", color: "#be185d", border: "1px solid rgba(190, 24, 93, 0.15)" };
-                                }
-                                if (c.includes("FULL") || c.includes("HOÀN THIỆN") || c.includes("HOÀN CHỈNH")) {
-                                  return { bg: "#dcfce7", color: "#15803d", border: "1px solid rgba(21, 128, 61, 0.15)" };
-                                }
-                                return { bg: "#f8fafc", color: "#64748b", border: "1px solid rgba(100, 116, 139, 0.1)" };
-                              };
-                              const milestoneCode = milestone?.milestoneTemplateCode || "NONE";
-                              const milestoneStyles = getMilestoneStyles(milestoneCode);
-
-                              const getStateStyles = (state: string) => {
-                                const s = String(state).trim().toLowerCase();
-                                if (s.includes("hoàn thành") || s.includes("đã xong")) {
-                                  return { bg: "#dcfce7", color: "#15803d" };
-                                }
-                                if (s.includes("thực hiện") || s.includes("tiến hành")) {
-                                  return { bg: "#dbeafe", color: "#1d4ed8" };
-                                }
-                                if (s.includes("trễ") || s.includes("quá hạn") || s.includes("thất bại")) {
-                                  return { bg: "#fee2e2", color: "#b91c1c" };
-                                }
-                                if (s.includes("sửa đổi") || s.includes("cần sửa")) {
-                                  return { bg: "#ffedd5", color: "#c2410c" };
-                                }
-                                if (s.includes("chờ")) {
-                                  return { bg: "#f1f5f9", color: "#475569" };
-                                }
-                                if (s.includes("từ chối")) {
-                                  return { bg: "#fef2f2", color: "#991b1b" };
-                                }
-                                return { bg: "#fef3c7", color: "#b45309" };
-                          };
-                              const stateStyles = getStateStyles(milestoneState);
-
-                              const student = allStudents.find(s => s.studentCode === topic.proposerStudentCode);
-                              const displayMap: TopicDisplay = {
-                                topicID: topic.topicID,
-                                topicCode: topic.topicCode,
-                                title: topic.title,
-                                description: topic.summary || "",
-                                studentCode: topic.proposerStudentCode || "",
-                                studentName: student?.fullName || topic.proposerStudentCode || "",
-                                submissionDate: topic.createdAt || "",
-                                status: mapApiStatusToDisplay(topic.status),
-                                category: topic.type === "CATALOG" ? "Đề tài catalog" : "Đề tài tự chọn",
-                                comments: topic.lecturerComment || "",
-                                studentProfile: student,
-                                supervisorLecturerCode: topic.supervisorLecturerCode,
-                              };
-
-                              return (
-                                <tr key={topic.topicID} style={{ background: "#fcfdfe", borderRadius: "16px", border: "1px solid #f1f5f9" }}>
-                                  <td style={{ padding: "16px", fontWeight: "700", color: "#1e3a5f", borderRadius: "12px 0 0 12px" }}>
-                                    {topic.topicCode}
-                                  </td>
-                                  <td style={{ padding: "16px", maxWidth: 280 }}>
-                                    <div style={{ fontWeight: "700", color: "#1e293b", lineHeight: "1.4" }} title={topic.title}>{topic.title}</div>
-                                    <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
-                                      SV: {student?.fullName || topic.proposerStudentCode || "-"} ({topic.proposerStudentCode || "-"})
-                                    </div>
-                                  </td>
-                                  <td style={{ padding: "16px", color: "#475569" }}>
-                                    <div style={{ fontWeight: "700", color: "#334155" }}>
-                                      {allLecturers.find(l => l.lecturerCode === topic.supervisorLecturerCode)?.fullName || topic.supervisorLecturerCode || "-"}
-                                    </div>
-                                    {topic.supervisorLecturerCode && <div style={{ fontSize: "11px", color: "#64748b" }}>{topic.supervisorLecturerCode}</div>}
-                                  </td>
-                                                                     <td style={{ padding: "16px" }}>
-                                     <span style={{
-                                       display: "inline-block",
-                                       padding: "6px 12px",
-                                       borderRadius: "99px",
-                                       fontSize: "12px",
-                                       fontWeight: "800",
-                                       background: milestoneStyles.bg,
-                                       color: milestoneStyles.color,
-                                       border: milestoneStyles.border,
-                                       boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
-                                     }}>
-                                       {milestoneName}
-                                     </span>
-                                   </td>
-                                  <td style={{ padding: "16px" }}>
-                                    <span style={{
-                                      display: "inline-block",
-                                      padding: "6px 12px",
-                                      borderRadius: "99px",
-                                      fontSize: "12px",
-                                      fontWeight: "800",
-                                      background: stateStyles.bg,
-                                      color: stateStyles.color
-                                    }}>
-                                      {milestoneState}
-                                    </span>
-                                  </td>
-                                  <td style={{ padding: "16px", color: "#475569", fontWeight: "600" }}>
-                                    {deadlineDate}
-                                  </td>
-                                  <td style={{ padding: "16px", borderRadius: "0 12px 12px 0", textAlign: "right" }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => openDetailModal(displayMap)}
-                                      title="Xem chi tiết đề tài"
-                                      style={{
-                                        padding: "8px 12px",
-                                        background: "#f1f5f9",
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
-                                        fontSize: "13px",
-                                        fontWeight: "700",
-                                        color: "#475569",
-                                        cursor: "pointer",
-                                        display: "inline-flex",
-                                         alignItems: "center",
-                                         gap: "4px",
-                                         whiteSpace: "nowrap"
-                                       }}
-                                    >
-                                      <Eye size={14} />
-                                      Chi tiết
-                                    </button>
+                        {/* Lecturers Table */}
+                        <div style={{ overflowX: "auto" }}>
+                          <table style={{ width: "100%", fontSize: "14px", borderCollapse: "separate", borderSpacing: "0 8px" }}>
+                            <thead>
+                              <tr style={{ background: "#f8fafc", color: "#475569" }}>
+                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Mã GV</th>
+                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Giảng viên</th>
+                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Khoa</th>
+                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Học vị</th>
+                                <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "700" }}>Chỉ tiêu</th>
+                                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700", minWidth: 200 }}>Tải lượng hướng dẫn</th>
+                                <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "700" }}>Trạng thái tải</th>
+                                <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "700" }}>Thao tác</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filteredLecturers.length === 0 ? (
+                                <tr>
+                                  <td colSpan={8} style={{ padding: "32px", textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
+                                    Không tìm thấy giảng viên nào phù hợp với bộ lọc.
                                   </td>
                                 </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                    {renderPagination(topicsCurrentPage, Math.ceil(filteredTopics.length / 10), setTopicsCurrentPage)}
-                  </div>
-                );
-              })()}
+                              ) : (
+                                paginatedLecturers.map((lecturer) => {
+                                  const activeCount = allTopicsList.filter(t => t.supervisorLecturerCode === lecturer.lecturerCode && t.status.toLowerCase() !== "rejected").length;
+                                  const quota = lecturer.guideQuota || 5;
+                                  const pct = Math.min(100, Math.round((activeCount / quota) * 100));
+                                  const isOverloaded = activeCount > quota;
+                                  const isFull = activeCount === quota;
 
+                                  const badgeColor = isOverloaded ? "#ef4444" : isFull ? "#f59e0b" : "#22c55e";
+                                  const badgeBg = isOverloaded ? "#fee2e2" : isFull ? "#fef3c7" : "#dcfce7";
+                                  const badgeLabel = isOverloaded ? "Quá tải trọng" : isFull ? "Đầy chỉ tiêu" : "Dưới định mức";
 
+                                  const isExpanded = expandedLecturerCode === lecturer.lecturerCode;
+                                  const lecturerTopics = allTopicsList.filter(t => t.supervisorLecturerCode === lecturer.lecturerCode && t.status.toLowerCase() !== "rejected");
 
-              {/* TAB 4: LECTURER GUIDANCE LOAD */}
-              {activeAdminTab === "lecturer-quota" && (() => {
-                const filteredLecturers = allLecturers.filter(lec => {
-                  const s = lecturerLoadSearchTerm.trim().toLowerCase();
-                  const matchesSearch = !s || lec.fullName.toLowerCase().includes(s) || lec.lecturerCode.toLowerCase().includes(s) || (lec.degree || "").toLowerCase().includes(s);
-                  const matchesDept = lecturerLoadDeptFilter === "all" || lec.departmentCode === lecturerLoadDeptFilter;
-                  return matchesSearch && matchesDept;
-                });
-                const paginatedLecturers = filteredLecturers.slice((lecturerLoadCurrentPage - 1) * 10, lecturerLoadCurrentPage * 10);
-
-                // Guidance Quota Calculations
-                const totalLecs = allLecturers.length;
-                const totalQuota = allLecturers.reduce((acc, lec) => acc + (lec.guideQuota || 5), 0);
-                const totalAssignedTopics = allTopicsList.filter(t => t.supervisorLecturerCode && t.status.toLowerCase() !== "rejected").length;
-                
-                const overloadedCount = allLecturers.filter(lec => {
-                  const count = allTopicsList.filter(t => t.supervisorLecturerCode === lec.lecturerCode && t.status.toLowerCase() !== "rejected").length;
-                  return count > (lec.guideQuota || 5);
-                }).length;
-
-                const fullCount = allLecturers.filter(lec => {
-                  const count = allTopicsList.filter(t => t.supervisorLecturerCode === lec.lecturerCode && t.status.toLowerCase() !== "rejected").length;
-                  return count === (lec.guideQuota || 5);
-                }).length;
-
-                const underCount = allLecturers.filter(lec => {
-                  const count = allTopicsList.filter(t => t.supervisorLecturerCode === lec.lecturerCode && t.status.toLowerCase() !== "rejected").length;
-                  return count < (lec.guideQuota || 5);
-                }).length;
-
-                const loadPercent = totalQuota > 0 ? Math.round((totalAssignedTopics / totalQuota) * 100) : 0;
-                const avgLoad = totalLecs > 0 ? (totalAssignedTopics / totalLecs).toFixed(1) : "0.0";
-
-                return (
-                  <div style={{
-                    background: "white",
-                    borderRadius: "24px",
-                    border: "1px solid #D9E1F2",
-                    padding: "24px",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-                  }}>
-                    {/* Quota & Load Statistics Dashboard */}
-                    <div style={{
-                      background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-                      borderRadius: "16px",
-                      border: "1px solid #e2e8f0",
-                      padding: "20px 24px",
-                      marginBottom: "24px",
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "18px" }}>
-                        <Award size={20} color="#1e3a5f" />
-                        <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#1e3a5f" }}>
-                          Báo cáo định mức & Tải lượng hướng dẫn của Giảng viên
-                        </h3>
-                      </div>
-
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-                        {/* Card 1: Tổng số GV */}
-                        <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Giảng viên tham gia</span>
-                            <Users size={16} color="#3b82f6" />
-                          </div>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                            <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{totalLecs}</span>
-                            <span style={{ fontSize: "12px", color: "#64748b" }}>giảng viên</span>
-                          </div>
-                          <p style={{ margin: "8px 0 0 0", fontSize: "11px", color: "#64748b" }}>Tham gia điều hành đợt đồ án</p>
-                        </div>
-
-                        {/* Card 2: Tổng năng lực đợt */}
-                        <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Năng lực nhận hướng dẫn</span>
-                            <TrendingUp size={16} color="#8b5cf6" />
-                          </div>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                            <span style={{ fontSize: "20px", fontWeight: "800", color: "#1e293b" }}>{totalAssignedTopics}</span>
-                            <span style={{ fontSize: "12px", color: "#64748b" }}>/ {totalQuota} chỉ tiêu</span>
-                            <span style={{ marginLeft: "auto", fontSize: "12px", fontWeight: "800", color: "#8b5cf6", background: "#f3e8ff", padding: "2px 6px", borderRadius: "6px" }}>
-                              {loadPercent}%
-                            </span>
-                          </div>
-                          <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden", marginTop: "12px" }}>
-                            <div style={{ width: `${loadPercent}%`, height: "100%", background: "#8b5cf6", borderRadius: "3px" }} />
-                          </div>
-                        </div>
-
-                        {/* Card 3: Trạng thái tải của giảng viên */}
-                        <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Trạng thái định mức tải</span>
-                            <Award size={16} color="#f37021" />
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", fontSize: "12px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#166534", fontWeight: "700" }}>
-                              <span>Dưới tải:</span> <span>{underCount}</span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#b45309", fontWeight: "700" }}>
-                              <span>Đầy tải:</span> <span>{fullCount}</span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#991b1b", fontWeight: "700", gridColumn: "1 / span 2" }}>
-                              <span>Quá chỉ tiêu định mức:</span> <span>{overloadedCount}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Card 4: Trung bình phân công */}
-                        <div style={{ background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#64748b" }}>Phân bổ trung bình đợt</span>
-                            <CheckCircle size={16} color="#10b981" />
-                          </div>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-                            <span style={{ fontSize: "20px", fontWeight: "800", color: "#10b981" }}>{avgLoad}</span>
-                            <span style={{ fontSize: "12px", color: "#64748b" }}>đề tài / giảng viên</span>
-                          </div>
-                          <p style={{ margin: "8px 0 0 0", fontSize: "11px", color: "#64748b" }}>Mức phân bổ tải lượng thực tế</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Search and filter toolbar */}
-                    <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
-                      <div style={{ position: "relative", minWidth: 320 }}>
-                        <Search size={18} color="#9CA3AF" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }} />
-                        <input
-                          type="text"
-                          placeholder="Tìm giảng viên theo mã, tên, học vị..."
-                          value={lecturerLoadSearchTerm}
-                          onChange={(e) => setLecturerLoadSearchTerm(e.target.value)}
-                          style={{
-                            width: "100%",
-                            padding: "10px 14px 10px 42px",
-                            border: "1px solid #CBD5E1",
-                            borderRadius: "12px",
-                            fontSize: "14px",
-                            outline: "none"
-                          }}
-                        />
-                      </div>
-                      
-                      <select
-                        value={lecturerLoadDeptFilter}
-                        onChange={(e) => setLecturerLoadDeptFilter(e.target.value)}
-                        style={{
-                          padding: "10px 16px",
-                          border: "1px solid #CBD5E1",
-                          borderRadius: "12px",
-                          fontSize: "14px",
-                          outline: "none",
-                          background: "white",
-                          minWidth: 200,
-                          fontWeight: "600",
-                          color: "#475569"
-                        }}
-                      >
-                        <option value="all">Tất cả khoa / bộ môn</option>
-                        {Array.from(new Set(allLecturers.map(l => l.departmentCode).filter(Boolean))).map(dept => (
-                          <option key={dept} value={dept}>{dept}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Lecturers Table */}
-                    <div style={{ overflowX: "auto" }}>
-                      <table style={{ width: "100%", fontSize: "14px", borderCollapse: "separate", borderSpacing: "0 8px" }}>
-                        <thead>
-                          <tr style={{ background: "#f8fafc", color: "#475569" }}>
-                            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Mã GV</th>
-                            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Giảng viên</th>
-                            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Bộ môn</th>
-                            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700" }}>Học vị</th>
-                            <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "700" }}>Chỉ tiêu</th>
-                            <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "700", minWidth: 200 }}>Tải lượng hướng dẫn</th>
-                            <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "700" }}>Trạng thái tải</th>
-                            <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "700" }}>Thao tác</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredLecturers.length === 0 ? (
-                            <tr>
-                              <td colSpan={8} style={{ padding: "32px", textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
-                                Không tìm thấy giảng viên nào phù hợp với bộ lọc.
-                              </td>
-                            </tr>
-                          ) : (
-                            paginatedLecturers.map((lecturer) => {
-                              const activeCount = allTopicsList.filter(t => t.supervisorLecturerCode === lecturer.lecturerCode && t.status.toLowerCase() !== "rejected").length;
-                              const quota = lecturer.guideQuota || 5;
-                              const pct = Math.min(100, Math.round((activeCount / quota) * 100));
-                              const isOverloaded = activeCount > quota;
-                              const isFull = activeCount === quota;
-                              
-                              const badgeColor = isOverloaded ? "#ef4444" : isFull ? "#f59e0b" : "#22c55e";
-                              const badgeBg = isOverloaded ? "#fee2e2" : isFull ? "#fef3c7" : "#dcfce7";
-                              const badgeLabel = isOverloaded ? "Quá tải trọng" : isFull ? "Đầy chỉ tiêu" : "Dưới định mức";
-
-                              const isExpanded = expandedLecturerCode === lecturer.lecturerCode;
-                              const lecturerTopics = allTopicsList.filter(t => t.supervisorLecturerCode === lecturer.lecturerCode && t.status.toLowerCase() !== "rejected");
-
-                              return (
-                                <React.Fragment key={lecturer.lecturerCode}>
-                                  <tr
-                                    onClick={() => setExpandedLecturerCode(isExpanded ? null : lecturer.lecturerCode)}
-                                    style={{
-                                      background: "#fcfdfe",
-                                      borderRadius: "16px",
-                                      border: "1px solid #f1f5f9",
-                                      cursor: "pointer",
-                                      transition: "all 0.2s"
-                                    }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.background = "#f8fafc"; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.background = "#fcfdfe"; }}
-                                  >
-                                    <td style={{ padding: "16px", fontWeight: "700", color: "#1e3a5f", borderRadius: "12px 0 0 12px" }}>
-                                      {lecturer.lecturerCode}
-                                    </td>
-                                    <td style={{ padding: "16px", fontWeight: "700", color: "#1e293b" }}>
-                                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                        {lecturer.fullName}
-                                        {isExpanded ? <ChevronUp size={16} color="#64748b" /> : <ChevronDown size={16} color="#64748b" />}
-                                      </div>
-                                    </td>
-                                    <td style={{ padding: "16px", color: "#475569", fontWeight: "600" }}>
-                                      {lecturer.departmentCode || "-"}
-                                    </td>
-                                    <td style={{ padding: "16px", color: "#475569" }}>
-                                      {lecturer.degree || "-"}
-                                    </td>
-                                    <td style={{ padding: "16px", textAlign: "center", fontWeight: "800", color: "#1e3a5f" }}>
-                                      {quota}
-                                    </td>
-                                    <td style={{ padding: "16px" }}>
-                                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                        <div style={{ flex: 1, height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden" }}>
-                                          <div style={{ width: `${pct}%`, height: "100%", background: badgeColor, borderRadius: "3px", transition: "width 0.3s" }} />
-                                        </div>
-                                        <span style={{ fontSize: "12px", fontWeight: "800", color: "#1e293b", minWidth: 45 }}>
-                                          {activeCount} / {quota}
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td style={{ padding: "16px", borderRadius: "0", textAlign: "center" }}>
-                                      <span style={{
-                                        display: "inline-block",
-                                        padding: "6px 12px",
-                                        borderRadius: "99px",
-                                        fontSize: "12px",
-                                        fontWeight: "800",
-                                        background: badgeBg,
-                                        color: badgeColor
-                                      }}>
-                                        {badgeLabel}
-                                      </span>
-                                    </td>
-                                    <td style={{ padding: "16px", borderRadius: "0 12px 12px 0", textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditQuotaModal({
-                                          isOpen: true,
-                                          lecturer,
-                                          quotaValue: quota,
-                                          defenseQuotaValue: lecturer.defenseQuota || 5
-                                        })}
+                                  return (
+                                    <React.Fragment key={lecturer.lecturerCode}>
+                                      <tr
+                                        onClick={() => setExpandedLecturerCode(isExpanded ? null : lecturer.lecturerCode)}
                                         style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          gap: "6px",
-                                          padding: "6px 12px",
-                                          borderRadius: "8px",
-                                          border: "1px solid #cbd5e1",
-                                          background: "white",
-                                          color: "#334155",
-                                          fontSize: "12px",
-                                          fontWeight: "600",
-                                          cursor: "pointer",
-                                          transition: "all 0.15s ease-in-out",
-                                        }}
-                                        onMouseEnter={(e) => {
-                                          e.currentTarget.style.borderColor = "#1e3a5f";
-                                          e.currentTarget.style.background = "#f1f5f9";
-                                          e.currentTarget.style.color = "#1e3a5f";
-                                        }}
-                                        onMouseLeave={(e) => {
-                                          e.currentTarget.style.borderColor = "#cbd5e1";
-                                          e.currentTarget.style.background = "white";
-                                          e.currentTarget.style.color = "#334155";
-                                        }}
-                                      >
-                                        <Edit size={12} />
-                                        Sửa định mức
-                                      </button>
-                                    </td>
-                                  </tr>
-
-                                  {/* Expanded sub-table row */}
-                                  {isExpanded && (
-                                    <tr>
-                                      <td colSpan={8} style={{ padding: "8px 24px 20px 24px", background: "#f8fafc" }}>
-                                        <div style={{
-                                          background: "white",
+                                          background: "#fcfdfe",
                                           borderRadius: "16px",
-                                          border: "1px solid #e2e8f0",
-                                          padding: "16px",
-                                          boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)"
-                                        }}>
-                                          <h4 style={{ margin: "0 0 12px 0", fontSize: 13, fontWeight: "800", color: "#1e3a5f", textTransform: "uppercase" }}>
-                                            Danh sách sinh viên đang hướng dẫn ({lecturerTopics.length})
-                                          </h4>
-                                          {lecturerTopics.length === 0 ? (
-                                            <p style={{ margin: 0, fontStyle: "italic", fontSize: 13, color: "#64748b" }}>Giảng viên này chưa được phân công sinh viên nào.</p>
-                                          ) : (
-                                            <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
-                                              <thead>
-                                                <tr style={{ color: "#64748b", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
-                                                  <th style={{ padding: "8px 12px", fontWeight: "700" }}>Mã SV</th>
-                                                  <th style={{ padding: "8px 12px", fontWeight: "700" }}>Sinh viên</th>
-                                                  <th style={{ padding: "8px 12px", fontWeight: "700" }}>Lớp</th>
-                                                  <th style={{ padding: "8px 12px", fontWeight: "700" }}>Đề tài</th>
-                                                  <th style={{ padding: "8px 12px", fontWeight: "700" }}>Loại</th>
-                                                  <th style={{ padding: "8px 12px", fontWeight: "700" }}>Trạng thái</th>
-                                                </tr>
-                                              </thead>
-                                              <tbody>
-                                                {lecturerTopics.map(topic => {
-                                                  const student = allStudents.find(s => s.studentCode === topic.proposerStudentCode);
-                                                  return (
-                                                    <tr key={topic.topicID} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                                                      <td style={{ padding: "10px 12px", fontWeight: "600", color: "#1e3a5f" }}>{topic.proposerStudentCode}</td>
-                                                      <td style={{ padding: "10px 12px", fontWeight: "700", color: "#1e293b" }}>{student?.fullName || "-"}</td>
-                                                      <td style={{ padding: "10px 12px", color: "#475569" }}>{student?.classCode || "-"}</td>
-                                                      <td style={{ padding: "10px 12px", fontWeight: "600", color: "#334155" }}>{topic.title}</td>
-                                                      <td style={{ padding: "10px 12px" }}>{topic.type === "CATALOG" ? "Catalog" : "Tự chọn"}</td>
-                                                      <td style={{ padding: "10px 12px" }}>
-                                                        <span style={{
-                                                          padding: "2px 8px",
-                                                          borderRadius: 99,
-                                                          fontSize: 11,
-                                                          fontWeight: 800,
-                                                          background: topic.status === "Đã duyệt" ? "#dcfce7" : "#fef3c7",
-                                                          color: topic.status === "Đã duyệt" ? "#166534" : "#b45309"
-                                                        }}>{topic.status}</span>
-                                                      </td>
+                                          border: "1px solid #f1f5f9",
+                                          cursor: "pointer",
+                                          transition: "all 0.2s"
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.background = "#f8fafc"; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.background = "#fcfdfe"; }}
+                                      >
+                                        <td style={{ padding: "16px", fontWeight: "700", color: "#1e3a5f", borderRadius: "12px 0 0 12px" }}>
+                                          {lecturer.lecturerCode}
+                                        </td>
+                                        <td style={{ padding: "16px", fontWeight: "700", color: "#1e293b" }}>
+                                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                            {lecturer.fullName}
+                                            {isExpanded ? <ChevronUp size={16} color="#64748b" /> : <ChevronDown size={16} color="#64748b" />}
+                                          </div>
+                                        </td>
+                                        <td style={{ padding: "16px", color: "#475569", fontWeight: "600" }}>
+                                          {lecturer.departmentCode || "-"}
+                                        </td>
+                                        <td style={{ padding: "16px", color: "#475569" }}>
+                                          {lecturer.degree || "-"}
+                                        </td>
+                                        <td style={{ padding: "16px", textAlign: "center", fontWeight: "800", color: "#1e3a5f" }}>
+                                          {quota}
+                                        </td>
+                                        <td style={{ padding: "16px" }}>
+                                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                            <div style={{ flex: 1, height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden" }}>
+                                              <div style={{ width: `${pct}%`, height: "100%", background: badgeColor, borderRadius: "3px", transition: "width 0.3s" }} />
+                                            </div>
+                                            <span style={{ fontSize: "12px", fontWeight: "800", color: "#1e293b", minWidth: 45 }}>
+                                              {activeCount} / {quota}
+                                            </span>
+                                          </div>
+                                        </td>
+                                        <td style={{ padding: "16px", borderRadius: "0", textAlign: "center" }}>
+                                          <span style={{
+                                            display: "inline-block",
+                                            padding: "6px 12px",
+                                            borderRadius: "99px",
+                                            fontSize: "12px",
+                                            fontWeight: "800",
+                                            background: badgeBg,
+                                            color: badgeColor
+                                          }}>
+                                            {badgeLabel}
+                                          </span>
+                                        </td>
+                                        <td style={{ padding: "16px", borderRadius: "0 12px 12px 0", textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditQuotaModal({
+                                              isOpen: true,
+                                              lecturer,
+                                              quotaValue: quota,
+                                              defenseQuotaValue: lecturer.defenseQuota || 5
+                                            })}
+                                            style={{
+                                              display: "inline-flex",
+                                              alignItems: "center",
+                                              gap: "6px",
+                                              padding: "6px 12px",
+                                              borderRadius: "8px",
+                                              border: "1px solid #cbd5e1",
+                                              background: "white",
+                                              color: "#334155",
+                                              fontSize: "12px",
+                                              fontWeight: "600",
+                                              cursor: "pointer",
+                                              transition: "all 0.15s ease-in-out",
+                                            }}
+                                            onMouseEnter={(e) => {
+                                              e.currentTarget.style.borderColor = "#1e3a5f";
+                                              e.currentTarget.style.background = "#f1f5f9";
+                                              e.currentTarget.style.color = "#1e3a5f";
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              e.currentTarget.style.borderColor = "#cbd5e1";
+                                              e.currentTarget.style.background = "white";
+                                              e.currentTarget.style.color = "#334155";
+                                            }}
+                                          >
+                                            <Edit size={12} />
+                                            Sửa định mức
+                                          </button>
+                                        </td>
+                                      </tr>
+
+                                      {/* Expanded sub-table row */}
+                                      {isExpanded && (
+                                        <tr>
+                                          <td colSpan={8} style={{ padding: "8px 24px 20px 24px", background: "#f8fafc" }}>
+                                            <div style={{
+                                              background: "white",
+                                              borderRadius: "16px",
+                                              border: "1px solid #e2e8f0",
+                                              padding: "16px",
+                                              boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)"
+                                            }}>
+                                              <h4 style={{ margin: "0 0 12px 0", fontSize: 13, fontWeight: "800", color: "#1e3a5f", textTransform: "uppercase" }}>
+                                                Danh sách sinh viên đang hướng dẫn ({lecturerTopics.length})
+                                              </h4>
+                                              {lecturerTopics.length === 0 ? (
+                                                <p style={{ margin: 0, fontStyle: "italic", fontSize: 13, color: "#64748b" }}>Giảng viên này chưa được phân công sinh viên nào.</p>
+                                              ) : (
+                                                <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
+                                                  <thead>
+                                                    <tr style={{ color: "#64748b", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
+                                                      <th style={{ padding: "8px 12px", fontWeight: "700" }}>Mã SV</th>
+                                                      <th style={{ padding: "8px 12px", fontWeight: "700" }}>Sinh viên</th>
+                                                      <th style={{ padding: "8px 12px", fontWeight: "700" }}>Lớp</th>
+                                                      <th style={{ padding: "8px 12px", fontWeight: "700" }}>Đề tài</th>
+                                                      <th style={{ padding: "8px 12px", fontWeight: "700" }}>Loại</th>
+                                                      <th style={{ padding: "8px 12px", fontWeight: "700" }}>Trạng thái</th>
                                                     </tr>
-                                                  );
-                                                })}
-                                              </tbody>
-                                            </table>
-                                          )}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  )}
-                                </React.Fragment>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                    {renderPagination(lecturerLoadCurrentPage, Math.ceil(filteredLecturers.length / 10), setLecturerLoadCurrentPage)}
-                  </div>
-                );
-              })()}
-
-              {/* TAB 5: REPORT EXPORT CENTER */}
-              {/* TAB 5: REPORT EXPORT CENTER */}
-              {activeAdminTab === "export" && (() => {
-                const currentTemplate = EXPORT_REPORTS.find(t => t.key === selectedTemplateKey) || EXPORT_REPORTS[0];
-                
-                // Group fields by category
-                const categories: Record<string, any[]> = {};
-                if (currentTemplate.fields) {
-                  currentTemplate.fields.forEach((f: any) => {
-                    if (!categories[f.category]) categories[f.category] = [];
-                    categories[f.category].push(f);
-                  });
-                }
-
-                return (
-                  <div style={{ display: "grid", gap: "24px", animation: "modalFadeIn 0.4s ease-out" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "24px", alignItems: "start" }}>
-                      
-                      {/* Column 1: Report template selection */}
-                      <div style={{ background: "#f8fafc", padding: "24px", borderRadius: "20px", border: "1px solid #e2e8f0" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
-                          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#1e3a5f", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800" }}>1</div>
-                          <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chọn mẫu báo cáo</h3>
+                                                  </thead>
+                                                  <tbody>
+                                                    {lecturerTopics.map(topic => {
+                                                      const student = allStudents.find(s => s.studentCode === topic.proposerStudentCode);
+                                                      return (
+                                                        <tr key={topic.topicID} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                                          <td style={{ padding: "10px 12px", fontWeight: "600", color: "#1e3a5f" }}>{topic.proposerStudentCode}</td>
+                                                          <td style={{ padding: "10px 12px", fontWeight: "700", color: "#1e293b" }}>{student?.fullName || "-"}</td>
+                                                          <td style={{ padding: "10px 12px", color: "#475569" }}>{student?.classCode || "-"}</td>
+                                                          <td style={{ padding: "10px 12px", fontWeight: "600", color: "#334155" }}>{topic.title}</td>
+                                                          <td style={{ padding: "10px 12px" }}>{topic.type === "CATALOG" ? "Catalog" : "Tự chọn"}</td>
+                                                          <td style={{ padding: "10px 12px" }}>
+                                                            <span style={{
+                                                              padding: "2px 8px",
+                                                              borderRadius: 99,
+                                                              fontSize: 11,
+                                                              fontWeight: 800,
+                                                              background: topic.status === "Đã duyệt" ? "#dcfce7" : "#fef3c7",
+                                                              color: topic.status === "Đã duyệt" ? "#166534" : "#b45309"
+                                                            }}>{topic.status}</span>
+                                                          </td>
+                                                        </tr>
+                                                      );
+                                                    })}
+                                                  </tbody>
+                                                </table>
+                                              )}
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </React.Fragment>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
                         </div>
-
-                        <div style={{ display: "grid", gap: "10px" }}>
-                          {EXPORT_REPORTS.map((item) => (
-                            <button
-                              key={item.key}
-                              type="button"
-                              onClick={() => {
-                                setSelectedTemplateKey(item.key);
-                                if (item.fields) {
-                                  setSelectedFields(item.fields.map(f => f.key));
-                                } else {
-                                  setSelectedFields([]);
-                                }
-                              }}
-                              style={{
-                                width: "100%", padding: "16px", borderRadius: "16px", textAlign: "left",
-                                border: `2px solid ${selectedTemplateKey === item.key ? "#1e3a5f" : "transparent"}`,
-                                background: selectedTemplateKey === item.key ? "white" : "transparent",
-                                boxShadow: selectedTemplateKey === item.key ? "0 4px 12px rgba(0,0,0,0.05)" : "none",
-                                cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", gap: "12px"
-                              }}
-                              onMouseEnter={(e) => {
-                                if (selectedTemplateKey !== item.key) e.currentTarget.style.background = "#f1f5f9";
-                              }}
-                              onMouseLeave={(e) => {
-                                if (selectedTemplateKey !== item.key) e.currentTarget.style.background = "transparent";
-                              }}
-                            >
-                              <div style={{ color: selectedTemplateKey === item.key ? "#1e3a5f" : "#94a3b8" }}>{item.icon}</div>
-                              <span style={{ fontSize: "14px", fontWeight: selectedTemplateKey === item.key ? "700" : "600", color: selectedTemplateKey === item.key ? "#1e293b" : "#64748b" }}>{item.label}</span>
-                            </button>
-                          ))}
-                        </div>
+                        {renderPagination(lecturerLoadCurrentPage, Math.ceil(filteredLecturers.length / 10), setLecturerLoadCurrentPage)}
                       </div>
+                    );
+                  })()}
 
-                      {/* Column 2: Fields Configuration */}
-                      <div style={{ background: "white", padding: "32px", borderRadius: "20px", border: "1px solid #e2e8f0", minHeight: "500px", display: "flex", flexDirection: "column" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                            <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#1e3a5f", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800" }}>2</div>
-                            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Cấu hình trường dữ liệu</h3>
-                          </div>
-                          {currentTemplate.fields && (
-                            <div style={{ display: "flex", gap: "16px" }}>
-                              <button type="button" onClick={() => setSelectedFields(currentTemplate.fields?.map(f => f.key) || [])} style={{ background: "none", border: "none", color: "#1e3a5f", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>Chọn tất cả</button>
-                              <button type="button" onClick={() => setSelectedFields([])} style={{ background: "none", border: "none", color: "#ef4444", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>Bỏ chọn</button>
-                            </div>
-                          )}
-                        </div>
+                  {/* TAB 5: REPORT EXPORT CENTER */}
+                  {/* TAB 5: REPORT EXPORT CENTER */}
+                  {activeAdminTab === "export" && (() => {
+                    const currentTemplate = EXPORT_REPORTS.find(t => t.key === selectedTemplateKey) || EXPORT_REPORTS[0];
 
-                        {currentTemplate.key === "all-students" && (
-                          <div style={{ 
-                            marginBottom: "24px", 
-                            padding: "20px", 
-                            background: "#f8fafc", 
-                            borderRadius: "16px", 
-                            border: "1px solid #e2e8f0" 
-                          }}>
-                            <div style={{ 
-                              fontSize: "12px", 
-                              fontWeight: "800", 
-                              color: "#64748b", 
-                              marginBottom: "14px", 
-                              textTransform: "uppercase", 
-                              letterSpacing: "0.05em",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px"
-                            }}>
-                              Bộ lọc trạng thái sinh viên
-                              <div style={{ flex: 1, height: "1px", background: "#cbd5e1" }} />
+                    // Group fields by category
+                    const categories: Record<string, any[]> = {};
+                    if (currentTemplate.fields) {
+                      currentTemplate.fields.forEach((f: any) => {
+                        if (!categories[f.category]) categories[f.category] = [];
+                        categories[f.category].push(f);
+                      });
+                    }
+
+                    return (
+                      <div style={{ display: "grid", gap: "24px", animation: "modalFadeIn 0.4s ease-out" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "24px", alignItems: "start" }}>
+
+                          {/* Column 1: Report template selection */}
+                          <div style={{ background: "#f8fafc", padding: "24px", borderRadius: "20px", border: "1px solid #e2e8f0" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+                              <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#1e3a5f", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800" }}>1</div>
+                              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chọn mẫu báo cáo</h3>
                             </div>
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-                              {[
-                                { id: "all", label: "Tất cả sinh viên" },
-                                { id: "has-topic", label: "Đã có đề tài" },
-                                { id: "no-topic", label: "Chưa có đề tài" },
-                              ].map(opt => (
-                                <label
-                                  key={opt.id}
+
+                            <div style={{ display: "grid", gap: "10px" }}>
+                              {EXPORT_REPORTS.map((item) => (
+                                <button
+                                  key={item.key}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedTemplateKey(item.key);
+                                    if (item.fields) {
+                                      setSelectedFields(item.fields.map(f => f.key));
+                                    } else {
+                                      setSelectedFields([]);
+                                    }
+                                  }}
                                   style={{
-                                    display: "flex", 
-                                    alignItems: "center", 
-                                    gap: "10px", 
-                                    padding: "12px 16px", 
-                                    borderRadius: "12px",
-                                    border: `2px solid ${studentFilter === opt.id ? "#1e3a5f" : "#e2e8f0"}`,
-                                    background: studentFilter === opt.id ? "rgba(30, 58, 95, 0.03)" : "white",
-                                    cursor: "pointer", 
-                                    transition: "all 0.2s", 
-                                    fontWeight: "700", 
-                                    fontSize: "13px", 
-                                    color: studentFilter === opt.id ? "#1e3a5f" : "#475569",
-                                    boxShadow: studentFilter === opt.id ? "0 4px 6px -1px rgba(0,0,0,0.05)" : "none"
+                                    width: "100%", padding: "16px", borderRadius: "16px", textAlign: "left",
+                                    border: `2px solid ${selectedTemplateKey === item.key ? "#1e3a5f" : "transparent"}`,
+                                    background: selectedTemplateKey === item.key ? "white" : "transparent",
+                                    boxShadow: selectedTemplateKey === item.key ? "0 4px 12px rgba(0,0,0,0.05)" : "none",
+                                    cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", gap: "12px"
                                   }}
                                   onMouseEnter={(e) => {
-                                    if (studentFilter !== opt.id) e.currentTarget.style.borderColor = "#cbd5e1";
+                                    if (selectedTemplateKey !== item.key) e.currentTarget.style.background = "#f1f5f9";
                                   }}
                                   onMouseLeave={(e) => {
-                                    if (studentFilter !== opt.id) e.currentTarget.style.borderColor = "#e2e8f0";
+                                    if (selectedTemplateKey !== item.key) e.currentTarget.style.background = "transparent";
                                   }}
                                 >
-                                  <input
-                                    type="radio"
-                                    name="studentFilter"
-                                    checked={studentFilter === opt.id}
-                                    onChange={() => setStudentFilter(opt.id as any)}
-                                    style={{ width: "16px", height: "16px", accentColor: "#1e3a5f", cursor: "pointer" }}
-                                  />
-                                  {opt.label}
-                                </label>
+                                  <div style={{ color: selectedTemplateKey === item.key ? "#1e3a5f" : "#94a3b8" }}>{item.icon}</div>
+                                  <span style={{ fontSize: "14px", fontWeight: selectedTemplateKey === item.key ? "700" : "600", color: selectedTemplateKey === item.key ? "#1e293b" : "#64748b" }}>{item.label}</span>
+                                </button>
                               ))}
                             </div>
                           </div>
-                        )}
 
-                        {currentTemplate.fields ? (
-                          <div style={{ flex: 1, display: "grid", gap: "32px" }}>
-                            {Object.entries(categories).map(([cat, fields]) => (
-                              <div key={cat}>
-                                <div style={{ fontSize: "12px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "16px", display: "flex", alignItems: "center", gap: "10px" }}>
-                                  {cat} <div style={{ flex: 1, height: "1px", background: "#f1f5f9" }} />
+                          {/* Column 2: Fields Configuration */}
+                          <div style={{ background: "white", padding: "32px", borderRadius: "20px", border: "1px solid #e2e8f0", minHeight: "500px", display: "flex", flexDirection: "column" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#1e3a5f", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800" }}>2</div>
+                                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Cấu hình trường dữ liệu</h3>
+                              </div>
+                              {currentTemplate.fields && (
+                                <div style={{ display: "flex", gap: "16px" }}>
+                                  <button type="button" onClick={() => setSelectedFields(currentTemplate.fields?.map(f => f.key) || [])} style={{ background: "none", border: "none", color: "#1e3a5f", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>Chọn tất cả</button>
+                                  <button type="button" onClick={() => setSelectedFields([])} style={{ background: "none", border: "none", color: "#ef4444", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>Bỏ chọn</button>
                                 </div>
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px" }}>
-                                  {fields.map(field => {
-                                    const isChecked = selectedFields.includes(field.key);
-                                    return (
-                                      <label
-                                        key={field.key}
-                                        style={{
-                                          display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderRadius: "14px",
-                                          border: `1px solid ${isChecked ? "#1e3a5f" : "#f1f5f9"}`,
-                                          background: isChecked ? "rgba(30, 58, 95, 0.03)" : "#fcfdfe",
-                                          cursor: "pointer", transition: "all 0.2s"
-                                        }}
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={isChecked}
-                                          onChange={() => {
-                                            setSelectedFields(prev => prev.includes(field.key) ? prev.filter(k => k !== field.key) : [...prev, field.key]);
-                                          }}
-                                          style={{ width: "18px", height: "18px", accentColor: "#1e3a5f", cursor: "pointer" }}
-                                        />
-                                        <span style={{ fontSize: "13px", fontWeight: "600", color: isChecked ? "#1e293b" : "#64748b" }}>{field.label}</span>
-                                      </label>
-                                    );
-                                  })}
+                              )}
+                            </div>
+
+                            {currentTemplate.key === "all-students" && (
+                              <div style={{
+                                marginBottom: "24px",
+                                padding: "20px",
+                                background: "#f8fafc",
+                                borderRadius: "16px",
+                                border: "1px solid #e2e8f0"
+                              }}>
+                                <div style={{
+                                  fontSize: "12px",
+                                  fontWeight: "800",
+                                  color: "#64748b",
+                                  marginBottom: "14px",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "8px"
+                                }}>
+                                  Bộ lọc trạng thái sinh viên
+                                  <div style={{ flex: 1, height: "1px", background: "#cbd5e1" }} />
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+                                  {[
+                                    { id: "all", label: "Tất cả sinh viên" },
+                                    { id: "has-topic", label: "Đã có đề tài" },
+                                    { id: "no-topic", label: "Chưa có đề tài" },
+                                  ].map(opt => (
+                                    <label
+                                      key={opt.id}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "10px",
+                                        padding: "12px 16px",
+                                        borderRadius: "12px",
+                                        border: `2px solid ${studentFilter === opt.id ? "#1e3a5f" : "#e2e8f0"}`,
+                                        background: studentFilter === opt.id ? "rgba(30, 58, 95, 0.03)" : "white",
+                                        cursor: "pointer",
+                                        transition: "all 0.2s",
+                                        fontWeight: "700",
+                                        fontSize: "13px",
+                                        color: studentFilter === opt.id ? "#1e3a5f" : "#475569",
+                                        boxShadow: studentFilter === opt.id ? "0 4px 6px -1px rgba(0,0,0,0.05)" : "none"
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        if (studentFilter !== opt.id) e.currentTarget.style.borderColor = "#cbd5e1";
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (studentFilter !== opt.id) e.currentTarget.style.borderColor = "#e2e8f0";
+                                      }}
+                                    >
+                                      <input
+                                        type="radio"
+                                        name="studentFilter"
+                                        checked={studentFilter === opt.id}
+                                        onChange={() => setStudentFilter(opt.id as any)}
+                                        style={{ width: "16px", height: "16px", accentColor: "#1e3a5f", cursor: "pointer" }}
+                                      />
+                                      {opt.label}
+                                    </label>
+                                  ))}
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#94a3b8", gap: "16px" }}>
-                            <Info size={48} strokeWidth={1} />
-                            <div style={{ fontSize: "14px", fontWeight: "600" }}>Mẫu báo cáo này không yêu cầu cấu hình trường dữ liệu bổ sung.</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                            )}
 
-                    {/* Bottom Row: Export format & Action button */}
-                    <div style={{ background: "#1e293b", padding: "32px", borderRadius: "24px", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "32px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.2)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800" }}>3</div>
-                          <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.05em" }}>Định dạng & Xuất file</h3>
+                            {currentTemplate.fields ? (
+                              <div style={{ flex: 1, display: "grid", gap: "32px" }}>
+                                {Object.entries(categories).map(([cat, fields]) => (
+                                  <div key={cat}>
+                                    <div style={{ fontSize: "12px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "16px", display: "flex", alignItems: "center", gap: "10px" }}>
+                                      {cat} <div style={{ flex: 1, height: "1px", background: "#f1f5f9" }} />
+                                    </div>
+                                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px" }}>
+                                      {fields.map(field => {
+                                        const isChecked = selectedFields.includes(field.key);
+                                        return (
+                                          <label
+                                            key={field.key}
+                                            style={{
+                                              display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderRadius: "14px",
+                                              border: `1px solid ${isChecked ? "#1e3a5f" : "#f1f5f9"}`,
+                                              background: isChecked ? "rgba(30, 58, 95, 0.03)" : "#fcfdfe",
+                                              cursor: "pointer", transition: "all 0.2s"
+                                            }}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={isChecked}
+                                              onChange={() => {
+                                                setSelectedFields(prev => prev.includes(field.key) ? prev.filter(k => k !== field.key) : [...prev, field.key]);
+                                              }}
+                                              style={{ width: "18px", height: "18px", accentColor: "#1e3a5f", cursor: "pointer" }}
+                                            />
+                                            <span style={{ fontSize: "13px", fontWeight: "600", color: isChecked ? "#1e293b" : "#64748b" }}>{field.label}</span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#94a3b8", gap: "16px" }}>
+                                <Info size={48} strokeWidth={1} />
+                                <div style={{ fontSize: "14px", fontWeight: "600" }}>Mẫu báo cáo này không yêu cầu cấu hình trường dữ liệu bổ sung.</div>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        <div style={{ display: "flex", gap: "8px", background: "rgba(0,0,0,0.2)", padding: "4px", borderRadius: "12px" }}>
-                          {[
-                            { id: "xlsx", label: "Excel (.xlsx)", icon: <FileSpreadsheet size={16} /> },
-                            { id: "pdf", label: "PDF (.pdf)", icon: <FileDown size={16} /> },
-                          ].map(opt => (
-                            <button
-                              key={opt.id}
-                              type="button"
-                              onClick={() => setExportFormat(opt.id)}
-                              style={{
-                                padding: "10px 20px", borderRadius: "10px", border: "none",
-                                background: exportFormat === opt.id ? "white" : "transparent",
-                                color: exportFormat === opt.id ? "#1e293b" : "#94a3b8",
-                                fontWeight: "700", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
-                                transition: "all 0.2s"
-                              }}
-                            >
-                              {opt.icon} {opt.label}
-                            </button>
-                          ))}
+                        {/* Bottom Row: Export format & Action button */}
+                        <div style={{ background: "#1e293b", padding: "32px", borderRadius: "24px", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "32px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                              <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.2)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800" }}>3</div>
+                              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.05em" }}>Định dạng & Xuất file</h3>
+                            </div>
+
+                            <div style={{ display: "flex", gap: "8px", background: "rgba(0,0,0,0.2)", padding: "4px", borderRadius: "12px" }}>
+                              {[
+                                { id: "xlsx", label: "Excel (.xlsx)", icon: <FileSpreadsheet size={16} /> },
+                                { id: "pdf", label: "PDF (.pdf)", icon: <FileDown size={16} /> },
+                              ].map(opt => (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={() => setExportFormat(opt.id)}
+                                  style={{
+                                    padding: "10px 20px", borderRadius: "10px", border: "none",
+                                    background: exportFormat === opt.id ? "white" : "transparent",
+                                    color: exportFormat === opt.id ? "#1e293b" : "#94a3b8",
+                                    fontWeight: "700", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
+                                    transition: "all 0.2s"
+                                  }}
+                                >
+                                  {opt.icon} {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadReport(currentTemplate, exportFormat, selectedFields)}
+                            disabled={!selectedPeriodId || isExporting || (currentTemplate.fields && selectedFields.length === 0)}
+                            style={{
+                              padding: "16px 48px", borderRadius: "16px", border: "none",
+                              background: "#3b82f6", color: "white", fontWeight: "800", fontSize: "15px",
+                              cursor: (isExporting || (currentTemplate.fields && selectedFields.length === 0)) ? "not-allowed" : "pointer",
+                              display: "flex", alignItems: "center", gap: "12px",
+                              boxShadow: "0 10px 15px -3px rgba(59, 130, 246, 0.3)", transition: "all 0.2s",
+                              opacity: (isExporting || (currentTemplate.fields && selectedFields.length === 0)) ? 0.6 : 1
+                            }}
+                          >
+                            {isExporting ? <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} /> : <Download size={20} />}
+                            Xuất dữ liệu ngay
+                          </button>
                         </div>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadReport(currentTemplate, exportFormat, selectedFields)}
-                        disabled={!selectedPeriodId || isExporting || (currentTemplate.fields && selectedFields.length === 0)}
-                        style={{
-                          padding: "16px 48px", borderRadius: "16px", border: "none",
-                          background: "#3b82f6", color: "white", fontWeight: "800", fontSize: "15px",
-                          cursor: (isExporting || (currentTemplate.fields && selectedFields.length === 0)) ? "not-allowed" : "pointer", 
-                          display: "flex", alignItems: "center", gap: "12px",
-                          boxShadow: "0 10px 15px -3px rgba(59, 130, 246, 0.3)", transition: "all 0.2s",
-                          opacity: (isExporting || (currentTemplate.fields && selectedFields.length === 0)) ? 0.6 : 1
-                        }}
-                      >
-                        {isExporting ? <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} /> : <Download size={20} />}
-                        Xuất dữ liệu ngay
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
       {/* Comment Modal */}
       {commentModal.isOpen && (
@@ -6020,8 +6020,8 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
         </div>
       )}
 
-  {/* Success Modal */}
-  {successModal.isOpen && (
+      {/* Success Modal */}
+      {successModal.isOpen && (
         <div
           style={{
             position: "fixed",
@@ -6204,14 +6204,14 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
               >
                 {isDetailLoading || !topic ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "400px", gap: "16px" }}>
-                     <div style={{ width: "40px", height: "40px", border: "4px solid #f3f4f6", borderTop: "4px solid #F37021", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-                     <p style={{ color: "#64748b", fontWeight: "600" }}>Đang tải dữ liệu chi tiết...</p>
+                    <div style={{ width: "40px", height: "40px", border: "4px solid #f3f4f6", borderTop: "4px solid #F37021", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                    <p style={{ color: "#64748b", fontWeight: "600" }}>Đang tải dữ liệu chi tiết...</p>
                   </div>
                 ) : (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", minHeight: "100%" }}>
                     {/* --- LEFT: TOPIC DETAILS & PROGRESS (7 cols) --- */}
                     <div style={{ gridColumn: "span 7", padding: "40px", backgroundColor: "white" }}>
-                      
+
                       {/* Topic Title & Badges */}
                       <div style={{ marginBottom: "40px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
@@ -6581,7 +6581,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
 
                     {/* --- RIGHT: SIDEBAR (3 cols) --- */}
                     <div style={{ gridColumn: "span 3", backgroundColor: "#f8fafc", padding: "40px", display: "flex", flexDirection: "column", gap: "24px" }}>
-                      
+
                       {/* Student Card */}
                       <div style={{ background: "white", borderRadius: "24px", padding: "32px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)", border: "1px solid #f1f5f9", textAlign: "center" }}>
                         <div style={{ width: "128px", height: "128px", borderRadius: "32px", margin: "0 auto 24px", background: "linear-gradient(135deg, #1e3a5f 0%, #2a5282 100%)", display: "flex", alignItems: "center", justifyContent: "center", border: "4px solid white", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)", overflow: "hidden" }}>
@@ -6699,7 +6699,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                 {manualAssignModal.student.fullName} ({manualAssignModal.student.studentCode})
               </div>
               <div style={{ fontSize: 13, color: "#64748b", marginTop: 2, fontWeight: 600 }}>
-                Bộ môn: {manualAssignModal.student.departmentCode} • Lớp: {manualAssignModal.student.classCode}
+                Khoa: {manualAssignModal.student.departmentCode} • Lớp: {manualAssignModal.student.classCode}
               </div>
             </div>
 
@@ -6748,13 +6748,13 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                     const isSameDept = lec.departmentCode === manualAssignModal.student?.departmentCode;
                     return (
                       <option key={lec.lecturerCode} value={lec.lecturerCode}>
-                        {lec.fullName} ({lec.lecturerCode}) {isSameDept ? "★ (Cùng bộ môn)" : ""}
+                        {lec.fullName} ({lec.lecturerCode}) {isSameDept ? "★ (Cùng khoa)" : ""}
                       </option>
                     );
                   })}
                 </select>
                 <p style={{ margin: "4px 0 0 0", fontSize: 11, color: "#64748b" }}>
-                  ★ Ưu tiên giảng viên cùng bộ môn với sinh viên được xếp ở đầu danh sách.
+                  ★ Ưu tiên giảng viên cùng khoa với sinh viên được xếp ở đầu danh sách.
                 </p>
               </div>
             </div>
@@ -6874,8 +6874,8 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
 
             {/* Scrollable List */}
             <div style={{ flex: 1, overflowY: "auto", paddingRight: 8, marginBottom: 20 }}>
-              {bulkAssignments.filter(item => 
-                item.fullName.toLowerCase().includes(bulkSearchTerm.toLowerCase()) || 
+              {bulkAssignments.filter(item =>
+                item.fullName.toLowerCase().includes(bulkSearchTerm.toLowerCase()) ||
                 item.studentCode.toLowerCase().includes(bulkSearchTerm.toLowerCase())
               ).length === 0 ? (
                 <div style={{ padding: 48, textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
@@ -6893,12 +6893,12 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                   </thead>
                   <tbody>
                     {bulkAssignments
-                      .filter(item => 
-                        item.fullName.toLowerCase().includes(bulkSearchTerm.toLowerCase()) || 
+                      .filter(item =>
+                        item.fullName.toLowerCase().includes(bulkSearchTerm.toLowerCase()) ||
                         item.studentCode.toLowerCase().includes(bulkSearchTerm.toLowerCase())
                       )
                       .map((item) => {
-                        const unusedCatalogTopics = catalogTopics.filter(cat => 
+                        const unusedCatalogTopics = catalogTopics.filter(cat =>
                           !allTopicsList.some(t => t.catalogTopicCode === cat.catalogTopicCode && t.status.toLowerCase() !== "rejected")
                         );
                         const sortedCatalogList = [...unusedCatalogTopics].sort((a, b) => {
@@ -6921,7 +6921,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                                 {item.studentCode} • Lớp {item.classCode}
                               </div>
                               <div style={{ fontSize: "10px", color: "#f37021", fontWeight: "700", marginTop: "2px" }}>
-                                Bộ môn: {item.departmentCode}
+                                Khoa: {item.departmentCode}
                               </div>
                             </td>
                             <td style={{ padding: "12px" }}>
@@ -7358,7 +7358,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
 
                 <div>
                   <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#374151", marginBottom: "6px" }}>
-                    Bộ môn quản lý
+                    Khoa quản lý
                   </label>
                   <select
                     value={topicFormDepartmentCode}
@@ -7373,7 +7373,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                       background: "white"
                     }}
                   >
-                    <option value="">-- Chọn bộ môn --</option>
+                    <option value="">-- Chọn khoa --</option>
                     {Array.from(new Set(allLecturers.map(l => l.departmentCode).filter(Boolean))).map(d => (
                       <option key={d} value={d}>{d}</option>
                     ))}
@@ -7574,7 +7574,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
 
                 <div>
                   <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#374151", marginBottom: "6px" }}>
-                    Bộ môn quản lý
+                    Khoa quản lý
                   </label>
                   <select
                     value={topicFormDepartmentCode}
@@ -7589,7 +7589,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                       background: "white"
                     }}
                   >
-                    <option value="">-- Chọn bộ môn --</option>
+                    <option value="">-- Chọn khoa --</option>
                     {Array.from(new Set(allLecturers.map(l => l.departmentCode).filter(Boolean))).map(d => (
                       <option key={d} value={d}>{d}</option>
                     ))}
@@ -7778,7 +7778,7 @@ const LecturerTopicReview: React.FC<LecturerTopicReviewProps> = ({
                 <div style={{ height: "1px", background: "#e2e8f0", margin: "4px 0" }} />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: "13px", color: "#475569" }}>
                   <div>
-                    <span style={{ fontWeight: "600" }}>Bộ môn:</span> {editQuotaModal.lecturer.departmentCode || "-"}
+                    <span style={{ fontWeight: "600" }}>Khoa:</span> {editQuotaModal.lecturer.departmentCode || "-"}
                   </div>
                   <div>
                     <span style={{ fontWeight: "600" }}>Học vị:</span> {editQuotaModal.lecturer.degree || "-"}

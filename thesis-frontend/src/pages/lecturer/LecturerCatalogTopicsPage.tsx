@@ -923,7 +923,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
             </label>
 
             <label className="filter-input-label">
-              <span>Khoa/Bộ môn</span>
+              <span>Khoa</span>
               <select
                 value={filters.departmentCode}
                 onChange={(e) => updateFilter("departmentCode", e.target.value)}
@@ -1111,7 +1111,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
                           {Array.isArray(row.tags) && row.tags.length > 0 ? (
                             row.tags.map((tag) => (
                               <span key={`${row.catalogTopicID}-${tag.tagID}`} className="tag-pill">
-                                {tag.tagCode}
+                                {tag.tagName || tag.tagCode}
                               </span>
                             ))
                           ) : (
@@ -1252,7 +1252,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                   <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-                    <div style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Bộ môn/Khoa</div>
+                    <div style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Khoa</div>
                     <div style={{ fontWeight: 700, color: "#1e293b", marginTop: "4px", display: "flex", alignItems: "center", gap: 6 }}>
                       <Building size={14} color="var(--accent-orange)" />
                       {selectedTopic.departmentCode || "--"}
@@ -1456,7 +1456,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
               {/* Department input */}
               <div style={{ display: "grid", gap: "6px" }}>
                 <label style={{ fontSize: "14px", fontWeight: 700, color: "#334155" }}>
-                  Khoa/Bộ môn quản lý <span style={{ color: "red" }}>*</span>
+                  Khoa quản lý <span style={{ color: "red" }}>*</span>
                 </label>
                 <select
                   value={proposalForm.departmentCode}

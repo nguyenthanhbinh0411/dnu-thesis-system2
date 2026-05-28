@@ -180,7 +180,7 @@ type FieldDef = {
 const profileFields: FieldDef[] = [
   { name: "studentCode", label: "Mã sinh viên" },
   { name: "userCode", label: "Mã user", required: true },
-  { name: "departmentCode", label: "Khoa/Bộ môn" },
+  { name: "departmentCode", label: "Khoa" },
   { name: "classCode", label: "Lớp" },
   { name: "facultyCode", label: "Khoa viện" },
   { name: "studentImage", label: "Ảnh sinh viên" },
@@ -761,7 +761,7 @@ const StudentProfilesManagement: React.FC = () => {
             <tr>
               <th>SINH VIÊN</th>
               <th>LIÊN HỆ</th>
-              <th>LỚP / BỘ MÔN</th>
+              <th>KHOA / LỚP</th>
               <th>HỌC LỰC / GPA</th>
               <th>TRẠNG THÁI</th>
               <th>THAO TÁC</th>

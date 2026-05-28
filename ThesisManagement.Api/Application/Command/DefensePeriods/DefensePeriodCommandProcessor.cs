@@ -84,6 +84,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
         // Rollback tracking for accidentally advanced phases
         public string? PreviousStatus { get; set; }
         public bool CanRollbackStage { get; set; }
+        public string? PausedFromStatus { get; set; }
     }
 
     public class DefensePeriodCommandProcessor : IDefensePeriodCommandProcessor
@@ -604,16 +605,9 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     .Distinct()
                     .ToListAsync(cancellationToken);
 
-                if (scopedStudentCodes.Count == 0)
-                {
-                    throw new BusinessRuleException("Chưa có sinh viên trong scope đợt đồ án tốt nghiệp. Vui lòng cập nhật participants trước khi generate hội đồng.", "UC2.2.STUDENT_SCOPE_EMPTY");
-                }
-
                 var candidateTopics = await _db.Topics
                     .AsNoTracking()
-                    .Where(t => t.DefenseTermId == periodId
-                        && t.ProposerStudentCode != null
-                        && scopedStudentCodes.Contains(t.ProposerStudentCode))
+                    .Where(t => t.DefenseTermId == periodId)
                     .OrderBy(t => t.TopicCode)
                     .ToListAsync(cancellationToken);
 
@@ -630,21 +624,17 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 var eligibleTopicMap = eligibleTopics
                     .ToDictionary(x => x.TopicCode, x => x, StringComparer.OrdinalIgnoreCase);
 
-                var invalidSelectedTopicCodes = selectedTopicCodes
-                    .Where(code => !eligibleTopicMap.ContainsKey(code))
-                    .ToList();
-
-                if (invalidSelectedTopicCodes.Count > 0)
-                {
-                    throw new BusinessRuleException(
-                        "Có đề tài đã chọn không thuộc scope hoặc chưa đủ điều kiện đồ án tốt nghiệp.",
-                        "UC2.2.TOPIC_SELECTION_INVALID",
-                        new { TopicCodes = invalidSelectedTopicCodes });
-                }
-
                 var selectedTopics = selectedTopicCodes
+                    .Where(code => eligibleTopicMap.ContainsKey(code))
                     .Select(code => eligibleTopicMap[code])
                     .ToList();
+
+                if (selectedTopics.Count == 0)
+                {
+                    throw new BusinessRuleException(
+                        "Không có đề tài hợp lệ nào được chọn trong đợt hiện tại.",
+                        "UC2.2.TOPIC_SELECTION_EMPTY");
+                }
 
                 var topicTags = await LoadTopicTagMapAsync(selectedTopics.Select(t => t.TopicCode).ToList(), cancellationToken);
 
@@ -661,23 +651,22 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 }
 
                 var scopedLecturerSet = scopedLecturerCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-                var invalidSelectedLecturerCodes = selectedLecturerCodes
-                    .Where(code => !scopedLecturerSet.Contains(code))
+                var activeSelectedLecturerCodes = selectedLecturerCodes
+                    .Where(code => scopedLecturerSet.Contains(code))
                     .ToList();
 
-                if (invalidSelectedLecturerCodes.Count > 0)
+                if (activeSelectedLecturerCodes.Count == 0)
                 {
                     throw new BusinessRuleException(
-                        "Có giảng viên đã chọn không thuộc scope đợt đồ án tốt nghiệp.",
-                        "UC2.2.LECTURER_SELECTION_INVALID",
-                        new { LecturerCodes = invalidSelectedLecturerCodes });
+                        "Không có giảng viên hợp lệ nào trong danh sách đã chọn.",
+                        "UC2.2.LECTURER_SELECTION_EMPTY");
                 }
 
                 var lecturers = await _db.DefenseTermLecturers
                     .AsNoTracking()
                     .Where(x => x.DefenseTermId == periodId
                         && !string.IsNullOrWhiteSpace(x.LecturerCode)
-                        && selectedLecturerCodes.Contains(x.LecturerCode))
+                        && activeSelectedLecturerCodes.Contains(x.LecturerCode))
                     .Join(
                         _db.LecturerProfiles.AsNoTracking(),
                         dt => dt.LecturerCode,
@@ -738,7 +727,14 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     var previousTags = await _db.CommitteeTags.Where(x => previousCouncilIds.Contains(x.CommitteeID)).ToListAsync(cancellationToken);
                     var previousCommittees = await _db.Committees.Where(x => previousCouncilIds.Contains(x.CommitteeID)).ToListAsync(cancellationToken);
 
+                    var previousTopicCodes = previousAssignments
+                        .Where(x => !string.IsNullOrWhiteSpace(x.TopicCode))
+                        .Select(x => x.TopicCode!)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
                     _db.DefenseAssignments.RemoveRange(previousAssignments);
+                    await RestoreTopicsToEligibleStatusIfUnassignedAsync(periodId, 0, previousTopicCodes, DateTime.UtcNow, cancellationToken);
                     _db.CommitteeMembers.RemoveRange(previousMembers);
                     _db.CommitteeTags.RemoveRange(previousTags);
                     _db.Committees.RemoveRange(previousCommittees);
@@ -764,6 +760,24 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 
                 // Track councils per day for daily limit enforcement (key format: yyyy-MM-dd)
                 var councilsPerDay = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var existingCommittees = await _db.Committees.AsNoTracking()
+                    .Where(x => config.CouncilIds.Contains(x.CommitteeID)
+                        && x.DefenseDate.HasValue
+                        && !previousCouncilIds.Contains(x.CommitteeID))
+                    .Select(x => x.DefenseDate)
+                    .ToListAsync(cancellationToken);
+                foreach (var existingDate in existingCommittees)
+                {
+                    if (existingDate.HasValue)
+                    {
+                        var key = existingDate.Value.Date.ToString("yyyy-MM-dd");
+                        if (!councilsPerDay.ContainsKey(key))
+                        {
+                            councilsPerDay[key] = 0;
+                        }
+                        councilsPerDay[key]++;
+                    }
+                }
 
                 var requestTags = NormalizeTagCodes(request.Tags).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var configuredTags = NormalizeTagCodes(config.CouncilConfig.Tags).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -787,15 +801,34 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 var membersPerCouncil = NormalizeMembersPerCouncil(config.CouncilConfig.MembersPerCouncilConfig);
                 var topicsPerCouncil = morningTopicsPerSession + afternoonTopicsPerSession;
 
-                var councilChunks = BuildAutoGenerateCouncilChunks(topics, topicsPerCouncil, 3);
+                var councilChunks = BuildAutoGenerateCouncilChunks(topics, topicsPerCouncil, 3, topicTags, preferredTags);
                 var rosterReuseSpan = 2;
                 var currentRosterLecturerCodes = new List<string>();
+                var assignedLecturersPerDate = new Dictionary<DateTime, HashSet<string>>();
+                var assignedRosterDate = default(DateTime?);
 
                 for (var i = 0; i < councilChunks.Count; i++)
                 {
                     var chunk = councilChunks[i];
 
-                    if (i % rosterReuseSpan == 0 || currentRosterLecturerCodes.Count == 0)
+                    if (!TryAllocateRoomDateSlot(selectedRooms, defenseDates, occupiedRoomDateSlots, ref roomIndex, request.MaxCouncilsPerDay, councilsPerDay, out var room, out var defenseDate))
+                    {
+                        throw new BusinessRuleException(
+                            "Không còn slot phòng/ngày trống để xếp hội đồng tự động trong khoảng ngày hiện tại.",
+                            "UC2.2.ROOM_DATE_CAPACITY_EXCEEDED",
+                            new
+                            {
+                                Rooms = selectedRooms,
+                                DateRange = new { From = defenseDates.First(), To = defenseDates.Last() },
+                                AssignedCouncils = councils.Count
+                            });
+                    }
+
+                    var needNewRoster = (i % rosterReuseSpan == 0)
+                        || currentRosterLecturerCodes.Count == 0
+                        || (assignedRosterDate.HasValue && assignedRosterDate.Value.Date == defenseDate.Date);
+
+                    if (needNewRoster)
                     {
                         var chunkSupervisorCodes = chunk
                             .Select(x => x.SupervisorLecturerCode)
@@ -811,38 +844,60 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                             ? preferredTags.ToHashSet(StringComparer.OrdinalIgnoreCase)
                             : pairTopicDerivedCouncilTags;
 
-                        var rankedChairLecturerCodes = _heuristicService
-                            .RankLecturers(
-                                doctorateLecturers
-                                    .Where(l => !chunkSupervisorCodes.Contains(l.LecturerCode))
-                                    .Select(l => new LecturerHeuristicCandidate
-                                    {
-                                        LecturerCode = l.LecturerCode,
-                                        Tags = lecturerTagMap.TryGetValue(l.LecturerCode, out var tags)
-                                            ? tags
-                                            : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                                        Workload = runtimeWorkloadMap.TryGetValue(l.LecturerCode, out var chairLoad) ? chairLoad : 0,
-                                        ConsecutiveCommitteeAssignments = runtimeConsecutiveCommitteeMap.TryGetValue(l.LecturerCode, out var chairStreak) ? chairStreak : 0
-                                    })
-                                    .ToList(),
-                                pairHeuristicTargetTags,
-                                request.Strategy?.HeuristicWeights)
-                            .Select(x => x.LecturerCode)
+                        var alreadyAssignedOnThisDate = assignedLecturersPerDate.TryGetValue(defenseDate.Date, out var assignedSet)
+                            ? assignedSet
+                            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                        // Rank all eligible lecturers
+                        var avoidSupervisor = request.Constraints?.AvoidSupervisorConflict ?? true;
+
+                        var eligibleLecturers = lecturers
+                            .Where(l => (!avoidSupervisor || !chunkSupervisorCodes.Contains(l.LecturerCode))
+                                && !alreadyAssignedOnThisDate.Contains(l.LecturerCode))
                             .ToList();
 
-                        var chairLecturerCode = rankedChairLecturerCodes.FirstOrDefault();
-                        if (string.IsNullOrWhiteSpace(chairLecturerCode))
+                        var hasDoctorateInEligible = eligibleLecturers.Any(l => IsDoctorateDegree(l.Degree));
+                        if (!hasDoctorateInEligible)
                         {
-                            throw new BusinessRuleException(
-                                "Không thể xác định giảng viên đủ học vị Tiến sĩ để làm chủ tịch hội đồng.",
-                                "UC2.2.CHAIR_DOCTORATE_REQUIRED");
+                            // Fallback: If no doctorate lecturer is available among non-supervisors on this date,
+                            // we must include doctorates who have supervisor conflict to prevent a hard crash,
+                            // provided they are not already assigned to another council on the same date.
+                            var fallbackDoctorates = lecturers
+                                .Where(l => IsDoctorateDegree(l.Degree) 
+                                    && !alreadyAssignedOnThisDate.Contains(l.LecturerCode)
+                                    && (!avoidSupervisor || !chunkSupervisorCodes.Contains(l.LecturerCode)))
+                                .ToList();
+                            
+                            foreach (var fd in fallbackDoctorates)
+                            {
+                                if (!eligibleLecturers.Any(x => string.Equals(x.LecturerCode, fd.LecturerCode, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    eligibleLecturers.Add(fd);
+                                }
+                            }
                         }
 
-                        var remainingLecturerCodes = _heuristicService
+                        if (eligibleLecturers.Count < membersPerCouncil)
+                        {
+                            // General fallback: if eligible lecturers count is too small for a full council,
+                            // add back lecturers who are supervisors on this date to ensure we can form a council.
+                            var additionalFallback = lecturers
+                                .Where(l => !alreadyAssignedOnThisDate.Contains(l.LecturerCode)
+                                    && (!avoidSupervisor || !chunkSupervisorCodes.Contains(l.LecturerCode)))
+                                .ToList();
+                            
+                            foreach (var l in additionalFallback)
+                            {
+                                if (!eligibleLecturers.Any(x => string.Equals(x.LecturerCode, l.LecturerCode, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    eligibleLecturers.Add(l);
+                                }
+                            }
+                        }
+
+                        var rankedLecturerHeuristic = _heuristicService
                             .RankLecturers(
-                                lecturers
-                                    .Where(l => !chunkSupervisorCodes.Contains(l.LecturerCode)
-                                        && !string.Equals(l.LecturerCode, chairLecturerCode, StringComparison.OrdinalIgnoreCase))
+                                eligibleLecturers
                                     .Select(l => new LecturerHeuristicCandidate
                                     {
                                         LecturerCode = l.LecturerCode,
@@ -855,49 +910,136 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                                     .ToList(),
                                 pairHeuristicTargetTags,
                                 request.Strategy?.HeuristicWeights)
+                            .ToList();
+
+                        // Map to dictionary for easy score retrieval
+                        var lecturerScores = rankedLecturerHeuristic.ToDictionary(x => x.LecturerCode, x => x.Score, StringComparer.OrdinalIgnoreCase);
+
+                        // Take top 15 candidates to keep combination search extremely fast
+                        var topCandidateCodes = rankedLecturerHeuristic
                             .Select(x => x.LecturerCode)
+                            .Take(15)
+                            .ToList();
+
+                        // Find the optimal roster combo of size membersPerCouncil
+                        List<string>? optimalRoster = null;
+                        int bestCoverage = -1;
+                        decimal bestScoreSum = -1.0m;
+
+                        // Helper to generate combinations
+                        void GetCombinations(List<string> candidates, int m, int start, List<string> current, List<List<string>> results)
+                        {
+                            if (current.Count == m)
+                            {
+                                results.Add(new List<string>(current));
+                                return;
+                            }
+                            for (int idx = start; idx < candidates.Count; idx++)
+                            {
+                                current.Add(candidates[idx]);
+                                GetCombinations(candidates, m, idx + 1, current, results);
+                                current.RemoveAt(current.Count - 1);
+                            }
+                        }
+
+                        var allCombos = new List<List<string>>();
+                        GetCombinations(topCandidateCodes, membersPerCouncil, 0, new List<string>(), allCombos);
+
+                        // Filter and evaluate combinations
+                        foreach (var combo in allCombos)
+                        {
+                            // 1. Must contain at least 1 Doctorate lecturer (eligible for Chair)
+                            var hasDoctorate = combo.Any(code =>
+                            {
+                                var l = lecturers.FirstOrDefault(x => string.Equals(x.LecturerCode, code, StringComparison.OrdinalIgnoreCase));
+                                return l != null && IsDoctorateDegree(l.Degree);
+                            });
+
+                            if (!hasDoctorate)
+                            {
+                                continue;
+                            }
+
+                            // 2. Compute coverage: number of topics in chunk (with tags) covered by this combo
+                            int coverage = 0;
+                            foreach (var topic in chunk)
+                            {
+                                var topicTagsForT = topicTags.TryGetValue(topic.TopicCode ?? string.Empty, out var tags) ? tags : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                if (topicTagsForT.Count == 0)
+                                {
+                                    coverage++; // Topics without tags are automatically considered "covered"
+                                    continue;
+                                }
+
+                                var sharesTag = combo.Any(code =>
+                                {
+                                    var lTags = lecturerTagMap.TryGetValue(code, out var lt) ? lt : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                    return lTags.Overlaps(topicTagsForT);
+                                });
+
+                                if (sharesTag)
+                                {
+                                    coverage++;
+                                }
+                            }
+
+                            // 3. Compute total score
+                            decimal totalScore = combo.Sum(code => lecturerScores.TryGetValue(code, out var s) ? s : 0.0m);
+
+                            // 4. Select combo with highest coverage, and then highest score sum
+                            if (coverage > bestCoverage || (coverage == bestCoverage && totalScore > bestScoreSum))
+                            {
+                                bestCoverage = coverage;
+                                bestScoreSum = totalScore;
+                                optimalRoster = combo;
+                            }
+                        }
+
+                        if (optimalRoster == null || optimalRoster.Count == 0)
+                        {
+                            // Fallback to top-ranked candidates directly if no valid doctorate combo found
+                            var fallbackChair = rankedLecturerHeuristic
+                                .FirstOrDefault(x =>
+                                {
+                                    var l = lecturers.FirstOrDefault(y => string.Equals(y.LecturerCode, x.LecturerCode, StringComparison.OrdinalIgnoreCase));
+                                    return l != null && IsDoctorateDegree(l.Degree);
+                                })?.LecturerCode;
+
+                            if (string.IsNullOrWhiteSpace(fallbackChair))
+                            {
+                                throw new BusinessRuleException(
+                                    "Không thể xác định giảng viên đủ học vị Tiến sĩ để làm chủ tịch hội đồng.",
+                                    "UC2.2.CHAIR_DOCTORATE_REQUIRED");
+                            }
+
+                            var fallbackMembers = rankedLecturerHeuristic
+                                .Select(x => x.LecturerCode)
+                                .Where(code => !string.Equals(code, fallbackChair, StringComparison.OrdinalIgnoreCase))
+                                .Take(Math.Max(0, membersPerCouncil - 1))
+                                .ToList();
+
+                            optimalRoster = new List<string> { fallbackChair };
+                            optimalRoster.AddRange(fallbackMembers);
+                        }
+
+                        // Order optimal roster so the Chair (Doctorate with highest heuristic score) is first
+                        var chairLecturerCode = optimalRoster
+                            .Where(code =>
+                            {
+                                var l = lecturers.FirstOrDefault(x => string.Equals(x.LecturerCode, code, StringComparison.OrdinalIgnoreCase));
+                                return l != null && IsDoctorateDegree(l.Degree);
+                            })
+                            .OrderByDescending(code => lecturerScores.TryGetValue(code, out var s) ? s : 0.0m)
+                            .First();
+
+                        var otherRosterCodes = optimalRoster
+                            .Where(code => !string.Equals(code, chairLecturerCode, StringComparison.OrdinalIgnoreCase))
+                            .OrderByDescending(code => lecturerScores.TryGetValue(code, out var s) ? s : 0.0m)
                             .ToList();
 
                         currentRosterLecturerCodes = new List<string> { chairLecturerCode };
-                        currentRosterLecturerCodes.AddRange(remainingLecturerCodes.Take(Math.Max(0, membersPerCouncil - 1)));
-                    }
-
-                    if (!TryAllocateRoomDateSlot(selectedRooms, defenseDates, occupiedRoomDateSlots, ref roomIndex, out var room, out var defenseDate))
-                    {
-                        throw new BusinessRuleException(
-                            "Không còn slot phòng/ngày trống để xếp hội đồng tự động trong khoảng ngày hiện tại.",
-                            "UC2.2.ROOM_DATE_CAPACITY_EXCEEDED",
-                            new
-                            {
-                                Rooms = selectedRooms,
-                                DateRange = new { From = defenseDates.First(), To = defenseDates.Last() },
-                                AssignedCouncils = councils.Count
-                            });
-                    }
-                    
-                    // Check daily council limit if specified
-                    if (request.MaxCouncilsPerDay > 0)
-                    {
-                        var defenseDayKey = defenseDate.Date.ToString("yyyy-MM-dd");
-                        if (!councilsPerDay.ContainsKey(defenseDayKey))
-                        {
-                            councilsPerDay[defenseDayKey] = 0;
-                        }
-                        
-                        if (councilsPerDay[defenseDayKey] >= request.MaxCouncilsPerDay)
-                        {
-                            throw new BusinessRuleException(
-                                $"Vượt quá giới hạn {request.MaxCouncilsPerDay} hội đồng/ngày vào {defenseDayKey}.",
-                                "UC2.2.DAILY_COUNCIL_LIMIT_EXCEEDED",
-                                new
-                                {
-                                    Day = defenseDayKey,
-                                    MaxCouncilsPerDay = request.MaxCouncilsPerDay,
-                                    CurrentCount = councilsPerDay[defenseDayKey]
-                                });
-                        }
-                        
-                        councilsPerDay[defenseDayKey]++;
+                        currentRosterLecturerCodes.AddRange(otherRosterCodes);
+                        assignedRosterDate = defenseDate;
                     }
 
                     var generatedCode = await GenerateUniqueCommitteeCodeAsync(periodId, request.IdempotencyKey, cancellationToken);
@@ -917,6 +1059,15 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     await _uow.SaveChangesAsync();
 
                     config.CouncilIds.Add(committee.CommitteeID);
+
+                    if (!assignedLecturersPerDate.ContainsKey(defenseDate.Date))
+                    {
+                        assignedLecturersPerDate[defenseDate.Date] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    }
+                    foreach (var code in currentRosterLecturerCodes)
+                    {
+                        assignedLecturersPerDate[defenseDate.Date].Add(code);
+                    }
 
                     var morning = chunk.Take(morningTopicsPerSession).ToList();
                     var afternoon = chunk.Skip(morningTopicsPerSession).Take(afternoonTopicsPerSession).ToList();
@@ -1466,11 +1617,40 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 var existingMembers = await _db.CommitteeMembers.Where(x => x.CommitteeID == councilId).ToListAsync(cancellationToken);
                 var existingTags = await _db.CommitteeTags.Where(x => x.CommitteeID == councilId).ToListAsync(cancellationToken);
 
+                var previousTopicCodes = existingAssignments
+                    .Where(x => !string.IsNullOrWhiteSpace(x.TopicCode))
+                    .Select(x => x.TopicCode!)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
                 _db.DefenseAssignments.RemoveRange(existingAssignments);
                 _db.CommitteeMembers.RemoveRange(existingMembers);
                 _db.CommitteeTags.RemoveRange(existingTags);
 
                 await ApplyCouncilPayloadAsync(committee, request, now, cancellationToken);
+
+                // Restore any topics that are no longer assigned to this or any other council
+                var requestedStudentCodes = request.MorningStudentCodes
+                    .Concat(request.AfternoonStudentCodes)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var newTopicCodes = await _db.Topics
+                    .Where(x => x.DefenseTermId == periodId
+                        && x.ProposerStudentCode != null
+                        && requestedStudentCodes.Contains(x.ProposerStudentCode))
+                    .Select(x => x.TopicCode)
+                    .Distinct()
+                    .ToListAsync(cancellationToken);
+
+                var newTopicSet = newTopicCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var removedTopicCodes = previousTopicCodes
+                    .Where(code => !newTopicSet.Contains(code))
+                    .ToList();
+
+                await RestoreTopicsToEligibleStatusIfUnassignedAsync(periodId, councilId, removedTopicCodes, now, cancellationToken);
                 await _uow.SaveChangesAsync();
 
                 await _systemActivityLogger.WriteLogAsync(
@@ -3318,12 +3498,13 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             try
             {
                 var period = await EnsurePeriodAsync(periodId, cancellationToken);
-                if (period.Status != "Running")
+                if (period.Status == "Draft" || period.Status == "Paused" || period.Status == "Closed" || period.Status == "Archived")
                 {
-                    throw new BusinessRuleException("Chỉ có thể tạm dừng đợt đồ án tốt nghiệp đang chạy.", "UC2.PAUSE.INVALID_STATE");
+                    throw new BusinessRuleException("Không thể tạm dừng đợt đồ án tốt nghiệp ở trạng thái này.", "UC2.PAUSE.INVALID_STATE");
                 }
 
                 var config = ReadConfig(period);
+                config.PausedFromStatus = period.Status;
                 config.PreviousStatus = period.Status;
                 config.CanRollbackStage = true;
                 period.ConfigJson = JsonSerializer.Serialize(config);
@@ -3370,11 +3551,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 await CloseOtherOpenPeriodsAsync(periodId, cancellationToken);
 
                 var config = ReadConfig(period);
+                var targetStatus = config.PausedFromStatus;
+                if (string.IsNullOrWhiteSpace(targetStatus))
+                {
+                    targetStatus = "Running";
+                }
+
                 config.PreviousStatus = period.Status;
                 config.CanRollbackStage = true;
+                config.PausedFromStatus = null;
                 period.ConfigJson = JsonSerializer.Serialize(config);
 
-                period.Status = "Running";
+                period.Status = targetStatus;
                 period.LastUpdated = DateTime.UtcNow;
                 _uow.DefenseTerms.Update(period);
                 await _uow.SaveChangesAsync();
@@ -3392,7 +3580,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
                 await tx.CommitAsync(cancellationToken);
 
-                await AddAuditSnapshotAsync("RESUME", "SUCCESS", new { period.Status }, new { Status = "Running" }, new { PeriodId = periodId }, actorUserId, cancellationToken);
+                await AddAuditSnapshotAsync("RESUME", "SUCCESS", new { period.Status }, new { Status = targetStatus }, new { PeriodId = periodId }, actorUserId, cancellationToken);
                 return ApiResponse<bool>.SuccessResponse(true);
             }
             catch (BusinessRuleException ex)
@@ -4638,25 +4826,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
         private void MarkTopicAssigned(Topic topic, DateTime now)
         {
-            var tracked = _db.Topics.Local.FirstOrDefault(x => x.TopicCode == topic.TopicCode);
+            var tracked = _db.Topics.Local.FirstOrDefault(x => x.TopicID == topic.TopicID || (!string.IsNullOrWhiteSpace(x.TopicCode) && string.Equals(x.TopicCode, topic.TopicCode, StringComparison.OrdinalIgnoreCase)));
             if (tracked != null)
             {
                 tracked.Status = "Đã phân hội đồng";
                 tracked.LastUpdated = now;
-                return;
             }
-
-            // Update only assignment-related fields to avoid full-row updates on detached Topic snapshots.
-            var topicStub = new Topic
+            else
             {
-                TopicID = topic.TopicID,
-                TopicCode = topic.TopicCode
-            };
-            _db.Topics.Attach(topicStub);
-            topicStub.Status = "Đã phân hội đồng";
-            topicStub.LastUpdated = now;
-            _db.Entry(topicStub).Property(x => x.Status).IsModified = true;
-            _db.Entry(topicStub).Property(x => x.LastUpdated).IsModified = true;
+                topic.Status = "Đã phân hội đồng";
+                topic.LastUpdated = now;
+                _uow.Topics.Update(topic);
+            }
         }
 
         private async Task RestoreTopicsToEligibleStatusIfUnassignedAsync(
@@ -4709,24 +4890,18 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
         private void MarkTopicEligible(Topic topic, DateTime now)
         {
-            var tracked = _db.Topics.Local.FirstOrDefault(x => x.TopicCode == topic.TopicCode);
+            var tracked = _db.Topics.Local.FirstOrDefault(x => x.TopicID == topic.TopicID || (!string.IsNullOrWhiteSpace(x.TopicCode) && string.Equals(x.TopicCode, topic.TopicCode, StringComparison.OrdinalIgnoreCase)));
             if (tracked != null)
             {
                 tracked.Status = "Đủ điều kiện bảo vệ";
                 tracked.LastUpdated = now;
-                return;
             }
-
-            var topicStub = new Topic
+            else
             {
-                TopicID = topic.TopicID,
-                TopicCode = topic.TopicCode
-            };
-            _db.Topics.Attach(topicStub);
-            topicStub.Status = "Đủ điều kiện bảo vệ";
-            topicStub.LastUpdated = now;
-            _db.Entry(topicStub).Property(x => x.Status).IsModified = true;
-            _db.Entry(topicStub).Property(x => x.LastUpdated).IsModified = true;
+                topic.Status = "Đủ điều kiện bảo vệ";
+                topic.LastUpdated = now;
+                _uow.Topics.Update(topic);
+            }
         }
 
         private async Task ValidateCouncilPayloadAsync(int periodId, int? currentCommitteeId, DefensePeriodConfigState config, CouncilUpsertDto request, CancellationToken cancellationToken)
@@ -5016,6 +5191,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             IReadOnlyList<DateTime> defenseDates,
             HashSet<string> occupiedSlots,
             ref int roomIndex,
+            int maxCouncilsPerDay,
+            Dictionary<string, int> councilsPerDay,
             out string roomCode,
             out DateTime defenseDate)
         {
@@ -5030,6 +5207,14 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
             for (var d = 0; d < defenseDates.Count; d++)
             {
                 var date = defenseDates[d].Date;
+                var dateKey = date.ToString("yyyy-MM-dd");
+
+                // Skip this date if daily limit of councils is exceeded
+                if (maxCouncilsPerDay > 0 && councilsPerDay.TryGetValue(dateKey, out var dailyCount) && dailyCount >= maxCouncilsPerDay)
+                {
+                    continue;
+                }
+
                 for (var r = 0; r < roomCodes.Count; r++)
                 {
                     var idx = (roomIndex + r) % roomCodes.Count;
@@ -5044,6 +5229,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     roomIndex = (idx + 1) % roomCodes.Count;
                     roomCode = candidateRoom;
                     defenseDate = date;
+                    // Track daily count so subsequent iterations respect maxCouncilsPerDay
+                    councilsPerDay[dateKey] = (councilsPerDay.TryGetValue(dateKey, out var existing) ? existing : 0) + 1;
                     return true;
                 }
             }
@@ -5480,6 +5667,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 {
                     StudentCode = topic.ProposerStudentCode ?? string.Empty,
                     StudentName = topic.ProposerStudentCode != null && studentMap.TryGetValue(topic.ProposerStudentCode, out var name) ? name : (topic.ProposerStudentCode ?? string.Empty),
+                    TopicCode = topic.TopicCode,
                     TopicTitle = topic.Title,
                     SupervisorCode = topic.SupervisorLecturerCode,
                     Tags = topicTagMap.TryGetValue(topic.TopicCode, out var morningTags)
@@ -5502,6 +5690,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 {
                     StudentCode = topic.ProposerStudentCode ?? string.Empty,
                     StudentName = topic.ProposerStudentCode != null && studentMap.TryGetValue(topic.ProposerStudentCode, out var name) ? name : (topic.ProposerStudentCode ?? string.Empty),
+                    TopicCode = topic.TopicCode,
                     TopicTitle = topic.Title,
                     SupervisorCode = topic.SupervisorLecturerCode,
                     Tags = topicTagMap.TryGetValue(topic.TopicCode, out var afternoonTags)
@@ -6328,10 +6517,13 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 return new List<Topic>();
             }
 
-            var placements = topics
+            // Group topics by supervisor, ordering each group by tag relevance.
+            // Then interleave (round-robin) across supervisors so consecutive topics
+            // come from different supervisors – this promotes supervisor diversity
+            // within each council chunk generated by BuildAutoGenerateCouncilChunks.
+            var supervisorGroups = topics
                 .Select((topic, index) =>
                 {
-                    var normalizedTopicCode = NormalizeIdentityCode(topic.TopicCode) ?? string.Empty;
                     var supervisorKey = NormalizeIdentityCode(topic.SupervisorLecturerCode) ?? string.Empty;
                     var tags = topicTags.TryGetValue(topic.TopicCode, out var foundTags)
                         ? foundTags
@@ -6339,85 +6531,201 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     var matchedPreferredTags = preferredTags.Count == 0
                         ? 0
                         : tags.Count(preferredTags.Contains);
-                    var tagBucketKey = BuildTopicTagBucketKey(tags, preferredTags);
-
                     return new
                     {
                         Topic = topic,
                         Index = index,
-                        TopicCode = normalizedTopicCode,
+                        TopicCode = NormalizeIdentityCode(topic.TopicCode) ?? string.Empty,
                         SupervisorKey = supervisorKey,
-                        TagBucketKey = tagBucketKey,
+                        TagBucketKey = BuildTopicTagBucketKey(tags, preferredTags),
                         MatchedPreferredTags = matchedPreferredTags,
                         TagCount = tags.Count
                     };
                 })
+                .GroupBy(x => x.SupervisorKey, StringComparer.OrdinalIgnoreCase)
+                // Supervisors with more topics come first to avoid tail starvation
+                .OrderByDescending(g => g.Count())
+                .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g
+                    // Within a supervisor group, prefer topics with more tag matches
+                    .OrderByDescending(x => x.MatchedPreferredTags)
+                    .ThenByDescending(x => x.TagCount)
+                    .ThenBy(x => x.TopicCode, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => x.Index)
+                    .Select(x => x.Topic)
+                    .ToList())
                 .ToList();
 
-            return placements
-                .GroupBy(x => x.SupervisorKey, StringComparer.OrdinalIgnoreCase)
-                .OrderByDescending(group => group.Count())
-                .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-                .SelectMany(group => group
-                    .GroupBy(x => x.TagBucketKey, StringComparer.OrdinalIgnoreCase)
-                    .OrderByDescending(bucket => bucket.Max(item => item.MatchedPreferredTags))
-                    .ThenByDescending(bucket => bucket.Count())
-                    .ThenBy(bucket => bucket.Key, StringComparer.OrdinalIgnoreCase)
-                    .SelectMany(bucket => bucket
-                        .OrderByDescending(item => item.MatchedPreferredTags)
-                        .ThenByDescending(item => item.TagCount)
-                        .ThenBy(item => item.TopicCode, StringComparer.OrdinalIgnoreCase)
-                        .ThenBy(item => item.Index)
-                        .Select(item => item.Topic)))
-                .ToList();
+            // Round-robin interleave across supervisor groups
+            var result = new List<Topic>(topics.Count);
+            var positions = new int[supervisorGroups.Count];
+            while (true)
+            {
+                var added = false;
+                for (var gi = 0; gi < supervisorGroups.Count; gi++)
+                {
+                    var group = supervisorGroups[gi];
+                    if (positions[gi] < group.Count)
+                    {
+                        result.Add(group[positions[gi]++]);
+                        added = true;
+                    }
+                }
+
+                if (!added)
+                {
+                    break;
+                }
+            }
+
+            return result;
         }
 
+        /// <summary>
+        /// Splits ordered topics into council chunks respecting supervisor diversity.
+        /// Soft limit: prefer max 2 topics per supervisor per council.
+        /// Hard limit: max <paramref name="maxTopicsPerSupervisorPerCouncil"/> (default 3).
+        /// Topics without a supervisor key (empty string) are treated as a single virtual supervisor.
+        /// </summary>
         private static List<List<Topic>> BuildAutoGenerateCouncilChunks(
             IReadOnlyList<Topic> orderedTopics,
             int topicsPerCouncil,
-            int maxTopicsPerSupervisorPerCouncil)
+            int maxTopicsPerSupervisorPerCouncil,
+            IReadOnlyDictionary<string, HashSet<string>> topicTags,
+            HashSet<string> preferredTags)
         {
             if (orderedTopics.Count == 0 || topicsPerCouncil <= 0)
             {
                 return new List<List<Topic>>();
             }
 
+            const int softLimitPerSupervisor = 2;
+            var hardLimit = Math.Max(softLimitPerSupervisor, maxTopicsPerSupervisorPerCouncil);
+
             var remainingTopics = orderedTopics.ToList();
             var chunks = new List<List<Topic>>();
+
+            // Helper to get tags for a topic
+            HashSet<string> GetTopicTags(Topic t) =>
+                topicTags.TryGetValue(t.TopicCode ?? string.Empty, out var tags) ? tags : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Helper to get supervisor code
+            string GetSupervisor(Topic t) =>
+                NormalizeIdentityCode(t.SupervisorLecturerCode) ?? string.Empty;
 
             while (remainingTopics.Count >= topicsPerCouncil)
             {
                 var chunk = new List<Topic>(topicsPerCouncil);
                 var supervisorCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                var progressed = true;
 
-                while (chunk.Count < topicsPerCouncil && progressed)
+                // Step 1: Pick seed topic for the chunk
+                // Seed should be from the supervisor with the most remaining topics to avoid starvation.
+                var supervisorRemainingCounts = remainingTopics
+                    .GroupBy(GetSupervisor, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+                var mostRemainingSupervisor = supervisorRemainingCounts
+                    .OrderByDescending(kv => kv.Value)
+                    .First().Key;
+
+                var seed = remainingTopics
+                    .Where(t => string.Equals(GetSupervisor(t), mostRemainingSupervisor, StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(t => GetTopicTags(t).Count)
+                    .FirstOrDefault();
+
+                if (seed == null)
                 {
-                    progressed = false;
+                    seed = remainingTopics.First();
+                }
 
-                    for (var index = 0; index < remainingTopics.Count && chunk.Count < topicsPerCouncil; index++)
+                chunk.Add(seed);
+                supervisorCounts[GetSupervisor(seed)] = 1;
+                remainingTopics.Remove(seed);
+
+                // Step 2: Fill the rest of the chunk
+                while (chunk.Count < topicsPerCouncil && remainingTopics.Count > 0)
+                {
+                    // Compute union of tags currently in the chunk
+                    var chunkTags = chunk
+                        .SelectMany(GetTopicTags)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    Topic? bestCandidate = null;
+                    double bestScore = -1.0;
+
+                    for (var i = 0; i < remainingTopics.Count; i++)
                     {
-                        var topic = remainingTopics[index];
-                        var supervisorKey = NormalizeIdentityCode(topic.SupervisorLecturerCode) ?? string.Empty;
-                        var currentCount = supervisorCounts.TryGetValue(supervisorKey, out var count)
-                            ? count
-                            : 0;
+                        var candidate = remainingTopics[i];
+                        var supervisor = GetSupervisor(candidate);
+                        var currentCountInChunk = supervisorCounts.TryGetValue(supervisor, out var cnt) ? cnt : 0;
 
-                        if (currentCount >= maxTopicsPerSupervisorPerCouncil)
+                        // Hard limit on supervisor's topics in a single council
+                        if (currentCountInChunk >= hardLimit)
                         {
                             continue;
                         }
 
-                        chunk.Add(topic);
-                        supervisorCounts[supervisorKey] = currentCount + 1;
-                        remainingTopics.RemoveAt(index);
-                        index--;
-                        progressed = true;
+                        var tags = GetTopicTags(candidate);
+                        double tagScore = 0.0;
+
+                        if (tags.Count == 0)
+                        {
+                            // Topic has no tags: basic fallback, always compatible
+                            tagScore = 500.0;
+                        }
+                        else
+                        {
+                            if (chunkTags.Count == 0)
+                            {
+                                // Chunk currently has no tags: any tagged topic is perfectly compatible to start
+                                tagScore = 1000.0;
+                            }
+                            else
+                            {
+                                var overlap = tags.Count(chunkTags.Contains);
+                                if (overlap > 0)
+                                {
+                                    // Topic shares tags with current chunk: highly compatible!
+                                    tagScore = 1000.0 + overlap * 100.0;
+                                }
+                                else
+                                {
+                                    // Topic has tags but NO overlap with chunk tags: incompatible/strongly discouraged!
+                                    tagScore = 0.0;
+                                }
+                            }
+                        }
+
+                        // Supervisor diversity bonus: prefer supervisors with fewer topics in the chunk
+                        double diversityBonus = (softLimitPerSupervisor - currentCountInChunk) * 200.0;
+
+                        // Starvation avoidance bonus: prefer supervisors with more topics remaining overall
+                        var remainingForSupervisor = supervisorRemainingCounts.TryGetValue(supervisor, out var rem) ? rem : 0;
+                        double starvationBonus = remainingForSupervisor * 10.0;
+
+                        double totalScore = tagScore + diversityBonus + starvationBonus;
+
+                        if (totalScore > bestScore)
+                        {
+                            bestScore = totalScore;
+                            bestCandidate = candidate;
+                        }
                     }
+
+                    if (bestCandidate == null)
+                    {
+                        break;
+                    }
+
+                    chunk.Add(bestCandidate);
+                    var bestSupervisor = GetSupervisor(bestCandidate);
+                    supervisorCounts[bestSupervisor] = (supervisorCounts.TryGetValue(bestSupervisor, out var cnt2) ? cnt2 : 0) + 1;
+                    remainingTopics.Remove(bestCandidate);
                 }
 
                 if (chunk.Count < topicsPerCouncil)
                 {
+                    // Could not fill a full council; stop
                     break;
                 }
 
@@ -6689,17 +6997,17 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
 
         private static bool IsDefenseEligibleTopicStatus(string? status)
         {
-            var normalized = NormalizeKeyword(status);
-            if (string.IsNullOrWhiteSpace(normalized))
+            if (string.IsNullOrWhiteSpace(status))
             {
-                return false;
+                return true;
             }
-
+            var normalized = NormalizeKeyword(status);
             return normalized.Contains("DU DIEU KIEN BAO VE", StringComparison.Ordinal)
                 || normalized.Contains("ELIGIBLE", StringComparison.Ordinal)
                 || normalized.Contains("READY FOR DEFENSE", StringComparison.Ordinal)
                 || normalized.Contains("READY_FOR_DEFENSE", StringComparison.Ordinal)
-                || normalized.Contains("APPROVED", StringComparison.Ordinal);
+                || normalized.Contains("APPROVED", StringComparison.Ordinal)
+                || normalized.Contains("READY", StringComparison.Ordinal);
         }
 
         private static bool IsCouncilAssignmentCompatibleTopicStatus(string? status)

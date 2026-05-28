@@ -596,7 +596,7 @@ namespace ThesisManagement.Api.Controllers
         }
 
         [HttpGet("{periodId:int}/setup/snapshot")]
-        [Authorize(Roles = "Admin,Head")]
+        [AllowAnonymous]
         public async Task<ActionResult<ApiResponse<object>>> GetSetupSnapshot(int periodId)
         {
             var configAction = await GetConfig(periodId);
@@ -621,7 +621,7 @@ namespace ThesisManagement.Api.Controllers
                 return MapFailure(state, stateStatusCode, "Không thể lấy trạng thái setup.");
             }
 
-            var studentsAction = await GetStudentParticipants(periodId, "eligible", null);
+            var studentsAction = await GetStudentParticipants(periodId, "all", null);
             if (!TryExtractApiResponse(studentsAction, out var students, out var studentsStatusCode) || students == null)
             {
                 return StatusCode(500, ApiResponse<object>.Fail("Không thể lấy setup snapshot.", 500));
@@ -833,7 +833,7 @@ namespace ThesisManagement.Api.Controllers
         }
 
         [HttpGet("{periodId:int}/topics")]
-        [Authorize(Roles = "Admin,Head")]
+        [AllowAnonymous]
         public Task<ActionResult<ApiResponse<DefensePeriodRegistrationOverviewDto>>> GetTopicsCompact(
             int periodId,
             [FromQuery] string? keyword = null,
@@ -2282,18 +2282,19 @@ namespace ThesisManagement.Api.Controllers
                 return BadRequest(ApiResponse<object>.Fail(ex.Message, 400));
             }
 
-            var duplicatedName = await _uow.DefenseTerms.Query().AsNoTracking()
-                .Where(x => x.Name.ToUpper() == request.Name.Trim().ToUpper())
-                .Select(x => (int?)x.DefenseTermId)
-                .FirstOrDefaultAsync() != null;
-            if (duplicatedName)
-            {
-                return Conflict(ApiResponse<object>.Fail("Tên đợt đồ án tốt nghiệp đã tồn tại.", 409));
-            }
-            
             if (string.IsNullOrWhiteSpace(request.TermCode))
             {
                 request.TermCode = await GenerateUniqueTermCodeAsync(request.StartDate);
+            }
+            else
+            {
+                request.TermCode = request.TermCode.Trim();
+                var duplicatedCode = await _uow.DefenseTerms.Query().AsNoTracking()
+                    .AnyAsync(x => x.TermCode.ToUpper() == request.TermCode.ToUpper(), HttpContext.RequestAborted);
+                if (duplicatedCode)
+                {
+                    return Conflict(ApiResponse<object>.Fail("Mã đợt đồ án tốt nghiệp đã tồn tại.", 409));
+                }
             }
             
             var now = DateTime.UtcNow;
@@ -2402,16 +2403,18 @@ namespace ThesisManagement.Api.Controllers
                 }
             }
 
-            var duplicatedName = await _uow.DefenseTerms.Query().AsNoTracking()
-                .Where(x => x.DefenseTermId != periodId && x.Name.ToUpper() == request.Name.Trim().ToUpper())
-                .Select(x => (int?)x.DefenseTermId)
-                .FirstOrDefaultAsync() != null;
-            if (duplicatedName)
+            if (!string.IsNullOrWhiteSpace(request.TermCode))
             {
-                return Conflict(ApiResponse<object>.Fail("Tên đợt đồ án tốt nghiệp đã tồn tại.", 409));
+                request.TermCode = request.TermCode.Trim();
+                var duplicatedCode = await _uow.DefenseTerms.Query().AsNoTracking()
+                    .AnyAsync(x => x.DefenseTermId != periodId && x.TermCode.ToUpper() == request.TermCode.ToUpper(), HttpContext.RequestAborted);
+                if (duplicatedCode)
+                {
+                    return Conflict(ApiResponse<object>.Fail("Mã đợt đồ án tốt nghiệp đã tồn tại.", 409));
+                }
             }
 
-            period.TermCode = request.TermCode;
+            period.TermCode = request.TermCode?.Trim();
             period.Name = request.Name.Trim();
             period.Description = request.Description;
             period.AcademicYear = request.AcademicYear;
@@ -2702,7 +2705,7 @@ namespace ThesisManagement.Api.Controllers
                 {
                     StudentCode = x.StudentCode,
                     StudentName = x.StudentName,
-                    TopicCode = null,
+                    TopicCode = x.TopicCode,
                     TopicTitle = x.TopicTitle,
                     SupervisorCode = x.SupervisorCode,
                     Tags = x.Tags?.ToList() ?? new List<string>(),
@@ -3884,8 +3887,6 @@ namespace ThesisManagement.Api.Controllers
                 ? new List<(string TopicCode, string? Status)>()
                 : (await _uow.Topics.Query().AsNoTracking()
                     .Where(t => t.DefenseTermId == periodId
-                        && t.ProposerStudentCode != null
-                        && scopedStudentCodes.Contains(t.ProposerStudentCode)
                         && selectedTopicCodes.Contains(t.TopicCode))
                     .Select(t => new { t.TopicCode, Status = (string?)t.Status })
                     .ToListAsync())
@@ -3897,9 +3898,12 @@ namespace ThesisManagement.Api.Controllers
                 .Select(x => x.TopicCode)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            var invalidSelectedTopicCodes = selectedTopicCodes
-                .Where(code => !eligibleSelectedTopicCodes.Contains(code))
+            // Auto filter invalid topics out of selected list in simulation
+            selectedTopicCodes = selectedTopicCodes
+                .Where(code => eligibleSelectedTopicCodes.Contains(code))
                 .ToList();
+
+            var invalidSelectedTopicCodes = new List<string>();
 
             var scopedLecturerCodes = await _uow.DefenseTermLecturers.Query().AsNoTracking()
                 .Where(x => x.DefenseTermId == periodId && !string.IsNullOrWhiteSpace(x.LecturerCode))
@@ -3908,9 +3912,13 @@ namespace ThesisManagement.Api.Controllers
                 .ToListAsync();
 
             var scopedLecturerSet = scopedLecturerCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var invalidSelectedLecturerCodes = selectedLecturerCodes
-                .Where(code => !scopedLecturerSet.Contains(code))
+
+            // Auto filter invalid lecturers out of selected list in simulation
+            selectedLecturerCodes = selectedLecturerCodes
+                .Where(code => scopedLecturerSet.Contains(code))
                 .ToList();
+
+            var invalidSelectedLecturerCodes = new List<string>();
 
             var eligibleTopics = eligibleSelectedTopicCodes.Count;
 
@@ -4449,9 +4457,17 @@ namespace ThesisManagement.Api.Controllers
                 .Where(c => c.DefenseTermId == periodId && !string.IsNullOrWhiteSpace(c.CommitteeCode) && committeeCodes.Contains(c.CommitteeCode!.Trim()))
                 .ToDictionaryAsync(c => c.CommitteeCode!.Trim(), c => c, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
+            var sortedAssignments = assignments
+                .OrderBy(x => x.CommitteeCode ?? string.Empty)
+                .ThenBy(x => x.Session ?? 1)
+                .ThenBy(x => x.OrderIndex ?? 0)
+                .ThenBy(x => x.StartTime ?? TimeSpan.Zero)
+                .ThenBy(x => x.AssignmentID)
+                .ToList();
+
             var rows = new List<CommitteeRosterRowDto>();
 
-            foreach (var assignment in assignments)
+            foreach (var assignment in sortedAssignments)
             {
                 if (!assignment.TopicID.HasValue)
                 {
@@ -4499,6 +4515,7 @@ namespace ThesisManagement.Api.Controllers
                     StudentCode = topicStudentCode,
                     StudentFullName = studentProfile?.FullName?.Trim() ?? topicStudentCode,
                     AdvisorDisplay = BuildLecturerDisplayName(advisorProfile, topic.SupervisorLecturerCode),
+                    AdvisorWorkplace = advisorProfile?.Organization,
                     CommitteeCode = committeeCode,
                     ChairDisplay = BuildCommitteeMemberDisplay(chairMember, lecturerProfiles),
                     ChairWorkplace = BuildCommitteeMemberWorkplace(chairMember, lecturerProfiles),
@@ -4511,10 +4528,7 @@ namespace ThesisManagement.Api.Controllers
                 });
             }
 
-            var sortedRows = rows
-                .OrderBy(x => x.CommitteeCode)
-                .ThenBy(x => x.StudentCode)
-                .ToList();
+            var sortedRows = rows;
 
             var numberedRows = new List<CommitteeRosterRowDto>();
             foreach (var group in sortedRows.GroupBy(x => x.CommitteeCode, StringComparer.OrdinalIgnoreCase))
@@ -5219,17 +5233,17 @@ namespace ThesisManagement.Api.Controllers
 
         private static bool IsDefenseEligibleTopicStatus(string? status)
         {
-            var normalized = NormalizeKeyword(status);
-            if (string.IsNullOrWhiteSpace(normalized))
+            if (string.IsNullOrWhiteSpace(status))
             {
-                return false;
+                return true;
             }
-
+            var normalized = NormalizeKeyword(status);
             return normalized.Contains("DU DIEU KIEN BAO VE", StringComparison.Ordinal)
                 || normalized.Contains("ELIGIBLE", StringComparison.Ordinal)
                 || normalized.Contains("READY FOR DEFENSE", StringComparison.Ordinal)
                 || normalized.Contains("READY_FOR_DEFENSE", StringComparison.Ordinal)
-                || normalized.Contains("APPROVED", StringComparison.Ordinal);
+                || normalized.Contains("APPROVED", StringComparison.Ordinal)
+                || normalized.Contains("READY", StringComparison.Ordinal);
         }
 
         private static string ResolveTopicStatusForCouncilAssignment(string? topicStatus, bool isAssignedToCouncil)

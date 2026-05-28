@@ -50,7 +50,7 @@ import { readEnvelopeData, readEnvelopeSuccess } from "../../utils/api-envelope"
 import { useAuth } from "../../hooks/useAuth";
 import DefenseTermStudentsSection, { type DefenseTermStudentsSectionHandle } from "../../components/admin/DefenseTermStudentsSection";
 import DefenseTermLecturersSection, { type DefenseTermLecturersSectionHandle } from "../../components/admin/DefenseTermLecturersSection";
-import ImportExportActions from "../../components/admin/ImportExportActions";
+
 import { getAccessToken } from "../../services/auth-session.service";
 import { Copy, PlusCircle, Search as SearchIcon, Filter as FilterIcon, MoreHorizontal, AlertTriangle, Eye, ChevronLeft, ChevronRight as ChevronRightIcon } from "lucide-react";
 
@@ -188,8 +188,8 @@ const STUDENT_FIELDS = [
   { key: "FullName", label: "Họ và tên", category: "Thông tin cơ bản" },
   { key: "Gender", label: "Giới tính", category: "Thông tin cơ bản" },
   { key: "DateOfBirth", label: "Ngày sinh", category: "Thông tin cơ bản" },
-  { key: "FacultyCode", label: "Khoa", category: "Đơn vị" },
-  { key: "DepartmentCode", label: "Bộ môn", category: "Đơn vị" },
+  { key: "FacultyCode", label: "Khoa viện", category: "Đơn vị" },
+  { key: "DepartmentCode", label: "Khoa", category: "Đơn vị" },
   { key: "ClassCode", label: "Lớp", category: "Đơn vị" },
   { key: "EnrollmentYear", label: "Khóa học", category: "Tiến độ" },
   { key: "GraduationYear", label: "Năm tốt nghiệp", category: "Tiến độ" },
@@ -209,7 +209,7 @@ const LECTURER_FIELDS = [
   { key: "FullName", label: "Họ và tên", category: "Thông tin cơ bản" },
   { key: "Degree", label: "Học hàm/Học vị", category: "Thông tin cơ bản" },
   { key: "Gender", label: "Giới tính", category: "Thông tin cơ bản" },
-  { key: "DepartmentCode", label: "Bộ môn", category: "Đơn vị" },
+  { key: "DepartmentCode", label: "Khoa", category: "Đơn vị" },
   { key: "Organization", label: "Cơ quan công tác", category: "Đơn vị" },
   { key: "Email", label: "Email", category: "Liên lạc" },
   { key: "PhoneNumber", label: "Số điện thoại", category: "Liên lạc" },
@@ -235,7 +235,7 @@ const TOPIC_FIELDS = [
   { key: "SupervisorLecturerCode", label: "Mã giảng viên HD", category: "Giảng viên" },
   { key: "SupervisorUserCode", label: "Mã user giảng viên", category: "Giảng viên" },
   { key: "SupervisorName", label: "Giảng viên hướng dẫn", category: "Giảng viên" },
-  { key: "DepartmentCode", label: "Bộ môn quản lý", category: "Quản lý" },
+  { key: "DepartmentCode", label: "Khoa quản lý", category: "Quản lý" },
   { key: "LecturerComment", label: "Nhận xét giảng viên", category: "Quản lý" },
   { key: "ResubmitCount", label: "Số lần nộp lại", category: "Tiến độ" },
   { key: "NumChapters", label: "Số chương", category: "Cấu trúc" },
@@ -257,7 +257,7 @@ const GROUPED_LECTURER_FIELDS = [
   { key: "TopicTags", label: "Tag đề tài", category: "Phân loại" },
   { key: "ProposerStudentCode", label: "Mã SV", category: "Sinh viên" },
   { key: "ProposerName", label: "Sinh viên thực hiện", category: "Sinh viên" },
-  { key: "DepartmentCode", label: "Bộ môn", category: "Quản lý" },
+  { key: "DepartmentCode", label: "Khoa", category: "Quản lý" },
   { key: "LecturerComment", label: "Nhận xét giảng viên", category: "Quản lý" },
   { key: "Score", label: "Điểm số", category: "Kết quả" },
   { key: "Status", label: "Trạng thái", category: "Trạng thái" },
@@ -2194,25 +2194,14 @@ const DefensePeriodsManagement: React.FC = () => {
               <div style={{ display: "grid", gap: "12px" }}>
                 {[
                   { action: "SYNC", label: "Đồng bộ dữ liệu", icon: <RefreshCw size={18} />, color: "#3b82f6", disabled: false },
-                  { action: "PAUSE", label: "Tạm dừng đợt", icon: <Pause size={18} />, color: "#f59e0b", disabled: currentStatus !== "Running" },
+                  { action: "PAUSE", label: "Tạm dừng đợt", icon: <Pause size={18} />, color: "#f59e0b", disabled: currentStatus === "Draft" || currentStatus === "Paused" || currentStatus === "Closed" || currentStatus === "Archived" },
                   { action: "RESUME", label: "Tiếp tục đợt", icon: <Play size={18} />, color: "#10b981", disabled: currentStatus !== "Paused" },
                   { action: "LOCK_SCORING", label: "Khóa chấm điểm", icon: <Lock size={18} />, color: "#ef4444", disabled: currentStatus !== "Running" },
-                  {
-                    action: "ROLLBACK_STAGE",
-                    label: hasRolledBackThisSession
-                      ? "Quay lại bước trước (Đã dùng rollback)"
-                      : "Quay lại bước trước (Rollback)",
-                    icon: <RotateCcw size={18} />,
-                    color: "#64748b",
-                    disabled: !canRollbackStage || hasRolledBackThisSession || councilListLocked || hasAnyScoredTopics,
-                    tooltip: hasRolledBackThisSession ? "Đã dùng lần rollback duy nhất" : undefined
-                  },
                 ].map(op => (
                   <button
                     key={op.action}
                     disabled={op.disabled || refreshing}
                     onClick={() => handleAction(op.action)}
-                    title={op.tooltip}
                     style={{
                       width: "100%", padding: "14px 16px", borderRadius: "12px", border: "1px solid #e2e8f0",
                       background: op.disabled ? "#f8fafc" : "white", color: op.disabled ? "#cbd5e1" : "#475569",
@@ -3225,7 +3214,6 @@ const DefensePeriodsManagement: React.FC = () => {
             {activeTab === "students" && (
               <div style={{ display: "grid", gap: "24px" }}>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-                  <ImportExportActions moduleName="students" moduleLabel="Sinh viên tham gia" onImportSuccess={() => studentSectionRef.current?.openAdd()} />
                   <button onClick={() => studentSectionRef.current?.openAdd()} style={{ background: DEEP_BLUE_PRIMARY, color: "#fff", border: "none", borderRadius: "10px", padding: "8px 16px", fontWeight: "700", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
                     <Plus size={16} /> Thêm sinh viên
                   </button>
@@ -3236,7 +3224,6 @@ const DefensePeriodsManagement: React.FC = () => {
             {activeTab === "lecturers" && (
               <div style={{ display: "grid", gap: "24px" }}>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-                  <ImportExportActions moduleName="lecturers" moduleLabel="Giảng viên tham gia" onImportSuccess={() => lecturerSectionRef.current?.openAdd()} />
                   <button onClick={() => lecturerSectionRef.current?.openAdd()} style={{ background: DEEP_BLUE_PRIMARY, color: "#fff", border: "none", borderRadius: "10px", padding: "8px 16px", fontWeight: "700", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
                     <Plus size={16} /> Thêm giảng viên
                   </button>

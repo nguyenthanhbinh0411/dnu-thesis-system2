@@ -1021,7 +1021,7 @@ const StudentProfilePage: React.FC = () => {
                 marginBottom: "6px",
               }}
             >
-              Bộ môn
+              Khoa
             </label>
             <div
               style={{

@@ -303,7 +303,7 @@ const editFieldSections: Array<{
 const filterFields: FieldDef[] = [
   { name: "topicCode", label: "Mã đề tài" },
   { name: "title", label: "Tên đề tài" },
-  { name: "departmentCode", label: "Khoa/Bộ môn" },
+  { name: "departmentCode", label: "Khoa" },
   { name: "status", label: "Trạng thái" },
   { name: "type", label: "Loại đề tài" },
   { name: "proposerUserCode", label: "Mã người đề xuất" },
@@ -315,7 +315,7 @@ const columns: ColumnDef[] = [
   { key: "title", label: "Tên đề tài", aliases: ["topicTitle", "name"] },
   {
     key: "departmentCode",
-    label: "Khoa/Bộ môn",
+    label: "Khoa",
     aliases: ["departmentName", "department"],
   },
   {

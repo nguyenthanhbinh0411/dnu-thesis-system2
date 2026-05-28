@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Edit, Eye, Filter, Plus, Search, Trash2, X } from "lucide-react";
 import { fetchData } from "../../api/fetchData";
-import ImportExportActions from "../../components/admin/ImportExportActions";
 import ManagementFormSection, {
   type ManagementFormField,
 } from "../../components/admin/ManagementFormSection";
@@ -23,9 +22,9 @@ type TagReadDto = {
 };
 
 const tagFormFields: ManagementFormField[] = [
-  { name: "tagCode", label: "Tag Code (optional)" },
-  { name: "tagName", label: "Tag Name", required: true },
-  { name: "description", label: "Description", type: "textarea" },
+  { name: "tagCode", label: "Mã Tag (tùy chọn)" },
+  { name: "tagName", label: "Tên Tag", required: true },
+  { name: "description", label: "Mô tả", type: "textarea" },
 ];
 
 function toDisplay(value: unknown): string {
@@ -157,7 +156,7 @@ const TagsManagement: React.FC = () => {
         const { data } = await requestApiData<unknown>(
           `/Tags/search?q=${encodeURIComponent(q)}`,
           { method: "GET" },
-          "Không thể tải gợi ý tag.",
+          "Không thể tải gợi ý Tag.",
         );
         if (cancelled) return;
         setSuggestions(normalizeSuggestions(data));
@@ -202,7 +201,7 @@ const TagsManagement: React.FC = () => {
       const { data, totalCount: apiTotal } = await requestApiData<unknown>(
         `/Tags/list${query}`,
         { method: "GET" },
-        "Không thể tải danh sách tags.",
+        "Không thể tải danh sách Tag.",
       );
       const normalized = normalizeList(data);
       setRows(normalized.items);
@@ -211,7 +210,7 @@ const TagsManagement: React.FC = () => {
       addToast(
         error instanceof Error
           ? error.message
-          : "Không thể tải danh sách tags.",
+          : "Không thể tải danh sách Tag.",
         "error",
       );
       setRows([]);
@@ -247,7 +246,7 @@ const TagsManagement: React.FC = () => {
       const { data } = await requestApiData<RecordData>(
         `/Tags/get-update/${id}`,
         { method: "GET" },
-        "Không thể tải dữ liệu cập nhật tag.",
+        "Không thể tải dữ liệu cập nhật Tag.",
       );
       setFormValues({
         tagCode: toDisplay(data.tagCode || row.tagCode),
@@ -260,7 +259,7 @@ const TagsManagement: React.FC = () => {
       addToast(
         error instanceof Error
           ? error.message
-          : "Không thể tải dữ liệu cập nhật tag.",
+          : "Không thể tải dữ liệu cập nhật Tag.",
         "error",
       );
     }
@@ -278,7 +277,7 @@ const TagsManagement: React.FC = () => {
       const { data } = await requestApiData<TagReadDto>(
         `/Tags/get-by-code/${encodeURIComponent(code)}`,
         { method: "GET" },
-        "Không thể tải chi tiết tag.",
+        "Không thể tải chi tiết Tag.",
       );
       setSelectedRow(data || row);
     } catch {
@@ -290,24 +289,24 @@ const TagsManagement: React.FC = () => {
   const handleDelete = async (row: TagReadDto) => {
     const id = Number(row.tagID || 0);
     if (!id) {
-      addToast("Không xác định được tagID để xóa.", "error");
+      addToast("Không xác định được ID để xóa Tag.", "error");
       return;
     }
 
-    if (!window.confirm(`Bạn chắc chắn muốn xóa tag ${row.tagCode}?`)) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa Tag ${row.tagCode}?`)) return;
 
     setIsSubmitting(true);
     try {
       await requestApiData<unknown>(
         `/Tags/delete/${id}`,
         { method: "DELETE" },
-        "Không thể xóa tag.",
+        "Không thể xóa Tag.",
       );
-      addToast("Xóa tag thành công.", "success");
+      addToast("Xóa Tag thành công.", "success");
       await loadRows();
     } catch (error) {
       addToast(
-        error instanceof Error ? error.message : "Không thể xóa tag.",
+        error instanceof Error ? error.message : "Không thể xóa Tag.",
         "error",
       );
     } finally {
@@ -317,7 +316,7 @@ const TagsManagement: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!formValues.tagName.trim()) {
-      addToast("Tag Name là bắt buộc.", "warning");
+      addToast("Tên Tag là bắt buộc.", "warning");
       return;
     }
 
@@ -334,9 +333,9 @@ const TagsManagement: React.FC = () => {
               description: formValues.description.trim(),
             },
           },
-          "Không thể tạo tag.",
+          "Không thể tạo Tag.",
         );
-        addToast("Tạo tag thành công.", "success");
+        addToast("Tạo Tag thành công.", "success");
       }
 
       if (activeModal === "edit" && selectedRow) {
@@ -350,16 +349,16 @@ const TagsManagement: React.FC = () => {
               description: formValues.description.trim(),
             },
           },
-          "Không thể cập nhật tag.",
+          "Không thể cập nhật Tag.",
         );
-        addToast("Cập nhật tag thành công.", "success");
+        addToast("Cập nhật Tag thành công.", "success");
       }
 
       setActiveModal(null);
       await loadRows();
     } catch (error) {
       addToast(
-        error instanceof Error ? error.message : "Không thể lưu tag.",
+        error instanceof Error ? error.message : "Không thể lưu Tag.",
         "error",
       );
     } finally {
@@ -377,8 +376,8 @@ const TagsManagement: React.FC = () => {
   return (
     <div className="tags-module admin-dashboard">
       <div className="dashboard-header">
-        <h1>Tag Management</h1>
-        <p>Quản lý tags: danh sách, CRUD và import dữ liệu từ file.</p>
+        <h1>Quản lý Tag</h1>
+        <p>Quản lý danh sách, thêm, sửa và xóa Tag.</p>
       </div>
 
       <div className="tags-toolbar">
@@ -395,7 +394,7 @@ const TagsManagement: React.FC = () => {
             <input
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Tìm theo mã/tên tag..."
+              placeholder="Tìm theo mã/tên Tag..."
             />
             {suggestions.length > 0 && searchInput.trim() ? (
               <div
@@ -467,13 +466,8 @@ const TagsManagement: React.FC = () => {
             onClick={openCreate}
             className="tags-create-btn"
           >
-            <Plus size={14} /> Create Tag
+            <Plus size={14} /> Tạo Tag
           </button>
-          <ImportExportActions
-            moduleName="tags"
-            moduleLabel="Quản lý tags"
-            onImportSuccess={loadRows}
-          />
         </div>
       </div>
 
@@ -487,7 +481,7 @@ const TagsManagement: React.FC = () => {
                 onChange={(event) =>
                   setFilters((prev) => ({ ...prev, tagCode: event.target.value }))
                 }
-                placeholder="Lọc theo TagCode"
+                placeholder="Lọc theo mã Tag"
               />
             </label>
             <label className="tags-filter-field">
@@ -497,7 +491,7 @@ const TagsManagement: React.FC = () => {
                 onChange={(event) =>
                   setFilters((prev) => ({ ...prev, tagName: event.target.value }))
                 }
-                placeholder="Lọc theo TagName"
+                placeholder="Lọc theo tên Tag"
               />
             </label>
           </div>
@@ -517,11 +511,11 @@ const TagsManagement: React.FC = () => {
         <table className="topics-table">
           <thead>
             <tr>
-              <th>TagCode</th>
-              <th>TagName</th>
-              <th>Description</th>
-              <th>CreatedAt</th>
-              <th style={{ textAlign: "center" }}>Actions</th>
+              <th>Mã Tag</th>
+              <th>Tên Tag</th>
+              <th>Mô tả</th>
+              <th>Ngày tạo</th>
+              <th style={{ textAlign: "center" }}>Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -531,7 +525,7 @@ const TagsManagement: React.FC = () => {
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={5}>Không có dữ liệu tag.</td>
+                <td colSpan={5}>Không có dữ liệu Tag.</td>
               </tr>
             ) : (
               rows.map((row) => (
@@ -608,7 +602,7 @@ const TagsManagement: React.FC = () => {
           }}
         >
           <div style={{ color: "#64748b", fontSize: 13 }}>
-            Tổng tags: <strong>{totalCount}</strong>
+            Tổng số Tag: <strong>{totalCount}</strong>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <select
@@ -666,10 +660,10 @@ const TagsManagement: React.FC = () => {
             <div className="tags-modal-header">
               <h3>
                 {activeModal === "create"
-                  ? "Create Tag"
+                  ? "Tạo Tag"
                   : activeModal === "edit"
-                    ? "Update Tag"
-                    : "Tag Detail"}
+                    ? "Cập nhật Tag"
+                    : "Chi tiết Tag"}
               </h3>
               <button
                 type="button"
@@ -703,7 +697,7 @@ const TagsManagement: React.FC = () => {
                     </div>
 
                     <div className="tags-info-row">
-                      <span className="tags-info-label">Tag Code</span>
+                      <span className="tags-info-label">Mã Tag</span>
                       <span className="tags-info-value">{selectedRow?.tagCode ?? "--"}</span>
                     </div>
 
@@ -728,7 +722,7 @@ const TagsManagement: React.FC = () => {
                       </div>
                     ) : (
                       <span style={{ color: "#64748b", fontSize: 13, fontStyle: "italic" }}>
-                        Không có mô tả cho tag này.
+                        Không có mô tả cho Tag này.
                       </span>
                     )}
                   </div>
@@ -746,8 +740,8 @@ const TagsManagement: React.FC = () => {
                 isSubmitting={isSubmitting}
                 note={
                   activeModal === "create"
-                    ? "Nhập thông tin tag mới theo schema chuẩn. Tag Code có thể để trống nếu backend tự sinh hoặc map theo quy ước hiện có."
-                    : "Chỉnh sửa tên và mô tả tag. Tag Code được giữ nguyên để đồng bộ với các dữ liệu liên quan."
+                    ? "Nhập thông tin Tag mới theo schema chuẩn. Mã Tag có thể để trống nếu backend tự sinh hoặc map theo quy ước hiện có."
+                    : "Chỉnh sửa tên và mô tả Tag. Mã Tag được giữ nguyên để đồng bộ với các dữ liệu liên quan."
                 }
                 disabledFields={activeModal === "edit" ? ["tagCode"] : []}
                 showActions={false}
@@ -793,7 +787,7 @@ const TagsManagement: React.FC = () => {
                   {isSubmitting
                     ? "Đang lưu..."
                     : activeModal === "create"
-                      ? "Tạo tag"
+                      ? "Tạo Tag"
                       : "Lưu cập nhật"}
                 </button>
               )}

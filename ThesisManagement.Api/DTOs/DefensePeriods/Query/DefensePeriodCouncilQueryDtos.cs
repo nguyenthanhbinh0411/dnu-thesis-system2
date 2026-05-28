@@ -10,6 +10,7 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
     {
         public string StudentCode { get; set; } = string.Empty;
         public string StudentName { get; set; } = string.Empty;
+        public string? TopicCode { get; set; }
         public string TopicTitle { get; set; } = string.Empty;
         public string? SupervisorCode { get; set; }
         public List<string> Tags { get; set; } = new();

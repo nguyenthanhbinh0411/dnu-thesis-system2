@@ -51,7 +51,7 @@ function resolveDepartmentLabel(row: DashboardRecord): string {
       row,
       ["departmentName", "name", "departmentCode", "facultyName"],
       "",
-    ) || "Khoa / bộ môn"
+    ) || "Khoa"
   );
 }
 
@@ -399,7 +399,7 @@ const StudentServiceDashboard: React.FC = () => {
       {
         label: "PHIÊN TỒN ĐỌNG",
         value: backlogCount,
-        hint: `${hubMetrics.departments.departmentsCount} khoa & bộ môn`,
+        hint: `${hubMetrics.departments.departmentsCount} khoa`,
         icon: <Building2 size={20} />,
         accent: "purple",
         trend: "Đang kiểm soát",
@@ -663,7 +663,7 @@ const StudentServiceDashboard: React.FC = () => {
               </div>
             </article>
 
-            {/* 5. Khoa / Bộ môn */}
+            {/* 5. Khoa */}
             <article className="ssd-hub-card rose">
               <div className="ssd-hub-card__header">
                 <div className="ssd-hub-card__icon-wrap">
@@ -672,11 +672,11 @@ const StudentServiceDashboard: React.FC = () => {
                 <div className="ssd-hub-card__badge">Cơ cấu</div>
               </div>
               <div className="ssd-hub-card__body">
-                <h3 className="ssd-hub-card__title">Khoa & Bộ môn</h3>
+                <h3 className="ssd-hub-card__title">Khoa</h3>
                 <div className="ssd-hub-card__metrics">
                   <div className="ssd-hub-card__metric">
                     <span className="value">{hubMetrics.departments.departmentsCount}</span>
-                    <span className="label">Khoa & Bộ môn</span>
+                    <span className="label">Khoa</span>
                   </div>
                   <div className="ssd-hub-card__metric border-left">
                     <span className="value">CNTT</span>
@@ -700,7 +700,7 @@ const StudentServiceDashboard: React.FC = () => {
               </div>
             </article>
 
-            {/* 6. Quản lý Tags */}
+            {/* 6. Quản lý Tag */}
             <article className="ssd-hub-card gold">
               <div className="ssd-hub-card__header">
                 <div className="ssd-hub-card__icon-wrap">
@@ -709,11 +709,11 @@ const StudentServiceDashboard: React.FC = () => {
                 <div className="ssd-hub-card__badge">Nhãn dán</div>
               </div>
               <div className="ssd-hub-card__body">
-                <h3 className="ssd-hub-card__title">Quản lý thẻ Tags</h3>
+                <h3 className="ssd-hub-card__title">Quản lý Tag</h3>
                 <div className="ssd-hub-card__metrics">
                   <div className="ssd-hub-card__metric">
                     <span className="value">{hubMetrics.tags.totalTags}</span>
-                    <span className="label">Tags hệ thống</span>
+                    <span className="label">Tag hệ thống</span>
                   </div>
                 </div>
                 <div className="ssd-hub-card__tag-cloud">
@@ -726,7 +726,7 @@ const StudentServiceDashboard: React.FC = () => {
               </div>
               <div className="ssd-hub-card__footer">
                 <Link to="/student-service/tags" className="ssd-hub-card__btn">
-                  Quản lý thẻ tags <ArrowUpRight size={14} />
+                  Quản lý Tag <ArrowUpRight size={14} />
                 </Link>
               </div>
             </article>

@@ -98,13 +98,13 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
     public class GenerateCouncilStrategyDto
     {
         public bool GroupByTag { get; set; } = true;
-        [Range(1, 10)]
+        [Range(1, 20)]
         public int MaxPerSession { get; set; } = 4;
 
-        [Range(1, 10)]
+        [Range(1, 20)]
         public int MorningTopicsPerSession { get; set; }
 
-        [Range(1, 10)]
+        [Range(1, 20)]
         public int AfternoonTopicsPerSession { get; set; }
 
         public bool PrioritizeMatchTag { get; set; } = true;

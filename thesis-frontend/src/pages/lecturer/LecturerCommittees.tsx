@@ -59,6 +59,7 @@ import {
   Check,
   Activity,
   Flag,
+  GraduationCap,
 } from "lucide-react";
 import { getAccessToken } from "../../services/auth-session.service";
 
@@ -149,6 +150,7 @@ type ScoringMatrixRow = {
   submittedCount: number;
   requiredCount: number;
   defenseDocuments: DefenseDocument[];
+  supervisorOrganization: string | null;
 };
 
 type DefenseDocument = {
@@ -602,29 +604,201 @@ const LecturerCommittees: React.FC = () => {
               )}
 
               {detailTab === 'members' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {detailCommittee.members.map((m, i) => (
-                    <div key={i} style={{ padding: '16px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 700 }}>{m.lecturerName}</span>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#f37021', background: '#fff7ed', padding: '4px 12px', borderRadius: '99px' }}>{m.roleLabel}</span>
-                    </div>
-                  ))}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+                  {detailCommittee.members.map((m, i) => {
+                    const isChair = m.roleCode === "CT";
+                    const isSec = m.roleCode === "UVTK";
+                    const isRev = m.roleCode === "UVPB";
+                    
+                    let roleColor = "#64748b";
+                    let roleBg = "#f8fafc";
+                    let roleBorder = "#e2e8f0";
+                    if (isChair) {
+                      roleColor = "#f37021"; roleBg = "#fff7ed"; roleBorder = "#fed7aa";
+                    } else if (isSec) {
+                      roleColor = "#1e3a8a"; roleBg = "#eff6ff"; roleBorder = "#bfdbfe";
+                    } else if (isRev) {
+                      roleColor = "#16a34a"; roleBg = "#f0fdf4"; roleBorder = "#bbf7d0";
+                    }
+
+                    return (
+                      <div 
+                        key={i} 
+                        style={{ 
+                          padding: '20px', 
+                          borderRadius: '16px', 
+                          background: 'white', 
+                          border: '1px solid #e2e8f0', 
+                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01)',
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          justifyContent: 'space-between',
+                          gap: '12px'
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
+                            <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                              {m.lecturerName}
+                              {m.degree && <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginLeft: '6px' }}>({m.degree})</span>}
+                            </h4>
+                            <span 
+                              style={{ 
+                                fontSize: '11px', 
+                                fontWeight: 800, 
+                                color: roleColor, 
+                                background: roleBg, 
+                                border: `1px solid ${roleBorder}`, 
+                                padding: '4px 10px', 
+                                borderRadius: '99px',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {m.roleLabel}
+                            </span>
+                          </div>
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#64748b', marginBottom: '6px' }}>
+                            <Info size={14} color="#f37021" /> 
+                            <span>Mã GV: <strong>{m.lecturerCode}</strong></span>
+                          </div>
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#64748b' }}>
+                            <Building2 size={14} color="#1e3a8a" /> 
+                            <span style={{ wordBreak: 'break-word' }}>
+                              Nơi công tác: <strong>{m.organization || "Trường Đại học Đại Nam"}</strong>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
               {detailTab === 'topics' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {detailTopics.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>Chưa cập nhật danh sách đề tài.</div>
+                    <div style={{ textAlign: 'center', padding: '60px', color: '#94a3b8', background: '#f8fafc', borderRadius: '16px', border: '1px dashed #cbd5e1' }}>
+                      Chưa cập nhật danh sách đề tài.
+                    </div>
                   ) : (
                     detailTopics.map((t, i) => (
-                      <div key={i} style={{ padding: '16px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                        <div style={{ fontWeight: 800, fontSize: '15px', marginBottom: '4px' }}>{t.topicTitle}</div>
-                        <div style={{ fontSize: '13px', color: '#64748b' }}>Sinh viên: {t.studentName} ({t.studentCode})</div>
-                        <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
-                          {t.topicTags.map((tag, j) => (
-                            <span key={j} style={{ fontSize: '10px', fontWeight: 700, background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px' }}>{tag}</span>
-                          ))}
+                      <div 
+                        key={i} 
+                        style={{ 
+                          padding: '24px', 
+                          borderRadius: '16px', 
+                          background: 'white', 
+                          border: '1px solid #e2e8f0',
+                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01)',
+                          display: 'grid',
+                          gridTemplateColumns: '1fr',
+                          gap: '16px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', flexWrap: 'wrap', gap: '12px' }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 800, background: '#fff7ed', color: '#f37021', border: '1px solid #fed7aa', padding: '3px 8px', borderRadius: '6px' }}>
+                                {t.topicCode || "Mã đề tài -"}
+                              </span>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                {t.topicTags.map((tag, j) => (
+                                  <span key={j} style={{ fontSize: '10px', fontWeight: 700, background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>{tag}</span>
+                                ))}
+                              </div>
+                            </div>
+                            <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a', lineHeight: 1.4 }}>
+                              {t.topicTitle}
+                            </h4>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                          <div>
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '6px' }}>Sinh viên thực hiện</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
+                              <Users2 size={16} color="#f37021" />
+                              <span>{t.studentName} <span style={{ fontWeight: 600, color: '#64748b' }}>({t.studentCode})</span></span>
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '6px' }}>Giảng viên hướng dẫn</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>
+                              <GraduationCap size={16} color="#1e3a8a" />
+                              <span>{t.supervisorLecturerName || "Chưa rõ"}</span>
+                            </div>
+                            {t.supervisorOrganization && (
+                              <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Building2 size={12} color="#94a3b8" />
+                                <span>Đơn vị: <strong>{t.supervisorOrganization}</strong></span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Reports and Document Previews */}
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#475569', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <FileText size={14} color="#f37021" />
+                            <span>BÁO CÁO & TÀI LIỆU ĐÍNH KÈM (XEM TRƯỚC)</span>
+                          </div>
+                          {(!t.defenseDocuments || t.defenseDocuments.length === 0) ? (
+                            <div style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px' }}>
+                              Sinh viên chưa nộp tài liệu báo cáo.
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {t.defenseDocuments.map((doc, k) => (
+                                <a 
+                                  key={k}
+                                  href={normalizeUrl(doc.fileUrl)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    padding: '12px 16px',
+                                    borderRadius: '10px',
+                                    background: '#f0f4f8',
+                                    border: '1px solid #d0e0f0',
+                                    textDecoration: 'none',
+                                    color: '#1e3a8a',
+                                    fontSize: '13px',
+                                    fontWeight: 700,
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = '#e2eaf4';
+                                    e.currentTarget.style.borderColor = '#b8d0ec';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = '#f0f4f8';
+                                    e.currentTarget.style.borderColor = '#d0e0f0';
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                                    <FileText size={16} color="#f37021" style={{ flexShrink: 0 }} />
+                                    <span style={{ 
+                                      overflow: 'hidden', 
+                                      textOverflow: 'ellipsis', 
+                                      whiteSpace: 'nowrap',
+                                      wordBreak: 'break-all'
+                                    }}>
+                                      {doc.fileName || `Tài liệu đính kèm ${k + 1}`}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#f37021', flexShrink: 0 }}>
+                                    <span>Xem chi tiết</span>
+                                    <ExternalLink size={14} />
+                                  </div>
+                                </a>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))

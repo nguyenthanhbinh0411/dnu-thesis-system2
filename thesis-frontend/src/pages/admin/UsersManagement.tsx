@@ -628,7 +628,7 @@ const UsersManagement: React.FC = () => {
               className="users-input"
               value={searchUserCode}
               onChange={(event) => setSearchUserCode(event.target.value)}
-              placeholder="Lọc theo userCode"
+              placeholder="Lọc theo mã người dùng"
             />
           </div>
 
@@ -759,11 +759,11 @@ const UsersManagement: React.FC = () => {
                   style={{ width: 16, height: 16, cursor: "pointer" }}
                 />
               </th>
-              <th>userID</th>
-              <th>userCode</th>
-              <th>fullName</th>
-              <th>email</th>
-              <th>role</th>
+              <th>ID người dùng</th>
+              <th>Mã người dùng</th>
+              <th>Họ và tên</th>
+              <th>Email</th>
+              <th>Vai trò</th>
               <th style={{ textAlign: "center" }}>Thao tác</th>
             </tr>
           </thead>
@@ -962,7 +962,7 @@ const UsersManagement: React.FC = () => {
             </div>
             <div style={{ padding: 16, display: "grid", gap: 10 }}>
               <label style={{ display: "grid", gap: 6 }}>
-                <span>userCode *</span>
+                <span>Mã người dùng *</span>
                 <input
                   value={createForm.userCode}
                   onChange={(event) =>
@@ -979,7 +979,7 @@ const UsersManagement: React.FC = () => {
                 />
               </label>
               <label style={{ display: "grid", gap: 6 }}>
-                <span>password *</span>
+                <span>Mật khẩu *</span>
                 <input
                   type="password"
                   value={createForm.password}
@@ -1020,7 +1020,7 @@ const UsersManagement: React.FC = () => {
                 </select>
               </label>
               <label style={{ display: "grid", gap: 6 }}>
-                <span>fullName</span>
+                <span>Họ và tên</span>
                 <input
                   value={createForm.fullName || ""}
                   onChange={(event) =>
@@ -1037,7 +1037,7 @@ const UsersManagement: React.FC = () => {
                 />
               </label>
               <label style={{ display: "grid", gap: 6 }}>
-                <span>email</span>
+                <span>Email</span>
                 <input
                   value={createForm.email || ""}
                   onChange={(event) =>
@@ -1223,12 +1223,12 @@ const UsersManagement: React.FC = () => {
                   <div className="users-card-section-title">Thông tin tài khoản</div>
                   
                   <div className="users-info-row">
-                    <span className="users-info-label">User ID</span>
+                    <span className="users-info-label">ID người dùng</span>
                     <span className="users-info-value">{String(selectedUser?.userID ?? selectedUser?.id ?? "--")}</span>
                   </div>
                   
                   <div className="users-info-row">
-                    <span className="users-info-label">User Code</span>
+                    <span className="users-info-label">Mã người dùng</span>
                     <span className="users-info-value">{String(selectedUser?.userCode ?? "--")}</span>
                   </div>
 
@@ -1307,7 +1307,7 @@ const UsersManagement: React.FC = () => {
                             <span className="users-info-value">{String(selectedLinkedProfile.data.degree ?? "--")}</span>
                           </div>
                           <div className="users-info-row">
-                            <span className="users-info-label">Bộ môn / Khoa</span>
+                            <span className="users-info-label">Khoa</span>
                             <span className="users-info-value">{String(selectedLinkedProfile.data.departmentCode ?? "--")}</span>
                           </div>
                         </>

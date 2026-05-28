@@ -18,9 +18,9 @@ const managementModules = [
     keyFields: ["lecturerCode", "degree", "email", "guideQuota"],
   },
   {
-    title: "Quản lý khoa/bộ môn",
+    title: "Quản lý khoa",
     description:
-      "Danh mục khoa/bộ môn theo bộ field chuẩn departmentCode, name, description.",
+      "Danh mục khoa theo bộ field chuẩn departmentCode, name, description.",
     path: "/departments",
     keyFields: ["departmentCode", "name", "description"],
   },
@@ -32,9 +32,9 @@ const managementModules = [
     keyFields: ["topicCode", "title", "proposerUserCode", "status"],
   },
   {
-    title: "Quản lý tags",
+    title: "Quản lý Tag",
     description:
-      "Quản trị danh mục tag theo tagCode, tagName, description và import dữ liệu.",
+      "Quản trị danh mục Tag theo tagCode, tagName, description và import dữ liệu.",
     path: "/tags",
     keyFields: ["tagCode", "tagName", "description"],
   },

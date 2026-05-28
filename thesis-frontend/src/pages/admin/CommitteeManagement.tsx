@@ -30,6 +30,8 @@ import {
   Users,
   X,
   Zap,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useToast } from "../../context/useToast";
 import { FetchDataError, fetchData } from "../../api/fetchData";
@@ -900,7 +902,7 @@ const mapStudentRecord = (item: Record<string, unknown>): EligibleStudent => {
       pickCaseInsensitiveValue(item, ["topicTitle", "TopicTitle", "title", "Title"], ""),
     ).trim(),
     supervisorCode: String(
-      pickCaseInsensitiveValue(item, ["supervisorCode", "SupervisorCode"], ""),
+      pickCaseInsensitiveValue(item, ["supervisorCode", "SupervisorCode", "supervisorLecturerCode", "SupervisorLecturerCode"], ""),
     ).trim(),
     tags,
     studentTags,
@@ -923,6 +925,14 @@ const mapStudentRecord = (item: Record<string, unknown>): EligibleStudent => {
     valid: readBooleanLike(
       pickCaseInsensitiveValue(item, ["valid", "Valid"], true),
       true,
+    ),
+    isAssignedToCouncil: readBooleanLike(
+      pickCaseInsensitiveValue(
+        item,
+        ["isAssignedToCouncil", "IsAssignedToCouncil"],
+        false,
+      ),
+      false,
     ),
     error,
   };
@@ -989,8 +999,17 @@ const mapLecturerCapabilityRecord = (
 };
 
 const isDefenseReadyTopicStatus = (status?: string) => {
-  const normalizedStatus = String(status ?? "").trim().toLowerCase();
-  return normalizedStatus.length === 0 || normalizedStatus.includes("đủ điều kiện bảo vệ");
+  const normalizedStatus = String(status ?? "").trim().toUpperCase();
+  if (normalizedStatus.length === 0) return true;
+  return (
+    normalizedStatus.includes("DU DIEU KIEN BAO VE") ||
+    normalizedStatus.includes("ĐỦ ĐIỀU KIỆN BẢO VỆ") ||
+    normalizedStatus.includes("ELIGIBLE") ||
+    normalizedStatus.includes("READY FOR DEFENSE") ||
+    normalizedStatus.includes("READY_FOR_DEFENSE") ||
+    normalizedStatus.includes("APPROVED") ||
+    normalizedStatus.includes("READY")
+  );
 };
 
 const mapTagCatalogRecord = (
@@ -1131,25 +1150,22 @@ const mapTopicRecordToAutoTopic = (
         .filter(Boolean)
       : [],
     studentCode: String(
-      pickCaseInsensitiveValue(item, ["studentCode", "StudentCode"], ""),
+      pickCaseInsensitiveValue(item, ["studentCode", "StudentCode", "proposerStudentCode", "ProposerStudentCode"], ""),
     ).trim(),
     supervisorCode: String(
-      pickCaseInsensitiveValue(item, ["supervisorCode", "SupervisorCode"], ""),
+      pickCaseInsensitiveValue(item, ["supervisorCode", "SupervisorCode", "supervisorLecturerCode", "SupervisorLecturerCode"], ""),
     ).trim(),
     studentName: String(
-      pickCaseInsensitiveValue(item, ["studentName", "StudentName", "proposerStudentName"], ""),
+      pickCaseInsensitiveValue(item, ["studentName", "StudentName", "proposerStudentName", "ProposerStudentName"], ""),
     ).trim(),
   };
 };
 
-  const formatDateWithWeekday = (dateStr?: string | null) => {
+  const formatDateOnly = (dateStr?: string | null) => {
     if (!dateStr) return "-";
     const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return "-";
-    const dayMonthYear = d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
-    const weekday = d.toLocaleDateString("vi-VN", { weekday: "long" });
-    const weekdayCap = weekday.charAt(0).toUpperCase() + weekday.slice(1);
-    return `${dayMonthYear} — ${weekdayCap}`;
+    return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
   };
 
 
@@ -1223,11 +1239,13 @@ const CommitteeManagement: React.FC = () => {
   const [autoGroupByTag, setAutoGroupByTag] = useState(true);
   const [autoPrioritizeMatchTag, setAutoPrioritizeMatchTag] = useState(true);
   const [searchCouncil, setSearchCouncil] = useState("");
+  const [manualTopicSearchKeyword, setManualTopicSearchKeyword] = useState("");
   const [tagFilter, setTagFilter] = useState<string>("all");
   const [roomFilter, setRoomFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [councilPage, setCouncilPage] = useState(1);
   const [selectedCouncilId, setSelectedCouncilId] = useState<string>("");
+  const [selectedCouncilIds, setSelectedCouncilIds] = useState<Set<string>>(new Set());
   const [manualMode, setManualMode] = useState<"create" | "duplicate" | "edit" | null>(null);
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
   const [manualId, setManualId] = useState("HD-2026-04");
@@ -1354,6 +1372,12 @@ const CommitteeManagement: React.FC = () => {
   useEffect(() => {
     autoStartDateRef.current = autoStartDate;
   }, [autoStartDate]);
+
+  useEffect(() => {
+    if (autoStartDate && manualDefenseDate === "2026-04-24") {
+      setManualDefenseDate(autoStartDate);
+    }
+  }, [autoStartDate, manualDefenseDate]);
 
   useEffect(() => {
     if (queryPeriodId && queryPeriodId !== defensePeriodId) {
@@ -2576,12 +2600,26 @@ const CommitteeManagement: React.FC = () => {
         const studentMap = new Map<string, Record<string, unknown>>();
         masterStudentsRaw.forEach((item) => {
           const code = String(
-            pickCaseInsensitiveValue(item, ["studentCode", "StudentCode"], ""),
+            pickCaseInsensitiveValue(item, ["studentCode", "StudentCode", "proposerStudentCode", "ProposerStudentCode"], ""),
           )
             .trim()
             .toUpperCase();
-          if (code && !studentMap.has(code)) {
-            studentMap.set(code, item);
+          if (code) {
+            const existing = studentMap.get(code);
+            if (existing) {
+              const merged = { ...item, ...existing };
+              // Ensure we don't lose the valid TopicCode from either of them
+              const resolvedTopicCode =
+                String(existing.topicCode ?? existing.TopicCode ?? "").trim() ||
+                String(item.topicCode ?? item.TopicCode ?? "").trim();
+              if (resolvedTopicCode) {
+                merged.topicCode = resolvedTopicCode;
+                merged.TopicCode = resolvedTopicCode;
+              }
+              studentMap.set(code, merged);
+            } else {
+              studentMap.set(code, item);
+            }
           }
         });
 
@@ -2616,14 +2654,37 @@ const CommitteeManagement: React.FC = () => {
           });
 
         if (autoTopicsFromEndpoint.length > 0) {
-          setAvailableAutoTopics(autoTopicsFromEndpoint);
-          setSelectedAutoTopicIds((prev) =>
-            prev.length > 0
-              ? prev
-              : autoTopicsFromEndpoint
-                .map((topic) => topic.topicId ?? topic.topicCode ?? "")
-                .slice(0, 12),
+          const allowedStudentCodes = new Set(
+            eligibleStudents.map((s) => String(s.studentCode ?? "").trim().toUpperCase()),
           );
+          const allowedTopicCodes = new Set(
+            eligibleStudents
+              .map((s) => String(s.topicCode ?? "").trim())
+              .filter(Boolean)
+              .map((c) => c.toUpperCase()),
+          );
+          const filteredAutoTopicsFromEndpoint = autoTopicsFromEndpoint.filter((t) => {
+            const sc = String(t.studentCode ?? "").trim().toUpperCase();
+            const tc = String(t.topicCode ?? t.topicId ?? "").trim().toUpperCase();
+            if (sc && allowedStudentCodes.has(sc)) return true;
+            if (tc && allowedTopicCodes.has(tc)) return true;
+            return false;
+          });
+
+          setAvailableAutoTopics(filteredAutoTopicsFromEndpoint);
+          setSelectedAutoTopicIds((prev) => {
+            const defaultIds = filteredAutoTopicsFromEndpoint
+              .map((topic) => topic.topicId ?? topic.topicCode ?? "")
+              .filter(Boolean);
+            if (prev.length > 0) {
+              const prevSet = new Set(prev.map(String));
+              const kept = defaultIds.filter((id) => prevSet.has(String(id)));
+              if (kept.length > 0) {
+                return kept;
+              }
+            }
+            return defaultIds;
+          });
         }
 
         const degreeByLecturerCode = new Map(
@@ -2662,10 +2723,17 @@ const CommitteeManagement: React.FC = () => {
             currentGuidingCount: undefined,
           }));
 
-        const autoLecturers =
+        const allowedLecturerCodes = new Set(
+          mappedCapabilities.map((l) => String(l.lecturerCode ?? "").trim().toUpperCase())
+        );
+
+        const autoLecturers = (
           mappedLecturerDefense.length > 0
             ? mappedLecturerDefense
-            : fallbackAutoLecturers;
+            : fallbackAutoLecturers
+        ).filter((l) =>
+          allowedLecturerCodes.has(String(l.lecturerCode ?? l.lecturerId ?? "").trim().toUpperCase())
+        );
 
         setAvailableAutoLecturers(autoLecturers);
         setSelectedAutoLecturerIds((prev) => {
@@ -4130,12 +4198,15 @@ const CommitteeManagement: React.FC = () => {
             .map((item) => mapTopicRecordToAutoTopic(item))
             .filter((topic) => Boolean(topic.topicCode || topic.topicId));
 
-          // Defensive filter: only keep topics that map to students that are eligible
+          // Defensive filter: only keep topics that map to students that are eligible and NOT already assigned to a council
           const allowedStudentCodes = new Set(
-            eligibleStudents.map((s) => String(s.studentCode ?? "").trim().toUpperCase()),
+            eligibleStudents
+              .filter((s) => !s.isAssignedToCouncil)
+              .map((s) => String(s.studentCode ?? "").trim().toUpperCase()),
           );
           const allowedTopicCodes = new Set(
             eligibleStudents
+              .filter((s) => !s.isAssignedToCouncil)
               .map((s) => String(s.topicCode ?? "").trim())
               .filter(Boolean)
               .map((c) => c.toUpperCase()),
@@ -4167,9 +4238,16 @@ const CommitteeManagement: React.FC = () => {
       if (lecturersRes) {
         const lecturersParsed = parseApiEnvelope(lecturersRes);
         if (lecturersParsed.ok) {
-          lecturers = ((lecturersParsed.data ?? []) as Array<Record<string, unknown>>)
+          const rawLecturers = ((lecturersParsed.data ?? []) as Array<Record<string, unknown>>)
             .map((item) => mapLecturerDefenseRecord(item))
             .filter((item) => Boolean(item.lecturerCode) || Boolean(item.lecturerProfileId));
+
+          const allowedLecturerCodes = new Set(
+            lecturerCapabilities.map((l) => String(l.lecturerCode ?? "").trim().toUpperCase())
+          );
+          lecturers = rawLecturers.filter((l) =>
+            allowedLecturerCodes.has(String(l.lecturerCode ?? l.lecturerId ?? "").trim().toUpperCase())
+          );
         }
       }
       if (lecturers.length === 0) {
@@ -4224,7 +4302,7 @@ const CommitteeManagement: React.FC = () => {
       setSelectedAutoTopicIds(
         topics
           .map((topic) => topic.topicId ?? topic.topicCode ?? "")
-          .slice(0, 12),
+          .filter(Boolean),
       );
       setSelectedAutoLecturerIds(
         lecturers
@@ -4363,12 +4441,27 @@ const CommitteeManagement: React.FC = () => {
     const selectedTopicKeys = new Set(
       selectedAutoTopicIds.map((id) => String(id)),
     );
+    const allowedStudentCodes = new Set(
+      eligibleStudents
+        .filter((s) => !s.isAssignedToCouncil)
+        .map((s) => String(s.studentCode ?? "").trim().toUpperCase()),
+    );
+    const allowedTopicCodes = new Set(
+      eligibleStudents
+        .filter((s) => !s.isAssignedToCouncil)
+        .map((s) => String(s.topicCode ?? "").trim())
+        .filter(Boolean)
+        .map((c) => c.toUpperCase()),
+    );
     const normalizedSelectedTopicCodes = Array.from(
       new Set(
         availableAutoTopics
-          .filter((topic) =>
-            selectedTopicKeys.has(String(topic.topicId ?? topic.topicCode ?? "")),
-          )
+          .filter((topic) => {
+            const sc = String(topic.studentCode ?? "").trim().toUpperCase();
+            const tc = String(topic.topicCode ?? topic.topicId ?? "").trim().toUpperCase();
+            const isEligible = (sc && allowedStudentCodes.has(sc)) || (tc && allowedTopicCodes.has(tc));
+            return isEligible && selectedTopicKeys.has(String(topic.topicId ?? topic.topicCode ?? ""));
+          })
           .map((topic) => String(topic.topicCode ?? topic.topicId ?? "").trim())
           .filter((code) => code.length > 0),
       ),
@@ -4395,13 +4488,18 @@ const CommitteeManagement: React.FC = () => {
       ),
     );
 
+    const allowedLecturerCodes = new Set(
+      lecturerCapabilities.map((l) => String(l.lecturerCode ?? "").trim().toUpperCase())
+    );
+
     const normalizedSelectedLecturerCodes = Array.from(
       new Set(
         selectedLecturerRows
           .map((lecturer) =>
             String(lecturer.lecturerCode ?? lecturer.lecturerId ?? "").trim(),
           )
-          .filter((code) => code.length > 0),
+          .filter((code) => code.length > 0)
+          .filter((code) => allowedLecturerCodes.has(code.toUpperCase())),
       ),
     );
 
@@ -4644,6 +4742,9 @@ const CommitteeManagement: React.FC = () => {
           `Đã tạo ${committeesCreated} hội đồng, phân công ${topicsAssigned} đề tài.`,
         );
       }
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
     } catch (error) {
       if (error instanceof FetchDataError) {
         const fallback =
@@ -4716,9 +4817,25 @@ const CommitteeManagement: React.FC = () => {
         setSyncStatus("timeout");
         return;
       }
+      const topicsMap = new Map<string, string>();
+      availableAutoTopics.forEach((t) => {
+        const sc = String(t.studentCode ?? "").trim().toUpperCase();
+        const tc = String(t.topicCode ?? t.topicId ?? "").trim();
+        if (sc && tc) {
+          topicsMap.set(sc, tc);
+        }
+      });
+
       setStudents(
         ((studentParsed.data ?? []) as Array<Record<string, unknown>>)
-          .map((item) => mapStudentRecord(item))
+          .map((item) => {
+            const mappedStudent = mapStudentRecord(item);
+            if (!mappedStudent.topicCode) {
+              const sc = String(mappedStudent.studentCode ?? "").trim().toUpperCase();
+              mappedStudent.topicCode = topicsMap.get(sc);
+            }
+            return mappedStudent;
+          })
           .filter((item) => item.studentCode.length > 0),
       );
       setSyncedAt(new Date().toLocaleString("vi-VN"));
@@ -5257,11 +5374,13 @@ const CommitteeManagement: React.FC = () => {
   const manualTopicSupervisorCodes = useMemo(() => {
     const codes = new Set<string>();
     manualRelatedStudents.forEach((studentCode) => {
-      const supervisorCode = String(
-        students.find((item) => item.studentCode === studentCode)?.supervisorCode ?? "",
-      ).trim();
+      const studentCodeUpper = String(studentCode).trim().toUpperCase();
+      const student = students.find(
+        (item) => String(item.studentCode ?? "").trim().toUpperCase() === studentCodeUpper
+      );
+      const supervisorCode = String(student?.supervisorCode ?? "").trim();
       if (supervisorCode) {
-        codes.add(supervisorCode);
+        codes.add(supervisorCode.toUpperCase());
       }
     });
     return codes;
@@ -5317,8 +5436,8 @@ const CommitteeManagement: React.FC = () => {
             return false;
           }
           if (
-            lecturerCode !== currentMemberCode &&
-            manualTopicSupervisorCodes.has(lecturerCode)
+            lecturerCode.toUpperCase() !== currentMemberCode.toUpperCase() &&
+            manualTopicSupervisorCodes.has(lecturerCode.toUpperCase())
           ) {
             return false;
           }
@@ -5395,7 +5514,7 @@ const CommitteeManagement: React.FC = () => {
     }
 
     const forbiddenSupervisorCodes = normalizedCodes.filter((code) =>
-      manualTopicSupervisorCodes.has(code),
+      manualTopicSupervisorCodes.has(code.toUpperCase()),
     );
     if (forbiddenSupervisorCodes.length > 0) {
       return `Giảng viên ${Array.from(new Set(forbiddenSupervisorCodes)).join(", ")} là giảng viên hướng dẫn của đề tài đã chọn và không thể tham gia hội đồng.`;
@@ -5970,7 +6089,7 @@ const CommitteeManagement: React.FC = () => {
         );
     setManualId(defaultId ?? nextGeneratedCouncilId);
     setManualName("Hội đồng mới");
-    setManualDefenseDate("2026-04-24");
+    setManualDefenseDate(autoStartDate || "2026-04-24");
     setManualRoom(normalizeRoomCode(selectedRooms[0] ?? roomOptions[0] ?? ""));
     setManualScheduleMode("FULL_DAY");
     setManualSessionCode("MORNING");
@@ -5985,7 +6104,7 @@ const CommitteeManagement: React.FC = () => {
         sessionCode: "MORNING",
         preserveAssignments: false,
         assignmentDefaults: {
-          defenseDate: "2026-04-24",
+          defenseDate: autoStartDate || "2026-04-24",
         },
       },
     );
@@ -6281,6 +6400,61 @@ const CommitteeManagement: React.FC = () => {
     }
   };
 
+  const deleteSelectedCouncils = async () => {
+    if (!canModifyCouncils) {
+      notifyWarning("Danh sách hội đồng đã chốt. Không thể xóa hội đồng.");
+      return;
+    }
+    if (selectedCouncilIds.size === 0) {
+      notifyWarning("Vui lòng chọn ít nhất một hội đồng để xóa.");
+      return;
+    }
+    const confirmed = window.confirm(`Bạn có chắc chắn muốn xóa ${selectedCouncilIds.size} hội đồng đã chọn?`);
+    if (!confirmed) {
+      return;
+    }
+    setActionInFlight("Xóa hàng loạt hội đồng...");
+    let succeeded = 0;
+    let failed = 0;
+    try {
+      const idsArray = Array.from(selectedCouncilIds);
+      for (const councilId of idsArray) {
+        const target = editableDrafts.find((item: CouncilDraft) => item.id === councilId);
+        if (!target) continue;
+        try {
+          const apiCouncilId = target.councilId ?? toPositiveInteger(target.id) ?? target.id;
+          const response = await adminApi.deleteCouncil(
+            String(apiCouncilId),
+            target.concurrencyToken,
+          );
+          const parsed = parseApiEnvelope(response);
+          if (parsed.ok) {
+            succeeded++;
+          } else {
+            failed++;
+          }
+        } catch {
+          failed++;
+        }
+      }
+      setSelectedCouncilIds(new Set());
+      await reloadCouncilsFromBackend();
+      if (succeeded > 0) {
+        notifySuccess(`Đã xóa thành công ${succeeded} hội đồng.`);
+      }
+      if (failed > 0) {
+        notifyError(`Xóa thất bại ${failed} hội đồng.`);
+      }
+      if (succeeded > 0 && typeof window !== "undefined") {
+        window.location.reload();
+      }
+    } catch (err: any) {
+      notifyError(err.message || "Lỗi hệ thống khi xóa hàng loạt hội đồng.");
+    } finally {
+      setActionInFlight(null);
+    }
+  };
+
   const updateManualMember = (index: number, lecturerCode: string) => {
     if (!canModifyCouncils) {
       notifyWarning("Danh sách hội đồng đã chốt. Không thể chỉnh sửa thành viên.");
@@ -6370,6 +6544,16 @@ const CommitteeManagement: React.FC = () => {
         "Bước 1 chưa đầy đủ: vui lòng chọn ngày và phòng.",
       );
       return;
+    }
+
+    if (targetStep >= 2) {
+      const normalizedDate = normalizeDefenseDateOnly(manualDefenseDate);
+      const start = normalizeDefenseDateOnly(autoStartDate);
+      const end = normalizeDefenseDateOnly(autoEndDate);
+      if (start && end && (normalizedDate < start || normalizedDate > end)) {
+        notifyError(`Ngày hội đồng phải nằm trong khoảng ngày của đợt bảo vệ (${formatDateLabel(start)} - ${formatDateLabel(end)}).`);
+        return;
+      }
     }
 
     if (targetStep >= 2 && !roomOptions.includes(normalizedManualRoom)) {
@@ -6584,6 +6768,22 @@ const CommitteeManagement: React.FC = () => {
 
     if (!manualDefenseDate || !normalizedManualDefenseDate) {
       notifyError("Vui lòng chọn ngày bảo vệ.");
+      return;
+    }
+
+    const start = normalizeDefenseDateOnly(autoStartDate);
+    const end = normalizeDefenseDateOnly(autoEndDate);
+    if (start && end && (normalizedManualDefenseDate < start || normalizedManualDefenseDate > end)) {
+      notifyError(`Ngày hội đồng phải nằm trong khoảng ngày của đợt bảo vệ (${formatDateLabel(start)} - ${formatDateLabel(end)}).`);
+      return;
+    }
+
+    const invalidDateAssignment = draftAssignments.find((assignment) => {
+      const assignmentDate = normalizeDefenseDateOnly(assignment.scheduledAt);
+      return start && end && (assignmentDate < start || assignmentDate > end);
+    });
+    if (invalidDateAssignment) {
+      notifyError(`Ngày bảo vệ của đề tài ${invalidDateAssignment.topicCode} phải nằm trong khoảng ngày của đợt bảo vệ (${formatDateLabel(start)} - ${formatDateLabel(end)}).`);
       return;
     }
 
@@ -7095,6 +7295,9 @@ const CommitteeManagement: React.FC = () => {
           ? `Đã thêm hội đồng ${savedCouncilCode}.`
           : `Đã lưu thay đổi hội đồng ${savedCouncilCode}.`,
       );
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
     } catch (error) {
       await tryRollbackCreatedCouncil();
       if (error instanceof FetchDataError) {
@@ -7229,12 +7432,59 @@ const CommitteeManagement: React.FC = () => {
         .sort((left, right) => left.orderIndex - right.orderIndex),
     [manualSelectedTopicRows],
   );
+  const allAssignedStudentCodes = useMemo(() => {
+    const codes = new Set<string>();
+    drafts.forEach((d) => {
+      // If we are currently editing a council in manual mode, we should NOT filter out
+      // the students assigned to the current council from being available to edit.
+      if (manualMode && selectedCouncilId && d.id === selectedCouncilId) {
+        return;
+      }
+      
+      // Collect student codes from assignments of this draft
+      (d.assignments || []).forEach((a) => {
+        const sc = String(a.studentCode ?? "").trim().toUpperCase();
+        if (sc) {
+          codes.add(sc);
+        }
+      });
+      (d.morningStudents || []).forEach((sc) => {
+        const cleaned = String(sc ?? "").trim().toUpperCase();
+        if (cleaned) {
+          codes.add(cleaned);
+        }
+      });
+      (d.afternoonStudents || []).forEach((sc) => {
+        const cleaned = String(sc ?? "").trim().toUpperCase();
+        if (cleaned) {
+          codes.add(cleaned);
+        }
+      });
+    });
+    return codes;
+  }, [drafts, manualMode, selectedCouncilId]);
+
   const manualAvailableTopicRows = useMemo(
-    () =>
-      eligibleTopicRows.filter(
-        (row) => !manualSelectedTopicCodes.has(row.studentCode),
-      ),
-    [eligibleTopicRows, manualSelectedTopicCodes],
+    () => {
+      const filtered = eligibleTopicRows.filter(
+        (row) => !manualSelectedTopicCodes.has(row.studentCode)
+          && !allAssignedStudentCodes.has(row.studentCode.toUpperCase()),
+      );
+      const search = manualTopicSearchKeyword.trim().toLowerCase();
+      if (!search) {
+        return filtered;
+      }
+      return filtered.filter(
+        (row) =>
+          row.studentName.toLowerCase().includes(search) ||
+          row.studentCode.toLowerCase().includes(search) ||
+          row.topicTitle.toLowerCase().includes(search) ||
+          (row.topicCode && row.topicCode.toLowerCase().includes(search)) ||
+          row.supervisorName.toLowerCase().includes(search) ||
+          row.lecturerName.toLowerCase().includes(search)
+      );
+    },
+    [eligibleTopicRows, manualSelectedTopicCodes, allAssignedStudentCodes, manualTopicSearchKeyword],
   );
   const getManualSessionTimeLabel = useCallback(
     (sessionCode: SessionCode) => {
@@ -9396,11 +9646,7 @@ const CommitteeManagement: React.FC = () => {
             </div>
           ) : (
             <>
-          <section style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: 20
-        }}>
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <article style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tổng số hội đồng</div>
             <div style={{ fontSize: 32, fontWeight: 900, color: "#1e3a5f" }}>{drafts.length}</div>
@@ -9447,7 +9693,7 @@ const CommitteeManagement: React.FC = () => {
             <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Phiên bảo vệ gần nhất</div>
             <div style={{ fontSize: 32, fontWeight: 900, color: "#1e3a5f" }}>
               {latestCouncilOverview
-                ? formatDateWithWeekday(latestCouncilOverview.defenseDate)
+                ? formatDateOnly(latestCouncilOverview.defenseDate)
                 : "-"}
             </div>
             <div style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b", display: "grid", gap: 2 }}>
@@ -9768,6 +10014,16 @@ const CommitteeManagement: React.FC = () => {
                 >
                   <Plus size={14} /> Thêm hội đồng thủ công
                 </button>
+                {selectedCouncilIds.size > 0 && (
+                  <button
+                    type="button"
+                    className="committee-danger-btn"
+                    onClick={deleteSelectedCouncils}
+                    disabled={councilListLocked || Boolean(actionInFlight)}
+                  >
+                    <Trash2 size={14} /> Xóa {selectedCouncilIds.size} hội đồng đã chọn
+                  </button>
+                )}
                 <div style={{ position: "relative" }} ref={exportMenuRef}>
                   <button
                     type="button"
@@ -9836,10 +10092,11 @@ const CommitteeManagement: React.FC = () => {
             >
               <table className="committee-data-table">
                 <colgroup>
-                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "4%" }} />
+                  <col style={{ width: "12%" }} />
                   <col style={{ width: "11%" }} />
                   <col style={{ width: "8%" }} />
-                  <col style={{ width: "22%" }} />
+                  <col style={{ width: "20%" }} />
                   <col style={{ width: "7%" }} />
                   <col style={{ width: "7%" }} />
                   <col style={{ width: "10%" }} />
@@ -9848,6 +10105,30 @@ const CommitteeManagement: React.FC = () => {
                 </colgroup>
                 <thead>
                   <tr>
+                    <th style={{ textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={
+                          pagedCouncilRows.length > 0 &&
+                          pagedCouncilRows.every((row) => selectedCouncilIds.has(row.id))
+                        }
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setSelectedCouncilIds((prev) => {
+                            const next = new Set(prev);
+                            pagedCouncilRows.forEach((row) => {
+                              if (checked) {
+                                next.add(row.id);
+                              } else {
+                                next.delete(row.id);
+                              }
+                            });
+                            return next;
+                          });
+                        }}
+                        style={{ cursor: "pointer" }}
+                      />
+                    </th>
                     <th>Mã hội đồng</th>
                     <th>Ngày</th>
                     <th>Phòng</th>
@@ -9872,6 +10153,25 @@ const CommitteeManagement: React.FC = () => {
                         cursor: "pointer",
                       }}
                     >
+                      <td onClick={(e) => e.stopPropagation()} style={{ textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedCouncilIds.has(row.id)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setSelectedCouncilIds((prev) => {
+                              const next = new Set(prev);
+                              if (checked) {
+                                next.add(row.id);
+                              } else {
+                                next.delete(row.id);
+                              }
+                              return next;
+                            });
+                          }}
+                          style={{ cursor: "pointer" }}
+                        />
+                      </td>
                       <td style={{ fontWeight: 700 }}>{row.id}</td>
                       <td>
                         {new Date(row.defenseDate).toLocaleDateString(
@@ -9974,7 +10274,7 @@ const CommitteeManagement: React.FC = () => {
                   {pagedCouncilRows.length === 0 && (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         style={{
                           padding: 14,
                           textAlign: "center",
@@ -10557,8 +10857,8 @@ const CommitteeManagement: React.FC = () => {
                                     <div style={{ color: "#64748b", marginTop: 4, fontSize: 12 }}>{topic.studentName}</div>
                                   )}
                                   {topic.tagCodes && topic.tagCodes.length > 0 && (
-                                    <div style={{ fontSize: 10, color: "#3b82f6", marginTop: 4 }}>
-                                      #{topic.tagCodes.join(" #")}
+                                    <div style={{ fontSize: 10, color: "#f59e0b", marginTop: 4 }}>
+                                      Tags: {getTagDisplayList(topic.tagCodes).join(", ")}
                                     </div>
                                   )}
                                 </div>
@@ -10654,7 +10954,7 @@ const CommitteeManagement: React.FC = () => {
                                   </div>
                                   {lecturer.tagCodes && lecturer.tagCodes.length > 0 && (
                                     <div style={{ fontSize: 10, color: "#f59e0b", marginTop: 4 }}>
-                                      Tags: {lecturer.tagCodes.join(", ")}
+                                      Tags: {getTagDisplayList(lecturer.tagCodes).join(", ")}
                                     </div>
                                   )}
                                 </div>
@@ -11130,6 +11430,8 @@ const CommitteeManagement: React.FC = () => {
                             <input
                               type="date"
                               value={manualDefenseDate}
+                              min={autoStartDate}
+                              max={autoEndDate}
                               onChange={(event) => {
                                 const nextDate = event.target.value;
                                 setManualDefenseDate(nextDate);
@@ -11900,7 +12202,37 @@ const CommitteeManagement: React.FC = () => {
                                 {manualAvailableTopicRows.length}
                               </span>
                             </div>
-                            <div className="committee-topic-panel-list" style={{ maxHeight: 540, overflowY: "auto" }}>
+                            <div style={{ position: "relative", marginBottom: 12 }}>
+                              <Search
+                                size={15}
+                                style={{
+                                  position: "absolute",
+                                  left: 12,
+                                  top: "50%",
+                                  transform: "translateY(-50%)",
+                                  color: "#94a3b8",
+                                }}
+                              />
+                              <input
+                                type="text"
+                                value={manualTopicSearchKeyword}
+                                onChange={(e) => setManualTopicSearchKeyword(e.target.value)}
+                                placeholder="Tìm kiếm tên đề tài, mã sinh viên, GVHD..."
+                                style={{
+                                  width: "100%",
+                                  height: 38,
+                                  padding: "6px 12px 6px 36px",
+                                  fontSize: 12,
+                                  borderRadius: 999,
+                                  border: "1px solid #cbd5e1",
+                                  background: "#ffffff",
+                                  outline: "none",
+                                  boxSizing: "border-box",
+                                }}
+                                className="committee-manual-search"
+                              />
+                            </div>
+                            <div className="committee-topic-panel-list" style={{ maxHeight: 490, overflowY: "auto" }}>
                               {manualAvailableTopicRows.length > 0 ? (
                                 <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
                                   <tbody>
@@ -12030,6 +12362,8 @@ const CommitteeManagement: React.FC = () => {
                                             <input
                                               type="date"
                                               value={currentAssignment?.scheduledAt ?? manualDefenseDate}
+                                              min={autoStartDate}
+                                              max={autoEndDate}
                                               onChange={(event) => {
                                                 const nextDate = normalizeDefenseDateOnly(event.target.value) || manualDefenseDate;
                                                 updateManualAssignment(item.studentCode, (assignment) => ({

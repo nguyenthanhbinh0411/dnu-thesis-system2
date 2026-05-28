@@ -1633,7 +1633,7 @@ const DefenseTermStudentsSection = forwardRef<
                         },
                         {
                           icon: <BookOpen size={16} />,
-                          label: "Bộ môn / Khoa",
+                          label: "Khoa",
                           value: detailModal.student.lecturerProfile?.departmentCode || "---",
                         },
                         {

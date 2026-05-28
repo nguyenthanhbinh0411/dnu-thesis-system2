@@ -530,6 +530,11 @@ namespace ThesisManagement.Api.Controllers
         [Authorize(Roles = "Lecturer,Head,Secretary")]
         public async Task<ActionResult<ApiResponse<object>>> UpsertMinutes(int periodId, [FromBody] LecturerMinutesUpsertRequestDto request)
         {
+            if (await IsActivePeriodPausedAsync())
+            {
+                return Conflict(ApiResponse<object>.Fail("Đợt đồ án tốt nghiệp đang tạm dừng. Không thể thực hiện thao tác này.", 409));
+            }
+
             var result = await SaveMinutes(periodId, request.CommitteeId, request.Data);
             return WrapAsObject(result, "UPSERT_MINUTES");
         }
@@ -802,6 +807,11 @@ namespace ThesisManagement.Api.Controllers
         [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
         public async Task<ActionResult<ApiResponse<object>>> HandleScoringAction(int periodId, [FromBody] LecturerScoringActionRequestDto request)
         {
+            if (await IsActivePeriodPausedAsync())
+            {
+                return Conflict(ApiResponse<object>.Fail("Đợt đồ án tốt nghiệp đang tạm dừng. Không thể thực hiện thao tác này.", 409));
+            }
+
             var action = (request.Action ?? string.Empty).Trim().ToUpperInvariant();
 
             if (action == "SUBMIT")
@@ -862,6 +872,11 @@ namespace ThesisManagement.Api.Controllers
         [Authorize(Roles = "Lecturer,Head,Secretary")]
         public async Task<ActionResult<ApiResponse<object>>> HandleRevisionAction(int periodId, [FromBody] LecturerRevisionActionRequestDto request)
         {
+            if (await IsActivePeriodPausedAsync())
+            {
+                return Conflict(ApiResponse<object>.Fail("Đợt đồ án tốt nghiệp đang tạm dừng. Không thể thực hiện thao tác này.", 409));
+            }
+
             var action = (request.Action ?? string.Empty).Trim().ToUpperInvariant();
 
             return action switch

@@ -1,6 +1,7 @@
 using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ThesisManagement.Api.DTOs;
 using ThesisManagement.Api.Services;
 using System.Security.Claims;
@@ -69,6 +70,12 @@ namespace ThesisManagement.Api.Controllers
                 ? (result.Success ? 200 : 400)
                 : result.HttpStatusCode;
             return StatusCode(status, result);
+        }
+
+        protected async Task<bool> IsActivePeriodPausedAsync()
+        {
+            return await _uow.DefenseTerms.Query().AsNoTracking()
+                .AnyAsync(x => x.Status == "Paused", HttpContext.RequestAborted);
         }
     }
 }

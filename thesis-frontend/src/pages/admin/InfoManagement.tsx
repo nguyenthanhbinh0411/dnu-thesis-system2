@@ -104,11 +104,11 @@ const InfoManagement: React.FC = () => {
             animation: "fadeIn 0.8s ease",
             lineHeight: 1.5
           }}>
-            Xem, thêm mới, cập nhật và quản lý cơ sở dữ liệu hệ thống bao gồm Sinh viên, Giảng viên, Khoa/Bộ môn, Tags, Đề tài và Phòng bảo vệ.
+            Xem, thêm mới, cập nhật và quản lý cơ sở dữ liệu hệ thống bao gồm Sinh viên, Giảng viên, Khoa, Tags, Đề tài và Phòng bảo vệ.
           </p>
         </div>
       </div>
-
+ 
       {/* Main Content Card Wrapper */}
       <div style={{
         maxWidth: 1600,
@@ -124,9 +124,9 @@ const InfoManagement: React.FC = () => {
             {[
               { id: "students", label: "Sinh viên", icon: <Users size={18} /> },
               { id: "lecturers", label: "Giảng viên", icon: <GraduationCap size={18} /> },
-              { id: "departments", label: "Khoa/Bộ môn", icon: <Building2 size={18} /> },
+              { id: "departments", label: "Khoa", icon: <Building2 size={18} /> },
               { id: "classes", label: "Lớp", icon: <Building2 size={18} /> },
-              { id: "tags", label: "Tags", icon: <BookOpen size={18} /> },
+              { id: "tags", label: "Tag", icon: <BookOpen size={18} /> },
               { id: "catalogtopics", label: "Kho đề tài", icon: <ClipboardList size={18} /> },
               { id: "rooms", label: "Phòng bảo vệ", icon: <Building2 size={18} /> },
               { id: "users", label: "Tài khoản", icon: <UserCheck size={18} /> },

@@ -228,7 +228,7 @@ function buildFilterSummary(filters: StudentPickerFilters): string[] {
   const parts: string[] = [];
   if (filters.classCode) parts.push(`Lớp: ${filters.classCode}`);
   if (filters.facultyCode) parts.push(`Khoa: ${filters.facultyCode}`);
-  if (filters.departmentCode) parts.push(`Bộ môn: ${filters.departmentCode}`);
+  if (filters.departmentCode) parts.push(`Khoa: ${filters.departmentCode}`);
   if (filters.minGPA) parts.push(`GPA >= ${filters.minGPA}`);
   if (filters.maxGPA) parts.push(`GPA <= ${filters.maxGPA}`);
   return parts;
@@ -750,7 +750,7 @@ const DefenseTermStudentsPickerModal: React.FC<
 
                   <label style={{ display: "grid", gap: 4 }}>
                     <span style={{ fontSize: 11, fontWeight: 600 }}>
-                      Bộ môn
+                      Khoa
                     </span>
                     <input
                       value={filters.departmentCode}
@@ -978,7 +978,7 @@ const DefenseTermStudentsPickerModal: React.FC<
                       <th style={{ padding: "10px 12px", fontSize: 11, fontWeight: 700, borderBottom: "1px solid #e2e8f0" }}>User</th>
                       <th style={{ padding: "10px 12px", fontSize: 11, fontWeight: 700, borderBottom: "1px solid #e2e8f0" }}>Lớp</th>
                       <th style={{ padding: "10px 12px", fontSize: 11, fontWeight: 700, borderBottom: "1px solid #e2e8f0" }}>Khoa</th>
-                      <th style={{ padding: "10px 12px", fontSize: 11, fontWeight: 700, borderBottom: "1px solid #e2e8f0" }}>Bộ môn</th>
+                      <th style={{ padding: "10px 12px", fontSize: 11, fontWeight: 700, borderBottom: "1px solid #e2e8f0" }}>Khoa</th>
                       <th style={{ padding: "10px 12px", fontSize: 11, fontWeight: 700, borderBottom: "1px solid #e2e8f0" }}>GPA</th>
                     </tr>
                   </thead>

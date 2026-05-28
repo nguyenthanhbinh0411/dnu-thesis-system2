@@ -138,7 +138,7 @@ const fields: FieldDef[] = [
 const filterFields: FieldDef[] = [
   { name: "lecturerCode", label: "Mã giảng viên" },
   { name: "userCode", label: "Mã user" },
-  { name: "departmentCode", label: "Khoa/Bộ môn" },
+  { name: "departmentCode", label: "Khoa" },
   { name: "degree", label: "Học vị" },
   { name: "guideQuota", label: "Chỉ tiêu hướng dẫn", type: "number" },
   { name: "gender", label: "Giới tính" },
@@ -1084,7 +1084,7 @@ const LecturerProfilesManagement: React.FC = () => {
                               </strong>
                             </div>
                             <div>
-                              <span>Khoa/Bộ môn</span>
+                              <span>Khoa</span>
                               <strong>
                                 {String(
                                   selectedRow?.departmentCode || "--",

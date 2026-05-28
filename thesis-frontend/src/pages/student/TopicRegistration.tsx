@@ -1045,7 +1045,7 @@ const TopicRegistration: React.FC = () => {
         !selectedDepartment?.departmentID ||
         !selectedDepartment.departmentCode
       ) {
-        setError("Không xác định được thông tin khoa/bộ môn.");
+        setError("Không xác định được thông tin khoa.");
         return;
       }
 
@@ -1173,7 +1173,7 @@ const TopicRegistration: React.FC = () => {
         !selectedDepartment?.departmentID ||
         !selectedDepartment.departmentCode
       ) {
-        setError("Không xác định được thông tin khoa/bộ môn.");
+        setError("Không xác định được thông tin khoa.");
         return;
       }
 

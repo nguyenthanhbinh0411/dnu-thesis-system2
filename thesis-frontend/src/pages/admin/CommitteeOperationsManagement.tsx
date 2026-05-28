@@ -434,20 +434,20 @@ const panelTabs: Array<{
   label: string;
   icon: React.ReactNode;
 }> = [
-  { key: "snapshot", label: "Tổng quan", icon: <Search size={15} /> },
-  { key: "lifecycle", label: "Vòng đời", icon: <Activity size={15} /> },
-  { key: "scoring", label: "Chấm điểm", icon: <BarChart3 size={15} /> },
-  {
-    key: "post-defense",
-    label: "Hậu bảo vệ",
-    icon: <FileSpreadsheet size={15} />,
-  },
-  {
-    key: "audit-report",
-    label: "Kiểm toán & báo cáo",
-    icon: <Download size={15} />,
-  },
-];
+    { key: "snapshot", label: "Tổng quan", icon: <Search size={15} /> },
+    { key: "lifecycle", label: "Vòng đời", icon: <Activity size={15} /> },
+    { key: "scoring", label: "Chấm điểm", icon: <BarChart3 size={15} /> },
+    {
+      key: "post-defense",
+      label: "Hậu bảo vệ",
+      icon: <FileSpreadsheet size={15} />,
+    },
+    {
+      key: "audit-report",
+      label: "Kiểm toán & báo cáo",
+      icon: <Download size={15} />,
+    },
+  ];
 
 type ToneStyle = {
   bg: string;
@@ -1065,7 +1065,7 @@ const sortStudentRows = (
 ): ScoringMatrixRow[] => {
   const sorted = [...rows].sort((a, b) => {
     let aVal: any, bVal: any;
-    
+
     if (sortField === "studentCode") {
       aVal = (a.studentCode || "").toLowerCase();
       bVal = (b.studentCode || "").toLowerCase();
@@ -1082,12 +1082,12 @@ const sortStudentRows = (
       aVal = (a.committeeCode || "").toLowerCase();
       bVal = (b.committeeCode || "").toLowerCase();
     }
-    
+
     if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
     if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
     return 0;
   });
-  
+
   return sorted;
 };
 
@@ -1617,12 +1617,12 @@ const CommitteeOperationsManagement: React.FC = () => {
         const list = readEnvelopeData<any[]>(response) || [];
         if (!cancelled) {
           setPeriods(list);
-          
+
           const activePeriod = list.find((p: any) => {
             const s = String(p.status ?? "").trim().toLowerCase();
             return s !== "closed" && s !== "archived" && s !== "7" && s !== "8" && s !== "đã đóng" && s !== "kết thúc" && s !== "lưu trữ";
           });
-          
+
           const targetId = activePeriod ? activePeriod.defenseTermId : null;
           if (periodId !== targetId) {
             setPeriodId(targetId);
@@ -1962,12 +1962,12 @@ const CommitteeOperationsManagement: React.FC = () => {
       if (logsModuleFilter !== "all") {
         params.set("module", logsModuleFilter);
       }
-      
+
       const response = await fetchData<ApiResponse<any[]>>(
         `/SystemActivityLogs/get-list?${params.toString()}`,
         { method: "GET" }
       );
-      
+
       const parsed = parseEnvelope(response, "Không tải được nhật ký hoạt động hệ thống.");
       if (parsed.ok && parsed.data) {
         setSystemLogs(parsed.data);
@@ -2049,7 +2049,7 @@ const CommitteeOperationsManagement: React.FC = () => {
 
   useEffect(() => {
     if (activeTab !== "analytics" || !periodId) return;
-    
+
     let cancelled = false;
     const fetchAnalytics = async () => {
       setAnalyticsLoading(true);
@@ -2058,9 +2058,9 @@ const CommitteeOperationsManagement: React.FC = () => {
           fetchData<ApiResponse<ScoringMatrixRow[]>>(`${defensePeriodBase}/scoring/progress-topic-final`, { method: "GET" }),
           fetchData<ApiResponse<DistributionOverview>>(`${defensePeriodBase}/scoring/distribution`, { method: "GET" })
         ]);
-        
+
         if (cancelled) return;
-        
+
         const progressParsed = parseEnvelope(progressRes, "Không tải được progress-topic-final", { silentNoData: true });
         const distParsed = parseEnvelope(distRes, "Không tải được distribution", { silentNoData: true });
 
@@ -2076,7 +2076,7 @@ const CommitteeOperationsManagement: React.FC = () => {
         if (!cancelled) setAnalyticsLoading(false);
       }
     };
-    
+
     void fetchAnalytics();
     return () => { cancelled = true; };
   }, [activeTab, periodId, defensePeriodBase, parseEnvelope, notifyError]);
@@ -2375,18 +2375,18 @@ const CommitteeOperationsManagement: React.FC = () => {
     try {
       const endpoint = `${defensePeriodBase}/reports/export?${params.toString()}`;
       const data = await fetchData<ArrayBuffer>(endpoint, { method: "GET", skipAuthRedirect: true });
-      
+
       if (!data || data.byteLength < 100) {
-          throw new Error("Dữ liệu file không hợp lệ hoặc quá nhỏ.");
+        throw new Error("Dữ liệu file không hợp lệ hoặc quá nhỏ.");
       }
 
-      const blob = new Blob([data], { 
-        type: format === "pdf" ? "application/pdf" : 
-              format === "word" ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" :
-              format === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : 
+      const blob = new Blob([data], {
+        type: format === "pdf" ? "application/pdf" :
+          format === "word" ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" :
+            format === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" :
               format === "zip" ? "application/zip" : "text/csv"
       });
-      
+
       const extension = format === "pdf" ? "pdf" : format === "word" ? "docx" : format === "excel" ? "xlsx" : format === "zip" ? "zip" : "csv";
       const fileName = `${reportTypeValue}_${committeeRow.code}_${Date.now()}.${extension}`;
       const url = window.URL.createObjectURL(blob);
@@ -2397,7 +2397,7 @@ const CommitteeOperationsManagement: React.FC = () => {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      
+
       notifySuccess(`Tải file ${reportTypeValue} thành công.`);
     } catch (err: unknown) {
       console.error("Download error:", err);
@@ -2477,16 +2477,16 @@ const CommitteeOperationsManagement: React.FC = () => {
       } catch (error) {
         const errorMessage = error instanceof FetchDataError
           ? (() => {
-              const serverData = error.data as
-                | { message?: string; Message?: string; errors?: Record<string, string[]>; Errors?: Record<string, string[]> }
-                | undefined;
-              return (
-                serverData?.message ||
-                serverData?.Message ||
-                Object.values(serverData?.errors ?? serverData?.Errors ?? {})[0]?.[0] ||
-                error.message
-              );
-            })()
+            const serverData = error.data as
+              | { message?: string; Message?: string; errors?: Record<string, string[]>; Errors?: Record<string, string[]> }
+              | undefined;
+            return (
+              serverData?.message ||
+              serverData?.Message ||
+              Object.values(serverData?.errors ?? serverData?.Errors ?? {})[0]?.[0] ||
+              error.message
+            );
+          })()
           : "Không thể cập nhật trạng thái hội đồng.";
         notifyError(errorMessage);
       } finally {
@@ -2564,16 +2564,16 @@ const CommitteeOperationsManagement: React.FC = () => {
       } catch (error) {
         const errorMessage = error instanceof FetchDataError
           ? (() => {
-              const serverData = error.data as
-                | { message?: string; Message?: string; errors?: Record<string, string[]>; Errors?: Record<string, string[]> }
-                | undefined;
-              return (
-                serverData?.message ||
-                serverData?.Message ||
-                Object.values(serverData?.errors ?? serverData?.Errors ?? {})[0]?.[0] ||
-                error.message
-              );
-            })()
+            const serverData = error.data as
+              | { message?: string; Message?: string; errors?: Record<string, string[]>; Errors?: Record<string, string[]> }
+              | undefined;
+            return (
+              serverData?.message ||
+              serverData?.Message ||
+              Object.values(serverData?.errors ?? serverData?.Errors ?? {})[0]?.[0] ||
+              error.message
+            );
+          })()
           : "Không thể cập nhật trạng thái phiên hội đồng.";
         notifyError(errorMessage);
       } finally {
@@ -2619,7 +2619,7 @@ const CommitteeOperationsManagement: React.FC = () => {
     const scores = scoringMatrix
       .map(r => Number(r.finalScore ?? r.currentScore ?? NaN))
       .filter(s => !isNaN(s));
-    
+
     const variances = scoringMatrix
       .map(r => Number(r.variance ?? 0))
       .filter(v => !isNaN(v));
@@ -2647,8 +2647,8 @@ const CommitteeOperationsManagement: React.FC = () => {
     [distributionViewMode, scoredRowsForDistribution],
   );
 
-  const postDefenseStudentCodes = useMemo(() => 
-    new Set((postDefense?.items ?? []).map(i => i.studentCode)), 
+  const postDefenseStudentCodes = useMemo(() =>
+    new Set((postDefense?.items ?? []).map(i => i.studentCode)),
     [postDefense?.items]
   );
 
@@ -2817,7 +2817,7 @@ const CommitteeOperationsManagement: React.FC = () => {
   const topicsClosedNoScoreAlerts = useMemo(() => {
     return scoringMatrix.filter((row) => {
       const isClosed = row.isLocked === true || row.status === "LOCKED" || row.status === "FINALIZED" || row.status === "COMPLETED" || scoresPublished;
-      const isMissingScores = row.finalScore == null || Number(row.finalScore) <= 0 || 
+      const isMissingScores = row.finalScore == null || Number(row.finalScore) <= 0 ||
         (row.submittedCount != null && row.requiredCount != null && row.submittedCount < row.requiredCount);
       return isClosed && isMissingScores;
     });
@@ -2828,10 +2828,10 @@ const CommitteeOperationsManagement: React.FC = () => {
     return committeeOperationalRows.filter((row) => {
       const isNotClosed = row.status !== "LOCKED" && row.status !== "COMPLETED" && row.status !== "FINALIZED" && row.status !== "PUBLISHED" && !scoresPublished;
       if (!isNotClosed) return false;
-      
+
       const dateStr = row.defenseDate;
       if (!dateStr || dateStr === "-") return false;
-      
+
       const parts = dateStr.split("/");
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10);
@@ -2850,7 +2850,7 @@ const CommitteeOperationsManagement: React.FC = () => {
     const lockedTopics = scoringMatrix.filter(row => row.isLocked).length;
     const waitingPublicTopics = pipeline?.waitingPublicTopics ?? scoringMatrix.filter((row) => !row.isLocked && (row.submittedCount != null && row.requiredCount != null && row.submittedCount >= row.requiredCount && row.requiredCount > 0)).length;
     const scoredTopics = lockedTopics + waitingPublicTopics;
-    
+
     const activeCouncils = committeeOperationalRows.filter((row) => ["ONGOING", "READY", "DELAYED", "WAITING_PUBLIC"].includes(row.status)).length;
     const pendingTopics = Math.max(0, totalTopics - scoredTopics);
     const waitingTopics = scoringMatrix.filter((row) => !row.submittedCount || Number(row.submittedCount) === 0).length;
@@ -3207,15 +3207,15 @@ const CommitteeOperationsManagement: React.FC = () => {
   const getTopicScoreDisplay = (row: ScoringMatrixRow) => {
     const hasAnyScore = row.finalScore != null || row.currentScore != null;
     const normalizedStatus = normalizeStatusKey(row.status ?? "");
-    
+
     if (normalizedStatus === "WAITING_PUBLIC") {
       return "Chờ công bố";
     }
-    
+
     if (!row.isLocked) {
       return hasAnyScore ? "Đang chấm..." : "Chưa chấm";
     }
-    
+
     if (row.finalScore != null) {
       return String(row.finalScore);
     }
@@ -3228,15 +3228,15 @@ const CommitteeOperationsManagement: React.FC = () => {
   const getTopicGradeDisplay = (row: ScoringMatrixRow) => {
     const hasAnyScore = row.finalScore != null || row.currentScore != null;
     const normalizedStatus = normalizeStatusKey(row.status ?? "");
-    
+
     if (normalizedStatus === "WAITING_PUBLIC") {
       return "Chờ công bố";
     }
-    
+
     if (!row.isLocked) {
       return hasAnyScore ? "Đang chấm..." : "Chưa chấm";
     }
-    
+
     const score = Number(row.finalScore ?? row.currentScore ?? NaN);
     return score > 0 ? getGradeFromScore(score) : "-";
   };
@@ -3244,11 +3244,11 @@ const CommitteeOperationsManagement: React.FC = () => {
   const getLockedScoreValue = (row: ScoringMatrixRow, value: number | string | undefined | null) => {
     const hasAnyScore = row.finalScore != null || row.currentScore != null;
     const normalizedStatus = normalizeStatusKey(row.status ?? "");
-    
+
     if (normalizedStatus === "WAITING_PUBLIC") {
       return "Chờ công bố";
     }
-    
+
     if (!row.isLocked) {
       return hasAnyScore ? "Đang chấm..." : "Chưa chấm";
     }
@@ -3277,7 +3277,7 @@ const CommitteeOperationsManagement: React.FC = () => {
     const countdownLabel = daysRemaining == null ? "-" : `${Math.max(0, daysRemaining)} ngày`;
 
     const matchedPeriodObj = periods.find(p => p.defenseTermId === periodId);
-    const resolvedName = matchedPeriodObj?.name || pickText(record, ["termCode","TermCode","term_code","Term_Code","termName","TermName","term_name","Term_Name","periodName","PeriodName","period_name","Period_Name","code","Code","name","Name","title","Title"], periodId ? `Đợt ${periodId}` : "Chưa xác định");
+    const resolvedName = matchedPeriodObj?.name || pickText(record, ["termCode", "TermCode", "term_code", "Term_Code", "termName", "TermName", "term_name", "Term_Name", "periodName", "PeriodName", "period_name", "Period_Name", "code", "Code", "name", "Name", "title", "Title"], periodId ? `Đợt ${periodId}` : "Chưa xác định");
 
     return {
       name: resolvedName,
@@ -3294,13 +3294,13 @@ const CommitteeOperationsManagement: React.FC = () => {
     () =>
       Boolean(
         pipeline ||
-          analytics?.overview ||
-          scoringMatrix.length > 0 ||
-          (postDefense?.items?.length ?? 0) > 0 ||
-          (audit?.syncHistory?.length ?? 0) > 0 ||
-          (audit?.publishHistory?.length ?? 0) > 0 ||
-          (audit?.councilAuditHistory?.length ?? 0) > 0 ||
-          (audit?.revisionAuditTrail?.length ?? 0) > 0,
+        analytics?.overview ||
+        scoringMatrix.length > 0 ||
+        (postDefense?.items?.length ?? 0) > 0 ||
+        (audit?.syncHistory?.length ?? 0) > 0 ||
+        (audit?.publishHistory?.length ?? 0) > 0 ||
+        (audit?.councilAuditHistory?.length ?? 0) > 0 ||
+        (audit?.revisionAuditTrail?.length ?? 0) > 0,
       ),
     [analytics?.overview, audit?.councilAuditHistory?.length, audit?.publishHistory?.length, audit?.revisionAuditTrail?.length, audit?.syncHistory?.length, pipeline, postDefense?.items?.length, scoringMatrix.length],
   );
@@ -3837,13 +3837,13 @@ const CommitteeOperationsManagement: React.FC = () => {
     () =>
       Boolean(
         pipeline ||
-          analytics?.overview ||
-          scoringMatrix.length > 0 ||
-          (postDefense?.items?.length ?? 0) > 0 ||
-          (audit?.syncHistory?.length ?? 0) > 0 ||
-          (audit?.publishHistory?.length ?? 0) > 0 ||
-          (audit?.councilAuditHistory?.length ?? 0) > 0 ||
-          (audit?.revisionAuditTrail?.length ?? 0) > 0,
+        analytics?.overview ||
+        scoringMatrix.length > 0 ||
+        (postDefense?.items?.length ?? 0) > 0 ||
+        (audit?.syncHistory?.length ?? 0) > 0 ||
+        (audit?.publishHistory?.length ?? 0) > 0 ||
+        (audit?.councilAuditHistory?.length ?? 0) > 0 ||
+        (audit?.revisionAuditTrail?.length ?? 0) > 0,
       ),
     [
       analytics?.overview,
@@ -3896,7 +3896,7 @@ const CommitteeOperationsManagement: React.FC = () => {
       case "warning":
         return { border: "#f59e0b", bg: "#fffbeb", text: "#b45309" };
       default:
-return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
+        return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
     }
   };
 
@@ -3955,11 +3955,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
   const renderOverviewTab = () => (
     <section style={{ display: "grid", gap: 24 }}>
       {/* 1. Statistics Grid */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-        gap: 20
-      }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tổng số Đề tài</div>
           <div style={{ fontSize: 32, fontWeight: 900, color: "#f37021" }}>{dashboardMetrics.totalTopics ?? 0}</div>
@@ -4064,7 +4060,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                 <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1e293b" }}>Hội đồng Đang Hoạt động</h3>
                 <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Theo dõi tiến độ chấm điểm thời gian thực</p>
               </div>
-              <button 
+              <button
                 onClick={() => setActiveTab("committee")}
                 style={{
                   background: "#f8fafc",
@@ -4354,7 +4350,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               </div>
             </div>
           </div>
-          
+
           <div style={{ height: 400, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
             {distributionChartType === "bar" && (
               <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "flex-end", gap: 16, paddingBottom: 40 }}>
@@ -4408,16 +4404,16 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                     return distributionRows.map((item, i) => {
                       const percentage = (item.value / Math.max(1, distributionTotal)) * 100;
                       if (percentage === 0) return null;
-                      
+
                       const startX = Math.cos(2 * Math.PI * (cumulativePercent / 100));
                       const startY = Math.sin(2 * Math.PI * (cumulativePercent / 100));
                       cumulativePercent += percentage;
                       const endX = Math.cos(2 * Math.PI * (cumulativePercent / 100));
                       const endY = Math.sin(2 * Math.PI * (cumulativePercent / 100));
-                      
+
                       const largeArcFlag = percentage > 50 ? 1 : 0;
                       const pathData = `M 50 50 L ${50 + 40 * startX} ${50 + 40 * startY} A 40 40 0 ${largeArcFlag} 1 ${50 + 40 * endX} ${50 + 40 * endY} Z`;
-                      
+
                       return (
                         <path
                           key={i}
@@ -4452,7 +4448,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                   {[0, 25, 50, 75, 100].map((v) => (
                     <line key={v} x1="0" y1={400 - v * 4} x2="1000" y2={400 - v * 4} stroke="#f1f5f9" strokeWidth="1" />
                   ))}
-                  
+
                   {/* Line Path */}
                   {(() => {
                     const maxVal = Math.max(1, ...distributionRows.map(d => d.value));
@@ -4461,7 +4457,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                       const y = 400 - (item.value / maxVal) * 350;
                       return `${x},${y}`;
                     }).join(" ");
-                    
+
                     return (
                       <>
                         <path
@@ -4509,27 +4505,27 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
         <section style={{ background: "white", borderRadius: 28, padding: 28, border: "1px solid #e2e8f0" }}>
           <h3 style={{ margin: "0 0 24px 0", fontSize: 18, fontWeight: 800 }}>Thống kê Trạng thái</h3>
           <div style={{ display: "grid", gap: 20 }}>
-             {[
-               { label: "Đã công bố", count: dashboardMetrics.waitingPublicTopics, total: dashboardMetrics.totalTopics, color: "#16a34a" },
-               { label: "Đã khóa điểm", count: dashboardMetrics.lockedTopics, total: dashboardMetrics.totalTopics, color: "#0ea5e9" },
-               { label: "Đang chấm", count: dashboardMetrics.liveTopics, total: dashboardMetrics.totalTopics, color: "#f59e0b" },
-               { label: "Chưa bắt đầu", count: dashboardMetrics.waitingTopics, total: dashboardMetrics.totalTopics, color: "#64748b" },
-             ].map((stat, i) => (
-               <div key={i}>
-                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
-                   <span style={{ color: "#475569" }}>{stat.label}</span>
-                   <span style={{ color: stat.color }}>{stat.count} <span style={{ fontSize: 11, opacity: 0.6 }}>/ {stat.total}</span></span>
-                 </div>
-                 <div style={{ height: 8, borderRadius: 99, background: "#f1f5f9", overflow: "hidden" }}>
-                   <div style={{
-                     width: `${(stat.count / Math.max(1, stat.total)) * 100}%`,
-                     height: "100%",
-                     background: stat.color,
-                     borderRadius: 99
-                   }} />
-                 </div>
-               </div>
-             ))}
+            {[
+              { label: "Đã công bố", count: dashboardMetrics.waitingPublicTopics, total: dashboardMetrics.totalTopics, color: "#16a34a" },
+              { label: "Đã khóa điểm", count: dashboardMetrics.lockedTopics, total: dashboardMetrics.totalTopics, color: "#0ea5e9" },
+              { label: "Đang chấm", count: dashboardMetrics.liveTopics, total: dashboardMetrics.totalTopics, color: "#f59e0b" },
+              { label: "Chưa bắt đầu", count: dashboardMetrics.waitingTopics, total: dashboardMetrics.totalTopics, color: "#64748b" },
+            ].map((stat, i) => (
+              <div key={i}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+                  <span style={{ color: "#475569" }}>{stat.label}</span>
+                  <span style={{ color: stat.color }}>{stat.count} <span style={{ fontSize: 11, opacity: 0.6 }}>/ {stat.total}</span></span>
+                </div>
+                <div style={{ height: 8, borderRadius: 99, background: "#f1f5f9", overflow: "hidden" }}>
+                  <div style={{
+                    width: `${(stat.count / Math.max(1, stat.total)) * 100}%`,
+                    height: "100%",
+                    background: stat.color,
+                    borderRadius: 99
+                  }} />
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       </div>
@@ -4539,38 +4535,38 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Bảng điểm chi tiết</h3>
           <div style={{ display: "flex", gap: 12 }}>
-            <input 
+            <input
               placeholder="Tìm theo tên, mã SV, đề tài..."
               style={{ padding: "10px 16px", borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 14, width: 300 }}
             />
-            <select 
-               style={{ 
-                 padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
-                 backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
-                 backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", transition: "all 0.2s", outline: "none"
-               }}
-               value={String(studentTableIsPassedFilter)}
-               onChange={(e) => {
-                 const val = e.target.value;
-                 setStudentTableIsPassedFilter(val === "all" ? "all" : val === "true");
-               }}
-               onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)"; }}
-               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.boxShadow = "none"; }}
+            <select
+              style={{
+                padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
+                backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
+                backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", transition: "all 0.2s", outline: "none"
+              }}
+              value={String(studentTableIsPassedFilter)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setStudentTableIsPassedFilter(val === "all" ? "all" : val === "true");
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.boxShadow = "none"; }}
             >
               <option value="all">Tất cả kết quả</option>
               <option value="true">Đạt</option>
               <option value="false">Trượt</option>
             </select>
-            <select 
-               style={{ 
-                 padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
-                 backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
-                 backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", transition: "all 0.2s", outline: "none"
-               }}
-               value={studentTableStatusFilter}
-               onChange={(e) => setStudentTableStatusFilter(e.target.value as any)}
-               onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)"; }}
-               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.boxShadow = "none"; }}
+            <select
+              style={{
+                padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
+                backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
+                backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", transition: "all 0.2s", outline: "none"
+              }}
+              value={studentTableStatusFilter}
+              onChange={(e) => setStudentTableStatusFilter(e.target.value as any)}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.boxShadow = "none"; }}
             >
               <option value="all">Tất cả trạng thái</option>
               <option value="post-defense">Hậu bảo vệ</option>
@@ -4584,7 +4580,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
             <thead>
               <tr style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                <th 
+                <th
                   onClick={() => handleStudentTableSort("studentName")}
                   style={{ padding: "12px 20px", textAlign: "left", cursor: "pointer", userSelect: "none" }}
                 >
@@ -4593,7 +4589,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                     {studentTableSortField === "studentName" && (studentTableSortDir === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleStudentTableSort("topicTitle")}
                   style={{ padding: "12px 20px", textAlign: "left", cursor: "pointer", userSelect: "none" }}
                 >
@@ -4602,7 +4598,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                     {studentTableSortField === "topicTitle" && (studentTableSortDir === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleStudentTableSort("committeeCode")}
                   style={{ padding: "12px 20px", textAlign: "center", cursor: "pointer", userSelect: "none" }}
                 >
@@ -4611,7 +4607,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                     {studentTableSortField === "committeeCode" && (studentTableSortDir === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleStudentTableSort("finalScore")}
                   style={{ padding: "12px 20px", textAlign: "center", cursor: "pointer", userSelect: "none" }}
                 >
@@ -4635,8 +4631,8 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                 const statusLabel = isPostDefense ? "Hậu bảo vệ" : (row.isLocked ? "Đã khóa điểm" : "Đang chấm");
 
                 return (
-                  <tr key={i} style={{ 
-                    background: isPostDefense ? "#fffcf0" : "#f8fafc", 
+                  <tr key={i} style={{
+                    background: isPostDefense ? "#fffcf0" : "#f8fafc",
                     transition: "transform 0.2s ease",
                     borderLeft: isPostDefense ? "4px solid #f59e0b" : "none"
                   }}>
@@ -4688,22 +4684,22 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center" }}>
                         {/* Dropdown for documents */}
                         <div style={{ position: "relative" }}>
-                          <button 
-                            onClick={(e) => { 
+                          <button
+                            onClick={(e) => {
                               e.stopPropagation();
                               const rowId = `${row.studentCode}-${row.committeeCode}`;
                               setActiveRowActionId(activeRowActionId === rowId ? null : rowId);
                             }}
                             title="Tài liệu liên quan"
-                            style={{ 
-                              padding: "8px", 
-                              borderRadius: 10, 
-                              border: "1px solid #e2e8f0", 
-                              background: activeRowActionId === `${row.studentCode}-${row.committeeCode}` ? "#f1f5f9" : "white", 
-                              cursor: "pointer", 
-                              color: DEEP_BLUE_PRIMARY, 
-                              display: "flex", 
-                              alignItems: "center", 
+                            style={{
+                              padding: "8px",
+                              borderRadius: 10,
+                              border: "1px solid #e2e8f0",
+                              background: activeRowActionId === `${row.studentCode}-${row.committeeCode}` ? "#f1f5f9" : "white",
+                              cursor: "pointer",
+                              color: DEEP_BLUE_PRIMARY,
+                              display: "flex",
+                              alignItems: "center",
                               justifyContent: "center",
                               transition: "all 0.2s"
                             }}
@@ -4714,14 +4710,14 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                           </button>
 
                           {activeRowActionId === `${row.studentCode}-${row.committeeCode}` && (
-                            <div 
-                              style={{ 
-                                position: "absolute", 
-                                right: 0, 
-                                top: "calc(100% + 8px)", 
-                                background: "white", 
-                                borderRadius: 14, 
-                                boxShadow: "0 10px 25px rgba(0,0,0,0.15)", 
+                            <div
+                              style={{
+                                position: "absolute",
+                                right: 0,
+                                top: "calc(100% + 8px)",
+                                background: "white",
+                                borderRadius: 14,
+                                boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
                                 border: "1px solid #f1f5f9",
                                 minWidth: 180,
                                 zIndex: 100,
@@ -4737,7 +4733,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                                 <button
                                   key={item.type}
                                   onClick={() => {
-                                    setSelectedMatrixRow(row); 
+                                    setSelectedMatrixRow(row);
                                     hydrateMinutes(row.assignmentId as number, row.committeeId as number);
                                     setPreviewModalType(item.type as any);
                                     setActiveRowActionId(null);
@@ -4770,7 +4766,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                         </div>
 
                         {/* Detail Button */}
-                        <button 
+                        <button
                           onClick={() => { setSelectedTopic(row); setTopicDetailModalOpen(true); }}
                           title="Xem chi tiết"
                           style={{ padding: "8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
@@ -4790,17 +4786,17 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
 
         {/* Pagination */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, padding: "0 8px" }}>
-           <div style={{ fontSize: 14, color: "#64748b" }}>Hiển thị {studentTableSortedData.length} kết quả</div>
-           <div style={{ display: "flex", gap: 8 }}>
-             <button 
-               onClick={() => setStudentTablePage(p => Math.max(1, p - 1))}
-               style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", fontWeight: 700, cursor: "pointer" }}
-             >Trước</button>
-             <button 
-               onClick={() => setStudentTablePage(p => p + 1)}
-               style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", fontWeight: 700, cursor: "pointer" }}
-             >Tiếp theo</button>
-           </div>
+          <div style={{ fontSize: 14, color: "#64748b" }}>Hiển thị {studentTableSortedData.length} kết quả</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => setStudentTablePage(p => Math.max(1, p - 1))}
+              style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", fontWeight: 700, cursor: "pointer" }}
+            >Trước</button>
+            <button
+              onClick={() => setStudentTablePage(p => p + 1)}
+              style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", fontWeight: 700, cursor: "pointer" }}
+            >Tiếp theo</button>
+          </div>
         </div>
       </section>
     </section>
@@ -4828,7 +4824,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
 
         <div style={{ position: "relative" }}>
           <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-          <input 
+          <input
             value={committeeIdFilter}
             onChange={(e) => setCommitteeIdFilter(e.target.value)}
             placeholder="Tìm mã HĐ, phòng, chủ tịch..."
@@ -4903,13 +4899,13 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                     <h2 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: "#1e293b" }}>{selectedCommittee.code}</h2>
                     <span style={{
-                       padding: "6px 16px",
-                       borderRadius: 99,
-                       fontSize: 12,
-                       fontWeight: 800,
-                       background: getStatusTone(selectedCommittee.status).bg,
-                       color: getStatusTone(selectedCommittee.status).text,
-                       border: `1px solid ${getStatusTone(selectedCommittee.status).border}`
+                      padding: "6px 16px",
+                      borderRadius: 99,
+                      fontSize: 12,
+                      fontWeight: 800,
+                      background: getStatusTone(selectedCommittee.status).bg,
+                      color: getStatusTone(selectedCommittee.status).text,
+                      border: `1px solid ${getStatusTone(selectedCommittee.status).border}`
                     }}>{getStatusLabel(selectedCommittee.status)}</span>
                   </div>
                   <p style={{ margin: 0, fontSize: 16, color: "#64748b", fontWeight: 500 }}>
@@ -4917,7 +4913,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 12 }}>
-                  <button 
+                  <button
                     onClick={() => {
                       setPreviewModalType("scoreSheet");
                     }}
@@ -4941,7 +4937,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                     <Download size={18} /> Xem bảng điểm HĐ
                   </button>
                   {selectedCommitteeAdminAction && (
-                    <button 
+                    <button
                       onClick={() => void submitCommitteeAction(selectedCommitteeAdminAction.action, selectedCommittee)}
                       style={{
                         background: DEEP_BLUE_PRIMARY,
@@ -5045,22 +5041,22 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
                             {/* Dropdown for documents */}
                             <div style={{ position: "relative" }}>
-                              <button 
-                                onClick={(e) => { 
+                              <button
+                                onClick={(e) => {
                                   e.stopPropagation();
                                   const rowId = `${row.studentCode}-${row.committeeCode}-op`;
                                   setActiveRowActionId(activeRowActionId === rowId ? null : rowId);
                                 }}
                                 title="Tài liệu liên quan"
-                                style={{ 
-                                  padding: "8px", 
-                                  borderRadius: 10, 
-                                  border: "1px solid #e2e8f0", 
-                                  background: activeRowActionId === `${row.studentCode}-${row.committeeCode}-op` ? "#f1f5f9" : "white", 
-                                  cursor: "pointer", 
-                                  color: DEEP_BLUE_PRIMARY, 
-                                  display: "flex", 
-                                  alignItems: "center", 
+                                style={{
+                                  padding: "8px",
+                                  borderRadius: 10,
+                                  border: "1px solid #e2e8f0",
+                                  background: activeRowActionId === `${row.studentCode}-${row.committeeCode}-op` ? "#f1f5f9" : "white",
+                                  cursor: "pointer",
+                                  color: DEEP_BLUE_PRIMARY,
+                                  display: "flex",
+                                  alignItems: "center",
                                   justifyContent: "center",
                                   transition: "all 0.2s"
                                 }}
@@ -5071,14 +5067,14 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                               </button>
 
                               {activeRowActionId === `${row.studentCode}-${row.committeeCode}-op` && (
-                                <div 
-                                  style={{ 
-                                    position: "absolute", 
-                                    right: 0, 
-                                    top: "calc(100% + 8px)", 
-                                    background: "white", 
-                                    borderRadius: 14, 
-                                    boxShadow: "0 10px 25px rgba(0,0,0,0.15)", 
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    right: 0,
+                                    top: "calc(100% + 8px)",
+                                    background: "white",
+                                    borderRadius: 14,
+                                    boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
                                     border: "1px solid #f1f5f9",
                                     minWidth: 180,
                                     zIndex: 100,
@@ -5094,7 +5090,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                                     <button
                                       key={item.type}
                                       onClick={() => {
-                                        setSelectedMatrixRow(row); 
+                                        setSelectedMatrixRow(row);
                                         hydrateMinutes(row.assignmentId as number, row.committeeId as number);
                                         setPreviewModalType(item.type as any);
                                         setActiveRowActionId(null);
@@ -5169,22 +5165,22 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Dữ liệu Sửa đổi Đồ án</h3>
           <div style={{ display: "flex", gap: 12 }}>
-             <input 
+            <input
               placeholder="Mã SV, mã đề tài..."
               style={{ padding: "10px 16px", borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 14, width: 250 }}
               value={revisionKeyword}
               onChange={(e) => setRevisionKeyword(e.target.value)}
             />
-            <select 
-               style={{ 
-                 padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
-                 backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
-                 backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", transition: "all 0.2s", outline: "none"
-               }}
-               value={revisionStatus}
-               onChange={(e) => setRevisionStatus(e.target.value as any)}
-               onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)"; }}
-               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.boxShadow = "none"; }}
+            <select
+              style={{
+                padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
+                backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
+                backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", transition: "all 0.2s", outline: "none"
+              }}
+              value={revisionStatus}
+              onChange={(e) => setRevisionStatus(e.target.value as any)}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.boxShadow = "none"; }}
             >
               <option value="all">Tất cả trạng thái</option>
               <option value="approved">Đã duyệt</option>
@@ -5238,11 +5234,11 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                     }}>{row.statusLabel}</span>
                   </td>
                   <td style={{ padding: "16px 20px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
-                    <button 
-                      onClick={() => { 
+                    <button
+                      onClick={() => {
                         const matrixMatch = scoringMatrix.find(m => m.studentCode === row.studentCode);
-                        setSelectedTopic({ ...matrixMatch, ...row }); 
-                        setTopicDetailModalOpen(true); 
+                        setSelectedTopic({ ...matrixMatch, ...row });
+                        setTopicDetailModalOpen(true);
                       }}
                       style={{ background: "white", border: "1px solid #e2e8f0", padding: "8px 12px", borderRadius: 10, cursor: "pointer", color: DEEP_BLUE_PRIMARY, fontWeight: 700 }}
                     >Chi tiết</button>
@@ -5255,251 +5251,251 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
       </section>
     </section>
   );
-  
-    const renderBulkDocumentsTab = () => {
-      const hasSelectedAll = bulkSelectedCommitteeIds.length === committeeOperationalRows.length;
-      return (
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 32, alignItems: "start", animation: "fadeIn 0.3s ease" }}>
-          {/* Left side: Committees list selection */}
-          <div style={{ background: "#f8fafc", padding: 24, borderRadius: 24, border: "1px solid #e2e8f0" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#1e293b" }}>Chọn Hội đồng trích xuất</h4>
-                <p style={{ margin: "4px 0 0 0", fontSize: 12, color: "#64748b", fontWeight: 600 }}>
-                  Đã chọn <span style={{ color: DEEP_BLUE_PRIMARY, fontWeight: 800 }}>{bulkSelectedCommitteeIds.length}</span> / {committeeOperationalRows.length} hội đồng
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (hasSelectedAll) {
-                    setBulkSelectedCommitteeIds([]);
-                  } else {
-                    setBulkSelectedCommitteeIds(committeeOperationalRows.map(c => c.committeeId).filter(Boolean) as number[]);
-                  }
-                }}
-                style={{
-                  background: "white", border: "1px solid #cbd5e1", borderRadius: 10, padding: "8px 14px",
-                  fontSize: 12, fontWeight: 700, color: "#475569", cursor: "pointer", transition: "all 0.2s"
-                }}
-              >
-                {hasSelectedAll ? "Bỏ chọn tất cả" : "Chọn tất cả"}
-              </button>
-            </div>
 
-            <div style={{ display: "grid", gap: 10, maxHeight: 420, overflowY: "auto", paddingRight: 8 }}>
-              {committeeOperationalRows.map((row) => {
-                const isChecked = bulkSelectedCommitteeIds.includes(row.committeeId!);
+  const renderBulkDocumentsTab = () => {
+    const hasSelectedAll = bulkSelectedCommitteeIds.length === committeeOperationalRows.length;
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 32, alignItems: "start", animation: "fadeIn 0.3s ease" }}>
+        {/* Left side: Committees list selection */}
+        <div style={{ background: "#f8fafc", padding: 24, borderRadius: 24, border: "1px solid #e2e8f0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <div>
+              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#1e293b" }}>Chọn Hội đồng trích xuất</h4>
+              <p style={{ margin: "4px 0 0 0", fontSize: 12, color: "#64748b", fontWeight: 600 }}>
+                Đã chọn <span style={{ color: DEEP_BLUE_PRIMARY, fontWeight: 800 }}>{bulkSelectedCommitteeIds.length}</span> / {committeeOperationalRows.length} hội đồng
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (hasSelectedAll) {
+                  setBulkSelectedCommitteeIds([]);
+                } else {
+                  setBulkSelectedCommitteeIds(committeeOperationalRows.map(c => c.committeeId).filter(Boolean) as number[]);
+                }
+              }}
+              style={{
+                background: "white", border: "1px solid #cbd5e1", borderRadius: 10, padding: "8px 14px",
+                fontSize: 12, fontWeight: 700, color: "#475569", cursor: "pointer", transition: "all 0.2s"
+              }}
+            >
+              {hasSelectedAll ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gap: 10, maxHeight: 420, overflowY: "auto", paddingRight: 8 }}>
+            {committeeOperationalRows.map((row) => {
+              const isChecked = bulkSelectedCommitteeIds.includes(row.committeeId!);
+              return (
+                <div
+                  key={row.key}
+                  onClick={() => {
+                    setBulkSelectedCommitteeIds(prev =>
+                      prev.includes(row.committeeId!)
+                        ? prev.filter(id => id !== row.committeeId!)
+                        : [...prev, row.committeeId!]
+                    );
+                  }}
+                  style={{
+                    padding: "14px 16px", borderRadius: 16, border: "1px solid",
+                    borderColor: isChecked ? DEEP_BLUE_PRIMARY : "#e2e8f0",
+                    background: isChecked ? `${DEEP_BLUE_PRIMARY}05` : "white",
+                    cursor: "pointer", transition: "all 0.2s",
+                    display: "flex", alignItems: "center", gap: 14
+                  }}
+                  onMouseEnter={(e) => { if (!isChecked) e.currentTarget.style.borderColor = "#cbd5e1"; }}
+                  onMouseLeave={(e) => { if (!isChecked) e.currentTarget.style.borderColor = "#e2e8f0"; }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => { }} // handled by parent onClick
+                    style={{ width: 18, height: 18, accentColor: DEEP_BLUE_PRIMARY, cursor: "pointer" }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: 800, color: "#0f172a", fontSize: 13 }}>{row.code}</span>
+                      <span style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>{row.totalTopics} đề tài</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                      {row.name} • GV: {row.chair}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right side: Options and Export Trigger */}
+        <div style={{ display: "grid", gap: 24 }}>
+          {/* Option 1: Document Types */}
+          <div style={{ background: "white", padding: 24, borderRadius: 24, border: "1px solid #e2e8f0" }}>
+            <h4 style={{ margin: "0 0 16px 0", fontSize: 14, fontWeight: 800, color: "#1e293b" }}>1. Loại tài liệu trích xuất</h4>
+            <div style={{ display: "grid", gap: 10 }}>
+              {[
+                { id: "scoresheet", label: "Bảng điểm hội đồng (Danh sách điểm các đề tài)" },
+                { id: "meeting", label: "Biên bản hội đồng bảo vệ (Mỗi đề tài một biên bản)" },
+                { id: "reviewer", label: "Nhận xét phản biện hội đồng (Mỗi đề tài một bản)" }
+              ].map(opt => {
+                const isChecked = bulkDocumentTypes.includes(opt.id);
                 return (
-                  <div
-                    key={row.key}
-                    onClick={() => {
-                      setBulkSelectedCommitteeIds(prev => 
-                        prev.includes(row.committeeId!) 
-                          ? prev.filter(id => id !== row.committeeId!) 
-                          : [...prev, row.committeeId!]
-                      );
-                    }}
+                  <label
+                    key={opt.id}
                     style={{
-                      padding: "14px 16px", borderRadius: 16, border: "1px solid",
-                      borderColor: isChecked ? DEEP_BLUE_PRIMARY : "#e2e8f0",
-                      background: isChecked ? `${DEEP_BLUE_PRIMARY}05` : "white",
-                      cursor: "pointer", transition: "all 0.2s",
-                      display: "flex", alignItems: "center", gap: 14
+                      display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12,
+                      border: `1px solid ${isChecked ? DEEP_BLUE_PRIMARY : "#f1f5f9"}`,
+                      background: isChecked ? `${DEEP_BLUE_PRIMARY}02` : "#fcfdfe",
+                      cursor: "pointer", transition: "all 0.2s"
                     }}
-                    onMouseEnter={(e) => { if(!isChecked) e.currentTarget.style.borderColor = "#cbd5e1"; }}
-                    onMouseLeave={(e) => { if(!isChecked) e.currentTarget.style.borderColor = "#e2e8f0"; }}
                   >
                     <input
                       type="checkbox"
                       checked={isChecked}
-                      onChange={() => {}} // handled by parent onClick
+                      onChange={() => {
+                        setBulkDocumentTypes(prev =>
+                          prev.includes(opt.id) ? prev.filter(t => t !== opt.id) : [...prev, opt.id]
+                        );
+                      }}
                       style={{ width: 18, height: 18, accentColor: DEEP_BLUE_PRIMARY, cursor: "pointer" }}
                     />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontWeight: 800, color: "#0f172a", fontSize: 13 }}>{row.code}</span>
-                        <span style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>{row.totalTopics} đề tài</span>
-                      </div>
-                      <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
-                        {row.name} • GV: {row.chair}
-                      </div>
-                    </div>
-                  </div>
+                    <span style={{ fontSize: 13, fontWeight: isChecked ? 800 : 600, color: isChecked ? "#0f172a" : "#64748b" }}>
+                      {opt.label}
+                    </span>
+                  </label>
                 );
               })}
             </div>
           </div>
 
-          {/* Right side: Options and Export Trigger */}
-          <div style={{ display: "grid", gap: 24 }}>
-            {/* Option 1: Document Types */}
-            <div style={{ background: "white", padding: 24, borderRadius: 24, border: "1px solid #e2e8f0" }}>
-              <h4 style={{ margin: "0 0 16px 0", fontSize: 14, fontWeight: 800, color: "#1e293b" }}>1. Loại tài liệu trích xuất</h4>
-              <div style={{ display: "grid", gap: 10 }}>
-                {[
-                  { id: "scoresheet", label: "Bảng điểm hội đồng (Danh sách điểm các đề tài)" },
-                  { id: "meeting", label: "Biên bản hội đồng bảo vệ (Mỗi đề tài một biên bản)" },
-                  { id: "reviewer", label: "Nhận xét phản biện hội đồng (Mỗi đề tài một bản)" }
-                ].map(opt => {
-                  const isChecked = bulkDocumentTypes.includes(opt.id);
-                  return (
-                    <label
-                      key={opt.id}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12,
-                        border: `1px solid ${isChecked ? DEEP_BLUE_PRIMARY : "#f1f5f9"}`,
-                        background: isChecked ? `${DEEP_BLUE_PRIMARY}02` : "#fcfdfe",
-                        cursor: "pointer", transition: "all 0.2s"
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          setBulkDocumentTypes(prev =>
-                            prev.includes(opt.id) ? prev.filter(t => t !== opt.id) : [...prev, opt.id]
-                          );
-                        }}
-                        style={{ width: 18, height: 18, accentColor: DEEP_BLUE_PRIMARY, cursor: "pointer" }}
-                      />
-                      <span style={{ fontSize: 13, fontWeight: isChecked ? 800 : 600, color: isChecked ? "#0f172a" : "#64748b" }}>
-                        {opt.label}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
+          {/* Option 2: Format Choice */}
+          <div style={{ background: "white", padding: 24, borderRadius: 24, border: "1px solid #e2e8f0" }}>
+            <h4 style={{ margin: "0 0 16px 0", fontSize: 14, fontWeight: 800, color: "#1e293b" }}>2. Định dạng File xuất bản</h4>
+            <div style={{ display: "flex", gap: 16 }}>
+              {[
+                { value: "word" as const, label: "Tập tin Word (.docx)", color: "#2563eb" },
+                { value: "pdf" as const, label: "Tập tin PDF (.pdf)", color: "#dc2626" }
+              ].map(opt => {
+                const isActive = bulkFormat === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setBulkFormat(opt.value)}
+                    style={{
+                      flex: 1, padding: "14px", borderRadius: 12, fontSize: 13, fontWeight: 800,
+                      border: `2px solid ${isActive ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`,
+                      background: isActive ? `${DEEP_BLUE_PRIMARY}05` : "white",
+                      color: isActive ? DEEP_BLUE_PRIMARY : "#64748b",
+                      cursor: "pointer", transition: "all 0.2s", display: "flex", flexDirection: "column",
+                      alignItems: "center", gap: 4
+                    }}
+                  >
+                    <span style={{ fontSize: 13 }}>{opt.label}</span>
+                  </button>
+                );
+              })}
             </div>
+          </div>
 
-            {/* Option 2: Format Choice */}
-            <div style={{ background: "white", padding: 24, borderRadius: 24, border: "1px solid #e2e8f0" }}>
-              <h4 style={{ margin: "0 0 16px 0", fontSize: 14, fontWeight: 800, color: "#1e293b" }}>2. Định dạng File xuất bản</h4>
-              <div style={{ display: "flex", gap: 16 }}>
-                {[
-                  { value: "word" as const, label: "Tập tin Word (.docx)", color: "#2563eb" },
-                  { value: "pdf" as const, label: "Tập tin PDF (.pdf)", color: "#dc2626" }
-                ].map(opt => {
-                  const isActive = bulkFormat === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setBulkFormat(opt.value)}
-                      style={{
-                        flex: 1, padding: "14px", borderRadius: 12, fontSize: 13, fontWeight: 800,
-                        border: `2px solid ${isActive ? DEEP_BLUE_PRIMARY : "#cbd5e1"}`,
-                        background: isActive ? `${DEEP_BLUE_PRIMARY}05` : "white",
-                        color: isActive ? DEEP_BLUE_PRIMARY : "#64748b",
-                        cursor: "pointer", transition: "all 0.2s", display: "flex", flexDirection: "column",
-                        alignItems: "center", gap: 4
-                      }}
-                    >
-                      <span style={{ fontSize: 13 }}>{opt.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+          {/* Option 3: Preview Naming description */}
+          <div style={{ background: "#f8fafc", padding: "16px 20px", borderRadius: 16, border: "1px dashed #cbd5e1" }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <Info size={16} color={DEEP_BLUE_PRIMARY} />
+              <span style={{ fontSize: 12, fontWeight: 800, color: DEEP_BLUE_PRIMARY }}>Định dạng tên file tự động đặt:</span>
             </div>
-
-            {/* Option 3: Preview Naming description */}
-            <div style={{ background: "#f8fafc", padding: "16px 20px", borderRadius: 16, border: "1px dashed #cbd5e1" }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <Info size={16} color={DEEP_BLUE_PRIMARY} />
-                <span style={{ fontSize: 12, fontWeight: 800, color: DEEP_BLUE_PRIMARY }}>Định dạng tên file tự động đặt:</span>
-              </div>
-              <div style={{ fontSize: 11, color: "#64748b", marginTop: 8, lineHeight: "1.6" }}>
-                • Bảng điểm: <strong>[Mã hội đồng].{bulkFormat === "pdf" ? "pdf" : "docx"}</strong> (VD: <i>HD-01.{bulkFormat === "pdf" ? "pdf" : "docx"}</i>)<br />
-                • Biên bản / Nhận xét: <strong>[Mã sinh viên] - [Mã hội đồng] - [Ngày tải].{bulkFormat === "pdf" ? "pdf" : "docx"}</strong>
-              </div>
+            <div style={{ fontSize: 11, color: "#64748b", marginTop: 8, lineHeight: "1.6" }}>
+              • Bảng điểm: <strong>[Mã hội đồng].{bulkFormat === "pdf" ? "pdf" : "docx"}</strong> (VD: <i>HD-01.{bulkFormat === "pdf" ? "pdf" : "docx"}</i>)<br />
+              • Biên bản / Nhận xét: <strong>[Mã sinh viên] - [Mã hội đồng] - [Ngày tải].{bulkFormat === "pdf" ? "pdf" : "docx"}</strong>
             </div>
+          </div>
 
-            {/* Action Button */}
+          {/* Action Button */}
+          <button
+            type="button"
+            onClick={handleBulkExportZip}
+            disabled={isBulkExporting}
+            style={{
+              width: "100%", padding: "16px", borderRadius: 14, border: "none",
+              background: isBulkExporting ? "#cbd5e1" : `linear-gradient(135deg, ${DEEP_BLUE_PRIMARY} 0%, #0f172a 100%)`,
+              color: "white", fontSize: 14, fontWeight: 800, cursor: isBulkExporting ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+              boxShadow: "0 10px 15px -3px rgba(30, 58, 95, 0.2)", transition: "all 0.2s"
+            }}
+            onMouseEnter={(e) => { if (!isBulkExporting) e.currentTarget.style.transform = "translateY(-1px)"; }}
+            onMouseLeave={(e) => { if (!isBulkExporting) e.currentTarget.style.transform = "translateY(0)"; }}
+          >
+            {isBulkExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+            {isBulkExporting ? "Đang trích xuất & nén tài liệu..." : `Tải xuống tài liệu ${bulkSelectedCommitteeIds.length} Hội đồng (.zip)`}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderExportTab = () => {
+    const currentTemplate = exportTemplateOptions.find(t => t.value === exportTemplateMode) || exportTemplateOptions[0];
+    const filteredGroups = exportFieldGroups.map(group => ({
+      ...group,
+      fields: group.fields.filter(f =>
+        f.label.toLowerCase().includes(exportFieldSearch.toLowerCase()) ||
+        f.key.toLowerCase().includes(exportFieldSearch.toLowerCase())
+      )
+    })).filter(group => group.fields.length > 0);
+
+    return (
+      <section style={{ background: "white", borderRadius: 28, padding: 32, border: "1px solid #e2e8f0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#0f172a" }}>Trung tâm Xuất dữ liệu</h3>
+            <p style={{ margin: "4px 0 0 0", fontSize: 14, color: "#64748b" }}>Cấu hình và trích xuất báo cáo vận hành hội đồng chuyên sâu</p>
+          </div>
+          <div style={{ display: "flex", gap: 12 }}>
             <button
-              type="button"
-              onClick={handleBulkExportZip}
-              disabled={isBulkExporting}
-              style={{
-                width: "100%", padding: "16px", borderRadius: 14, border: "none",
-                background: isBulkExporting ? "#cbd5e1" : `linear-gradient(135deg, ${DEEP_BLUE_PRIMARY} 0%, #0f172a 100%)`,
-                color: "white", fontSize: 14, fontWeight: 800, cursor: isBulkExporting ? "not-allowed" : "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
-                boxShadow: "0 10px 15px -3px rgba(30, 58, 95, 0.2)", transition: "all 0.2s"
-              }}
-              onMouseEnter={(e) => { if (!isBulkExporting) e.currentTarget.style.transform = "translateY(-1px)"; }}
-              onMouseLeave={(e) => { if (!isBulkExporting) e.currentTarget.style.transform = "translateY(0)"; }}
+              onClick={() => loadOperationsSnapshot()}
+              style={{ padding: "10px 16px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, color: "#64748b", fontWeight: 700 }}
             >
-              {isBulkExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-              {isBulkExporting ? "Đang trích xuất & nén tài liệu..." : `Tải xuống tài liệu ${bulkSelectedCommitteeIds.length} Hội đồng (.zip)`}
+              <RefreshCw size={16} /> Làm mới dữ liệu
             </button>
           </div>
         </div>
-      );
-    };
 
-    const renderExportTab = () => {
-      const currentTemplate = exportTemplateOptions.find(t => t.value === exportTemplateMode) || exportTemplateOptions[0];
-      const filteredGroups = exportFieldGroups.map(group => ({
-        ...group,
-        fields: group.fields.filter(f => 
-          f.label.toLowerCase().includes(exportFieldSearch.toLowerCase()) || 
-          f.key.toLowerCase().includes(exportFieldSearch.toLowerCase())
-        )
-      })).filter(group => group.fields.length > 0);
+        {/* Sub-tab Toggle Selector */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 32, borderBottom: "1px solid #f1f5f9", paddingBottom: 16 }}>
+          <button
+            type="button"
+            onClick={() => setExportSubTab("spreadsheet")}
+            style={{
+              padding: "10px 20px", borderRadius: 12, border: "none",
+              background: exportSubTab === "spreadsheet" ? DEEP_BLUE_PRIMARY : "#f1f5f9",
+              color: exportSubTab === "spreadsheet" ? "white" : "#475569",
+              fontWeight: 800, fontSize: 13, cursor: "pointer", transition: "all 0.2s"
+            }}
+          >
+            Trích xuất Bảng dữ liệu (Excel/PDF)
+          </button>
+          <button
+            type="button"
+            onClick={() => setExportSubTab("documents")}
+            style={{
+              padding: "10px 20px", borderRadius: 12, border: "none",
+              background: exportSubTab === "documents" ? DEEP_BLUE_PRIMARY : "#f1f5f9",
+              color: exportSubTab === "documents" ? "white" : "#475569",
+              fontWeight: 800, fontSize: 13, cursor: "pointer", transition: "all 0.2s"
+            }}
+          >
+            Tải Tài liệu Hàng loạt (Bảng điểm, Biên bản, Nhận xét ZIP)
+          </button>
+        </div>
 
-      return (
-        <section style={{ background: "white", borderRadius: 28, padding: 32, border: "1px solid #e2e8f0" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#0f172a" }}>Trung tâm Xuất dữ liệu</h3>
-              <p style={{ margin: "4px 0 0 0", fontSize: 14, color: "#64748b" }}>Cấu hình và trích xuất báo cáo vận hành hội đồng chuyên sâu</p>
-            </div>
-            <div style={{ display: "flex", gap: 12 }}>
-              <button 
-                onClick={() => loadOperationsSnapshot()}
-                style={{ padding: "10px 16px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, color: "#64748b", fontWeight: 700 }}
-              >
-                <RefreshCw size={16} /> Làm mới dữ liệu
-              </button>
-            </div>
-          </div>
-
-          {/* Sub-tab Toggle Selector */}
-          <div style={{ display: "flex", gap: 12, marginBottom: 32, borderBottom: "1px solid #f1f5f9", paddingBottom: 16 }}>
-            <button
-              type="button"
-              onClick={() => setExportSubTab("spreadsheet")}
-              style={{
-                padding: "10px 20px", borderRadius: 12, border: "none",
-                background: exportSubTab === "spreadsheet" ? DEEP_BLUE_PRIMARY : "#f1f5f9",
-                color: exportSubTab === "spreadsheet" ? "white" : "#475569",
-                fontWeight: 800, fontSize: 13, cursor: "pointer", transition: "all 0.2s"
-              }}
-            >
-              Trích xuất Bảng dữ liệu (Excel/PDF)
-            </button>
-            <button
-              type="button"
-              onClick={() => setExportSubTab("documents")}
-              style={{
-                padding: "10px 20px", borderRadius: 12, border: "none",
-                background: exportSubTab === "documents" ? DEEP_BLUE_PRIMARY : "#f1f5f9",
-                color: exportSubTab === "documents" ? "white" : "#475569",
-                fontWeight: 800, fontSize: 13, cursor: "pointer", transition: "all 0.2s"
-              }}
-            >
-              Tải Tài liệu Hàng loạt (Bảng điểm, Biên bản, Nhận xét ZIP)
-            </button>
-          </div>
-
-          {exportSubTab === "spreadsheet" ? (
-            <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 40, alignItems: "start" }}>
+        {exportSubTab === "spreadsheet" ? (
+          <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 40, alignItems: "start" }}>
             <aside style={{ background: "#f8fafc", padding: 24, borderRadius: 24, border: "1px solid #f1f5f9", position: "sticky", top: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
                 <div style={{ width: 32, height: 32, borderRadius: "50%", background: DEEP_BLUE_PRIMARY, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>1</div>
                 <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chọn mẫu báo cáo</h4>
               </div>
-              
+
               <div style={{ display: "grid", gap: 10 }}>
                 {exportTemplateOptions.map((item) => (
                   <button
@@ -5516,10 +5512,10 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                       cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", gap: 14
                     }}
                   >
-                    <div style={{ 
-                      padding: 10, borderRadius: 12, 
+                    <div style={{
+                      padding: 10, borderRadius: 12,
                       background: exportTemplateMode === item.value ? `${DEEP_BLUE_PRIMARY}10` : "#f1f5f9",
-                      color: exportTemplateMode === item.value ? DEEP_BLUE_PRIMARY : "#94a3b8" 
+                      color: exportTemplateMode === item.value ? DEEP_BLUE_PRIMARY : "#94a3b8"
                     }}>{item.icon}</div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: exportTemplateMode === item.value ? 900 : 700, color: exportTemplateMode === item.value ? "#0f172a" : "#64748b" }}>{item.label}</div>
@@ -5564,7 +5560,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                   <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
                     <div style={{ position: "relative" }}>
                       <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-                      <input 
+                      <input
                         placeholder="Tìm trường..."
                         style={{ padding: "10px 16px 10px 38px", borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13, width: 200 }}
                         value={exportFieldSearch}
@@ -5597,7 +5593,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                               type="checkbox"
                               checked={exportSelectedFields.includes(field.key)}
                               onChange={() => {
-                                setExportSelectedFields(prev => 
+                                setExportSelectedFields(prev =>
                                   prev.includes(field.key) ? prev.filter(k => k !== field.key) : [...prev, field.key]
                                 );
                               }}
@@ -5612,19 +5608,19 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                 </div>
               </div>
 
-              <div style={{ 
-                background: "white", 
-                padding: "24px 32px", 
-                borderRadius: 24, 
-                border: "1px solid #e2e8f0", 
-                display: "flex", 
-                justifyContent: "space-between", 
+              <div style={{
+                background: "white",
+                padding: "24px 32px",
+                borderRadius: 24,
+                border: "1px solid #e2e8f0",
+                display: "flex",
+                justifyContent: "space-between",
                 alignItems: "center",
                 boxShadow: "0 10px 30px rgba(0,0,0,0.04)"
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-                  <div style={{ 
-                    width: 48, height: 48, borderRadius: 14, 
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 14,
                     background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center"
                   }}>
                     {isExporting ? <Loader2 size={24} className="animate-spin" color={DEEP_BLUE_PRIMARY} /> : <Download size={24} color={DEEP_BLUE_PRIMARY} />}
@@ -5701,12 +5697,12 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               </div>
             </main>
           </div>
-          ) : (
-            renderBulkDocumentsTab()
-          )}
-        </section>
-      );
-    };
+        ) : (
+          renderBulkDocumentsTab()
+        )}
+      </section>
+    );
+  };
 
   const renderSystemLogsTab = () => {
     return (
@@ -5740,7 +5736,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               {/* Search */}
               <div style={{ position: "relative" }}>
                 <Search size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-                <input 
+                <input
                   placeholder="Mã SV, mã đề tài, người dùng..."
                   style={{ padding: "10px 16px 10px 38px", borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 14, width: 240, outline: "none" }}
                   value={logsSearch}
@@ -5752,8 +5748,8 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               </div>
 
               {/* Module Filter */}
-              <select 
-                style={{ 
+              <select
+                style={{
                   padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
                   backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
                   backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", outline: "none"
@@ -5771,8 +5767,8 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               </select>
 
               {/* Action Filter */}
-              <select 
-                style={{ 
+              <select
+                style={{
                   padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
                   backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
                   backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", outline: "none"
@@ -5797,7 +5793,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               </select>
 
               {/* Refresh Button */}
-              <button 
+              <button
                 onClick={() => fetchSystemLogs()}
                 disabled={logsLoading}
                 style={{ padding: "10px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: "#64748b" }}
@@ -5847,8 +5843,8 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                   systemLogs.map((log) => {
                     const isSuccess = String(log.status || "").toUpperCase() === "SUCCESS";
                     return (
-                      <tr 
-                        key={log.logID} 
+                      <tr
+                        key={log.logID}
                         style={{ background: "#f8fafc", transition: "all 0.2s", borderRadius: 16 }}
                       >
                         <td style={{ padding: "16px 20px", borderRadius: "16px 0 0 16px", whiteSpace: "nowrap", fontSize: 13, fontWeight: 600 }}>
@@ -5859,53 +5855,53 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                           <div style={{ fontSize: 11, color: "#94a3b8" }}>{log.userRole || "-"}</div>
                         </td>
                         <td style={{ padding: "16px 20px" }}>
-                          <span style={{ 
+                          <span style={{
                             padding: "4px 8px", borderRadius: 8, fontSize: 11, fontWeight: 700,
                             background: log.module === "Defense" ? "#e0f2fe" : log.module === "Committee" ? "#f5f3ff" : "#f1f5f9",
                             color: log.module === "Defense" ? "#0369a1" : log.module === "Committee" ? "#6d28d9" : "#475569"
                           }}>{log.module || "Hệ thống"}</span>
                         </td>
                         <td style={{ padding: "16px 20px" }}>
-                          <span style={{ 
+                          <span style={{
                             padding: "4px 8px", borderRadius: 8, fontSize: 11, fontWeight: 800,
-                            background: 
-                              log.actionType === "CREATE" ? "#dcfce7" : 
-                              log.actionType === "UPDATE" ? "#eff6ff" : 
-                              log.actionType === "DELETE" ? "#fee2e2" : 
-                              log.actionType === "LOCK" ? "#fef3c7" : 
-                              log.actionType === "PUBLISH" ? "#e0e7ff" :
-                              log.actionType === "APPROVE" ? "#d1fae5" :
-                              log.actionType === "REJECT" ? "#ffe4e6" :
-                              log.actionType === "SUBMIT" ? "#dbeafe" :
-                              log.actionType === "OPEN_SESSION" ? "#ecfdf5" :
-                              log.actionType === "UNLOCK_SESSION" ? "#f0fdf4" :
-                              log.actionType === "CLOSE_SESSION" ? "#fef9c3" : "#f1f5f9",
-                            color: 
-                              log.actionType === "CREATE" ? "#15803d" : 
-                              log.actionType === "UPDATE" ? "#1d4ed8" : 
-                              log.actionType === "DELETE" ? "#991b1b" : 
-                              log.actionType === "LOCK" ? "#b45309" : 
-                              log.actionType === "PUBLISH" ? "#4338ca" :
-                              log.actionType === "APPROVE" ? "#047857" :
-                              log.actionType === "REJECT" ? "#be123c" :
-                              log.actionType === "SUBMIT" ? "#1e40af" :
-                              log.actionType === "OPEN_SESSION" ? "#059669" :
-                              log.actionType === "UNLOCK_SESSION" ? "#15803d" :
-                              log.actionType === "CLOSE_SESSION" ? "#a16207" : "#475569"
+                            background:
+                              log.actionType === "CREATE" ? "#dcfce7" :
+                                log.actionType === "UPDATE" ? "#eff6ff" :
+                                  log.actionType === "DELETE" ? "#fee2e2" :
+                                    log.actionType === "LOCK" ? "#fef3c7" :
+                                      log.actionType === "PUBLISH" ? "#e0e7ff" :
+                                        log.actionType === "APPROVE" ? "#d1fae5" :
+                                          log.actionType === "REJECT" ? "#ffe4e6" :
+                                            log.actionType === "SUBMIT" ? "#dbeafe" :
+                                              log.actionType === "OPEN_SESSION" ? "#ecfdf5" :
+                                                log.actionType === "UNLOCK_SESSION" ? "#f0fdf4" :
+                                                  log.actionType === "CLOSE_SESSION" ? "#fef9c3" : "#f1f5f9",
+                            color:
+                              log.actionType === "CREATE" ? "#15803d" :
+                                log.actionType === "UPDATE" ? "#1d4ed8" :
+                                  log.actionType === "DELETE" ? "#991b1b" :
+                                    log.actionType === "LOCK" ? "#b45309" :
+                                      log.actionType === "PUBLISH" ? "#4338ca" :
+                                        log.actionType === "APPROVE" ? "#047857" :
+                                          log.actionType === "REJECT" ? "#be123c" :
+                                            log.actionType === "SUBMIT" ? "#1e40af" :
+                                              log.actionType === "OPEN_SESSION" ? "#059669" :
+                                                log.actionType === "UNLOCK_SESSION" ? "#15803d" :
+                                                  log.actionType === "CLOSE_SESSION" ? "#a16207" : "#475569"
                           }}>{log.actionType}</span>
                         </td>
                         <td style={{ padding: "16px 20px", fontSize: 13, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           <span title={log.actionDescription}>{log.actionDescription || "-"}</span>
                         </td>
                         <td style={{ padding: "16px 20px", textAlign: "center" }}>
-                          <span style={{ 
+                          <span style={{
                             padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800,
                             background: isSuccess ? "#dcfce7" : "#fee2e2",
                             color: isSuccess ? "#16a34a" : "#ef4444"
                           }}>{isSuccess ? "Thành công" : "Lỗi"}</span>
                         </td>
                         <td style={{ padding: "16px 20px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
-                          <button 
+                          <button
                             onClick={() => setSelectedLogDetail(log)}
                             style={{ background: "white", border: "1px solid #e2e8f0", padding: "8px", borderRadius: 10, cursor: "pointer", color: DEEP_BLUE_PRIMARY, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                             title="Xem chi tiết"
@@ -5928,12 +5924,12 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                 Hiển thị {(logsPage - 1) * logsPageSize + 1} - {Math.min(logsPage * logsPageSize, logsTotalCount)} trên tổng số {logsTotalCount} kết quả
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button 
+                <button
                   disabled={logsPage === 1}
                   onClick={() => setLogsPage(p => Math.max(1, p - 1))}
                   style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", fontWeight: 700, cursor: logsPage === 1 ? "not-allowed" : "pointer", opacity: logsPage === 1 ? 0.5 : 1 }}
                 >Trước</button>
-                <button 
+                <button
                   disabled={logsPage * logsPageSize >= logsTotalCount}
                   onClick={() => setLogsPage(p => p + 1)}
                   style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", fontWeight: 700, cursor: logsPage * logsPageSize >= logsTotalCount ? "not-allowed" : "pointer", opacity: logsPage * logsPageSize >= logsTotalCount ? 0.5 : 1 }}
@@ -5962,7 +5958,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                   <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#0f172a" }}>Chi tiết Nhật ký Hoạt động</h3>
                   <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Log ID: #{selectedLogDetail.logID}</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setSelectedLogDetail(null)}
                   style={{ background: "#e2e8f0", border: "none", width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569" }}
                 >
@@ -5993,7 +5989,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
 
                   <div style={{ fontWeight: 700, color: "#64748b" }}>Trạng thái:</div>
                   <div>
-                    <span style={{ 
+                    <span style={{
                       padding: "4px 8px", borderRadius: 99, fontSize: 12, fontWeight: 800,
                       background: String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "#dcfce7" : "#fee2e2",
                       color: String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "#16a34a" : "#ef4444"
@@ -6039,7 +6035,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
 
               {/* Modal Footer */}
               <div style={{ display: "flex", justifyContent: "flex-end", padding: "16px 32px", borderTop: "1px solid #f1f5f9", background: "#f8fafc" }}>
-                <button 
+                <button
                   onClick={() => setSelectedLogDetail(null)}
                   style={{ padding: "10px 20px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", fontWeight: 700, color: "#475569" }}
                 >Đóng</button>
@@ -6066,7 +6062,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               <h2 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#0f172a" }}>Xem trước dữ liệu trích xuất</h2>
               <p style={{ margin: "4px 0 0 0", fontSize: 14, color: "#64748b" }}>Hiển thị 5 bản ghi mẫu dựa trên cấu hình hiện tại</p>
             </div>
-            <button 
+            <button
               onClick={() => setExportPreviewModalOpen(false)}
               style={{ background: "#f1f5f9", border: "none", padding: 10, borderRadius: 12, cursor: "pointer" }}
             >
@@ -6110,7 +6106,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
           </div>
 
           <div style={{ marginTop: 32, display: "flex", justifyContent: "flex-end" }}>
-            <button 
+            <button
               onClick={() => setExportPreviewModalOpen(false)}
               style={{ padding: "12px 24px", borderRadius: 12, background: DEEP_BLUE_PRIMARY, color: "white", border: "none", fontWeight: 800, cursor: "pointer" }}
             >
@@ -6149,14 +6145,14 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
         <div style={{ padding: "32px 40px 24px", background: "linear-gradient(to bottom, #f8fafc, white)", borderBottom: "1px solid #f1f5f9" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 20 }}>
             <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-              <div style={{ 
-                width: 72, 
-                height: 72, 
-                borderRadius: 24, 
-                background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", 
-                color: "white", 
-                display: "flex", 
-                alignItems: "center", 
+              <div style={{
+                width: 72,
+                height: 72,
+                borderRadius: 24,
+                background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+                color: "white",
+                display: "flex",
+                alignItems: "center",
                 justifyContent: "center",
                 boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)"
               }}>
@@ -6350,10 +6346,10 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                   { label: "Thư ký", score: selectedTopic.scoreTk, name: selectedTopic.committeeSecretaryName },
                   { label: "Phản biện", score: selectedTopic.scorePb, name: selectedTopic.committeeReviewerName },
                 ].map((item, i) => (
-                  <div key={i} style={{ 
-                    padding: "16px 20px", 
-                    display: "flex", 
-                    justifyContent: "space-between", 
+                  <div key={i} style={{
+                    padding: "16px 20px",
+                    display: "flex",
+                    justifyContent: "space-between",
                     alignItems: "center",
                     borderBottom: i < 3 ? "1px solid #f1f5f9" : "none",
                     background: i % 2 === 0 ? "white" : "#fcfdfe"
@@ -6362,9 +6358,9 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{item.label}</div>
                       <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>{item.name || "-"}</div>
                     </div>
-                    <div style={{ 
-                      fontSize: 16, 
-                      fontWeight: 900, 
+                    <div style={{
+                      fontSize: 16,
+                      fontWeight: 900,
                       color: item.score ? DEEP_BLUE_PRIMARY : "#cbd5e1",
                       background: item.score ? "#f0f9ff" : "#f8fafc",
                       padding: "4px 12px",
@@ -6395,7 +6391,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
         </div>
 
         <div style={{ padding: "20px 40px", background: "white", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", gap: 16 }}>
-          <button 
+          <button
             onClick={() => setTopicDetailModalOpen(false)}
             style={{ padding: "12px 24px", borderRadius: 14, border: "1px solid #e2e8f0", background: "white", color: "#475569", fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}
             onMouseEnter={(e) => e.currentTarget.style.background = "#f8fafc"}
@@ -6410,7 +6406,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
 
   const renderPreviewModal = () => {
     if (!previewModalType) return null;
-    
+
     if (previewModalType === "scoreSheet") {
       if (!selectedCommittee) return null;
       const topics = scoringMatrix.filter(row => row.committeeCode === selectedCommittee.code);
@@ -6426,7 +6422,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
             </div>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               <div style={{ position: "relative" }}>
-                <button 
+                <button
                   onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
                   disabled={isDownloadingPreviewFile}
                   style={{ background: DEEP_BLUE_PRIMARY, color: "white", padding: "10px 18px", borderRadius: 12, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 4px 12px rgba(30, 58, 95, 0.2)" }}
@@ -6437,16 +6433,16 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                 </button>
                 {showDownloadDropdown && (
                   <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 12, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)", minWidth: 180, zIndex: 1000, overflow: "hidden", padding: 6 }}>
-                    <button 
-                      onClick={() => { setShowDownloadDropdown(false); downloadPreviewDocument("scoreSheet", "word"); }} 
+                    <button
+                      onClick={() => { setShowDownloadDropdown(false); downloadPreviewDocument("scoreSheet", "word"); }}
                       style={{ width: "100%", background: "none", border: "none", padding: "10px 12px", textAlign: "left", fontSize: 13, fontWeight: 600, color: "#0f172a", cursor: "pointer", borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "#f1f5f9"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "none"}
                     >
                       <FileText size={16} color="#2563eb" /> Xuất Word (.docx)
                     </button>
-                    <button 
-                      onClick={() => { setShowDownloadDropdown(false); downloadPreviewDocument("scoreSheet", "pdf"); }} 
+                    <button
+                      onClick={() => { setShowDownloadDropdown(false); downloadPreviewDocument("scoreSheet", "pdf"); }}
                       style={{ width: "100%", background: "none", border: "none", padding: "10px 12px", textAlign: "left", fontSize: 13, fontWeight: 600, color: "#0f172a", cursor: "pointer", borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "#f1f5f9"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "none"}
@@ -6561,8 +6557,8 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
     }
 
     if (!selectedMatrixRow) return null;
-    const committee = snapshot?.committees?.find(c => 
-      c.code === selectedMatrixRow.committeeCode || 
+    const committee = snapshot?.committees?.find(c =>
+      c.code === selectedMatrixRow.committeeCode ||
       c.name === selectedMatrixRow.committeeName
     );
     return (
@@ -6584,8 +6580,8 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
                 style={{ background: DEEP_BLUE_PRIMARY, color: "white", padding: "10px 18px", borderRadius: 12, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 4px 12px rgba(30, 58, 95, 0.2)" }}
               >
                 <Download size={16} />
-                  {isDownloadingPreviewFile ? "Đang tải..." : "Tải xuống"}
-                  <ChevronDown size={14} style={{ transform: showDownloadDropdown ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+                {isDownloadingPreviewFile ? "Đang tải..." : "Tải xuống"}
+                <ChevronDown size={14} style={{ transform: showDownloadDropdown ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
               </button>
               {showDownloadDropdown && (
                 <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 12, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)", minWidth: 180, zIndex: 1000, overflow: "hidden", padding: 6 }}>
@@ -6683,7 +6679,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               { id: "form-1", label: "Biểu mẫu 01 (Cá nhân)", icon: <FileText size={18} /> },
               { id: "minutes", label: "Biên bản Hội đồng", icon: <Printer size={18} /> },
             ].map((t) => (
-              <button 
+              <button
                 key={t.id}
                 onClick={() => setReportType(t.id as ReportType)}
                 style={{
@@ -6707,7 +6703,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               </button>
             ))}
           </div>
-          
+
           <div style={{ marginTop: 32 }}>
             <h4 style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", marginBottom: 16 }}>Định dạng File</h4>
             <div style={{ display: "flex", gap: 8 }}>
@@ -6740,7 +6736,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
             </div>
           </div>
         </div>
-        
+
         <div style={{ padding: 32, overflowY: "auto" }}>
           <h4 style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", marginBottom: 20 }}>Tùy chọn hiển thị</h4>
           <div style={{ display: "grid", gap: 16 }}>
@@ -6752,27 +6748,27 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
             ].map((opt, i) => (
               <label key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16, borderRadius: 16, border: "1px solid #f1f5f9", cursor: "pointer" }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: "#475569" }}>{opt.label}</span>
-                <input 
-                  type="checkbox" 
-                  checked={opt.state} 
+                <input
+                  type="checkbox"
+                  checked={opt.state}
                   onChange={e => opt.set(e.target.checked)}
                   style={{ width: 20, height: 20, cursor: "pointer", accentColor: DEEP_BLUE_PRIMARY }}
                 />
               </label>
             ))}
           </div>
-          
+
           <div style={{ marginTop: 32, padding: 24, borderRadius: 20, background: "#f8fafc", border: "1px dashed #e2e8f0" }}>
             <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-              <div style={{ 
-                width: 48, 
-                height: 48, 
-                borderRadius: 14, 
-                background: "white", 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center", 
-                boxShadow: "0 2px 4px rgba(0,0,0,0.05)" 
+              <div style={{
+                width: 48,
+                height: 48,
+                borderRadius: 14,
+                background: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
               }}>
                 <Info size={24} style={{ color: DEEP_BLUE_PRIMARY }} />
               </div>
@@ -6785,20 +6781,20 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
         </div>
       </div>
       <div style={{ padding: "24px 32px", borderTop: "1px solid #f1f5f9", background: "white", display: "flex", justifyContent: "flex-end", gap: 12 }}>
-        <button 
+        <button
           onClick={() => setExportModalOpen(false)}
           style={{ padding: "12px 24px", borderRadius: 14, border: "1px solid #e2e8f0", background: "white", color: "#475569", fontWeight: 700, cursor: "pointer" }}
         >
           Hủy
         </button>
-        <button 
-          style={{ 
-            padding: "12px 32px", 
-            borderRadius: 14, 
-            border: "none", 
-            background: "linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)", 
-            color: "white", 
-            fontWeight: 800, 
+        <button
+          style={{
+            padding: "12px 32px",
+            borderRadius: 14,
+            border: "none",
+            background: "linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)",
+            color: "white",
+            fontWeight: 800,
             cursor: "pointer",
             boxShadow: "0 10px 15px -3px rgba(30, 58, 95, 0.3)"
           }}
@@ -6895,7 +6891,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
             }}>
               Điều hành <span style={{ color: "#f37021" }}>hội đồng</span>
             </h1>
-            
+
             <div style={{
               fontSize: 16,
               color: "rgba(255, 255, 255, 0.7)",
@@ -6951,7 +6947,7 @@ return { border: "#cbd5e1", bg: "#f8fafc", text: "#475569" };
               <RefreshCw size={18} className={loadingSnapshot ? "animate-spin" : ""} />
               {loadingSnapshot ? "Đang đồng bộ..." : "Làm mới Realtime"}
             </button>
-            
+
             <div style={{
               background: "#f37021",
               color: "white",

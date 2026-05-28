@@ -62,15 +62,16 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
         sheet.Column("B").Width = 16;
         sheet.Column("C").Width = 32;
         sheet.Column("D").Width = 32;
-        sheet.Column("E").Width = 10;
-        sheet.Column("F").Width = 18;
-        sheet.Column("G").Width = 14;
-        sheet.Column("H").Width = 18;
-        sheet.Column("I").Width = 14;
-        sheet.Column("J").Width = 18;
-        sheet.Column("K").Width = 14;
-        sheet.Column("L").Width = 12;
-        sheet.Column("M").Width = 16;
+        sheet.Column("E").Width = 32; // Nơi công tác của GVHD
+        sheet.Column("F").Width = 10; // Hội đồng
+        sheet.Column("G").Width = 18; // Chủ tịch HĐ
+        sheet.Column("H").Width = 14; // Nơi công tác
+        sheet.Column("I").Width = 18; // Ủy viên thư ký
+        sheet.Column("J").Width = 14; // Nơi công tác
+        sheet.Column("K").Width = 18; // Ủy viên phản biện
+        sheet.Column("L").Width = 14; // Nơi công tác
+        sheet.Column("M").Width = 12; // Buổi
+        sheet.Column("N").Width = 16; // Ngày
 
         BuildHeader(sheet);
         BuildDataRows(sheet, roster);
@@ -85,38 +86,39 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
 
     private static void BuildHeader(IXLWorksheet sheet)
     {
-        sheet.Range("A1:D1").Merge().Value = School;
-        sheet.Range("A2:D2").Merge().Value = Faculty;
-        sheet.Range("H1:M1").Merge().Value = Country;
-        sheet.Range("H2:M2").Merge().Value = CountryMotto;
-        sheet.Range("A4:M4").Merge().Value = Title;
-        sheet.Range("A5:M5").Merge().Value = Major;
+        sheet.Range("A1:E1").Merge().Value = School;
+        sheet.Range("A2:E2").Merge().Value = Faculty;
+        sheet.Range("I1:N1").Merge().Value = Country;
+        sheet.Range("I2:N2").Merge().Value = CountryMotto;
+        sheet.Range("A4:N4").Merge().Value = Title;
+        sheet.Range("A5:N5").Merge().Value = Major;
 
         sheet.Range("A7:A8").Merge().Value = "TT";
         sheet.Range("B7:B8").Merge().Value = "Mã SV";
         sheet.Range("C7:C8").Merge().Value = "Họ tên";
         sheet.Range("D7:D8").Merge().Value = "Người hướng dẫn";
-        sheet.Range("E7:E8").Merge().Value = "Hội đồng";
-        sheet.Range("F7:F8").Merge().Value = "Chủ tịch HĐ";
-        sheet.Range("G7:G8").Merge().Value = "Nơi công tác";
-        sheet.Range("H7:H8").Merge().Value = "Ủy viên thư ký";
-        sheet.Range("I7:I8").Merge().Value = "Nơi công tác";
-        sheet.Range("J7:J8").Merge().Value = "Ủy viên phản biện";
-        sheet.Range("K7:K8").Merge().Value = "Nơi công tác";
-        sheet.Range("L7:M7").Merge().Value = "Thời gian đồ án tốt nghiệp";
-        sheet.Cell(8, 12).Value = "Buổi";
-        sheet.Cell(8, 13).Value = "Ngày";
+        sheet.Range("E7:E8").Merge().Value = "Nơi công tác";
+        sheet.Range("F7:F8").Merge().Value = "Hội đồng";
+        sheet.Range("G7:G8").Merge().Value = "Chủ tịch HĐ";
+        sheet.Range("H7:H8").Merge().Value = "Nơi công tác";
+        sheet.Range("I7:I8").Merge().Value = "Ủy viên thư ký";
+        sheet.Range("J7:J8").Merge().Value = "Nơi công tác";
+        sheet.Range("K7:K8").Merge().Value = "Ủy viên phản biện";
+        sheet.Range("L7:L8").Merge().Value = "Nơi công tác";
+        sheet.Range("M7:N7").Merge().Value = "Thời gian đồ án tốt nghiệp";
+        sheet.Cell(8, 13).Value = "Buổi";
+        sheet.Cell(8, 14).Value = "Ngày";
 
-        sheet.Range("A1:D2").Style.Font.Bold = true;
-        sheet.Range("H1:M2").Style.Font.Bold = true;
-        sheet.Range("A4:M5").Style.Font.Bold = true;
-        sheet.Range("A4:M5").Style.Font.FontSize = 14;
+        sheet.Range("A1:E2").Style.Font.Bold = true;
+        sheet.Range("I1:N2").Style.Font.Bold = true;
+        sheet.Range("A4:N5").Style.Font.Bold = true;
+        sheet.Range("A4:N5").Style.Font.FontSize = 14;
 
-        sheet.Range("A1:D2").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
-        sheet.Range("H1:M2").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-        sheet.Range("A4:M5").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        sheet.Range("A1:E2").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+        sheet.Range("I1:N2").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+        sheet.Range("A4:N5").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
-        var headerRange = sheet.Range(7, 1, 8, 13);
+        var headerRange = sheet.Range(7, 1, 8, 14);
         headerRange.Style.Font.Bold = true;
         headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
@@ -145,17 +147,18 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
                 sheet.Cell(currentRow, 2).Value = row.StudentCode;
                 sheet.Cell(currentRow, 3).Value = row.StudentFullName;
                 sheet.Cell(currentRow, 4).Value = row.AdvisorDisplay;
-                sheet.Cell(currentRow, 5).Value = row.CommitteeCode;
-                sheet.Cell(currentRow, 6).Value = row.ChairDisplay;
-                sheet.Cell(currentRow, 7).Value = row.ChairWorkplace;
-                sheet.Cell(currentRow, 8).Value = row.SecretaryDisplay;
-                sheet.Cell(currentRow, 9).Value = row.SecretaryWorkplace;
-                sheet.Cell(currentRow, 10).Value = row.ReviewerDisplay;
-                sheet.Cell(currentRow, 11).Value = row.ReviewerWorkplace;
-                sheet.Cell(currentRow, 12).Value = row.DefenseSession;
-                sheet.Cell(currentRow, 13).Value = row.DefenseDate;
+                sheet.Cell(currentRow, 5).Value = row.AdvisorWorkplace;
+                sheet.Cell(currentRow, 6).Value = row.CommitteeCode;
+                sheet.Cell(currentRow, 7).Value = row.ChairDisplay;
+                sheet.Cell(currentRow, 8).Value = row.ChairWorkplace;
+                sheet.Cell(currentRow, 9).Value = row.SecretaryDisplay;
+                sheet.Cell(currentRow, 10).Value = row.SecretaryWorkplace;
+                sheet.Cell(currentRow, 11).Value = row.ReviewerDisplay;
+                sheet.Cell(currentRow, 12).Value = row.ReviewerWorkplace;
+                sheet.Cell(currentRow, 13).Value = row.DefenseSession;
+                sheet.Cell(currentRow, 14).Value = row.DefenseDate;
 
-                for (int col = 1; col <= 13; col++)
+                for (int col = 1; col <= 14; col++)
                 {
                     var cell = sheet.Cell(currentRow, col);
                     cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
@@ -168,7 +171,7 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
                 sheet.Cell(currentRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 sheet.Cell(currentRow, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
                 sheet.Cell(currentRow, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
-                sheet.Cell(currentRow, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                sheet.Cell(currentRow, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
                 sheet.Cell(currentRow, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 sheet.Cell(currentRow, 7).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 sheet.Cell(currentRow, 8).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
@@ -177,29 +180,30 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
                 sheet.Cell(currentRow, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 sheet.Cell(currentRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 sheet.Cell(currentRow, 13).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                sheet.Cell(currentRow, 14).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
                 currentRow++;
             }
 
             var groupEnd = currentRow - 1;
-            MergeVerticalGroup(sheet, 5, groupStart, groupEnd);
             MergeVerticalGroup(sheet, 6, groupStart, groupEnd);
             MergeVerticalGroup(sheet, 7, groupStart, groupEnd);
             MergeVerticalGroup(sheet, 8, groupStart, groupEnd);
             MergeVerticalGroup(sheet, 9, groupStart, groupEnd);
             MergeVerticalGroup(sheet, 10, groupStart, groupEnd);
             MergeVerticalGroup(sheet, 11, groupStart, groupEnd);
+            MergeVerticalGroup(sheet, 12, groupStart, groupEnd);
 
             var sessionGroups = BuildConsecutiveGroups(councilGroup, x => x.DefenseSession, groupStart);
             foreach (var sessionGroup in sessionGroups)
             {
-                MergeVerticalGroup(sheet, 12, sessionGroup.StartRow, sessionGroup.EndRow);
+                MergeVerticalGroup(sheet, 13, sessionGroup.StartRow, sessionGroup.EndRow);
             }
 
             var dateGroups = BuildConsecutiveGroups(councilGroup, x => x.DefenseDate, groupStart);
             foreach (var dateGroup in dateGroups)
             {
-                MergeVerticalGroup(sheet, 13, dateGroup.StartRow, dateGroup.EndRow);
+                MergeVerticalGroup(sheet, 14, dateGroup.StartRow, dateGroup.EndRow);
             }
         }
 
@@ -209,24 +213,24 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
     private static void BuildFooter(IXLWorksheet sheet, int startRow, int councilCount)
     {
         sheet.Cell(startRow, 2).Value = $"Ấn định danh sách có: {councilCount:00} Hội đồng";
-        sheet.Range(startRow, 2, startRow, 13).Merge();
+        sheet.Range(startRow, 2, startRow, 14).Merge();
         sheet.Row(startRow).Style.Font.Bold = true;
         sheet.Row(startRow).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
 
         // Put date one row after the summary (remove extra blank row)
-        sheet.Cell(startRow + 1, 9).Value = $"Hà Nội, ngày {DateTime.Now:dd} tháng {DateTime.Now:MM} năm {DateTime.Now:yyyy}";
-        sheet.Range(startRow + 1, 9, startRow + 1, 13).Merge();
+        sheet.Cell(startRow + 1, 10).Value = $"Hà Nội, ngày {DateTime.Now:dd} tháng {DateTime.Now:MM} năm {DateTime.Now:yyyy}";
+        sheet.Range(startRow + 1, 10, startRow + 1, 14).Merge();
         sheet.Row(startRow + 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
         // Signatures (bold)
         sheet.Cell(startRow + 2, 2).Value = "NGƯỜI LẬP BIỂU";
-        sheet.Cell(startRow + 2, 9).Value = "TRƯỞNG KHOA";
+        sheet.Cell(startRow + 2, 10).Value = "TRƯỞNG KHOA";
         sheet.Range(startRow + 2, 2, startRow + 2, 6).Merge();
-        sheet.Range(startRow + 2, 9, startRow + 2, 13).Merge();
+        sheet.Range(startRow + 2, 10, startRow + 2, 14).Merge();
         sheet.Range(startRow + 2, 2, startRow + 2, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        sheet.Range(startRow + 2, 9, startRow + 2, 13).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        sheet.Range(startRow + 2, 10, startRow + 2, 14).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         sheet.Range(startRow + 2, 2, startRow + 2, 6).Style.Font.Bold = true;
-        sheet.Range(startRow + 2, 9, startRow + 2, 13).Style.Font.Bold = true;
+        sheet.Range(startRow + 2, 10, startRow + 2, 14).Style.Font.Bold = true;
 
         // Clear a couple of rows after signatures for spacing
         sheet.Row(startRow + 3).Clear();
@@ -335,7 +339,7 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
         var culture = CultureInfo.InvariantCulture;
         var builder = new StringBuilder();
 
-        builder.AppendLine("TT,Mã SV,Họ tên,Người hướng dẫn,Hội đồng,Chủ tịch HĐ,Nơi công tác,Uỷ viên thư ký,Nơi công tác,Uỷ viên phản biện,Nơi công tác,Thời gian đồ án tốt nghiệp - Buổi,Thời gian đồ án tốt nghiệp - Ngày");
+        builder.AppendLine("TT,Mã SV,Họ tên,Người hướng dẫn,Nơi công tác,Hội đồng,Chủ tịch HĐ,Nơi công tác,Uỷ viên thư ký,Nơi công tác,Uỷ viên phản biện,Nơi công tác,Thời gian đồ án tốt nghiệp - Buổi,Thời gian đồ án tốt nghiệp - Ngày");
 
         foreach (var row in roster.Rows ?? Enumerable.Empty<CommitteeRosterRowDto>())
         {
@@ -345,6 +349,7 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
                 EscapeCsv(row.StudentCode),
                 EscapeCsv(row.StudentFullName),
                 EscapeCsv(row.AdvisorDisplay),
+                EscapeCsv(row.AdvisorWorkplace),
                 EscapeCsv(row.CommitteeCode),
                 EscapeCsv(row.ChairDisplay),
                 EscapeCsv(row.ChairWorkplace),
@@ -413,17 +418,18 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
                             {
                                 columns.ConstantColumn(24);
                                 columns.RelativeColumn(1.3f);
-                                columns.RelativeColumn(2f);
-                                columns.RelativeColumn(2f);
-                                columns.RelativeColumn(1.4f);
                                 columns.RelativeColumn(1.8f);
                                 columns.RelativeColumn(1.8f);
                                 columns.RelativeColumn(1.8f);
-                                columns.RelativeColumn(1.8f);
-                                columns.RelativeColumn(1.8f);
-                                columns.RelativeColumn(1.8f);
-                                columns.RelativeColumn(1.1f);
-                                columns.RelativeColumn(1.1f);
+                                columns.RelativeColumn(1.2f);
+                                columns.RelativeColumn(1.6f);
+                                columns.RelativeColumn(1.6f);
+                                columns.RelativeColumn(1.6f);
+                                columns.RelativeColumn(1.6f);
+                                columns.RelativeColumn(1.6f);
+                                columns.RelativeColumn(1.6f);
+                                columns.RelativeColumn(1.0f);
+                                columns.RelativeColumn(1.0f);
                             });
 
                             table.Header(header =>
@@ -432,6 +438,7 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
                                 header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Border(1).AlignCenter().Text("Mã SV");
                                 header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Border(1).AlignCenter().Text("Họ tên");
                                 header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Border(1).AlignCenter().Text("Người hướng dẫn");
+                                header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Border(1).AlignCenter().Text("Nơi công tác");
                                 header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Border(1).AlignCenter().Text("Hội đồng");
                                 header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Border(1).AlignCenter().Text("Chủ tịch HĐ");
                                 header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Border(1).AlignCenter().Text("Nơi công tác");
@@ -449,6 +456,7 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
                                 table.Cell().Border(1).Padding(4).Text(row.StudentCode);
                                 table.Cell().Border(1).Padding(4).Text(row.StudentFullName);
                                 table.Cell().Border(1).Padding(4).Text(row.AdvisorDisplay);
+                                table.Cell().Border(1).Padding(4).Text(row.AdvisorWorkplace);
                                 table.Cell().Border(1).Padding(4).AlignCenter().Text(row.CommitteeCode);
                                 table.Cell().Border(1).Padding(4).Text(row.ChairDisplay);
                                 table.Cell().Border(1).Padding(4).Text(row.ChairWorkplace);

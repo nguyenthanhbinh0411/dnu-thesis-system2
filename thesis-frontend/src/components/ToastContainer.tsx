@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 import { useToast } from '../context/useToast';
 import type { Toast as ToastType } from '../context/toastContextBase';
@@ -57,9 +58,12 @@ const Toast: React.FC<{ toast: ToastType; onClose: (id: string) => void }> = ({ 
 const ToastContainer: React.FC = () => {
   const { toasts, removeToast } = useToast();
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
-      className="fixed top-4 right-4 z-[6000] flex max-w-sm flex-col gap-2"
+      className="fixed top-4 right-4 z-[99999999] flex max-w-sm flex-col gap-2"
+      style={{ zIndex: 99999999 }}
       role="region"
       aria-live="polite"
       aria-atomic="true"
@@ -69,7 +73,8 @@ const ToastContainer: React.FC = () => {
           <Toast toast={toast} onClose={removeToast} />
         </div>
       ))}
-    </div>
+    </div>,
+    document.body
   );
 };
 

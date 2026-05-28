@@ -66,6 +66,11 @@ namespace ThesisManagement.Api.Controllers
         [HttpPost("create")]
         public async Task<IActionResult> Create([FromBody] ProgressSubmissionCreateDto dto)
         {
+            if (await IsActivePeriodPausedAsync())
+            {
+                return Conflict(ApiResponse<object>.Fail("Đợt đồ án tốt nghiệp đang tạm dừng. Không thể thực hiện thao tác này.", 409));
+            }
+
             var result = await _createProgressSubmissionCommand.ExecuteAsync(dto);
             if (!result.Success)
                 return StatusCode(result.StatusCode, ApiResponse<object>.Fail(result.ErrorMessage ?? "Request failed", result.StatusCode));
@@ -83,6 +88,11 @@ namespace ThesisManagement.Api.Controllers
         [HttpPut("update/{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] ProgressSubmissionUpdateDto dto)
         {
+            if (await IsActivePeriodPausedAsync())
+            {
+                return Conflict(ApiResponse<object>.Fail("Đợt đồ án tốt nghiệp đang tạm dừng. Không thể thực hiện thao tác này.", 409));
+            }
+
             var result = await _updateProgressSubmissionCommand.ExecuteAsync(id, dto);
             if (!result.Success)
                 return StatusCode(result.StatusCode, ApiResponse<object>.Fail(result.ErrorMessage ?? "Request failed", result.StatusCode));
@@ -92,6 +102,11 @@ namespace ThesisManagement.Api.Controllers
         [HttpDelete("delete/{id}")]
         public async Task<IActionResult> Delete(int id)
         {
+            if (await IsActivePeriodPausedAsync())
+            {
+                return Conflict(ApiResponse<object>.Fail("Đợt đồ án tốt nghiệp đang tạm dừng. Không thể thực hiện thao tác này.", 409));
+            }
+
             var result = await _deleteProgressSubmissionCommand.ExecuteAsync(id);
             if (!result.Success)
                 return StatusCode(result.StatusCode, ApiResponse<object>.Fail(result.ErrorMessage ?? "Request failed", result.StatusCode));

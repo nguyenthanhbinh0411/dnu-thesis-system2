@@ -277,6 +277,7 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                 {
                     StudentCode = periodStudent.StudentCode,
                     StudentName = students.TryGetValue(periodStudent.StudentCode, out var n) ? n : periodStudent.StudentCode,
+                    TopicCode = topic?.TopicCode,
                     TopicTitle = topic?.Title ?? string.Empty,
                     SupervisorCode = topic?.SupervisorLecturerCode,
                     Tags = topic != null && topicTagMap.TryGetValue(topic.TopicCode, out var tags) ? tags.ToList() : new List<string>(),
@@ -1983,22 +1984,29 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            var supervisorNameRows = new List<(string LecturerCode, string Name, string? Organization)>();
+            var supervisorNameRows = new List<(string LecturerCode, string Name, string? Organization, string? Degree)>();
             try
             {
-                supervisorNameRows = await _db.LecturerProfiles.AsNoTracking()
+                var queryRows = await _db.LecturerProfiles.AsNoTracking()
                     .Where(x => x.LecturerCode != null && supervisorCodes.Contains(x.LecturerCode))
-                    .Select(x => new ValueTuple<string, string, string?>(x.LecturerCode!, x.FullName ?? x.LecturerCode!, x.Organization))
+                    .Select(x => new { x.LecturerCode, x.FullName, x.Organization, x.Degree })
                     .ToListAsync(cancellationToken);
+
+                supervisorNameRows = queryRows
+                    .Select(x => (x.LecturerCode!, x.FullName ?? x.LecturerCode!, x.Organization, x.Degree))
+                    .ToList();
             }
             catch (Exception ex) when (ex.Message.Contains("ORA-00942", StringComparison.OrdinalIgnoreCase))
             {
-                supervisorNameRows = new List<(string LecturerCode, string Name, string? Organization)>();
+                supervisorNameRows = new List<(string LecturerCode, string Name, string? Organization, string? Degree)>();
             }
 
             var supervisorNameMap = supervisorNameRows
                 .Where(x => !string.IsNullOrWhiteSpace(x.LecturerCode))
-                .ToDictionary(x => x.LecturerCode!, x => x.Name, StringComparer.OrdinalIgnoreCase);
+                .ToDictionary(
+                    x => x.LecturerCode!, 
+                    x => !string.IsNullOrWhiteSpace(x.Degree) ? $"{x.Name} ({x.Degree})" : x.Name, 
+                    StringComparer.OrdinalIgnoreCase);
             var lecturerOrganizationMap = supervisorNameRows
                 .Where(x => !string.IsNullOrWhiteSpace(x.LecturerCode))
                 .ToDictionary(x => x.LecturerCode!, x => x.Organization, StringComparer.OrdinalIgnoreCase);
@@ -2957,7 +2965,7 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
 
             var councils = await _db.Committees.AsNoTracking()
                 .Where(c => c.DefenseTermId == periodId)
-                .OrderBy(c => c.CommitteeID)
+                .OrderBy(c => c.CommitteeCode)
                 .ToListAsync(cancellationToken);
 
             if (councils.Count == 0)
@@ -3013,7 +3021,11 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
             {
                 var committeeAssignments = assignments
                     .Where(a => a.CommitteeID == committee.CommitteeID)
-                    .OrderBy(a => a.Session).ThenBy(a => a.AssignmentID).ToList();
+                    .OrderBy(a => a.Session ?? 1)
+                    .ThenBy(a => a.OrderIndex ?? 0)
+                    .ThenBy(a => a.StartTime ?? TimeSpan.Zero)
+                    .ThenBy(a => a.AssignmentID)
+                    .ToList();
 
                 if (!memberDict.TryGetValue(committee.CommitteeID, out var committeeMembers))
                     committeeMembers = new List<ThesisManagement.Api.Models.CommitteeMember>();
@@ -3037,6 +3049,7 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                         StudentCode = studentCode,
                         StudentFullName = student?.FullName,
                         AdvisorDisplay = advisorDisplay,
+                        AdvisorWorkplace = advisorCode != null && lecturers.TryGetValue(advisorCode, out var advProfile) ? advProfile.Organization : null,
                         CommitteeCode = committee.CommitteeCode,
                         ChairDisplay = GetLecturerDisplay(chair, lecturers),
                         ChairWorkplace = GetLecturerWorkplace(chair, lecturers),
@@ -4865,6 +4878,7 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                 {
                     StudentCode = topic.ProposerStudentCode ?? string.Empty,
                     StudentName = topic.ProposerStudentCode != null && students.TryGetValue(topic.ProposerStudentCode, out var n) ? n : (topic.ProposerStudentCode ?? string.Empty),
+                    TopicCode = topic.TopicCode,
                     TopicTitle = topic.Title,
                     SupervisorCode = topic.SupervisorLecturerCode,
                     Tags = topicTagMap.TryGetValue(topic.TopicCode, out var morningTags)
@@ -4883,6 +4897,7 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                 {
                     StudentCode = topic.ProposerStudentCode ?? string.Empty,
                     StudentName = topic.ProposerStudentCode != null && students.TryGetValue(topic.ProposerStudentCode, out var n) ? n : (topic.ProposerStudentCode ?? string.Empty),
+                    TopicCode = topic.TopicCode,
                     TopicTitle = topic.Title,
                     SupervisorCode = topic.SupervisorLecturerCode,
                     Tags = topicTagMap.TryGetValue(topic.TopicCode, out var afternoonTags)

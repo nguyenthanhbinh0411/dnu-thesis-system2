@@ -135,7 +135,7 @@ export const academicModuleConfig: Record<ManagementModule, EntityConfig> = {
       { key: "studentCode", label: "Mã SV" },
       { key: "fullName", label: "Họ tên" },
       { key: "classCode", label: "Lớp" },
-      { key: "departmentCode", label: "Khoa/Bộ môn" },
+      { key: "departmentCode", label: "Khoa" },
       { key: "studentEmail", label: "Email" },
       { key: "status", label: "Trạng thái" },
     ],
@@ -143,7 +143,7 @@ export const academicModuleConfig: Record<ManagementModule, EntityConfig> = {
     advancedFilters: [
       { name: "studentCode", label: "Mã sinh viên" },
       { name: "userCode", label: "Mã user" },
-      { name: "departmentCode", label: "Khoa/Bộ môn" },
+      { name: "departmentCode", label: "Khoa" },
       { name: "classCode", label: "Lớp" },
       { name: "facultyCode", label: "Khoa viện" },
       { name: "academicStanding", label: "Học lực" },
@@ -183,7 +183,7 @@ export const academicModuleConfig: Record<ManagementModule, EntityConfig> = {
     tableColumns: [
       { key: "lecturerCode", label: "Mã GV" },
       { key: "fullName", label: "Họ tên" },
-      { key: "departmentCode", label: "Khoa/Bộ môn" },
+      { key: "departmentCode", label: "Khoa" },
       { key: "email", label: "Email" },
       { key: "degree", label: "Học vị" },
       { key: "currentGuidingCount", label: "Đang hướng dẫn" },
@@ -192,7 +192,7 @@ export const academicModuleConfig: Record<ManagementModule, EntityConfig> = {
     advancedFilters: [
       { name: "lecturerCode", label: "Mã giảng viên" },
       { name: "userCode", label: "Mã user" },
-      { name: "departmentCode", label: "Khoa/Bộ môn" },
+      { name: "departmentCode", label: "Khoa" },
       { name: "degree", label: "Học vị" },
       { name: "guideQuota", label: "Chỉ tiêu hướng dẫn", type: "number" },
       { name: "gender", label: "Giới tính" },
@@ -223,8 +223,8 @@ export const academicModuleConfig: Record<ManagementModule, EntityConfig> = {
   },
   departments: {
     moduleName: "departments",
-    title: "Quản lý khoa/bộ môn",
-    description: "CRUD khoa/bộ môn và import/export dữ liệu.",
+    title: "Quản lý khoa",
+    description: "CRUD khoa và import/export dữ liệu.",
     tableColumns: [
       { key: "departmentCode", label: "Mã khoa" },
       { key: "name", label: "Tên" },
@@ -233,7 +233,7 @@ export const academicModuleConfig: Record<ManagementModule, EntityConfig> = {
     fields: departmentsFields,
     advancedFilters: [
       { name: "departmentCode", label: "Mã khoa" },
-      { name: "name", label: "Tên khoa/bộ môn" },
+      { name: "name", label: "Tên khoa" },
     ],
     api: {
       listPath: "/Departments/get-list",
@@ -275,7 +275,7 @@ export const academicModuleConfig: Record<ManagementModule, EntityConfig> = {
     advancedFilters: [
       { name: "topicCode", label: "Mã đề tài" },
       { name: "title", label: "Tiêu đề" },
-      { name: "departmentCode", label: "Khoa/Bộ môn" },
+      { name: "departmentCode", label: "Khoa" },
       { name: "status", label: "Trạng thái" },
       { name: "type", label: "Loại đề tài" },
       { name: "proposerUserCode", label: "Mã người đề xuất" },
@@ -314,11 +314,11 @@ export const academicModuleConfig: Record<ManagementModule, EntityConfig> = {
   },
   tags: {
     moduleName: "tags",
-    title: "Quản lý tags",
-    description: "CRUD tag và import/export dữ liệu.",
+    title: "Quản lý Tag",
+    description: "Quản lý và cập nhật danh mục Tag.",
     tableColumns: [
-      { key: "tagCode", label: "Mã tag" },
-      { key: "tagName", label: "Tên tag" },
+      { key: "tagCode", label: "Mã Tag" },
+      { key: "tagName", label: "Tên Tag" },
       { key: "description", label: "Mô tả" },
     ],
     fields: [
@@ -327,8 +327,8 @@ export const academicModuleConfig: Record<ManagementModule, EntityConfig> = {
       { name: "description", label: "description", type: "textarea" },
     ],
     advancedFilters: [
-      { name: "tagCode", label: "Mã tag" },
-      { name: "tagName", label: "Tên tag" },
+      { name: "tagCode", label: "Mã Tag" },
+      { name: "tagName", label: "Tên Tag" },
     ],
     api: {
       listPath: "/Tags/list",
@@ -365,7 +365,7 @@ export const academicModuleConfig: Record<ManagementModule, EntityConfig> = {
     tableColumns: [
       { key: "catalogTopicCode", label: "Mã kho" },
       { key: "title", label: "Tiêu đề" },
-      { key: "departmentCode", label: "Khoa/Bộ môn" },
+      { key: "departmentCode", label: "Khoa" },
       { key: "assignedStatus", label: "Trạng thái" },
       { key: "tagCodes", label: "Tags" },
     ],
@@ -381,7 +381,7 @@ export const academicModuleConfig: Record<ManagementModule, EntityConfig> = {
     advancedFilters: [
       { name: "catalogTopicCode", label: "Mã kho" },
       { name: "title", label: "Tiêu đề" },
-      { name: "departmentCode", label: "Khoa/Bộ môn" },
+      { name: "departmentCode", label: "Khoa" },
       { name: "assignedStatus", label: "Trạng thái" },
       { name: "tagCode", label: "Mã tag" },
       { name: "tagName", label: "Tên tag" },

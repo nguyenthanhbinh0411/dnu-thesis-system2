@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ThesisManagement.Api.Application.Command.Workflows;
 using ThesisManagement.Api.Application.Query.Workflows;
 using ThesisManagement.Api.DTOs;
 using ThesisManagement.Api.DTOs.Workflows.Command;
 using ThesisManagement.Api.DTOs.Workflows.Query;
+using ThesisManagement.Api.Services;
 
 namespace ThesisManagement.Api.Controllers
 {
@@ -21,6 +23,7 @@ namespace ThesisManagement.Api.Controllers
         private readonly IResubmitTopicWorkflowCommand _resubmitCommand;
         private readonly IDecideTopicWorkflowCommand _decideCommand;
         private readonly IRollbackStudentWorkflowTestDataCommand _rollbackCommand;
+        private readonly IUnitOfWork _uow;
 
         public TopicWorkflowController(
             IGetTopicWorkflowAuditHistoryQuery getAuditHistoryQuery,
@@ -30,7 +33,8 @@ namespace ThesisManagement.Api.Controllers
             ISubmitTopicWorkflowCommand submitCommand,
             IResubmitTopicWorkflowCommand resubmitCommand,
             IDecideTopicWorkflowCommand decideCommand,
-            IRollbackStudentWorkflowTestDataCommand rollbackCommand)
+            IRollbackStudentWorkflowTestDataCommand rollbackCommand,
+            IUnitOfWork uow)
         {
             _getAuditHistoryQuery = getAuditHistoryQuery;
             _getTimelineByTopicIdQuery = getTimelineByTopicIdQuery;
@@ -40,6 +44,13 @@ namespace ThesisManagement.Api.Controllers
             _resubmitCommand = resubmitCommand;
             _decideCommand = decideCommand;
             _rollbackCommand = rollbackCommand;
+            _uow = uow;
+        }
+
+        private async Task<bool> IsActivePeriodPausedAsync(CancellationToken cancellationToken)
+        {
+            return await _uow.DefenseTerms.Query().AsNoTracking()
+                .AnyAsync(x => x.Status == "Paused", cancellationToken);
         }
 
         [HttpGet("audits")]
@@ -90,6 +101,11 @@ namespace ThesisManagement.Api.Controllers
         [Authorize(Roles = "Student,Admin,StudentService")]
         public async Task<IActionResult> Submit([FromBody] TopicResubmitWorkflowRequestDto request)
         {
+            if (await IsActivePeriodPausedAsync(HttpContext.RequestAborted))
+            {
+                return Conflict(ApiResponse<object>.Fail("Đợt đồ án tốt nghiệp đang tạm dừng. Không thể thực hiện thao tác này.", 409));
+            }
+
             var result = await _submitCommand.ExecuteAsync(request);
             if (!result.Success)
                 return StatusCode(result.StatusCode, ApiResponse<object>.Fail(result.ErrorMessage ?? "Request failed", result.StatusCode));
@@ -101,6 +117,11 @@ namespace ThesisManagement.Api.Controllers
         [Authorize(Roles = "Student,Admin,StudentService")]
         public async Task<IActionResult> Resubmit([FromBody] TopicResubmitWorkflowRequestDto request)
         {
+            if (await IsActivePeriodPausedAsync(HttpContext.RequestAborted))
+            {
+                return Conflict(ApiResponse<object>.Fail("Đợt đồ án tốt nghiệp đang tạm dừng. Không thể thực hiện thao tác này.", 409));
+            }
+
             var result = await _resubmitCommand.ExecuteAsync(request);
             if (!result.Success)
                 return StatusCode(result.StatusCode, ApiResponse<object>.Fail(result.ErrorMessage ?? "Request failed", result.StatusCode));
@@ -112,6 +133,11 @@ namespace ThesisManagement.Api.Controllers
         [Authorize(Roles = "Lecturer,Head,Admin,StudentService")]
         public async Task<IActionResult> Decide(int topicId, [FromBody] TopicDecisionWorkflowRequestDto request)
         {
+            if (await IsActivePeriodPausedAsync(HttpContext.RequestAborted))
+            {
+                return Conflict(ApiResponse<object>.Fail("Đợt đồ án tốt nghiệp đang tạm dừng. Không thể thực hiện thao tác này.", 409));
+            }
+
             var result = await _decideCommand.ExecuteAsync(topicId, request);
             if (!result.Success)
                 return StatusCode(result.StatusCode, ApiResponse<object>.Fail(result.ErrorMessage ?? "Request failed", result.StatusCode));
@@ -123,6 +149,11 @@ namespace ThesisManagement.Api.Controllers
         [Authorize(Roles = "Student,Admin,StudentService")]
         public async Task<IActionResult> RollbackMyTestData([FromQuery] string? topicCode)
         {
+            if (await IsActivePeriodPausedAsync(HttpContext.RequestAborted))
+            {
+                return Conflict(ApiResponse<object>.Fail("Đợt đồ án tốt nghiệp đang tạm dừng. Không thể thực hiện thao tác này.", 409));
+            }
+
             var result = await _rollbackCommand.ExecuteAsync(topicCode);
             if (!result.Success)
                 return StatusCode(result.StatusCode, ApiResponse<object>.Fail(result.ErrorMessage ?? "Request failed", result.StatusCode));

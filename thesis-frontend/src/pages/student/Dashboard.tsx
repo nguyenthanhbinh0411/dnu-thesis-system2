@@ -620,7 +620,7 @@ const Dashboard: React.FC = () => {
                     <p className="stu-meta-value">{studentProfile.classCode}</p>
                   </div>
                   <div className="stu-profile-item">
-                    <span className="stu-meta-label">Khoa / Bộ môn</span>
+                    <span className="stu-meta-label">Khoa</span>
                     <p className="stu-meta-value">
                       {studentProfile.facultyCode} -{" "}
                       {studentProfile.departmentCode}

@@ -89,8 +89,8 @@ const LecturerLayout: React.FC = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [canViewDefenseMenus, setCanViewDefenseMenus] = useState(false);
-  const [canViewRevisionMenu, setCanViewRevisionMenu] = useState(false);
+  const [canViewDefenseMenus, setCanViewDefenseMenus] = useState(true);
+  const [canViewRevisionMenu, setCanViewRevisionMenu] = useState(true);
   const [headerPeriod, setHeaderPeriod] = useState<{
     label: string;
     tone: "normal" | "warning" | "error";
@@ -198,8 +198,6 @@ const LecturerLayout: React.FC = () => {
         }
 
         if (result.ok) {
-          setCanViewDefenseMenus(result.hasCommitteeAccess);
-          setCanViewRevisionMenu(result.isSecretary && result.hasPendingRevisions);
           const periodName = result.period.name || `Đợt ${result.period.periodId}`;
           setActiveDefensePeriodId(result.period.periodId);
           if (typeof window !== "undefined") {
@@ -213,8 +211,6 @@ const LecturerLayout: React.FC = () => {
           return;
         }
 
-        setCanViewDefenseMenus(false);
-        setCanViewRevisionMenu(false);
         if (typeof window !== "undefined") {
           window.localStorage.removeItem("activeDefensePeriodStatus");
         }
@@ -277,7 +273,6 @@ const LecturerLayout: React.FC = () => {
       } catch (error) {
         if (cancelled) return;
 
-        setCanViewDefenseMenus(false);
         if (typeof window !== "undefined") {
           window.localStorage.removeItem("activeDefensePeriodStatus");
         }

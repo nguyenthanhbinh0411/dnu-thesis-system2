@@ -14,6 +14,8 @@ public class CommitteeRosterRowDto
     
     public string? AdvisorDisplay { get; set; }
     
+    public string? AdvisorWorkplace { get; set; }
+    
     public string? CommitteeCode { get; set; }
     
     public string? ChairDisplay { get; set; }
