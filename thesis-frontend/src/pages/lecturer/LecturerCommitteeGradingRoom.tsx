@@ -63,11 +63,17 @@ import {
     XCircle,
     AlertTriangle,
     ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    Menu,
     Activity,
     Flag,
     Circle,
 } from "lucide-react";
 import { getAccessToken } from "../../services/auth-session.service";
+import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from "@microsoft/signalr";
+import { API_BASE_PATH } from "../../utils/apiConfig";
+
 
 type Committee = {
     id: string;
@@ -104,6 +110,7 @@ type CommitteeMemberView = {
     roleLabel: string;
     isOnline?: boolean;
     onlineStatus: MemberOnlineStatus;
+    lastActiveLabel?: string | null;
 };
 
 type RevisionRequest = {
@@ -1417,6 +1424,11 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
     const [roomNow, setRoomNow] = useState<Date>(() => new Date());
     const [gradingLoadingProgress, setGradingLoadingProgress] = useState(0);
 
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [onlineLecturerCodes, setOnlineLecturerCodes] = useState<string[]>([]);
+    const [hubConnection, setHubConnection] = useState<HubConnection | null>(null);
+
+
     const submitted = submittedByAssignment[selectedAssignmentId] ?? false;
     const lastSubmitIntent = lastSubmitIntentByAssignment[selectedAssignmentId] ?? "score";
     const [gradingLoadingReady, setGradingLoadingReady] = useState(false);
@@ -1790,12 +1802,15 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                     onlineStatus: toMemberOnlineStatus(
                         pickSnapshotSection<unknown>(record, ["onlineStatus", "OnlineStatus"], "UNKNOWN"),
                     ),
+                    lastActiveLabel: toStringOrNull(
+                        pickSnapshotSection<unknown>(record, ["lastActiveLabel", "LastActiveLabel"], null),
+                    ),
                     ...(readCommitteeMemberOnlineFlag(record) != null
                         ? { isOnline: readCommitteeMemberOnlineFlag(record) ?? false }
                         : {}),
                 };
             })
-            .filter((member): member is CommitteeMemberView => Boolean(member));
+            .filter((member): member is any => member !== null) as CommitteeMemberView[];
     };
 
     const mapScoringMatrixRows = (
@@ -2713,7 +2728,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
 
     const canEditReviewerComments = canEditReviewerByActions && isReviewerRole;
     const canViewMinutesTab = isChairRole || isSecretaryRole;
-    const canViewReviewTab = isChairRole || isReviewerRole;
+    const canViewReviewTab = isChairRole || isReviewerRole || isSecretaryRole;
 
     const canApproveRevisionByActions = hasAllowedAction(
         selectedRevisionActions,
@@ -2836,6 +2851,132 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         setRevisionReason("");
         setRevisionDeadlineDays("");
     }, [isChairRole, selectedCommitteeId, selectedAssignmentId]);
+
+    useEffect(() => {
+        if (!joinedCommittee || !selectedCommitteeNumericId) {
+            setOnlineLecturerCodes([]);
+            return;
+        }
+
+        const defaultHubUrl = `/hubs/defense`;
+        const envUrl = import.meta.env.VITE_DEFENSE_HUB_URL;
+        const hubUrl = envUrl 
+            ? envUrl.toString() 
+            : `${window.location.origin}${defaultHubUrl}`;
+
+        console.log("GRADEROOM SignalR connecting to:", hubUrl, "with selectedCommitteeNumericId:", selectedCommitteeNumericId);
+
+        const connection = new HubConnectionBuilder()
+            .withUrl(hubUrl, {
+                accessTokenFactory: () => getAccessToken() ?? "",
+            })
+            .withAutomaticReconnect()
+            .configureLogging(LogLevel.Warning)
+            .build();
+
+        connection.on("MemberOnlineStatusChanged", (event: any) => {
+            const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+            const lecturerCode = pickCaseInsensitiveValue<string>(event, ["lecturerCode", "LecturerCode"], "");
+            const status = pickCaseInsensitiveValue<string>(event, ["status", "Status"], "");
+
+            console.log("GRADEROOM SignalR MemberOnlineStatusChanged event received:", { committeeId, lecturerCode, status });
+
+            if (Number(committeeId) === selectedCommitteeNumericId) {
+                const code = String(lecturerCode || "").trim().toUpperCase();
+                if (code) {
+                    const isOnline = String(status).toUpperCase() === "ONLINE";
+                    if (isOnline) {
+                        setOnlineLecturerCodes(prev => [...new Set([...prev, code])]);
+                    } else {
+                        setOnlineLecturerCodes(prev => prev.filter(c => c !== code));
+                    }
+
+                    // Also dynamically update the committee member's lastActiveLabel in committees list state
+                    const nowStr = new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+                    const labelStr = isOnline ? `Vào lúc ${nowStr}` : `Rời lúc ${nowStr}`;
+
+                    setCommittees(prev => 
+                        prev.map(c => {
+                            if (c.numericId === Number(committeeId)) {
+                                return {
+                                    ...c,
+                                    members: c.members.map(m => {
+                                        if (m.lecturerCode.trim().toUpperCase() === code) {
+                                            return {
+                                                ...m,
+                                                isOnline,
+                                                onlineStatus: isOnline ? "ONLINE" : "OFFLINE",
+                                                lastActiveLabel: labelStr
+                                            };
+                                        }
+                                        return m;
+                                    })
+                                };
+                            }
+                            return c;
+                        })
+                    );
+                }
+            }
+        });
+
+        const startHubConnection = async () => {
+            try {
+                await connection.start();
+                console.log("GRADEROOM SignalR connected successfully. Connection state:", connection.state);
+                if (connection.state === HubConnectionState.Connected) {
+                    setHubConnection(connection);
+                    console.log("GRADEROOM SignalR invoking JoinCommittee with:", selectedCommitteeNumericId);
+                    await connection.invoke("JoinCommittee", selectedCommitteeNumericId);
+                    
+                    console.log("GRADEROOM SignalR invoking GetOnlineMembers with:", selectedCommitteeNumericId);
+                    const initialOnline = await connection.invoke<string[]>("GetOnlineMembers", selectedCommitteeNumericId);
+                    console.log("GRADEROOM SignalR GetOnlineMembers result:", initialOnline);
+                    const normalized = (initialOnline || []).map(code => code.trim().toUpperCase());
+                    setOnlineLecturerCodes(normalized);
+                }
+            } catch (err) {
+                console.error("GRADEROOM SignalR Connection Error: ", err);
+            }
+        };
+
+        void startHubConnection();
+
+        return () => {
+            const stopHubConnection = async () => {
+                if (connection.state === HubConnectionState.Connected) {
+                    try {
+                        await connection.invoke("LeaveCommittee", selectedCommitteeNumericId);
+                    } catch (err) {
+                        // ignore
+                    }
+                }
+                try {
+                    await connection.stop();
+                } catch (err) {
+                    // ignore
+                }
+                setHubConnection(null);
+                setOnlineLecturerCodes([]);
+            };
+            void stopHubConnection();
+        };
+    }, [joinedCommittee, selectedCommitteeNumericId]);
+
+    // Browser tab close protection (beforeunload)
+    useEffect(() => {
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            if (joinedCommittee && joinedCommittee.status !== "Đã đóng") {
+                event.preventDefault();
+                event.returnValue = "Hội đồng chưa đóng phiên. Bạn có chắc chắn muốn rời đi?";
+                return event.returnValue;
+            }
+        };
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => {
+            window.removeEventListener("beforeunload", handleBeforeUnload);
+        };
+    }, [joinedCommittee]);
 
     useEffect(() => {
         const timer = window.setInterval(() => {
@@ -3015,10 +3156,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             return;
         }
 
-        const reason = requestActionReason(`Nhập lý do mở phiên hội đồng ${committee.id}:`);
-        if (!reason) {
-            return;
-        }
+        const reason = `Mở phiên hội đồng ${committee.id}`;
 
         try {
             const idempotencyKey = createIdempotencyKey(periodIdText || "NA", `secretary-open-${committee.id}`);
@@ -3088,10 +3226,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             return;
         }
 
-        const reason = requestActionReason(`Nhập lý do tiếp tục phiên hội đồng ${committee.id}:`);
-        if (!reason) {
-            return;
-        }
+        const reason = `Tiếp tục phiên hội đồng ${committee.id}`;
 
         try {
             const idempotencyKey = createIdempotencyKey(periodIdText || "NA", `secretary-resume-${committee.id}`);
@@ -3118,10 +3253,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             return;
         }
 
-        const reason = requestActionReason(`Nhập lý do đóng phiên hội đồng ${committee.id}:`);
-        if (!reason) {
-            return;
-        }
+        const reason = `Đóng phiên hội đồng ${committee.id}`;
 
         try {
             const idempotencyKey = createIdempotencyKey(periodIdText || "NA", `secretary-close-${committee.id}`);
@@ -3287,12 +3419,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             return;
         }
 
-        const reason = window.prompt(`Nhập lý do chốt điểm hội đồng ${selectedCommitteeId || selectedCommitteeNumericId}:`);
-        const trimmedReason = reason?.trim();
-        if (!trimmedReason) {
-            notifyInfo("Vui lòng nhập lý do thực hiện.");
-            return;
-        }
+        const trimmedReason = `Chốt điểm hội đồng ${selectedCommitteeId || selectedCommitteeNumericId}`;
 
         try {
             const submittedOk = await handleSubmitScore({ suppressToast: true });
@@ -3454,20 +3581,24 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             <style>
                 {`
           .lecturer-revamp-root {
-            --lec-accent: #f37021;
-            --lec-accent-strong: #d85f1a;
-            --lec-ink: #111111;
-            --lec-muted: #475569;
-            --lec-line: #cbd5e1;
-            --lec-bg-soft: #f8fafc;
-            color: var(--lec-ink);
+            --primary: #F37021;
+            --primary-light: #fff7ed;
+            --secondary: #1e3a8a;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --bg-card: #ffffff;
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --shadow-md: 0 10px 25px -5px rgba(0,0,0,0.05);
+            --shadow-lg: 0 20px 25px -5px rgba(0,0,0,0.1);
+            color: var(--text-main);
             background: #ffffff;
           }
           .lecturer-revamp-root .content {
             position: relative;
             z-index: 1;
             display: grid;
-            gap: 14px;
+            gap: 20px;
           }
           .lecturer-revamp-root h1,
           .lecturer-revamp-root h2,
@@ -3681,33 +3812,54 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
           }
           .lecturer-revamp-root .lec-left-pane,
           .lecturer-revamp-root .lec-right-pane {
-            border: 1px solid #cbd5e1;
-            border-radius: 10px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: var(--radius-md);
             background: #ffffff;
-            padding: 16px;
-            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+            padding: 24px;
+            box-shadow: var(--shadow-md);
           }
           .lecturer-revamp-root .lec-assign-list {
-            display: grid;
-            gap: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 480px;
+            overflow-y: auto;
+            padding-right: 6px;
+          }
+          .lecturer-revamp-root .lec-assign-list::-webkit-scrollbar {
+            width: 6px;
+          }
+          .lecturer-revamp-root .lec-assign-list::-webkit-scrollbar-track {
+            background: #f8fafc;
+            border-radius: 4px;
+          }
+          .lecturer-revamp-root .lec-assign-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+          }
+          .lecturer-revamp-root .lec-assign-list::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
           }
           .lecturer-revamp-root .lec-assign-btn {
-            border: 1px solid #cbd5e1;
-            border-radius: 10px;
-            padding: 12px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 12px;
+            padding: 16px;
             text-align: left;
             background: #ffffff;
             cursor: pointer;
-            color: #111111;
-            transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
+            color: var(--text-main);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01), 0 2px 4px -1px rgba(0,0,0,0.01);
           }
           .lecturer-revamp-root .lec-assign-btn:hover {
-            border-color: #f37021;
-            background: #fffaf5;
+            border-color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
           }
           .lecturer-revamp-root .lec-assign-btn.active {
-            border-color: #f37021;
-            background: #fff7ed;
+            border-color: var(--primary);
+            background: var(--primary-light);
+            border-width: 2px;
           }
           .lecturer-revamp-root .lec-room-header {
             border: 1px solid #cbd5e1;
@@ -3751,11 +3903,17 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             gap: 10px;
           }
           .lecturer-revamp-root .lec-score-item {
-            border: 1px solid #cbd5e1;
-            border-radius: 10px;
-            padding: 12px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 12px;
+            padding: 16px;
             background: #ffffff;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+            box-shadow: var(--shadow-md);
+            transition: all 0.3s ease;
+          }
+          .lecturer-revamp-root .lec-score-item:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary);
+            box-shadow: var(--shadow-lg);
           }
           .lecturer-revamp-root button svg,
           .lecturer-revamp-root a svg {
@@ -3792,6 +3950,20 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             }
             .lecturer-revamp-root .lec-committee-actions {
               grid-template-columns: 1fr;
+            }
+          }
+          @keyframes pulse-green {
+            0% {
+              transform: scale(0.95);
+              box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            }
+            70% {
+              transform: scale(1);
+              box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+            }
+            100% {
+              transform: scale(0.95);
+              box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
             }
           }
         `}
@@ -3921,53 +4093,165 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                 )}
 
                 {isGradingScreen && activePanel === "grading" && joinedCommittee && (
-                    <section style={cardStyle}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-                            <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <LayoutDashboard size={18} /> Phòng chấm điểm hội đồng
-                            </h2>
-                            <div className="lec-room-switch">
-                                <span className="lec-tag-live">{joinedCommittee.id} · {joinedCommittee.name}</span>
-                                <span
-                                    style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: 6,
-                                        padding: "6px 10px",
-                                        borderRadius: 999,
-                                        border: `1px solid ${getCommitteeStatusVisual(joinedCommittee.status).chipBorder}`,
-                                        background: getCommitteeStatusVisual(joinedCommittee.status).chipBg,
-                                        color: getCommitteeStatusVisual(joinedCommittee.status).chipText,
-                                        fontSize: 12,
-                                        fontWeight: 500,
-                                    }}
-                                >
-                                    {getCommitteeStatusVisual(joinedCommittee.status).icon} {getCommitteeStatusVisual(joinedCommittee.status).label}
-                                </span>
-                                <span className="lec-clock-chip">
-                                    <Clock3 size={13} /> {roomNow.toLocaleTimeString("vi-VN", { hour12: false })}
-                                </span>
-                                <button
-                                    type="button"
-                                    className="lec-ghost"
-                                    onClick={() => {
-                                        const shouldLeave = window.confirm(
-                                            "Bạn có chắc chắn muốn rời phòng chấm điểm hội đồng?",
-                                        );
-                                        if (!shouldLeave) {
-                                            return;
+                    <div style={{ display: "flex", flexDirection: "column", gap: "20px", width: "100%", padding: "20px", background: "#f8fafc", fontFamily: '"Outfit", "Be Vietnam Pro", "Inter", "Segoe UI", sans-serif' }}>
+                        {/* Immersive Dark Header Hero */}
+                        <div style={{
+                            background: "linear-gradient(135deg, #1e293b 0%, #334155 100%)",
+                            borderRadius: "24px",
+                            padding: "32px",
+                            color: "white",
+                            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.15)",
+                            position: "relative",
+                            overflow: "hidden",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: "20px",
+                            flexWrap: "wrap"
+                        }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                <div style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                    background: "rgba(243, 112, 33, 0.2)",
+                                    color: "#fb923c",
+                                    padding: "6px 14px",
+                                    borderRadius: "99px",
+                                    fontSize: "13px",
+                                    fontWeight: "700",
+                                    border: "1px solid rgba(243, 112, 33, 0.3)",
+                                    width: "fit-content"
+                                }}>
+                                    <Gavel size={14} /> PHÒNG CHẤM ĐIỂM HỘI ĐỒNG
+                                </div>
+                                <h1 style={{ fontSize: "28px", fontWeight: "900", margin: "0", letterSpacing: "-0.02em", color: "#ffffff" }}>
+                                    Hội đồng <span style={{ color: '#f37021' }}>{joinedCommittee.name}</span>
+                                </h1>
+                                <p style={{ fontSize: "14px", color: "#cbd5e1", margin: 0, fontWeight: 500 }}>
+                                    Mã hội đồng: <strong>{joinedCommittee.id}</strong>
+                                </p>
+                                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center", marginTop: "12px" }}>
+                                    <div style={{ 
+                                        display: "flex", 
+                                        alignItems: "center", 
+                                        gap: "8px", 
+                                        fontSize: "13px", 
+                                        color: "#fed7aa", 
+                                        background: "rgba(243, 112, 33, 0.08)", 
+                                        padding: "6px 14px", 
+                                        borderRadius: "99px",
+                                        border: "1px solid rgba(243, 112, 33, 0.25)",
+                                        fontWeight: "600",
+                                        boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+                                    }}>
+                                        <MapPin size={14} color="#fb923c" /> {joinedCommittee.room}
+                                    </div>
+                                    <div style={{ 
+                                        display: "flex", 
+                                        alignItems: "center", 
+                                        gap: "8px", 
+                                        fontSize: "13px", 
+                                        color: "#bae6fd", 
+                                        background: "rgba(14, 165, 233, 0.08)", 
+                                        padding: "6px 14px", 
+                                        borderRadius: "99px",
+                                        border: "1px solid rgba(14, 165, 233, 0.25)",
+                                        fontWeight: "600",
+                                        boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+                                    }}>
+                                        <Clock3 size={14} color="#38bdf8" /> {formatSession(joinedCommittee.session)}
+                                    </div>
+                                    <div style={{ 
+                                        display: "flex", 
+                                        alignItems: "center", 
+                                        gap: "8px", 
+                                        fontSize: "13px", 
+                                        color: "#a7f3d0", 
+                                        background: "rgba(16, 185, 129, 0.08)", 
+                                        padding: "6px 14px", 
+                                        borderRadius: "99px",
+                                        border: "1px solid rgba(16, 185, 129, 0.25)",
+                                        fontWeight: "600",
+                                        boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+                                    }}>
+                                        <Users2 size={14} color="#34d399" /> {joinedCommittee.studentCount} Đề tài
+                                    </div>
+                                    {(() => {
+                                        const status = joinedCommittee.status;
+                                        let bg = "rgba(34, 197, 94, 0.15)";
+                                        let border = "1px solid rgba(34, 197, 94, 0.4)";
+                                        let text = "#d1fae5";
+                                        let icon = <CalendarDays size={14} color="#34d399" />;
+                                        let label = "Sắp diễn ra";
+
+                                        if (status === "Đang họp") {
+                                            bg = "rgba(249, 115, 22, 0.15)";
+                                            border = "1px solid rgba(249, 115, 22, 0.45)";
+                                            text = "#ffedd5";
+                                            icon = <Activity size={14} color="#f97316" />;
+                                            label = "Đang họp";
+                                        } else if (status === "Tạm dừng") {
+                                            bg = "rgba(245, 158, 11, 0.15)";
+                                            border = "1px solid rgba(245, 158, 11, 0.45)";
+                                            text = "#fef3c7";
+                                            icon = <PauseCircle size={14} color="#f59e0b" />;
+                                            label = "Tạm dừng";
+                                        } else if (status === "Đã chốt") {
+                                            bg = "rgba(99, 102, 241, 0.18)";
+                                            border = "1px solid rgba(99, 102, 241, 0.45)";
+                                            text = "#e0e7ff";
+                                            icon = <Lock size={14} color="#818cf8" />;
+                                            label = "Đã chốt";
+                                        } else if (status === "Đã đóng") {
+                                            bg = "rgba(148, 163, 184, 0.15)";
+                                            border = "1px solid rgba(148, 163, 184, 0.35)";
+                                            text = "#f1f5f9";
+                                            icon = <Flag size={14} color="#94a3b8" />;
+                                            label = "Đã đóng";
                                         }
 
-                                        setJoinedCommitteeId("");
-                                        setSelectedCommitteeId("");
-                                        setWorkspaceTab("scoring");
-                                        setActivePanel("councils");
-                                        notifyInfo("Đã rời phòng chấm điểm hội đồng.");
-                                        navigate("/lecturer/committees");
-                                    }}
-                                >
-                                    <ArrowRight size={14} /> Rời phòng
-                                </button>
+                                        return (
+                                            <span
+                                                style={{
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    gap: "8px",
+                                                    padding: "6px 14px",
+                                                    borderRadius: "99px",
+                                                    border,
+                                                    background: bg,
+                                                    color: text,
+                                                    fontSize: "13px",
+                                                    fontWeight: "600",
+                                                    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                                                    transition: "all 0.2s ease"
+                                                }}
+                                            >
+                                                {icon} {label}
+                                            </span>
+                                        );
+                                    })()}
+                                    <span style={{ 
+                                        display: "inline-flex", 
+                                        alignItems: "center", 
+                                        gap: "8px", 
+                                        padding: "6px 14px", 
+                                        borderRadius: "99px", 
+                                        background: "rgba(255, 255, 255, 0.06)", 
+                                        color: "#e2e8f0", 
+                                        border: "1px solid rgba(255,255,255,0.15)", 
+                                        fontSize: "13px", 
+                                        fontWeight: "600",
+                                        boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+                                    }}>
+                                        <Clock3 size={13} color="#cbd5e1" /> {roomNow.toLocaleTimeString("vi-VN", { hour12: false })}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Header Buttons Block */}
+                            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
                                 {/* Role-specific session actions */}
                                 {(isSecretaryRole || isChairRole) && (
                                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -3977,6 +4261,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                 className="lec-primary"
                                                 disabled={!canOpenSession}
                                                 onClick={() => { void handleSecretaryOpenSession(selectedCommittee); }}
+                                                style={{ borderRadius: "12px", height: "40px", fontWeight: "700" }}
                                             >
                                                 <CalendarClock size={14} /> Mở phiên
                                             </button>
@@ -3987,6 +4272,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                 type="button"
                                                 className="lec-primary"
                                                 onClick={() => { void handleSecretaryPauseSession(selectedCommittee); }}
+                                                style={{ borderRadius: "12px", height: "40px", fontWeight: "700" }}
                                             >
                                                 <PauseCircle size={14} /> Tạm dừng phiên
                                             </button>
@@ -3997,6 +4283,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                 type="button"
                                                 className="lec-primary"
                                                 onClick={() => { void handleSecretaryResumeSession(selectedCommittee); }}
+                                                style={{ borderRadius: "12px", height: "40px", fontWeight: "700" }}
                                             >
                                                 <PlayCircle size={14} /> Tiếp tục phiên
                                             </button>
@@ -4008,26 +4295,29 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                 className="lec-primary"
                                                 disabled={!canLockSession}
                                                 onClick={() => { void handleChairLockSession(); }}
+                                                style={{ borderRadius: "12px", height: "40px", fontWeight: "700" }}
                                             >
                                                 <Lock size={14} /> Chốt điểm
                                             </button>
                                         )}
 
-                                        {selectedCommittee?.status === "Đã chốt" && isChairRole && (
+                                        {selectedCommittee?.status === "Đã chốt" && (
                                             <>
-                                                <button
-                                                    type="button"
-                                                    style={{ padding: "0 14px", minHeight: 40, borderRadius: 10, border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontWeight: 700, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}
-                                                    onClick={() => { void handleChairUnlockSession(); }}
-                                                >
-                                                    <Unlock size={14} /> Mở chốt điểm
-                                                </button>
+                                                {isChairRole && (
+                                                    <button
+                                                        type="button"
+                                                        style={{ padding: "0 14px", minHeight: 40, borderRadius: 12, border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontWeight: 700, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+                                                        onClick={() => { void handleChairUnlockSession(); }}
+                                                    >
+                                                        <Unlock size={14} /> Mở chốt điểm
+                                                    </button>
+                                                )}
 
                                                 {isSecretaryRole && (
                                                     <button
                                                         type="button"
                                                         className="lec-primary"
-                                                        style={{ background: "#1e293b", borderColor: "#1e293b" }}
+                                                        style={{ background: "#1e293b", borderColor: "#1e293b", borderRadius: "12px", height: "40px", fontWeight: "700" }}
                                                         onClick={() => { void handleSecretaryCloseSession(selectedCommittee); }}
                                                     >
                                                         <CheckCircle2 size={14} /> Đóng phiên vĩnh viễn
@@ -4037,326 +4327,637 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                         )}
                                     </div>
                                 )}
+
+                                <button
+                                    type="button"
+                                    onClick={() => setPreviewModalType("scoreSheet")}
+                                    style={{
+                                        borderRadius: "12px",
+                                        height: "40px",
+                                        padding: "0 16px",
+                                        fontWeight: "700",
+                                        background: "rgba(243, 112, 33, 0.18)",
+                                        border: "1px solid rgba(243, 112, 33, 0.4)",
+                                        color: "#ffedd5",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "8px",
+                                        cursor: "pointer",
+                                        transition: "all 0.2s ease-in-out",
+                                        fontSize: "13px"
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = "rgba(243, 112, 33, 0.28)";
+                                        e.currentTarget.style.borderColor = "rgba(243, 112, 33, 0.65)";
+                                        e.currentTarget.style.color = "#ffffff";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = "rgba(243, 112, 33, 0.18)";
+                                        e.currentTarget.style.borderColor = "rgba(243, 112, 33, 0.4)";
+                                        e.currentTarget.style.color = "#ffedd5";
+                                    }}
+                                >
+                                    <Eye size={14} /> Xem bảng điểm
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="lec-ghost"
+                                    onClick={() => {
+                                        const isClosed = joinedCommittee.status === "Đã đóng";
+                                        const confirmMsg = isClosed
+                                            ? "Bạn có chắc chắn muốn rời phòng chấm điểm hội đồng?"
+                                            : "Hội đồng chưa đóng phiên. Bạn có chắc chắn muốn rời phòng chấm điểm?";
+                                        const shouldLeave = window.confirm(confirmMsg);
+                                        if (!shouldLeave) {
+                                            return;
+                                        }
+
+                                        setJoinedCommitteeId("");
+                                        setSelectedCommitteeId("");
+                                        setWorkspaceTab("scoring");
+                                        setActivePanel("councils");
+                                        notifyInfo("Đã rời phòng chấm điểm hội đồng.");
+                                        navigate("/lecturer/committees");
+                                    }}
+                                    style={{
+                                        borderRadius: "12px",
+                                        height: "40px",
+                                        fontWeight: "700",
+                                        background: "rgba(255,255,255,0.15)",
+                                        border: "1px solid rgba(255,255,255,0.25)",
+                                        color: "#ffffff",
+                                        boxShadow: "none"
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = "rgba(255,255,255,0.25)";
+                                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.35)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = "rgba(255,255,255,0.15)";
+                                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)";
+                                    }}
+                                >
+                                    <ArrowRight size={14} /> Rời phòng
+                                </button>
                             </div>
                         </div>
 
                         {!selectedCommittee ? (
-                            <div style={{ fontSize: 13, color: "#475569" }}>Không tìm thấy dữ liệu hội đồng đã tham gia trong snapshot hiện tại.</div>
+                            <div style={{ fontSize: 13, color: "#cbd5e1", padding: 20, background: "#1e293b", borderRadius: 16 }}>Không tìm thấy dữ liệu hội đồng đã tham gia trong snapshot hiện tại.</div>
                         ) : (
                             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
-                                <div className="lec-workspace">
-                                    <aside className="lec-left-pane">
-                                        <div style={{ fontWeight: 800, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <span>Danh sách đề tài theo ca</span>
-                                            <button
-                                                type="button"
-                                                className="lec-soft"
-                                                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", fontSize: 12, borderRadius: 10, border: "1px solid #cbd5e1", background: "#ffffff" }}
-                                                onClick={() => setPreviewModalType("scoreSheet")}
-                                            >
-                                                <Eye size={14} /> Xem bảng điểm
-                                            </button>
-                                        </div>
-                                        <div style={{ fontSize: 12, color: "#475569", marginBottom: 8 }}>
-                                            {selectedCommittee.id} · {selectedCommittee.name}
-                                        </div>
-
-                                        <div className="lec-assign-list">
-                                            <div style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>Ca sáng</div>
-                                            {morningRows.map((row) => {
-                                                const isScored = row.finalScore != null && Number(row.finalScore) > 0;
-                                                return (
+                                <div className="lec-workspace" style={{ display: "flex", gap: "16px", alignItems: "start", width: "100%" }}>
+                                    <aside 
+                                        className={`lec-left-pane ${isSidebarCollapsed ? "collapsed" : ""}`}
+                                        style={{
+                                            width: isSidebarCollapsed ? "0" : "340px",
+                                            minWidth: isSidebarCollapsed ? "0" : "340px",
+                                            padding: isSidebarCollapsed ? "0" : "24px",
+                                            marginRight: isSidebarCollapsed ? "-16px" : "0",
+                                            border: isSidebarCollapsed ? "none" : undefined,
+                                            opacity: isSidebarCollapsed ? 0 : 1,
+                                            pointerEvents: isSidebarCollapsed ? "none" : undefined,
+                                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                            overflow: "hidden",
+                                            background: "#ffffff"
+                                        }}
+                                    >
+                                            <div style={{ fontWeight: 800, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                                                <span>Danh sách đề tài theo ca</span>
+                                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                                                     <button
-                                                        key={`morning-${row.assignmentId}`}
                                                         type="button"
-                                                        className={`lec-assign-btn ${selectedAssignmentId === row.assignmentId ? "active" : ""}`}
-                                                        onClick={() => setSelectedAssignmentId(row.assignmentId)}
-                                                        style={{
-                                                            background: isScored ? "#ecfdf5" : undefined,
-                                                            border: isScored ? "1px solid #22c55e" : undefined,
-                                                        }}
+                                                        onClick={() => setIsSidebarCollapsed(true)}
+                                                        style={{ background: "#f8fafc", border: "1px solid #cbd5e1", padding: "6px 8px", borderRadius: 8, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                                                        title="Thu gọn thanh bên"
                                                     >
-                                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                                                            <div style={{ flex: 1 }}>
-                                                                <div style={{ fontWeight: 700 }}>{row.topicTitle}</div>
-                                                                <div style={{ fontSize: 12, color: "#475569" }}>{row.studentCode} · {row.studentName}</div>
-                                                                <div style={{ fontSize: 12, color: "#64748b" }}>
-                                                                    Lớp: <strong>{row.className ?? "-"}</strong> · Khóa: <strong>{row.cohortCode ?? "-"}</strong>
+                                                        <ChevronLeft size={16} color="#64748b" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div style={{ fontSize: 12, color: "#475569", marginBottom: 8 }}>
+                                                {selectedCommittee.id} · {selectedCommittee.name}
+                                            </div>
+
+                                            <div className="lec-assign-list">
+                                                <div style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>Ca sáng</div>
+                                                {morningRows.map((row) => {
+                                                    const isScored = row.finalScore != null && Number(row.finalScore) > 0;
+                                                    const isActive = selectedAssignmentId === row.assignmentId;
+                                                    return (
+                                                        <button
+                                                            key={`morning-${row.assignmentId}`}
+                                                            type="button"
+                                                            className={`lec-assign-btn ${isActive ? "active" : ""}`}
+                                                            onClick={() => setSelectedAssignmentId(row.assignmentId)}
+                                                            style={{
+                                                                background: isActive ? '#fff7ed' : isScored ? '#f8fafc' : '#ffffff',
+                                                                border: isActive ? '2px solid #f37021' : isScored ? '1px solid #e2e8f0' : '1px solid #cbd5e1',
+                                                                boxShadow: isActive ? '0 4px 12px rgba(243, 112, 33, 0.12)' : 'none',
+                                                                padding: '12px 16px',
+                                                                borderRadius: '12px',
+                                                                textAlign: 'left',
+                                                                cursor: 'pointer',
+                                                                display: 'flex',
+                                                                flexDirection: 'column',
+                                                                gap: '8px',
+                                                                transition: 'all 0.2s ease-in-out',
+                                                                width: '100%',
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                if (!isActive) {
+                                                                    e.currentTarget.style.background = '#f8fafc';
+                                                                    e.currentTarget.style.borderColor = '#cbd5e1';
+                                                                }
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                if (!isActive) {
+                                                                    e.currentTarget.style.background = isScored ? '#f8fafc' : '#ffffff';
+                                                                    e.currentTarget.style.borderColor = isScored ? '#e2e8f0' : '#cbd5e1';
+                                                                }
+                                                            }}
+                                                        >
+                                                            <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
+                                                                <div style={{ 
+                                                                    fontSize: '13px', 
+                                                                    fontWeight: 700, 
+                                                                    color: isActive ? '#ea580c' : '#1e293b',
+                                                                    lineHeight: '1.4',
+                                                                    display: '-webkit-box',
+                                                                    WebkitLineClamp: 2,
+                                                                    WebkitBoxOrient: 'vertical',
+                                                                    overflow: 'hidden',
+                                                                }}>
+                                                                    {row.topicTitle}
+                                                                </div>
+                                                                
+                                                                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                                                    <div style={{ fontSize: '12px', color: '#475569' }}>
+                                                                        Sinh viên: <strong style={{ color: '#0f172a' }}>{row.studentName}</strong>
+                                                                    </div>
+                                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                        MSV: <strong style={{ color: '#334155' }}>{row.studentCode}</strong>
+                                                                    </div>
+                                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                        Mã đề tài: <strong style={{ color: '#334155' }}>{row.topicCode || row.assignmentCode}</strong>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                                                                    {isScored ? (
+                                                                        <span style={{
+                                                                            background: 'rgba(34, 197, 94, 0.1)',
+                                                                            color: '#166534',
+                                                                            border: '1px solid rgba(34, 197, 94, 0.3)',
+                                                                            fontSize: '11px',
+                                                                            fontWeight: 700,
+                                                                            padding: '2px 8px',
+                                                                            borderRadius: '99px',
+                                                                            display: 'inline-flex',
+                                                                            alignItems: 'center',
+                                                                            gap: '4px'
+                                                                        }}>
+                                                                            <CheckCircle2 size={10} color="#22c55e" />
+                                                                            Đã chấm · {formatScore(row.finalScore)} {row.finalGrade ? `(${row.finalGrade})` : ""}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span style={{
+                                                                            background: 'rgba(245, 158, 11, 0.08)',
+                                                                            color: '#9a3412',
+                                                                            border: '1px solid rgba(245, 158, 11, 0.25)',
+                                                                            fontSize: '11px',
+                                                                            fontWeight: 700,
+                                                                            padding: '2px 8px',
+                                                                            borderRadius: '99px',
+                                                                            display: 'inline-flex',
+                                                                            alignItems: 'center',
+                                                                            gap: '4px'
+                                                                        }}>
+                                                                            <Clock3 size={10} color="#f59e0b" />
+                                                                            Chờ chấm
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             </div>
-                                                            {isScored && (
-                                                                <div style={{
-                                                                    padding: "4px 8px",
-                                                                    borderRadius: 6,
-                                                                    background: "#22c55e",
-                                                                    color: "#ffffff",
-                                                                    fontSize: 11,
-                                                                    fontWeight: 600,
-                                                                    whiteSpace: "nowrap",
-                                                                }}>
-                                                                    {formatScore(row.finalScore)}{formatLetterGrade(row.finalScore, row.finalGrade) ? ` - ${formatLetterGrade(row.finalScore, row.finalGrade)}` : ""}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div style={{ fontSize: 12, color: "#475569" }}>
-                                                            Giảng viên Hướng dẫn: <strong>{row.supervisorLecturerName ?? "Chưa cập nhật"}</strong>
-                                                        </div>
-                                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                                                            {row.topicTags.length > 0 ? (
-                                                                row.topicTags.slice(0, 3).map((tag) => (
-                                                                    <span
-                                                                        key={`m-tag-${row.assignmentId}-${tag}`}
-                                                                        style={{
-                                                                            border: "1px solid #22c55e",
-                                                                            borderRadius: 999,
-                                                                            padding: "1px 7px",
-                                                                            fontSize: 11,
-                                                                            color: "#166534",
-                                                                            background: "#f0fdf4",
-                                                                        }}
-                                                                    >
-                                                                        {tag}
-                                                                    </span>
-                                                                ))
-                                                            ) : (
-                                                                <span style={{ fontSize: 11, color: "#94a3b8" }}>Chưa có tags</span>
-                                                            )}
-                                                        </div>
-                                                        <div style={{ fontSize: 12, color: "#64748b" }}>
-                                                            {row.committeeCode} · {row.committeeName} · {formatSession(row.session)} · {formatRowTimeRange(row)}
-                                                        </div>
-                                                    </button>
-                                                );
-                                            })}
-                                            {morningRows.length === 0 && <div style={{ fontSize: 12, color: "#94a3b8" }}>Chưa có đề tài ca sáng.</div>}
+                                                        </button>
+                                                    );
+                                                })}
+                                                {morningRows.length === 0 && <div style={{ fontSize: 12, color: "#94a3b8" }}>Chưa có đề tài ca sáng.</div>}
 
-                                            <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", marginTop: 6 }}>Ca chiều</div>
-                                            {afternoonRows.map((row) => {
-                                                const isScored = row.finalScore != null && Number(row.finalScore) > 0;
-                                                return (
-                                                    <button
-                                                        key={`afternoon-${row.assignmentId}`}
-                                                        type="button"
-                                                        className={`lec-assign-btn ${selectedAssignmentId === row.assignmentId ? "active" : ""}`}
-                                                        onClick={() => setSelectedAssignmentId(row.assignmentId)}
-                                                        style={{
-                                                            background: isScored ? "#ecfdf5" : undefined,
-                                                            border: isScored ? "1px solid #22c55e" : undefined,
-                                                        }}
-                                                    >
-                                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                                                            <div style={{ flex: 1 }}>
-                                                                <div style={{ fontWeight: 700 }}>{row.topicTitle}</div>
-                                                                <div style={{ fontSize: 12, color: "#475569" }}>{row.studentCode} · {row.studentName}</div>
-                                                                <div style={{ fontSize: 12, color: "#64748b" }}>
-                                                                    Lớp: <strong>{row.className ?? "-"}</strong> · Khóa: <strong>{row.cohortCode ?? "-"}</strong>
+                                                <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", marginTop: 6 }}>Ca chiều</div>
+                                                {afternoonRows.map((row) => {
+                                                    const isScored = row.finalScore != null && Number(row.finalScore) > 0;
+                                                    const isActive = selectedAssignmentId === row.assignmentId;
+                                                    return (
+                                                        <button
+                                                            key={`afternoon-${row.assignmentId}`}
+                                                            type="button"
+                                                            className={`lec-assign-btn ${isActive ? "active" : ""}`}
+                                                            onClick={() => setSelectedAssignmentId(row.assignmentId)}
+                                                            style={{
+                                                                background: isActive ? '#fff7ed' : isScored ? '#f8fafc' : '#ffffff',
+                                                                border: isActive ? '2px solid #f37021' : isScored ? '1px solid #e2e8f0' : '1px solid #cbd5e1',
+                                                                boxShadow: isActive ? '0 4px 12px rgba(243, 112, 33, 0.12)' : 'none',
+                                                                padding: '12px 16px',
+                                                                borderRadius: '12px',
+                                                                textAlign: 'left',
+                                                                cursor: 'pointer',
+                                                                display: 'flex',
+                                                                flexDirection: 'column',
+                                                                gap: '8px',
+                                                                transition: 'all 0.2s ease-in-out',
+                                                                width: '100%',
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                if (!isActive) {
+                                                                    e.currentTarget.style.background = '#f8fafc';
+                                                                    e.currentTarget.style.borderColor = '#cbd5e1';
+                                                                }
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                if (!isActive) {
+                                                                    e.currentTarget.style.background = isScored ? '#f8fafc' : '#ffffff';
+                                                                    e.currentTarget.style.borderColor = isScored ? '#e2e8f0' : '#cbd5e1';
+                                                                }
+                                                            }}
+                                                        >
+                                                            <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
+                                                                <div style={{ 
+                                                                    fontSize: '13px', 
+                                                                    fontWeight: 700, 
+                                                                    color: isActive ? '#ea580c' : '#1e293b',
+                                                                    lineHeight: '1.4',
+                                                                    display: '-webkit-box',
+                                                                    WebkitLineClamp: 2,
+                                                                    WebkitBoxOrient: 'vertical',
+                                                                    overflow: 'hidden',
+                                                                }}>
+                                                                    {row.topicTitle}
+                                                                </div>
+                                                                
+                                                                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                                                    <div style={{ fontSize: '12px', color: '#475569' }}>
+                                                                        Sinh viên: <strong style={{ color: '#0f172a' }}>{row.studentName}</strong>
+                                                                    </div>
+                                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                        MSV: <strong style={{ color: '#334155' }}>{row.studentCode}</strong>
+                                                                    </div>
+                                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                        Mã đề tài: <strong style={{ color: '#334155' }}>{row.topicCode || row.assignmentCode}</strong>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                                                                    {isScored ? (
+                                                                        <span style={{
+                                                                            background: 'rgba(34, 197, 94, 0.1)',
+                                                                            color: '#166534',
+                                                                            border: '1px solid rgba(34, 197, 94, 0.3)',
+                                                                            fontSize: '11px',
+                                                                            fontWeight: 700,
+                                                                            padding: '2px 8px',
+                                                                            borderRadius: '99px',
+                                                                            display: 'inline-flex',
+                                                                            alignItems: 'center',
+                                                                            gap: '4px'
+                                                                        }}>
+                                                                            <CheckCircle2 size={10} color="#22c55e" />
+                                                                            Đã chấm · {formatScore(row.finalScore)} {row.finalGrade ? `(${row.finalGrade})` : ""}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span style={{
+                                                                            background: 'rgba(245, 158, 11, 0.08)',
+                                                                            color: '#9a3412',
+                                                                            border: '1px solid rgba(245, 158, 11, 0.25)',
+                                                                            fontSize: '11px',
+                                                                            fontWeight: 700,
+                                                                            padding: '2px 8px',
+                                                                            borderRadius: '99px',
+                                                                            display: 'inline-flex',
+                                                                            alignItems: 'center',
+                                                                            gap: '4px'
+                                                                        }}>
+                                                                            <Clock3 size={10} color="#f59e0b" />
+                                                                            Chờ chấm
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             </div>
-                                                            {isScored && (
-                                                                <div style={{
-                                                                    padding: "4px 8px",
-                                                                    borderRadius: 6,
-                                                                    background: "#22c55e",
-                                                                    color: "#ffffff",
-                                                                    fontSize: 11,
-                                                                    fontWeight: 600,
-                                                                    whiteSpace: "nowrap",
-                                                                }}>
-                                                                    {formatScore(row.finalScore)}{formatLetterGrade(row.finalScore, row.finalGrade) ? ` - ${formatLetterGrade(row.finalScore, row.finalGrade)}` : ""}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div style={{ fontSize: 12, color: "#475569" }}>
-                                                            Giảng viên Hướng dẫn: <strong>{row.supervisorLecturerName ?? "Chưa cập nhật"}</strong>
-                                                        </div>
-                                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                                                            {row.topicTags.length > 0 ? (
-                                                                row.topicTags.slice(0, 3).map((tag) => (
-                                                                    <span
-                                                                        key={`a-tag-${row.assignmentId}-${tag}`}
-                                                                        style={{
-                                                                            border: "1px solid #22c55e",
-                                                                            borderRadius: 999,
-                                                                            padding: "1px 7px",
-                                                                            fontSize: 11,
-                                                                            color: "#166534",
-                                                                            background: "#f0fdf4",
-                                                                        }}
-                                                                    >
-                                                                        {tag}
-                                                                    </span>
-                                                                ))
-                                                            ) : (
-                                                                <span style={{ fontSize: 11, color: "#94a3b8" }}>Chưa có tags</span>
-                                                            )}
-                                                        </div>
-                                                        <div style={{ fontSize: 12, color: "#64748b" }}>
-                                                            {row.committeeCode} · {row.committeeName} · {formatSession(row.session)} · {formatRowTimeRange(row)}
-                                                        </div>
-                                                    </button>
-                                                );
-                                            })}
-                                            {afternoonRows.length === 0 && <div style={{ fontSize: 12, color: "#94a3b8" }}>Chưa có đề tài ca chiều.</div>}
-
-                                        </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                                {afternoonRows.length === 0 && <div style={{ fontSize: 12, color: "#94a3b8" }}>Chưa có đề tài ca chiều.</div>}
+                                            </div>
                                     </aside>
 
-                                    <div className="lec-right-pane">
-                                        <div className="lec-room-header" style={{ marginBottom: 10 }}>
+                                    <div className="lec-right-pane" style={{ flex: 1, minWidth: 0 }}>
+                                        <div className="lec-room-header" style={{ marginBottom: 15 }}>
                                             <div style={{ display: "grid", gap: 4 }}>
                                                 <div style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
+                                                    {isSidebarCollapsed && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsSidebarCollapsed(false)}
+                                                            className="lec-soft"
+                                                            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", fontSize: 13, borderRadius: 10, border: "1px solid #cbd5e1", background: "#ffffff", marginRight: 8 }}
+                                                            title="Mở rộng danh sách đề tài"
+                                                        >
+                                                            <Menu size={14} color="#f37021" /> Mở DS đề tài
+                                                        </button>
+                                                    )}
                                                     <PencilRuler size={16} color="#f37021" /> Màn hình chấm điểm hội đồng
-                                                </div>
-                                                <div style={{ fontSize: 12, color: "#111111" }}>
-                                                    Mỗi thao tác chấm điểm, biên bản và phản biện được ghi nhận theo đề tài đang chọn.
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 10, background: "#fff7ed" }}>
-                                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8, fontSize: 13 }}>
-                                                <div>
-                                                    <span className="lec-kicker">Sinh viên</span>
-                                                    <div style={{ fontWeight: 700 }}>{selectedMatrixRow ? `${selectedMatrixRow.studentCode} - ${selectedMatrixRow.studentName}` : "-"}</div>
-                                                </div>
-                                                <div>
-                                                    <span className="lec-kicker">Đề tài</span>
-                                                    <div style={{ fontWeight: 700 }}>{selectedMatrixRow?.topicTitle ?? "-"}</div>
-                                                </div>
-                                                <div>
-                                                    <span className="lec-kicker">Giảng viên Hướng dẫn</span>
-                                                    <div style={{ fontWeight: 700 }}>{selectedMatrixRow?.supervisorLecturerName ?? "Chưa cập nhật"}</div>
-                                                </div>
-                                                <div>
-                                                    <span className="lec-kicker">Tags đề tài</span>
-                                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                                                        {(selectedMatrixRow?.topicTags ?? []).length > 0 ? (
-                                                            (selectedMatrixRow?.topicTags ?? []).slice(0, 4).map((tag) => (
-                                                                <span
-                                                                    key={`selected-tag-${selectedMatrixRow?.assignmentId ?? 0}-${tag}`}
-                                                                    style={{
-                                                                        border: "1px solid #fdba74",
-                                                                        borderRadius: 999,
-                                                                        padding: "1px 7px",
-                                                                        fontSize: 11,
-                                                                        color: "#9a3412",
-                                                                        background: "#fff7ed",
-                                                                    }}
-                                                                >
-                                                                    {tag}
-                                                                </span>
-                                                            ))
-                                                        ) : (
-                                                            <span style={{ fontSize: 12, color: "#94a3b8" }}>Chưa có tags</span>
-                                                        )}
+
+
+                                        <div style={{ 
+                                            border: "1px solid #cbd5e1", 
+                                            borderRadius: 16, 
+                                            padding: 24, 
+                                            background: "#ffffff",
+                                            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05)",
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            gap: 20
+                                        }}>
+                                            {/* Details Grid */}
+                                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+                                                {/* Left Column: Topic & Tags */}
+                                                <div style={{ 
+                                                    background: "#fafaf9", 
+                                                    border: "1px solid #e7e5e4", 
+                                                    borderRadius: 12, 
+                                                    padding: 18, 
+                                                    display: "flex", 
+                                                    flexDirection: "column", 
+                                                    gap: 12,
+                                                    gridColumn: "1 / -1" // Main topic spans across all columns for prominent display
+                                                }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#ea580c", fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                                                        <ClipboardPen size={14} /> Thông tin đề tài
                                                     </div>
-                                                </div>
-                                                <div>
-                                                    <span className="lec-kicker">Hội đồng</span>
-                                                    <div style={{ fontWeight: 700 }}>
-                                                        {selectedMatrixRow ? `${selectedMatrixRow.committeeCode} - ${selectedMatrixRow.committeeName}` : "-"}
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <span className="lec-kicker">Trạng thái khóa điểm</span>
-                                                    <div style={{ fontWeight: 700 }}>{selectedMatrixRow?.isLocked ? "Đã chốt" : "Đang mở"}</div>
-                                                </div>
-                                                <div>
-                                                    <span className="lec-kicker">Điểm Giảng viên Hướng dẫn</span>
-                                                    <div style={{ fontWeight: 700 }}>{formatScore(scoreGvhdDisplay)}</div>
-                                                </div>
-                                                <div style={{ gridColumn: "1 / -1", display: "grid", gap: 12 }}>
-                                                    {/* Files & Documents Section */}
-                                                    <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 12, background: "#ffffff", display: "grid", gap: 10 }}>
-                                                        <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
-                                                            <Paperclip size={16} color="#f37021" /> Tài liệu & Báo cáo ({selectedMatrixRow?.defenseDocuments?.length || 0})
+                                                    <div>
+                                                        <div style={{ fontSize: 16, fontWeight: 800, color: "#1c1917", lineHeight: 1.4 }}>
+                                                            {selectedMatrixRow?.topicTitle ?? "-"}
                                                         </div>
-                                                        {selectedMatrixRow?.defenseDocuments && selectedMatrixRow.defenseDocuments.length > 0 ? (
-                                                            <div style={{ display: "grid", gap: 6 }}>
-                                                                {selectedMatrixRow.defenseDocuments.map((doc, idx) => {
-                                                                    const fileExt = doc.fileName?.split('.').pop()?.toLowerCase() || "file";
-                                                                    const isExtLink = doc.mimeType === "text/html";
-                                                                    const getFileIcon = () => {
-                                                                        if (isExtLink) return <Link size={16} />;
-                                                                        if (["pdf"].includes(fileExt)) return <FileText size={16} />;
-                                                                        if (["doc", "docx"].includes(fileExt)) return <FileText size={16} />;
-                                                                        if (["xls", "xlsx", "csv"].includes(fileExt)) return <FileText size={16} />;
-                                                                        if (["zip", "rar", "7z"].includes(fileExt)) return <Package size={16} />;
-                                                                        return <Paperclip size={16} />;
-                                                                    };
-                                                                    return (
-                                                                        <a
-                                                                            key={`doc-${idx}`}
-                                                                            href={doc.fileUrl}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            style={{
-                                                                                display: "flex",
-                                                                                alignItems: "center",
-                                                                                gap: 10,
-                                                                                padding: "10px 12px",
-                                                                                borderRadius: 10,
-                                                                                border: "1px solid #e2e8f0",
-                                                                                textDecoration: "none",
-                                                                                background: "white",
-                                                                                color: "#1e293b",
-                                                                                transition: "all 0.2s",
-                                                                                fontSize: 13,
-                                                                                fontWeight: 600
-                                                                            }}
-                                                                            onMouseEnter={(e) => {
-                                                                                e.currentTarget.style.borderColor = "#f37021";
-                                                                                e.currentTarget.style.background = "#fff8f3";
-                                                                            }}
-                                                                            onMouseLeave={(e) => {
-                                                                                e.currentTarget.style.borderColor = "#e2e8f0";
-                                                                                e.currentTarget.style.background = "white";
-                                                                            }}
-                                                                        >
-                                                                            <div style={{ fontSize: 16, display: "flex", alignItems: "center" }}>{getFileIcon()}</div>
-                                                                            <div style={{ flex: 1, overflow: "hidden" }}>
-                                                                                <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                                                                    {doc.fileName}
-                                                                                </div>
-                                                                                <div style={{ fontSize: 11, color: "#64748b" }}>
-                                                                                    {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("vi-VN") : "Chưa xác định"}
-                                                                                </div>
-                                                                            </div>
-                                                                            <ExternalLink size={14} color="#f37021" />
-                                                                        </a>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        ) : (
-                                                            <div style={{ fontSize: 13, color: "#94a3b8", textAlign: "center", padding: "16px 0" }}>
-                                                                Chưa nộp báo cáo hoặc tài liệu
-                                                            </div>
-                                                        )}
+                                                        <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                                                            Mã đề tài: <strong style={{ color: "#334155" }}>{selectedMatrixRow?.topicCode || selectedMatrixRow?.assignmentCode || "-"}</strong>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div style={{ borderTop: "1px solid #e7e5e4", paddingTop: 10, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                                                        <span style={{ fontSize: 12, color: "#78716c", fontWeight: 600 }}>Từ khóa:</span>
+                                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                                            {(selectedMatrixRow?.topicTags ?? []).length > 0 ? (
+                                                                (selectedMatrixRow?.topicTags ?? []).slice(0, 4).map((tag) => (
+                                                                    <span
+                                                                        key={`selected-tag-${selectedMatrixRow?.assignmentId ?? 0}-${tag}`}
+                                                                        style={{
+                                                                            border: "1px solid rgba(243, 112, 33, 0.25)",
+                                                                            borderRadius: 99,
+                                                                            padding: "2px 10px",
+                                                                            fontSize: 11,
+                                                                            color: "#c2410c",
+                                                                            background: "rgba(243, 112, 33, 0.05)",
+                                                                            fontWeight: 600
+                                                                        }}
+                                                                    >
+                                                                        {tag}
+                                                                    </span>
+                                                                ))
+                                                            ) : (
+                                                                <span style={{ fontSize: 12, color: "#a8a29e", fontStyle: "italic" }}>Chưa cấu hình tags</span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4, borderTop: "1px solid #fed7aa", paddingTop: 10 }}>
-                                                    {canViewMinutesTab && (
-                                                        <button
-                                                            type="button"
-                                                            className="lec-soft"
-                                                            style={{ background: "#ffffff", border: "1px solid #fdba74" }}
-                                                            onClick={() => setPreviewModalType("meeting")}
-                                                        >
-                                                            <Eye size={14} /> Xem biên bản
-                                                        </button>
-                                                    )}
-                                                    {canViewReviewTab && (
-                                                        <button
-                                                            type="button"
-                                                            className="lec-soft"
-                                                            style={{ background: "#ffffff", border: "1px solid #fdba74" }}
-                                                            onClick={() => setPreviewModalType("reviewer")}
-                                                        >
-                                                            <Eye size={14} /> Xem nhận xét
-                                                        </button>
+
+                                                {/* Card 1: Student Information */}
+                                                <div style={{ 
+                                                    background: "#ffffff", 
+                                                    border: "1px solid #e2e8f0", 
+                                                    borderRadius: 12, 
+                                                    padding: 16,
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    gap: 10
+                                                }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#3b82f6", fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                                                        <Users2 size={14} /> Sinh viên bảo vệ
+                                                    </div>
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                                        <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>
+                                                            {selectedMatrixRow?.studentName ?? "-"}
+                                                        </div>
+                                                        <div style={{ fontSize: 12, color: "#475569" }}>
+                                                            Mã sinh viên: <strong style={{ color: "#0f172a" }}>{selectedMatrixRow?.studentCode ?? "-"}</strong>
+                                                        </div>
+                                                        <div style={{ fontSize: 12, color: "#64748b" }}>
+                                                            Lớp: <strong>{selectedMatrixRow?.className ?? "-"}</strong> · Khóa: <strong>{selectedMatrixRow?.cohortCode ?? "-"}</strong>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Card 2: Supervisor Details */}
+                                                <div style={{ 
+                                                    background: "#ffffff", 
+                                                    border: "1px solid #e2e8f0", 
+                                                    borderRadius: 12, 
+                                                    padding: 16,
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    gap: 10
+                                                }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#10b981", fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                                                        <Building2 size={14} /> Giảng viên hướng dẫn
+                                                    </div>
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                                        <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>
+                                                            {selectedMatrixRow?.supervisorLecturerName ?? "Chưa cập nhật"}
+                                                        </div>
+                                                        <div style={{ fontSize: 12, color: "#475569" }}>
+                                                            Điểm GVHD chấm: <strong style={{ color: "#166534" }}>{formatScore(scoreGvhdDisplay)}</strong>
+                                                        </div>
+                                                        <div style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic" }}>
+                                                            Trực tiếp theo dõi tiến độ
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Card 3: Committee Info & Lock Status */}
+                                                <div style={{ 
+                                                    background: "#ffffff", 
+                                                    border: "1px solid #e2e8f0", 
+                                                    borderRadius: 12, 
+                                                    padding: 16,
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    gap: 10
+                                                }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#6366f1", fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                                                        <Lock size={14} /> Hội đồng & Khóa điểm
+                                                    </div>
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                                        <div style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>
+                                                            Hội đồng: {selectedMatrixRow ? `${selectedMatrixRow.committeeCode} - ${selectedMatrixRow.committeeName}` : "-"}
+                                                        </div>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                                                            <span style={{ fontSize: 12, color: "#64748b" }}>Trạng thái khóa:</span>
+                                                            {selectedMatrixRow?.isLocked ? (
+                                                                <span style={{
+                                                                    background: "rgba(220, 38, 38, 0.1)",
+                                                                    border: "1px solid rgba(220, 38, 38, 0.3)",
+                                                                    borderRadius: 99,
+                                                                    padding: "2px 8px",
+                                                                    color: "#b91c1c",
+                                                                    fontSize: 11,
+                                                                    fontWeight: 700,
+                                                                    display: "inline-flex",
+                                                                    alignItems: "center",
+                                                                    gap: 4
+                                                                }}>
+                                                                    <Lock size={10} color="#dc2626" /> Đã chốt điểm
+                                                                </span>
+                                                            ) : (
+                                                                <span style={{
+                                                                    background: "rgba(16, 185, 129, 0.1)",
+                                                                    border: "1px solid rgba(16, 185, 129, 0.3)",
+                                                                    borderRadius: 99,
+                                                                    padding: "2px 8px",
+                                                                    color: "#047857",
+                                                                    fontSize: 11,
+                                                                    fontWeight: 700,
+                                                                    display: "inline-flex",
+                                                                    alignItems: "center",
+                                                                    gap: 4
+                                                                }}>
+                                                                    <Unlock size={10} color="#10b981" /> Đang mở chấm
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Full Width Grid block for Documents */}
+                                            <div style={{ display: "grid", gap: 12 }}>
+                                                {/* Files & Documents Section */}
+                                                <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 16, background: "#ffffff", display: "grid", gap: 10 }}>
+                                                    <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "#1e293b" }}>
+                                                        <Paperclip size={16} color="#f37021" /> Tài liệu & Báo cáo đề tài ({selectedMatrixRow?.defenseDocuments?.length || 0})
+                                                    </div>
+                                                    {selectedMatrixRow?.defenseDocuments && selectedMatrixRow.defenseDocuments.length > 0 ? (
+                                                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 8 }}>
+                                                            {selectedMatrixRow.defenseDocuments.map((doc, idx) => {
+                                                                const fileExt = doc.fileName?.split('.').pop()?.toLowerCase() || "file";
+                                                                const isExtLink = doc.mimeType === "text/html";
+                                                                const getFileIcon = () => {
+                                                                    if (isExtLink) return <Link size={16} />;
+                                                                    if (["pdf"].includes(fileExt)) return <FileText size={16} />;
+                                                                    if (["doc", "docx"].includes(fileExt)) return <FileText size={16} />;
+                                                                    if (["xls", "xlsx", "csv"].includes(fileExt)) return <FileText size={16} />;
+                                                                    if (["zip", "rar", "7z"].includes(fileExt)) return <Package size={16} />;
+                                                                    return <Paperclip size={16} />;
+                                                                };
+                                                                return (
+                                                                    <a
+                                                                        key={`doc-${idx}`}
+                                                                        href={doc.fileUrl}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        style={{
+                                                                            display: "flex",
+                                                                            alignItems: "center",
+                                                                            gap: 10,
+                                                                            padding: "10px 12px",
+                                                                            borderRadius: 10,
+                                                                            border: "1px solid #e2e8f0",
+                                                                            textDecoration: "none",
+                                                                            background: "white",
+                                                                            color: "#1e293b",
+                                                                            transition: "all 0.2s",
+                                                                            fontSize: 13,
+                                                                            fontWeight: 600
+                                                                        }}
+                                                                        onMouseEnter={(e) => {
+                                                                            e.currentTarget.style.borderColor = "#f37021";
+                                                                            e.currentTarget.style.background = "#fff8f3";
+                                                                        }}
+                                                                        onMouseLeave={(e) => {
+                                                                            e.currentTarget.style.borderColor = "#e2e8f0";
+                                                                            e.currentTarget.style.background = "white";
+                                                                        }}
+                                                                    >
+                                                                        <div style={{ fontSize: 16, display: "flex", alignItems: "center", color: "#f37021" }}>{getFileIcon()}</div>
+                                                                        <div style={{ flex: 1, overflow: "hidden" }}>
+                                                                            <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                                                {doc.fileName}
+                                                                            </div>
+                                                                            <div style={{ fontSize: 11, color: "#64748b" }}>
+                                                                                {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("vi-VN") : "Chưa xác định"}
+                                                                            </div>
+                                                                        </div>
+                                                                        <ExternalLink size={14} color="#f37021" />
+                                                                    </a>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ fontSize: 13, color: "#94a3b8", textAlign: "center", padding: "20px 0", background: "#f8fafc", borderRadius: 8, border: "1px dashed #e2e8f0" }}>
+                                                            Sinh viên chưa nộp báo cáo hoặc tài liệu đính kèm
+                                                        </div>
                                                     )}
                                                 </div>
+                                            </div>
+
+                                            {/* Action Buttons Section */}
+                                            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8, borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
+                                                {canViewMinutesTab && (
+                                                    <button
+                                                        type="button"
+                                                        className="lec-soft"
+                                                        style={{ 
+                                                            background: "#ffffff", 
+                                                            border: "1px solid #cbd5e1",
+                                                            borderRadius: 10,
+                                                            padding: "8px 16px",
+                                                            fontSize: 13,
+                                                            fontWeight: 600,
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            gap: 6,
+                                                            cursor: "pointer"
+                                                        }}
+                                                        onClick={() => setPreviewModalType("meeting")}
+                                                    >
+                                                        <Eye size={14} /> Xem biên bản
+                                                    </button>
+                                                )}
+                                                {canViewReviewTab && (
+                                                    <button
+                                                        type="button"
+                                                        className="lec-soft"
+                                                        style={{ 
+                                                            background: "#ffffff", 
+                                                            border: "1px solid #cbd5e1",
+                                                            borderRadius: 10,
+                                                            padding: "8px 16px",
+                                                            fontSize: 13,
+                                                            fontWeight: 600,
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            gap: 6,
+                                                            cursor: "pointer"
+                                                        }}
+                                                        onClick={() => setPreviewModalType("reviewer")}
+                                                    >
+                                                        <Eye size={14} /> Xem nhận xét
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
 
@@ -4386,7 +4987,51 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                                     gap: 8,
                                                                 }}
                                                             >
-                                                                <div style={{ fontWeight: 700 }}>{member.roleLabel}</div>
+                                                                 <div style={{ fontWeight: 700 }}>{member.roleLabel}</div>
+                                                                 {(() => {
+                                                                     const isOnline = onlineLecturerCodes.includes(member.lecturerCode.trim().toUpperCase());
+                                                                     return (
+                                                                         <div
+                                                                             style={{
+                                                                                 display: "flex",
+                                                                                 alignItems: "center",
+                                                                                 gap: 6,
+                                                                                 fontSize: "11px",
+                                                                                 fontWeight: 700,
+                                                                                 background: isOnline ? "#ecfdf5" : "#f8fafc",
+                                                                                 color: isOnline ? "#15803d" : "#64748b",
+                                                                                 padding: "2px 8px",
+                                                                                 borderRadius: "999px",
+                                                                                 border: `1px solid ${isOnline ? "#bbf7d0" : "#e2e8f0"}`
+                                                                             }}
+                                                                         >
+                                                                             {isOnline ? (
+                                                                                 <span style={{
+                                                                                     width: 8,
+                                                                                     height: 8,
+                                                                                     borderRadius: "50%",
+                                                                                     background: "#22c55e",
+                                                                                     display: "inline-block",
+                                                                                     animation: "pulse-green 1.5s infinite"
+                                                                                 }} />
+                                                                             ) : (
+                                                                                 <span style={{
+                                                                                     width: 8,
+                                                                                     height: 8,
+                                                                                     borderRadius: "50%",
+                                                                                     background: "#94a3b8",
+                                                                                     display: "inline-block"
+                                                                                 }} />
+                                                                             )}
+                                                                             {isOnline ? "Online" : "Offline"}
+                                                                             {member.lastActiveLabel && (
+                                                                                 <span style={{ fontSize: "10px", color: isOnline ? "#16a34a" : "#64748b", marginLeft: 4, fontWeight: 500 }}>
+                                                                                     ({member.lastActiveLabel})
+                                                                                 </span>
+                                                                             )}
+                                                                         </div>
+                                                                     );
+                                                                 })()}
                                                             </div>
                                                             <div style={{ fontSize: 13, color: "#334155" }}>
                                                                 {member.lecturerCode ? `${member.lecturerCode} - ` : ""}
@@ -5107,7 +5752,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                 </div>
                             </div>
                         )}
-                    </section>
+                    </div>
                 )}
 
                 {previewModalType && renderPortal(

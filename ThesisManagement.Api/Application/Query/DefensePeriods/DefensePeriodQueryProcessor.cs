@@ -1036,6 +1036,64 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                     .GroupBy(x => x.CommitteeID!.Value)
                     .ToDictionaryAsync(g => g.Key, g => g.Count(), cancellationToken);
 
+            // Query latest sync logs for these committees to determine online/offline status and hours based on Enter/Leave
+            var syncLogs = await _db.SyncAuditLogs.AsNoTracking()
+                .Where(x => x.Action == "LECTURER_ENTER_ROOM" || x.Action == "LECTURER_LEAVE_ROOM" || x.Action == "LECTURER_DISCONNECT_LEAVE_ROOM")
+                .OrderByDescending(x => x.Timestamp)
+                .ToListAsync(cancellationToken);
+
+            var lecturerPresenceMap = new Dictionary<(int CommitteeId, string LecturerCode), (string Action, DateTime Timestamp)>();
+
+            foreach (var log in syncLogs)
+            {
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(log.Records ?? "{}");
+                    var root = doc.RootElement;
+                    
+                    int cId = 0;
+                    if (root.TryGetProperty("Details", out var details))
+                    {
+                        if (details.TryGetProperty("CommitteeId", out var commIdElement))
+                        {
+                            if (commIdElement.ValueKind == System.Text.Json.JsonValueKind.Number) cId = commIdElement.GetInt32();
+                            else if (commIdElement.ValueKind == System.Text.Json.JsonValueKind.String && int.TryParse(commIdElement.GetString(), out var parsedCId)) cId = parsedCId;
+                        }
+                        else if (details.TryGetProperty("committeeId", out commIdElement))
+                        {
+                            if (commIdElement.ValueKind == System.Text.Json.JsonValueKind.Number) cId = commIdElement.GetInt32();
+                            else if (commIdElement.ValueKind == System.Text.Json.JsonValueKind.String && int.TryParse(commIdElement.GetString(), out var parsedCId)) cId = parsedCId;
+                        }
+                    }
+
+                    string? uCode = null;
+                    if (root.TryGetProperty("Actor", out var actor))
+                    {
+                        if (actor.TryGetProperty("UserCode", out var userCodeElement))
+                        {
+                            uCode = userCodeElement.GetString();
+                        }
+                        else if (actor.TryGetProperty("userCode", out userCodeElement))
+                        {
+                            uCode = userCodeElement.GetString();
+                        }
+                    }
+
+                    if (cId > 0 && !string.IsNullOrWhiteSpace(uCode))
+                    {
+                        var key = (cId, uCode.Trim().ToUpperInvariant());
+                        if (!lecturerPresenceMap.ContainsKey(key))
+                        {
+                            lecturerPresenceMap[key] = (log.Action ?? string.Empty, log.Timestamp);
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore parsing error
+                }
+            }
+
             var membersByCommittee = committeeMembers
                 .GroupBy(x => x.CommitteeId)
                 .ToDictionary(
@@ -1043,6 +1101,45 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                     g => g.Select((member, index) =>
                     {
                         var code = member.MemberLecturerCode ?? string.Empty;
+                        var presenceKey = (g.Key, code.Trim().ToUpperInvariant());
+                        
+                        bool isOnline = member.IsOnline ?? false;
+                        string statusText = ToMemberOnlineStatus(member.IsOnline);
+                        string? lastActiveLabel = null;
+                        
+                        if (lecturerPresenceMap.TryGetValue(presenceKey, out var presenceInfo))
+                        {
+                            isOnline = presenceInfo.Action == "LECTURER_ENTER_ROOM";
+                            statusText = isOnline ? "ONLINE" : "OFFLINE";
+                            
+                            // Convert UTC to Indochina Time (+7)
+                            try
+                            {
+                                var localTime = TimeZoneInfo.ConvertTimeFromUtc(presenceInfo.Timestamp, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
+                                var timeStr = localTime.ToString(@"HH\:mm");
+                                if (isOnline)
+                                {
+                                    lastActiveLabel = $"Vào lúc {timeStr}";
+                                }
+                                else
+                                {
+                                    lastActiveLabel = $"Rời lúc {timeStr}";
+                                }
+                            }
+                            catch
+                            {
+                                var timeStr = presenceInfo.Timestamp.AddHours(7).ToString(@"HH\:mm");
+                                if (isOnline)
+                                {
+                                    lastActiveLabel = $"Vào lúc {timeStr}";
+                                }
+                                else
+                                {
+                                    lastActiveLabel = $"Rời lúc {timeStr}";
+                                }
+                            }
+                        }
+                        
                         return new
                         {
                             MemberId = $"{g.Key}-{index + 1}",
@@ -1059,8 +1156,9 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                             Role = member.Role ?? string.Empty,
                             RoleLabel = GetFullRoleLabel(member.Role),
                             RoleCode = NormalizeCommitteeRole(member.Role),
-                            IsOnline = member.IsOnline,
-                            OnlineStatus = ToMemberOnlineStatus(member.IsOnline)
+                            IsOnline = isOnline,
+                            OnlineStatus = statusText,
+                            LastActiveLabel = lastActiveLabel
                         };
                     }).Cast<object>().ToList());
 

@@ -84,6 +84,7 @@ const LecturerLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const reactivePeriodId = useActiveDefensePeriodId();
+  const isGradingRoom = location.pathname.startsWith("/lecturer/committees/grading");
   const [profile, setProfile] = useState<LecturerProfile | null>(null);
   const [lecturerImage, setLecturerImage] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -113,7 +114,7 @@ const LecturerLayout: React.FC = () => {
   });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarPinned, setIsSidebarPinned] = useState(false);
-  const sidebarWidth = isSidebarCollapsed ? 84 : 260;
+  const sidebarWidth = isGradingRoom ? 0 : (isSidebarCollapsed ? 84 : 260);
   const collapseSidebarOnActivity = () => {
     if (window.innerWidth > 768 && !isSidebarPinned) {
       setIsSidebarCollapsed(true);
@@ -465,22 +466,23 @@ const LecturerLayout: React.FC = () => {
           }
         `}
       </style>
-      <aside
-        className={`lecturer-sidebar ${isMobileMenuOpen ? "open" : ""} ${isSidebarCollapsed ? "collapsed" : ""}`}
-        style={{
-          width: sidebarWidth,
-          backgroundColor: "#002855",
-          color: "#FFFFFF",
-          display: "flex",
-          flexDirection: "column",
-          borderRight: "1px solid rgba(255, 255, 255, 0.1)",
-          boxShadow: "2px 0 8px rgba(0, 0, 0, 0.15)",
-          position: "fixed",
-          top: 0,
-          height: "100vh",
-          zIndex: 9999,
-        }}
-      >
+      {!isGradingRoom && (
+        <aside
+          className={`lecturer-sidebar ${isMobileMenuOpen ? "open" : ""} ${isSidebarCollapsed ? "collapsed" : ""}`}
+          style={{
+            width: sidebarWidth,
+            backgroundColor: "#002855",
+            color: "#FFFFFF",
+            display: "flex",
+            flexDirection: "column",
+            borderRight: "1px solid rgba(255, 255, 255, 0.1)",
+            boxShadow: "2px 0 8px rgba(0, 0, 0, 0.15)",
+            position: "fixed",
+            top: 0,
+            height: "100vh",
+            zIndex: 9999,
+          }}
+        >
         <div
           style={{
             textAlign: "center",
@@ -688,6 +690,7 @@ const LecturerLayout: React.FC = () => {
           © 2025 Đại học Đại Nam
         </footer>
       </aside>
+      )}
 
       <main
         className="lecturer-main"
@@ -699,6 +702,7 @@ const LecturerLayout: React.FC = () => {
           transition: "margin-left 0.28s ease",
         }}
       >
+      {!isGradingRoom && (
         <header
           className="lecturer-header"
           style={{
@@ -1180,15 +1184,16 @@ const LecturerLayout: React.FC = () => {
             </div>
           </div>
         </header>
+        )}
 
         <div
           className="lecturer-content"
           style={{
             flex: 1,
             backgroundColor: "#FFFFFF",
-            padding: "24px 32px",
-            marginTop: 80,
-            height: "calc(100vh - 80px)",
+            padding: isGradingRoom ? "0" : "24px 32px",
+            marginTop: isGradingRoom ? 0 : 80,
+            height: isGradingRoom ? "100vh" : "calc(100vh - 80px)",
             overflowY: "auto",
           }}
           onPointerUpCapture={collapseSidebarOnActivity}
@@ -1200,18 +1205,20 @@ const LecturerLayout: React.FC = () => {
           )}
         </div>
 
-        <footer
-          style={{
-            backgroundColor: "#F5F6FA",
-            borderTop: "1px solid #E5E7EB",
-            padding: "16px 36px",
-            textAlign: "center",
-            fontSize: 12,
-            color: "#6B7280",
-          }}
-        >
-          © 2025 Đại học Đại Nam
-        </footer>
+        {!isGradingRoom && (
+          <footer
+            style={{
+              backgroundColor: "#F5F6FA",
+              borderTop: "1px solid #E5E7EB",
+              padding: "16px 36px",
+              textAlign: "center",
+              fontSize: 12,
+              color: "#6B7280",
+            }}
+          >
+            © 2025 Đại học Đại Nam
+          </footer>
+        )}
       </main>
     </div>
   );
