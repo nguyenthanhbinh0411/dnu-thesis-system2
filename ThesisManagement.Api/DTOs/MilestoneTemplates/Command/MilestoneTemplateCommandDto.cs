@@ -7,11 +7,13 @@ namespace ThesisManagement.Api.DTOs.MilestoneTemplates.Command
         string Name,
         string? Description,
         int Ordinal,
-        DateTime? Deadline);
+        DateTime? Deadline,
+        int? DefenseTermId = null);
 
     public record MilestoneTemplateUpdateDto(
         string? Name,
         string? Description,
         int? Ordinal,
-        DateTime? Deadline);
+        DateTime? Deadline,
+        int? DefenseTermId = null);
 }

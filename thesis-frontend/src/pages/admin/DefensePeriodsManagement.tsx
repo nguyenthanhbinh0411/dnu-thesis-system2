@@ -263,8 +263,10 @@ const GROUPED_LECTURER_FIELDS = [
   { key: "Status", label: "Trạng thái", category: "Trạng thái" },
 ];
 const milestoneApi = {
-  list: () => fetchData<ApiResponse<MilestoneTemplate[]>>("/MilestoneTemplates/get-list"),
+  list: (defenseTermId?: number) => fetchData<ApiResponse<MilestoneTemplate[]>>(`/MilestoneTemplates/get-list${defenseTermId ? `?DefenseTermId=${defenseTermId}` : ""}`),
+  create: (data: any) => fetchData<ApiResponse<any>>("/MilestoneTemplates/create", { method: "POST", body: JSON.stringify(data) }),
   update: (id: number, data: any) => fetchData<ApiResponse<any>>(`/MilestoneTemplates/update/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  delete: (id: number) => fetchData<ApiResponse<any>>(`/MilestoneTemplates/delete/${id}`, { method: "DELETE" }),
 };
 
 const STATISTICS_REPORTS = [
@@ -1068,9 +1070,13 @@ const DefensePeriodsManagement: React.FC = () => {
   }, [selectedId]);
 
   const loadMilestones = useCallback(async () => {
+    if (!selectedId) {
+      setMilestones([]);
+      return;
+    }
     setMilestonesLoading(true);
     try {
-      const res = await milestoneApi.list();
+      const res = await milestoneApi.list(selectedId);
       const data = readEnvelopeData<MilestoneTemplate[]>(res);
       if (data) {
         setMilestones([...data].sort((a, b) => a.ordinal - b.ordinal));
@@ -1081,7 +1087,7 @@ const DefensePeriodsManagement: React.FC = () => {
     } finally {
       setMilestonesLoading(false);
     }
-  }, [addToast]);
+  }, [selectedId, addToast]);
 
   const handleSaveMilestones = async () => {
     setMilestonesSaving(true);
@@ -1112,6 +1118,55 @@ const DefensePeriodsManagement: React.FC = () => {
       }
     } catch (err: any) {
       const errMsg = err.data?.message || err.data?.Message || err.message || "Lỗi hệ thống khi cập nhật lộ trình.";
+      addToast(errMsg, "error");
+    } finally {
+      setMilestonesSaving(false);
+    }
+  };
+
+  const handleAddMilestone = async () => {
+    if (!selectedId) return;
+    setMilestonesSaving(true);
+    try {
+      const nextOrdinal = milestones.length + 1;
+      const baseCode = nextOrdinal === 1 ? "MS_REG" : `MS_PROG${nextOrdinal - 1}`;
+      const payload = {
+        milestoneTemplateCode: baseCode,
+        name: nextOrdinal === 1 ? "Đăng ký đề tài" : `Báo cáo tiến độ ${nextOrdinal - 1}`,
+        description: nextOrdinal === 1 ? "Sinh viên đăng ký đề tài trực tuyến" : `Sinh viên nộp báo cáo tiến độ lần ${nextOrdinal - 1}`,
+        ordinal: nextOrdinal,
+        deadline: null,
+        defenseTermId: selectedId
+      };
+      
+      const res = await milestoneApi.create(payload);
+      if (readEnvelopeSuccess(res)) {
+        addToast("Thêm mốc mới thành công!", "success");
+        await loadMilestones();
+      } else {
+        addToast("Thêm mốc mới thất bại.", "error");
+      }
+    } catch (err: any) {
+      const errMsg = err.data?.message || err.data?.Message || err.message || "Lỗi khi thêm mốc mới.";
+      addToast(errMsg, "error");
+    } finally {
+      setMilestonesSaving(false);
+    }
+  };
+
+  const handleDeleteMilestone = async (id: number) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa mốc thời gian này khỏi lộ trình?")) return;
+    setMilestonesSaving(true);
+    try {
+      const res = await milestoneApi.delete(id);
+      if (readEnvelopeSuccess(res)) {
+        addToast("Xóa mốc thời gian thành công!", "success");
+        await loadMilestones();
+      } else {
+        addToast("Xóa mốc thất bại.", "error");
+      }
+    } catch (err: any) {
+      const errMsg = err.data?.message || err.data?.Message || err.message || "Lỗi khi xóa mốc.";
       addToast(errMsg, "error");
     } finally {
       setMilestonesSaving(false);
@@ -2262,18 +2317,32 @@ const DefensePeriodsManagement: React.FC = () => {
             <h3 style={{ margin: "4px 0 0 0", fontSize: "20px", fontWeight: "900", color: "#0f172a" }}>Thiết lập lộ trình nộp bài</h3>
             <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "14px" }}>Xác định các mốc thời gian quan trọng sinh viên cần hoàn thành trong đợt.</p>
           </div>
-          <button
-            onClick={handleSaveMilestones}
-            disabled={milestonesSaving}
-            style={{
-              background: DEEP_BLUE_PRIMARY, color: "white", border: "none", padding: "12px 24px",
-              borderRadius: "12px", fontWeight: "700", cursor: "pointer", display: "flex",
-              alignItems: "center", gap: "10px", boxShadow: "0 4px 12px rgba(30, 58, 95, 0.2)"
-            }}
-          >
-            {milestonesSaving ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
-            <span>Lưu thay đổi lộ trình</span>
-          </button>
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button
+              onClick={handleAddMilestone}
+              disabled={milestonesSaving}
+              style={{
+                background: "#f1f5f9", color: DEEP_BLUE_PRIMARY, border: `1px solid #e2e8f0`, padding: "12px 24px",
+                borderRadius: "12px", fontWeight: "700", cursor: "pointer", display: "flex",
+                alignItems: "center", gap: "10px"
+              }}
+            >
+              <Plus size={18} />
+              <span>Thêm mốc mới</span>
+            </button>
+            <button
+              onClick={handleSaveMilestones}
+              disabled={milestonesSaving}
+              style={{
+                background: DEEP_BLUE_PRIMARY, color: "white", border: "none", padding: "12px 24px",
+                borderRadius: "12px", fontWeight: "700", cursor: "pointer", display: "flex",
+                alignItems: "center", gap: "10px", boxShadow: "0 4px 12px rgba(30, 58, 95, 0.2)"
+              }}
+            >
+              {milestonesSaving ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
+              <span>Lưu thay đổi lộ trình</span>
+            </button>
+          </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "24px", alignItems: "start" }}>
@@ -2305,7 +2374,7 @@ const DefensePeriodsManagement: React.FC = () => {
             </div>
             <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: "8px", color: "#94a3b8", fontSize: "12px", fontWeight: "600" }}>
               <Info size={14} />
-              <span>Quy trình gồm 4 giai đoạn</span>
+              <span>Lộ trình đợt bảo vệ thiết lập riêng</span>
             </div>
           </div>
 
@@ -2334,7 +2403,20 @@ const DefensePeriodsManagement: React.FC = () => {
                 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
                     <span style={{ fontSize: "12px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1px" }}>Giai đoạn {m.ordinal}</span>
-                    <div style={{ fontFamily: "monospace", fontSize: "11px", color: "#94a3b8", background: "#f8fafc", padding: "4px 10px", borderRadius: "8px", border: "1px solid #f1f5f9" }}>{m.milestoneTemplateCode}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <div style={{ fontFamily: "monospace", fontSize: "11px", color: "#94a3b8", background: "#f8fafc", padding: "4px 10px", borderRadius: "8px", border: "1px solid #f1f5f9" }}>{m.milestoneTemplateCode}</div>
+                      <button
+                        onClick={() => handleDeleteMilestone(m.milestoneTemplateID)}
+                        style={{
+                          background: "#fee2e2", color: "#b91c1c", border: "none", padding: "4px 10px",
+                          borderRadius: "8px", fontSize: "11px", fontWeight: "700", cursor: "pointer",
+                          display: "flex", alignItems: "center", gap: "4px"
+                        }}
+                      >
+                        <Trash2 size={12} />
+                        <span>Xóa mốc</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div style={{ display: "grid", gap: "20px" }}>

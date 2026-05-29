@@ -62,7 +62,7 @@ const Progress: React.FC = () => {
         // Fetch all milestone templates - always show templates even without topic
         console.log("Fetching milestone templates...");
         const templatesRes = (await fetchData(
-          "/MilestoneTemplates/get-list",
+          `/MilestoneTemplates/get-list?Page=1&PageSize=50${activePeriodId ? `&DefenseTermId=${activePeriodId}` : ""}`,
         )) as ApiResponse<MilestoneTemplate[]>;
         console.log("Templates response:", templatesRes);
         if (!templatesRes.data || templatesRes.data.length === 0) {
@@ -105,28 +105,12 @@ const Progress: React.FC = () => {
             const deadline: string = template.deadline;
 
             if (progressMilestone) {
-              // Map completedAt based on milestoneTemplateCode
+              // Map completedAt dynamically based on template.ordinal
               let specificCompletedAt: string | null = null;
-              switch (template.milestoneTemplateCode) {
-                case "MS_REG":
-                  specificCompletedAt = progressMilestone.completedAt1;
-                  break;
-                case "MS_PROG1":
-                  specificCompletedAt = progressMilestone.completedAt2;
-                  break;
-                case "MS_PROG2":
-                  specificCompletedAt = progressMilestone.completedAt3;
-                  break;
-                case "MS_FULL":
-                  specificCompletedAt = progressMilestone.completedAt4;
-                  break;
-                default:
-                  specificCompletedAt =
-                    progressMilestone.completedAt1 ||
-                    progressMilestone.completedAt2 ||
-                    progressMilestone.completedAt3 ||
-                    progressMilestone.completedAt4;
-                  break;
+              const completedField = `completedAt${template.ordinal}` as keyof ProgressMilestone;
+              const completedTime = progressMilestone[completedField];
+              if (typeof completedTime === "string") {
+                specificCompletedAt = completedTime;
               }
 
               const state = progressMilestone.state.toLowerCase();
@@ -139,7 +123,7 @@ const Progress: React.FC = () => {
                 status = "failed";
               }
               // Priority 1: Check if this is the final milestone waiting for committee
-              else if (state === "waitingforcommittee" && template.ordinal === 4) {
+              else if (state === "waitingforcommittee" && template.ordinal === templates.length) {
                 status = "waiting-for-committee";
                 if (specificCompletedAt) completedDate = specificCompletedAt.split("T")[0];
               }
@@ -200,32 +184,12 @@ const Progress: React.FC = () => {
             let isCompleted = false;
             let completedDate: string | undefined;
 
-            // Check completion based on completedAt fields
-            switch (milestone.ordinal) {
-              case 1: // MS_REG
-                isCompleted = !!progressMilestone.completedAt1;
-                if (isCompleted) {
-                  completedDate = progressMilestone.completedAt1?.split("T")[0];
-                }
-                break;
-              case 2: // MS_PROG1
-                isCompleted = !!progressMilestone.completedAt2;
-                if (isCompleted) {
-                  completedDate = progressMilestone.completedAt2?.split("T")[0];
-                }
-                break;
-              case 3: // MS_PROG2
-                isCompleted = !!progressMilestone.completedAt3;
-                if (isCompleted) {
-                  completedDate = progressMilestone.completedAt3?.split("T")[0];
-                }
-                break;
-              case 4: // MS_FULL
-                isCompleted = !!progressMilestone.completedAt4;
-                if (isCompleted) {
-                  completedDate = progressMilestone.completedAt4?.split("T")[0];
-                }
-                break;
+            // Check completion dynamically based on milestone.ordinal
+            const completedField = `completedAt${milestone.ordinal}` as keyof ProgressMilestone;
+            const completedTime = progressMilestone[completedField];
+            isCompleted = !!completedTime;
+            if (isCompleted && typeof completedTime === "string") {
+              completedDate = completedTime.split("T")[0];
             }
 
             if (isCompleted) {

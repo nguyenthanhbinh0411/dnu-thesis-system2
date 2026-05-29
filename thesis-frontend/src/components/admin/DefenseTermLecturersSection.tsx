@@ -48,6 +48,7 @@ import type { LecturerProfile } from "../../types/lecturer-profile";
 import type { StudentProfile } from "../../types/studentProfile";
 import type { ProgressMilestone } from "../../types/progressMilestone";
 import type { ProgressSubmission } from "../../types/progressSubmission";
+import type { MilestoneTemplate } from "../../types/milestoneTemplate";
 
 type RecordData = Record<string, unknown>;
 
@@ -192,6 +193,22 @@ const DefenseTermLecturersSection = forwardRef<
   const [editingRow, setEditingRow] = useState<DefenseTermLecturerRow | null>(
     null,
   );
+  const [milestoneTemplates, setMilestoneTemplates] = useState<MilestoneTemplate[]>([]);
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      if (!defenseTermId) return;
+      try {
+        const response = await fetchData<{ data: MilestoneTemplate[] }>(
+          `/MilestoneTemplates/get-list?Page=1&PageSize=50&DefenseTermId=${defenseTermId}`
+        );
+        setMilestoneTemplates(response.data || []);
+      } catch (err) {
+        console.error("Error fetching milestone templates:", err);
+      }
+    };
+    void fetchTemplates();
+  }, [defenseTermId]);
 
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailViewMode, setDetailViewMode] = useState<"card" | "table">("card");
@@ -228,11 +245,14 @@ const DefenseTermLecturersSection = forwardRef<
   }>({ isOpen: false });
 
   const getCurrentOrdinal = (m: ProgressMilestone): number => {
-    if (!m.completedAt1) return 1;
-    if (!m.completedAt2) return 2;
-    if (!m.completedAt3) return 3;
-    if (!m.completedAt4) return 4;
-    return 4;
+    const total = milestoneTemplates.length > 0 ? milestoneTemplates.length : 5;
+    for (let i = 1; i <= total; i++) {
+      const completedField = `completedAt${i}` as keyof ProgressMilestone;
+      if (!m[completedField]) {
+        return i;
+      }
+    }
+    return total; // all done
   };
 
   const getCurrentMilestone = (milestones: ProgressMilestone[]) => {
@@ -285,14 +305,16 @@ const DefenseTermLecturersSection = forwardRef<
 
     const m = milestones[0];
     let completedCount = 0;
-    if (m.completedAt1) completedCount++;
-    if (m.completedAt2) completedCount++;
-    if (m.completedAt3) completedCount++;
-    if (m.completedAt4) completedCount++;
+    const totalMilestones = milestoneTemplates.length > 0 ? milestoneTemplates.length : 4;
+
+    for (let i = 1; i <= totalMilestones; i++) {
+      const completedField = `completedAt${i}` as keyof ProgressMilestone;
+      if (m[completedField]) completedCount++;
+    }
 
     if (m.state === "WaitingForCommittee") return 100;
 
-    return Math.round((completedCount / 4) * 100);
+    return Math.round((completedCount / totalMilestones) * 100);
   };
 
   const calculateStats = (

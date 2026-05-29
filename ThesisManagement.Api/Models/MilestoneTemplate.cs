@@ -14,6 +14,9 @@ namespace ThesisManagement.Api.Models
         public DateTime CreatedAt { get; set; }
         public DateTime? LastUpdated { get; set; }
 
+        public int? DefenseTermId { get; set; }
+        public DefenseTerm? DefenseTerm { get; set; }
+
         public ICollection<ProgressMilestone>? ProgressMilestones { get; set; }
     }
 }

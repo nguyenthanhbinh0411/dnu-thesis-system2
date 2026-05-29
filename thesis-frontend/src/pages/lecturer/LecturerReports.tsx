@@ -43,6 +43,7 @@ import type {
   LecturerSubmissionAggregateItem,
   LecturerSubmissionAggregatePayload,
 } from "../../types/report-aggregate";
+import type { MilestoneTemplate } from "../../types/milestoneTemplate";
 
 // Helper function to format file size
 const formatBytes = (bytes: number): string => {
@@ -65,12 +66,8 @@ const normalizeLecturerState = (state: string | null | undefined): string => {
 };
 
 const getMilestoneDisplayName = (code: string | null, ordinal: number | null): string => {
-  if (code === "MS_REG") return "Đăng ký đề tài";
-  if (code === "MS_PROG1" || ordinal === 2) return "Đề cương";
-  if (code === "MS_PROG2" || ordinal === 3) return "Báo cáo";
   if (code === "MS_FULL" || ordinal === 4) return "Hoàn thiện khóa luận";
-  if (code === "MS_DEFENSE" || ordinal === 5) return "Bảo vệ luận văn";
-  return code || `Mốc ${ordinal || "không xác định"}`;
+  return code || (ordinal ? `Mốc ${ordinal}` : "không xác định");
 };
 
 const mapAggregateSubmission = (
@@ -242,6 +239,26 @@ const LecturerReports: React.FC = () => {
   const [aiResults, setAiResults] = useState<Record<number, any>>({});
   const [defenseTerms, setDefenseTerms] = useState<any[]>([]);
   const [selectedDefenseTermId, setSelectedDefenseTermId] = useState<number | string>("");
+  const [milestoneTemplates, setMilestoneTemplates] = useState<MilestoneTemplate[]>([]);
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      if (!selectedDefenseTermId) return;
+      try {
+        const response = await fetchData<{ data: MilestoneTemplate[] }>(
+          `/MilestoneTemplates/get-list?Page=1&PageSize=50&DefenseTermId=${selectedDefenseTermId}`
+        );
+        setMilestoneTemplates(response.data || []);
+      } catch (err) {
+        console.error("Error fetching milestone templates:", err);
+      }
+    };
+    void fetchTemplates();
+  }, [selectedDefenseTermId]);
+
+  const finalMilestoneOrdinal = milestoneTemplates.length > 0 
+    ? Math.max(...milestoneTemplates.map(t => t.ordinal)) 
+    : 4;
 
   const handleAiAnalysis = async (sub: ProgressSubmission) => {
     if (!sub.reportDescription && !sub.reportTitle) return;
@@ -436,7 +453,7 @@ const LecturerReports: React.FC = () => {
         (filterStatus === "approved" && normalized === "APPROVED") ||
         (filterStatus === "rejected" && normalized === "REVISION_REQUIRED") ||
         (filterStatus === "evaluation" &&
-          (report.ordinal === 4 || report.milestoneCode === "MS_FULL"));
+          (report.ordinal === finalMilestoneOrdinal || report.milestoneCode === "MS_FULL"));
 
       const matchesSearch =
         !searchTerm ||
@@ -507,18 +524,14 @@ const LecturerReports: React.FC = () => {
     milestoneCode: string,
     ordinal: number | null,
   ) => {
-    if (milestoneCode === "MS_REG") return "Đăng ký đề tài";
-    if (milestoneCode === "MS_PROG1") return "Đề cương";
-    if (milestoneCode === "MS_PROG2") return "Báo cáo";
-    if (milestoneCode === "MS_FULL" || ordinal === 4) return "Báo cáo hoàn thiện";
+    const tmpl = milestoneTemplates.find(t => t.ordinal === ordinal || t.milestoneTemplateCode === milestoneCode);
+    if (tmpl) return tmpl.name;
 
-    // Fallback for generated codes or unexpected ordinals
-    if (ordinal === 1) return "Đăng ký đề tài";
-    if (ordinal === 2) return "Đề cương";
-    if (ordinal === 3) return "Báo cáo";
-    if (ordinal === 4) return "Báo cáo hoàn thiện";
+    if (ordinal === finalMilestoneOrdinal || milestoneCode === "MS_FULL") {
+      return "Báo cáo hoàn thiện";
+    }
 
-    return milestoneCode;
+    return milestoneCode || (ordinal ? `Mốc ${ordinal}` : "Không xác định");
   };
 
   const getReportTypeText = (milestoneCode: string) => {
@@ -541,7 +554,7 @@ const LecturerReports: React.FC = () => {
             lecturerState: normalizedState,
             feedbackLevel: (feedbackLevel || "").toUpperCase() || null,
             score:
-              selectedReportForComment.ordinal === 4 ||
+              selectedReportForComment.ordinal === finalMilestoneOrdinal ||
               selectedReportForComment.milestoneCode === "MS_FULL"
                 ? parseFloat(score) || null
                 : null,
@@ -1042,7 +1055,7 @@ const LecturerReports: React.FC = () => {
                   Báo cáo có phiếu đánh giá
                 </div>
                 <div style={{ fontSize: "32px", fontWeight: "800", color: "#1e293b" }}>
-                  {reports.filter((r) => r.ordinal === 4 || r.milestoneCode === "MS_FULL").length}
+                  {reports.filter((r) => r.ordinal === finalMilestoneOrdinal || r.milestoneCode === "MS_FULL").length}
                 </div>
               </div>
               <div style={{ height: "4px", background: "#EF4444", borderRadius: "2px", width: "40%", marginTop: "12px" }} />
@@ -1354,7 +1367,7 @@ const LecturerReports: React.FC = () => {
                                 style={{
                                   padding: "6px 10px",
                                   background:
-                                    report.ordinal === 4 ||
+                                    report.ordinal === finalMilestoneOrdinal ||
                                     report.milestoneCode === "MS_FULL"
                                       ? "#F37021"
                                       : "#10B981",
@@ -1371,14 +1384,14 @@ const LecturerReports: React.FC = () => {
                                 }}
                                 onMouseEnter={(e) => {
                                   e.currentTarget.style.background =
-                                    report.ordinal === 4 ||
+                                    report.ordinal === finalMilestoneOrdinal ||
                                     report.milestoneCode === "MS_FULL"
                                       ? "#E55A1B"
                                       : "#059669";
                                 }}
                                 onMouseLeave={(e) => {
                                   e.currentTarget.style.background =
-                                    report.ordinal === 4 ||
+                                    report.ordinal === finalMilestoneOrdinal ||
                                     report.milestoneCode === "MS_FULL"
                                       ? "#F37021"
                                       : "#10B981";
@@ -1387,13 +1400,13 @@ const LecturerReports: React.FC = () => {
                                   setSelectedReportForComment(report)
                                 }
                                 title={
-                                  report.ordinal === 4 ||
+                                  report.ordinal === finalMilestoneOrdinal ||
                                   report.milestoneCode === "MS_FULL"
                                     ? "Chấm điểm / Đánh giá"
                                     : "Đánh giá / chỉnh sửa"
                                 }
                               >
-                                {report.ordinal === 4 ||
+                                {report.ordinal === finalMilestoneOrdinal ||
                                 report.milestoneCode === "MS_FULL" ? (
                                   <>
                                     <CheckCircle size={12} />
@@ -1419,7 +1432,7 @@ const LecturerReports: React.FC = () => {
                                 title="Đã nhận xét"
                               >
                                 <CheckCircle size={12} />
-                                {(report.ordinal === 4 ||
+                                {(report.ordinal === finalMilestoneOrdinal ||
                                   report.milestoneCode === "MS_FULL") && (
                                   <span>Đã chấm điểm</span>
                                 )}
@@ -1877,7 +1890,7 @@ const LecturerReports: React.FC = () => {
                         )}
                       </div>
                                             {/* Export Button if graded */}
-                      {(selectedReport.ordinal === 4 ||
+                      {(selectedReport.ordinal === finalMilestoneOrdinal ||
                         selectedReport.milestoneCode === "MS_FULL") &&
                         (topics[selectedReport.studentUserCode]?.status ===
                           "WAITING_FOR_DEFENSE" ||
@@ -2296,7 +2309,7 @@ const LecturerReports: React.FC = () => {
                                     "Chưa đánh giá"}
                                 </span>
                               </div>
-                              {(selectedReport.ordinal === 4 ||
+                              {(selectedReport.ordinal === finalMilestoneOrdinal ||
                                 selectedReport.milestoneCode === "MS_FULL") && (
                                 <div>
                                   <span
@@ -2596,7 +2609,7 @@ const LecturerReports: React.FC = () => {
                               e.currentTarget.style.transform = "translateY(0)";
                             }}
                           >
-                            {selectedReport.ordinal === 4 || selectedReport.milestoneCode === "MS_FULL" ? (
+                            {selectedReport.ordinal === finalMilestoneOrdinal || selectedReport.milestoneCode === "MS_FULL" ? (
                               <>
                                 <CheckCircle size={18} />
                                 <span>Chấm điểm ngay</span>
@@ -2840,7 +2853,7 @@ const LecturerReports: React.FC = () => {
                     </div>
 
                     {/* Detailed Evaluation for Milestone 4 */}
-                    {(selectedReportForComment.ordinal === 4 || selectedReportForComment.milestoneCode === "MS_FULL") && (
+                    {(selectedReportForComment.ordinal === finalMilestoneOrdinal || selectedReportForComment.milestoneCode === "MS_FULL") && (
                       <div style={{ background: "white", borderRadius: "24px", padding: "32px", border: "1px solid #e2e8f0", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px", paddingBottom: "16px", borderBottom: "1px solid #f1f5f9" }}>
                           <CheckCircle size={18} color="#F37021" />

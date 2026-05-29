@@ -10,5 +10,6 @@ namespace ThesisManagement.Api.DTOs.MilestoneTemplates.Query
         public int? MaxOrdinal { get; set; }
         public DateTime? CreatedFrom { get; set; }
         public DateTime? CreatedTo { get; set; }
+        public int? DefenseTermId { get; set; }
     }
 }

@@ -19,6 +19,7 @@ namespace ThesisManagement.Api.Services
             Topics = new GenericRepository<Topic>(_db);
             Cohorts = new GenericRepository<Cohort>(_db);
             ProgressMilestones = new GenericRepository<ProgressMilestone>(_db);
+            ProgressMilestoneSteps = new GenericRepository<ProgressMilestoneStep>(_db);
             ProgressSubmissions = new GenericRepository<ProgressSubmission>(_db);
             MilestoneTemplates = new GenericRepository<MilestoneTemplate>(_db);
             SubmissionFiles = new GenericRepository<SubmissionFile>(_db);
@@ -77,6 +78,7 @@ namespace ThesisManagement.Api.Services
         public IGenericRepository<Topic> Topics { get; }
         public IGenericRepository<Cohort> Cohorts { get; }
         public IGenericRepository<ProgressMilestone> ProgressMilestones { get; }
+        public IGenericRepository<ProgressMilestoneStep> ProgressMilestoneSteps { get; }
         public IGenericRepository<ProgressSubmission> ProgressSubmissions { get; }
     public IGenericRepository<MilestoneTemplate> MilestoneTemplates { get; }
     public IGenericRepository<SubmissionFile> SubmissionFiles { get; }

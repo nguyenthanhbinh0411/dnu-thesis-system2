@@ -814,6 +814,9 @@ namespace ThesisManagement.Api.Helpers
             if (filter.ToDate.HasValue)
                 query = query.Where(x => x.CreatedAt <= filter.ToDate.Value);
 
+            if (filter.DefenseTermId.HasValue)
+                query = query.Where(x => x.DefenseTermId == filter.DefenseTermId.Value);
+
             return ApplySorting(query, filter);
         }
 

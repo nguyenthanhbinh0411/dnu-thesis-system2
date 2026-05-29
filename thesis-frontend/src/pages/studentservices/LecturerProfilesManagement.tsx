@@ -360,8 +360,8 @@ function calcProgress(
   const ordinal = Number(currentMilestone.ordinal || 0);
   if (!Number.isFinite(ordinal) || ordinal < 1) return 0;
 
-  // Milestone 4 is the last one
-  if (ordinal === 4 && currentMilestone.state === "WaitingForCommittee") {
+  // Milestone is the last one
+  if (ordinal === totalMilestones && currentMilestone.state === "WaitingForCommittee") {
     return 100;
   }
 

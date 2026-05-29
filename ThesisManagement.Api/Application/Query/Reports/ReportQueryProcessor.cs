@@ -78,6 +78,7 @@ namespace ThesisManagement.Api.Application.Query.Reports
             {
                 // Lấy raw milestone để kiểm tra FailureReason
                 var rawMilestone = await _uow.ProgressMilestones.Query()
+                    .Include(x => x.ProgressMilestoneSteps)
                     .Where(x => x.MilestoneCode == currentMilestone.MilestoneCode)
                     .FirstOrDefaultAsync();
 
@@ -377,15 +378,24 @@ namespace ThesisManagement.Api.Application.Query.Reports
         }
 
         /// <summary>Kiểm tra ordinal N đã hoàn thành (CompletedAtN != null)</summary>
-        private static bool IsOrdinalCompletedRaw(Models.ProgressMilestone m, int ordinal) => ordinal switch
+        private static bool IsOrdinalCompletedRaw(Models.ProgressMilestone m, int ordinal)
         {
-            1 => m.CompletedAt1 != null,
-            2 => m.CompletedAt2 != null,
-            3 => m.CompletedAt3 != null,
-            4 => m.CompletedAt4 != null,
-            5 => m.CompletedAt5 != null,
-            _ => false
-        };
+            if (m.ProgressMilestoneSteps != null && m.ProgressMilestoneSteps.Count > 0)
+            {
+                var step = m.ProgressMilestoneSteps.FirstOrDefault(x => x.Ordinal == ordinal);
+                if (step != null)
+                    return step.CompletedAt != null;
+            }
+            return ordinal switch
+            {
+                1 => m.CompletedAt1 != null,
+                2 => m.CompletedAt2 != null,
+                3 => m.CompletedAt3 != null,
+                4 => m.CompletedAt4 != null,
+                5 => m.CompletedAt5 != null,
+                _ => false
+            };
+        }
 
         private static string GetCurrentMilestoneSubmissionStatus(ProgressSubmission? submission)
         {
@@ -465,11 +475,13 @@ namespace ThesisManagement.Api.Application.Query.Reports
         private async Task<ReportMilestoneDto?> GetCurrentMilestoneByTopicCodeAsync(string topicCode)
         {
             var milestone = await _uow.ProgressMilestones.Query()
+                .Include(x => x.ProgressMilestoneSteps)
                 .Where(x => x.TopicCode == topicCode)
                 .OrderByDescending(x => x.StartedAt)
                 .ThenBy(x => x.Ordinal)
                 .FirstOrDefaultAsync(x => x.State == "Đang thực hiện")
                 ?? await _uow.ProgressMilestones.Query()
+                    .Include(x => x.ProgressMilestoneSteps)
                     .Where(x => x.TopicCode == topicCode)
                     .OrderByDescending(x => x.Ordinal)
                     .ThenByDescending(x => x.LastUpdated)
@@ -485,6 +497,13 @@ namespace ThesisManagement.Api.Application.Query.Reports
                 displayState = "WaitingForCommittee";
             }
 
+            var steps = milestone.ProgressMilestoneSteps;
+            var c1 = steps?.FirstOrDefault(x => x.Ordinal == 1)?.CompletedAt ?? milestone.CompletedAt1;
+            var c2 = steps?.FirstOrDefault(x => x.Ordinal == 2)?.CompletedAt ?? milestone.CompletedAt2;
+            var c3 = steps?.FirstOrDefault(x => x.Ordinal == 3)?.CompletedAt ?? milestone.CompletedAt3;
+            var c4 = steps?.FirstOrDefault(x => x.Ordinal == 4)?.CompletedAt ?? milestone.CompletedAt4;
+            var c5 = steps?.FirstOrDefault(x => x.Ordinal == 5)?.CompletedAt ?? milestone.CompletedAt5;
+
             return new ReportMilestoneDto(
                 milestone.MilestoneID,
                 milestone.MilestoneCode,
@@ -494,11 +513,11 @@ namespace ThesisManagement.Api.Application.Query.Reports
                 milestone.Deadline,
                 displayState,
                 milestone.StartedAt,
-                milestone.CompletedAt1,
-                milestone.CompletedAt2,
-                milestone.CompletedAt3,
-                milestone.CompletedAt4,
-                null, // CompletedAt5 removed as milestone 5 is deleted
+                c1,
+                c2,
+                c3,
+                c4,
+                c5,
                 milestone.AllowLateSubmit);
         }
 

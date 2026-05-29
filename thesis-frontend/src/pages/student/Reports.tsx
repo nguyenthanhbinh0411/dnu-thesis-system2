@@ -171,8 +171,9 @@ const Reports: React.FC = () => {
 
   const loadMilestoneTemplates = useCallback(async () => {
     try {
+      const activePeriodId = getActiveDefensePeriodId();
       const res = await fetchData<{ data?: MilestoneTemplate[] }>(
-        "/MilestoneTemplates/get-list?Page=0&PageSize=10",
+        `/MilestoneTemplates/get-list?Page=0&PageSize=10${activePeriodId ? `&DefenseTermId=${activePeriodId}` : ""}`,
       );
       if (res.data) setMilestoneTemplates(res.data);
     } catch (err) { console.error("Error loading milestones:", err); }
@@ -685,7 +686,7 @@ const Reports: React.FC = () => {
                         </span>
                         <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider"
                            style={{ background: tone.bg, color: tone.color, border: `1px solid ${tone.border}` }}>
-                           {m.ordinal === 4 && currentMilestone?.state === "WaitingForCommittee"
+                           {m.ordinal === milestoneViews.length && currentMilestone?.state === "WaitingForCommittee"
                               ? "Chờ hội đồng & bảo vệ"
                               : m.isCompleted ? "Hoàn thành"
                               : m.isOverdue ? "⚠️ Quá hạn"

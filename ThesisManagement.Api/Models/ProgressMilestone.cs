@@ -53,5 +53,6 @@ namespace ThesisManagement.Api.Models
         public Topic? Topic { get; set; }
         public ICollection<ProgressSubmission>? ProgressSubmissions { get; set; }
         public MilestoneTemplate? MilestoneTemplate { get; set; }
+        public ICollection<ProgressMilestoneStep>? ProgressMilestoneSteps { get; set; }
     }
 }

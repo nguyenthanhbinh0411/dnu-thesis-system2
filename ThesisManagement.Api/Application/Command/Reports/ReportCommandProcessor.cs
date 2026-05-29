@@ -62,7 +62,9 @@ namespace ThesisManagement.Api.Application.Command.Reports
             if (IsPendingTopic(topic.Status))
                 return OperationResult<StudentProgressSubmitResultDto>.Failed("Topic is pending approval", 409);
 
-            var milestone = await _uow.ProgressMilestones.Query().FirstOrDefaultAsync(x => x.MilestoneCode == payload.MilestoneCode && x.TopicCode == payload.TopicCode);
+            var milestone = await _uow.ProgressMilestones.Query()
+                .Include(x => x.ProgressMilestoneSteps)
+                .FirstOrDefaultAsync(x => x.MilestoneCode == payload.MilestoneCode && x.TopicCode == payload.TopicCode);
             if (milestone == null)
                 return OperationResult<StudentProgressSubmitResultDto>.Failed("Milestone not found", 404);
 
@@ -415,7 +417,18 @@ namespace ThesisManagement.Api.Application.Command.Reports
             var currentOrdinal = currentMilestone.Ordinal ?? 0;
             var topicId = currentMilestone.TopicID;
 
-            // 1. Update completion time for the current ordinal
+            // 1. Update dynamic steps table
+            var currentStep = await _db.ProgressMilestoneSteps
+                .FirstOrDefaultAsync(x => x.MilestoneID == currentMilestone.MilestoneID && x.Ordinal == currentOrdinal);
+            if (currentStep != null)
+            {
+                currentStep.State = "Completed";
+                currentStep.CompletedAt = DateTime.UtcNow;
+                currentStep.LastUpdated = DateTime.UtcNow;
+                _uow.ProgressMilestoneSteps.Update(currentStep);
+            }
+
+            // 2. Backward compatible flat columns update
             switch (currentOrdinal)
             {
                 case 1: currentMilestone.CompletedAt1 = DateTime.UtcNow; break;
@@ -427,93 +440,113 @@ namespace ThesisManagement.Api.Application.Command.Reports
 
             currentMilestone.LastUpdated = DateTime.UtcNow;
 
-            // 2. Handle Final Milestone (Ordinal 4 - MS_FULL)
-            if (currentOrdinal == 4 || currentMilestone.MilestoneTemplateCode == "MS_FULL")
+            // 3. Retrieve dynamic templates for this topic's DefenseTermId to avoid global leak
+            var topic = await _uow.Topics.GetByIdAsync(topicId);
+            var templates = await _uow.MilestoneTemplates.Query()
+                .Where(x => x.DefenseTermId == (topic != null ? topic.DefenseTermId : null))
+                .OrderBy(x => x.Ordinal)
+                .ToListAsync();
+
+            if (templates.Count == 0)
+            {
+                templates = await _uow.MilestoneTemplates.Query()
+                    .Where(x => x.DefenseTermId == null)
+                    .OrderBy(x => x.Ordinal)
+                    .ToListAsync();
+            }
+
+            var totalMilestones = templates.Count;
+            var isFinalMilestone = currentOrdinal >= totalMilestones || currentMilestone.MilestoneTemplateCode == "MS_FULL" || (currentMilestone.MilestoneTemplateCode != null && currentMilestone.MilestoneTemplateCode.StartsWith("MS_FULL"));
+
+            // 4. Handle Final Milestone Completion
+            if (isFinalMilestone)
             {
                 currentMilestone.State = "Completed";
-                var topic = await _uow.Topics.GetByIdAsync(topicId);
                 if (topic != null)
                 {
                     // ── Guard 3: Kiểm tra tất cả mốc trước đã hoàn thành trước khi cấp điều kiện bảo vệ ──
-                    var allPriorCompleted =
-                        currentMilestone.CompletedAt1 != null &&
-                        currentMilestone.CompletedAt2 != null &&
-                        currentMilestone.CompletedAt3 != null &&
-                        currentMilestone.CompletedAt4 != null;
+                    var allSteps = await _db.ProgressMilestoneSteps
+                        .Where(x => x.MilestoneID == currentMilestone.MilestoneID)
+                        .ToListAsync();
+                    
+                    var allPriorCompleted = allSteps.All(x => x.CompletedAt != null);
 
                     if (!allPriorCompleted)
                     {
                         _logger.LogWarning(
                             "[ReportCommandProcessor] Topic {TopicCode}: Cannot grant defense eligibility. " +
-                            "Not all prior milestones completed. CompletedAt1={C1}, CompletedAt2={C2}, CompletedAt3={C3}, CompletedAt4={C4}",
-                            topic.TopicCode,
-                            currentMilestone.CompletedAt1, currentMilestone.CompletedAt2,
-                            currentMilestone.CompletedAt3, currentMilestone.CompletedAt4);
-                        // Vẫn để tiếp tục nhưng không grant eligible
+                            "Not all prior milestones completed dynamically.",
+                            topic.TopicCode);
                     }
                     else
                     {
-                    topic.Score = dto.Score ?? topic.Score;
-                    if (allPriorCompleted)
+                        topic.Score = dto.Score ?? topic.Score;
                         topic.Status = "Đủ điều kiện bảo vệ";
-                    topic.LastUpdated = DateTime.UtcNow;
-                    topic.LecturerComment = submission.LecturerComment ?? topic.LecturerComment;
+                        topic.LastUpdated = DateTime.UtcNow;
+                        topic.LecturerComment = submission.LecturerComment ?? topic.LecturerComment;
 
-                    // Map Evaluation Fields (Phiếu đánh giá)
-                    topic.ReviewQuality = dto.ReviewQuality ?? topic.ReviewQuality;
-                    topic.ReviewAttitude = dto.ReviewAttitude ?? topic.ReviewAttitude;
-                    topic.ReviewCapability = dto.ReviewCapability ?? topic.ReviewCapability;
-                    topic.ReviewResultProcessing = dto.ReviewResultProcessing ?? topic.ReviewResultProcessing;
-                    topic.ReviewAchievements = dto.ReviewAchievements ?? topic.ReviewAchievements;
-                    topic.ReviewLimitations = dto.ReviewLimitations ?? topic.ReviewLimitations;
-                    topic.ReviewConclusion = dto.ReviewConclusion ?? topic.ReviewConclusion;
-                    topic.ScoreInWords = dto.ScoreInWords ?? topic.ScoreInWords;
+                        // Map Evaluation Fields (Phiếu đánh giá)
+                        topic.ReviewQuality = dto.ReviewQuality ?? topic.ReviewQuality;
+                        topic.ReviewAttitude = dto.ReviewAttitude ?? topic.ReviewAttitude;
+                        topic.ReviewCapability = dto.ReviewCapability ?? topic.ReviewCapability;
+                        topic.ReviewResultProcessing = dto.ReviewResultProcessing ?? topic.ReviewResultProcessing;
+                        topic.ReviewAchievements = dto.ReviewAchievements ?? topic.ReviewAchievements;
+                        topic.ReviewLimitations = dto.ReviewLimitations ?? topic.ReviewLimitations;
+                        topic.ReviewConclusion = dto.ReviewConclusion ?? topic.ReviewConclusion;
+                        topic.ScoreInWords = dto.ScoreInWords ?? topic.ScoreInWords;
 
-                    // Map structural fields (Kết cấu đồ án)
-                    topic.NumChapters = dto.NumChapters ?? topic.NumChapters;
-                    topic.NumPages = dto.NumPages ?? topic.NumPages;
-                    topic.NumTables = dto.NumTables ?? topic.NumTables;
-                    topic.NumFigures = dto.NumFigures ?? topic.NumFigures;
-                    topic.NumReferences = dto.NumReferences ?? topic.NumReferences;
-                    topic.NumVietnameseReferences = dto.NumVietnameseReferences ?? topic.NumVietnameseReferences;
-                    topic.NumForeignReferences = dto.NumForeignReferences ?? topic.NumForeignReferences;
+                        // Map structural fields (Kết cấu đồ án)
+                        topic.NumChapters = dto.NumChapters ?? topic.NumChapters;
+                        topic.NumPages = dto.NumPages ?? topic.NumPages;
+                        topic.NumTables = dto.NumTables ?? topic.NumTables;
+                        topic.NumFigures = dto.NumFigures ?? topic.NumFigures;
+                        topic.NumReferences = dto.NumReferences ?? topic.NumReferences;
+                        topic.NumVietnameseReferences = dto.NumVietnameseReferences ?? topic.NumVietnameseReferences;
+                        topic.NumForeignReferences = dto.NumForeignReferences ?? topic.NumForeignReferences;
 
-                    _uow.Topics.Update(topic);
+                        _uow.Topics.Update(topic);
                     } // end allPriorCompleted check
                 }
             }
-            // 3. Handle transition to next milestone within the SAME record
-            else if (currentOrdinal < 4)
+            // 5. Handle transition to next milestone dynamically within the SAME record
+            else
             {
                 var nextOrdinal = currentOrdinal + 1;
-                var nextTemplate = await _uow.MilestoneTemplates.Query()
-                    .FirstOrDefaultAsync(x => x.Ordinal == nextOrdinal);
+                var nextTemplate = templates.FirstOrDefault(x => x.Ordinal == nextOrdinal);
 
                 if (nextTemplate != null)
                 {
                     currentMilestone.Ordinal = nextOrdinal;
                     currentMilestone.MilestoneTemplateCode = nextTemplate.MilestoneTemplateCode;
-                    currentMilestone.State = "Pending"; // Or "In Progress"
+                    currentMilestone.State = "Pending";
                     currentMilestone.Deadline = nextTemplate.Deadline;
                 }
             }
 
             _uow.ProgressMilestones.Update(currentMilestone);
-
             await _uow.SaveChangesAsync();
         }
 
         // ── Static helpers for sequential guard ──
 
-        private static bool IsOrdinalCompleted(ProgressMilestone m, int ordinal) => ordinal switch
+        private static bool IsOrdinalCompleted(ProgressMilestone m, int ordinal)
         {
-            1 => m.CompletedAt1 != null,
-            2 => m.CompletedAt2 != null,
-            3 => m.CompletedAt3 != null,
-            4 => m.CompletedAt4 != null,
-            5 => m.CompletedAt5 != null,
-            _ => false
-        };
+            if (m.ProgressMilestoneSteps != null && m.ProgressMilestoneSteps.Count > 0)
+            {
+                var step = m.ProgressMilestoneSteps.FirstOrDefault(x => x.Ordinal == ordinal);
+                if (step != null)
+                    return step.CompletedAt != null;
+            }
+            return ordinal switch
+            {
+                1 => m.CompletedAt1 != null,
+                2 => m.CompletedAt2 != null,
+                3 => m.CompletedAt3 != null,
+                4 => m.CompletedAt4 != null,
+                5 => m.CompletedAt5 != null,
+                _ => false
+            };
+        }
 
         private static string GetMilestoneLabel(int ordinal) => ordinal switch
         {

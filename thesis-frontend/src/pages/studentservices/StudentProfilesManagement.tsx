@@ -339,8 +339,8 @@ function calcProgress(
   const ordinal = Number(currentMilestone.ordinal || 0);
   if (!Number.isFinite(ordinal) || ordinal < 1) return 0;
 
-  // If we are at the last milestone (4) and waiting for committee, it's 100%
-  if (ordinal === 4 && currentMilestone.state === "WaitingForCommittee") {
+  // If we are at the last milestone and waiting for committee, it's 100%
+  if (ordinal === totalTemplates && currentMilestone.state === "WaitingForCommittee") {
     return 100;
   }
 
@@ -430,8 +430,11 @@ const StudentProfilesManagement: React.FC = () => {
   useEffect(() => {
     const fetchTemplates = async () => {
       try {
+        const url = selectedPeriodId
+          ? `/MilestoneTemplates/get-list?Page=0&PageSize=50&DefenseTermId=${selectedPeriodId}`
+          : "/MilestoneTemplates/get-list?Page=0&PageSize=50";
         const response = await fetchData<ApiResponse<MilestoneTemplate[]>>(
-          "/MilestoneTemplates/get-list?Page=0&PageSize=50",
+          url,
           { method: "GET" },
         );
         if (!response?.success) return;
@@ -441,7 +444,7 @@ const StudentProfilesManagement: React.FC = () => {
       }
     };
     void fetchTemplates();
-  }, []);
+  }, [selectedPeriodId]);
 
   useEffect(() => {
     const loadRows = async () => {

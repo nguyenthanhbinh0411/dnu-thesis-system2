@@ -32,9 +32,26 @@ namespace ThesisManagement.Api.Application.Command.MilestoneTemplates
             if (!string.IsNullOrWhiteSpace(validationError))
                 return OperationResult<MilestoneTemplateReadDto>.Failed(validationError, 400);
 
-            var code = string.IsNullOrWhiteSpace(dto.MilestoneTemplateCode)
+            if (dto.DefenseTermId.HasValue)
+            {
+                var term = await _uow.DefenseTerms.GetByIdAsync(dto.DefenseTermId.Value);
+                if (term == null)
+                    return OperationResult<MilestoneTemplateReadDto>.Failed("Specified defense term does not exist", 400);
+            }
+
+            var baseCode = string.IsNullOrWhiteSpace(dto.MilestoneTemplateCode)
                 ? _codeGenerator.Generate("MTPL")
                 : dto.MilestoneTemplateCode.Trim();
+
+            var code = baseCode;
+            if (dto.DefenseTermId.HasValue)
+            {
+                var suffix = $"_{dto.DefenseTermId.Value}";
+                if (!code.EndsWith(suffix))
+                {
+                    code = $"{code}{suffix}";
+                }
+            }
 
             var entity = new MilestoneTemplate
             {
@@ -43,6 +60,7 @@ namespace ThesisManagement.Api.Application.Command.MilestoneTemplates
                 Description = dto.Description,
                 Ordinal = dto.Ordinal,
                 Deadline = dto.Deadline,
+                DefenseTermId = dto.DefenseTermId,
                 CreatedAt = DateTime.UtcNow,
                 LastUpdated = DateTime.UtcNow
             };

@@ -33,6 +33,7 @@ namespace ThesisManagement.Api.Data
         public DbSet<Topic> Topics => Set<Topic>();
         public DbSet<Cohort> Cohorts => Set<Cohort>();
         public DbSet<ProgressMilestone> ProgressMilestones => Set<ProgressMilestone>();
+        public DbSet<ProgressMilestoneStep> ProgressMilestoneSteps => Set<ProgressMilestoneStep>();
         public DbSet<ProgressSubmission> ProgressSubmissions => Set<ProgressSubmission>();
         public DbSet<Committee> Committees => Set<Committee>();
         public DbSet<CommitteeMember> CommitteeMembers => Set<CommitteeMember>();
@@ -320,6 +321,25 @@ namespace ThesisManagement.Api.Data
                 b.Property(x => x.LastUpdated).HasDefaultValueSql("SYSTIMESTAMP");
             });
 
+            // ProgressMilestoneSteps
+            modelBuilder.Entity<ProgressMilestoneStep>(b =>
+            {
+                b.ToTable("PROGRESSMILESTONESTEPS");
+                b.HasKey(x => x.StepID);
+                b.Property(x => x.StepID).HasColumnName("STEPID");
+                b.Property(x => x.MilestoneID).HasColumnName("MILESTONEID").IsRequired();
+                b.HasOne(x => x.Milestone)
+                    .WithMany(x => x.ProgressMilestoneSteps)
+                    .HasForeignKey(x => x.MilestoneID)
+                    .OnDelete(DeleteBehavior.Cascade);
+                b.Property(x => x.MilestoneTemplateCode).HasColumnName("MILESTONETEMPLATECODE").HasMaxLength(40).IsRequired();
+                b.Property(x => x.Ordinal).HasColumnName("Ordinal").IsRequired();
+                b.Property(x => x.State).HasColumnName("STATE").HasMaxLength(50).HasDefaultValue("Pending");
+                b.Property(x => x.CompletedAt).HasColumnName("COMPLETEDAT");
+                b.Property(x => x.CreatedAt).HasColumnName("CREATEDAT").HasDefaultValueSql("SYSTIMESTAMP");
+                b.Property(x => x.LastUpdated).HasColumnName("LASTUPDATED").HasDefaultValueSql("SYSTIMESTAMP");
+            });
+
             modelBuilder.Entity<Cohort>(b =>
             {
                 b.ToTable("COHORTS");
@@ -372,6 +392,12 @@ namespace ThesisManagement.Api.Data
                 b.Property(x => x.Description);
                 b.Property(x => x.Ordinal).IsRequired();
                 b.Property(x => x.Deadline);
+                b.Property(x => x.DefenseTermId);
+                b.HasOne(x => x.DefenseTerm)
+                    .WithMany(x => x.MilestoneTemplates)
+                    .HasForeignKey(x => x.DefenseTermId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                b.HasIndex(x => x.DefenseTermId);
                 b.Property(x => x.CreatedAt).HasDefaultValueSql("SYSTIMESTAMP");
                 b.Property(x => x.LastUpdated);
             });

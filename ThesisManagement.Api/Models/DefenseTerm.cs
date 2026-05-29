@@ -26,5 +26,6 @@ namespace ThesisManagement.Api.Models
         public ICollection<StudentProfile>? StudentProfiles { get; set; }
         /// <summary>Giảng viên được import vào đợt bảo vệ này.</summary>
         public ICollection<LecturerProfile>? LecturerProfiles { get; set; }
+        public ICollection<MilestoneTemplate>? MilestoneTemplates { get; set; }
     }
 }

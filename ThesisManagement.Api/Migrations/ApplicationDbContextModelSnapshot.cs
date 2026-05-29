@@ -2293,6 +2293,10 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnType("TIMESTAMP(7)")
                         .HasColumnName("DEADLINE");
 
+                    b.Property<int?>("DefenseTermId")
+                        .HasColumnType("NUMBER(10)")
+                        .HasColumnName("DEFENSETERMID");
+
                     b.Property<string>("Description")
                         .HasColumnType("NVARCHAR2(2000)")
                         .HasColumnName("DESCRIPTION");
@@ -2318,6 +2322,8 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnName("Ordinal");
 
                     b.HasKey("MilestoneTemplateID");
+
+                    b.HasIndex("DefenseTermId");
 
                     b.HasIndex("MilestoneTemplateCode")
                         .IsUnique();
@@ -3006,7 +3012,8 @@ namespace ThesisManagement.Api.Migrations
                         .HasColumnName("FULLNAME");
 
                     b.Property<decimal?>("GPA")
-                        .HasColumnType("DECIMAL(18, 2)")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("DECIMAL(18,2)")
                         .HasColumnName("GPA");
 
                     b.Property<string>("Gender")
@@ -4738,6 +4745,16 @@ namespace ThesisManagement.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ThesisManagement.Api.Models.MilestoneTemplate", b =>
+                {
+                    b.HasOne("ThesisManagement.Api.Models.DefenseTerm", "DefenseTerm")
+                        .WithMany("MilestoneTemplates")
+                        .HasForeignKey("DefenseTermId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("DefenseTerm");
+                });
+
             modelBuilder.Entity("ThesisManagement.Api.Models.NotificationPreference", b =>
                 {
                     b.HasOne("ThesisManagement.Api.Models.User", "TargetUser")
@@ -5062,6 +5079,8 @@ namespace ThesisManagement.Api.Migrations
                     b.Navigation("DefenseTermStudents");
 
                     b.Navigation("LecturerProfiles");
+
+                    b.Navigation("MilestoneTemplates");
 
                     b.Navigation("StudentProfiles");
 

@@ -108,16 +108,15 @@ const LecturerStudents: React.FC = () => {
   const [overrideReason, setOverrideReason] = useState("");
   const [overriding, setOverriding] = useState(false);
 
-  /**
-   * Tìm ordinal mốc hiện tại mà SV đang cần hoàn thành.
-   * Dựa trên completedAt1⊒4: tìm completedAtđầu tiên == null.
-   */
   const getCurrentOrdinal = (m: ProgressMilestone): number => {
-    if (!m.completedAt1) return 1;
-    if (!m.completedAt2) return 2;
-    if (!m.completedAt3) return 3;
-    if (!m.completedAt4) return 4;
-    return 4; // all done
+    const total = milestoneTemplates.length > 0 ? milestoneTemplates.length : 5;
+    for (let i = 1; i <= total; i++) {
+      const completedField = `completedAt${i}` as keyof ProgressMilestone;
+      if (!m[completedField]) {
+        return i;
+      }
+    }
+    return total; // all done
   };
 
   /**
@@ -359,15 +358,17 @@ const LecturerStudents: React.FC = () => {
 
     const m = milestones[0];
     let completedCount = 0;
-    if (m.completedAt1) completedCount++;
-    if (m.completedAt2) completedCount++;
-    if (m.completedAt3) completedCount++;
-    if (m.completedAt4) completedCount++;
+    const totalMilestones = milestoneTemplates.length > 0 ? milestoneTemplates.length : 4;
 
-    // If milestone 4 is done or we are waiting for committee, it's essentially 100%
+    for (let i = 1; i <= totalMilestones; i++) {
+      const completedField = `completedAt${i}` as keyof ProgressMilestone;
+      if (m[completedField]) completedCount++;
+    }
+
+    // If milestone is done or we are waiting for committee, it's essentially 100%
     if (m.state === "WaitingForCommittee") return 100;
 
-    return Math.round((completedCount / 4) * 100);
+    return Math.min(100, Math.round((completedCount / totalMilestones) * 100));
   };
 
   // Calculate detailed stats for student
@@ -427,7 +428,7 @@ const LecturerStudents: React.FC = () => {
         // Lọc theo DefenseTermId để chỉ lấy đề tài của đợt hiện tại
         const [topicsResponse, templatesResponse] = await Promise.all([
           fetchData<{ data: Topic[] }>(`/Topics/get-list?SupervisorUserCode=${user.userCode}&DefenseTermId=${activeDefenseTermId}&PageSize=100`),
-          fetchData<{ data: MilestoneTemplate[] }>(`/MilestoneTemplates/get-list?Page=1&PageSize=50`),
+          fetchData<{ data: MilestoneTemplate[] }>(`/MilestoneTemplates/get-list?Page=1&PageSize=50&DefenseTermId=${activeDefenseTermId}`),
         ]);
         const topics: Topic[] = topicsResponse.data || [];
         // Lưu templates vào state để isStudentOverdue có thể dùng deadline thực của từng mốc
@@ -2142,29 +2143,36 @@ const LecturerStudents: React.FC = () => {
                         {(() => {
                           const mainMilestone = detailModal.student?.milestones?.[0];
                           const currentState = mainMilestone?.state;
-                          const milestoneList = [
-                            { code: "MS_REG", name: "Đăng ký" },
-                            { code: "MS_PROG1", name: "Đề cương" },
-                            { code: "MS_PROG2", name: "Báo cáo" },
-                            { 
-                              code: "MS_FULL", 
-                              name: currentState === "WaitingForCommittee" ? "Khóa luận hoàn chỉnh" : "Hoàn thiện" 
-                            }
-                          ];
+                          const milestoneList = milestoneTemplates.length > 0 
+                            ? milestoneTemplates.map(t => ({
+                                code: t.milestoneTemplateCode,
+                                name: t.name.replace("Đăng ký đề tài", "Đăng ký").replace("Nộp đề cương", "Đề cương").replace("Nộp báo cáo tiến độ", "Báo cáo").replace("Báo cáo hoàn thành", "Hoàn thiện").replace("Báo cáo hoàn chỉnh", "Khóa luận hoàn chỉnh")
+                              }))
+                            : [
+                                { code: "MS_REG", name: "Đăng ký" },
+                                { code: "MS_PROG1", name: "Đề cương" },
+                                { code: "MS_PROG2", name: "Báo cáo" },
+                                { 
+                                  code: "MS_FULL", 
+                                  name: currentState === "WaitingForCommittee" ? "Khóa luận hoàn chỉnh" : "Hoàn thiện" 
+                                }
+                              ];
 
-                          const firstNotCompletedIdx = [
-                            mainMilestone?.completedAt1,
-                            mainMilestone?.completedAt2,
-                            mainMilestone?.completedAt3,
-                            mainMilestone?.completedAt4
-                          ].findIndex(val => !val);
+                          const totalM = milestoneList.length;
+                          const completedArray = [];
+                          for (let i = 1; i <= totalM; i++) {
+                            const completedAtKey = `completedAt${i}` as keyof ProgressMilestone;
+                            completedArray.push(mainMilestone ? mainMilestone[completedAtKey] : null);
+                          }
+
+                          const firstNotCompletedIdx = completedArray.findIndex(val => !val);
 
                           return milestoneList.map((m, idx) => {
                             const completedAtKey = `completedAt${idx + 1}`;
                             const completedAtValue = mainMilestone ? (mainMilestone as any)[completedAtKey] : null;
                             let isCompleted = !!completedAtValue;
                             
-                            if (idx === 3 && currentState === "WaitingForCommittee") {
+                            if (idx === totalM - 1 && currentState === "WaitingForCommittee") {
                               isCompleted = true;
                             }
 
@@ -2174,7 +2182,7 @@ const LecturerStudents: React.FC = () => {
                             }
 
                             return (
-                              <React.Fragment key={m.code}>
+                              <React.Fragment key={m.code || idx}>
                                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, position: "relative" }}>
                                   <div
                                     style={{
@@ -2202,7 +2210,7 @@ const LecturerStudents: React.FC = () => {
                                     </div>
                                   </div>
                                 </div>
-                                {idx < 3 && (
+                                {idx < totalM - 1 && (
                                   <div
                                     style={{
                                       flex: 1,
@@ -2278,12 +2286,16 @@ const LecturerStudents: React.FC = () => {
                                     <tr key={sub.submissionID} style={{ borderBottom: idx === (detailModal.student?.submissions?.length || 0) - 1 ? "none" : "1px solid #f8fafc" }}>
                                       <td style={{ padding: "16px" }}>
                                         <div style={{ fontSize: "13px", fontWeight: "800", color: "#1e293b" }}>
-                                          {sub.ordinal === 1 ? "Đăng ký đề tài" :
-                                           sub.ordinal === 2 ? "Đề cương" :
-                                           sub.ordinal === 3 ? "Báo cáo" :
-                                           sub.ordinal === 4 ? "Hoàn thiện khóa luận" :
-                                           sub.ordinal === 5 ? "Bảo vệ luận văn" :
-                                           sub.milestoneCode || `Mốc ${sub.ordinal}`}
+                                          {(() => {
+                                            const tmpl = milestoneTemplates.find(t => t.ordinal === sub.ordinal);
+                                            if (tmpl) return tmpl.name;
+                                            return sub.ordinal === 1 ? "Đăng ký đề tài" :
+                                                   sub.ordinal === 2 ? "Đề cương" :
+                                                   sub.ordinal === 3 ? "Báo cáo" :
+                                                   sub.ordinal === 4 ? "Hoàn thiện khóa luận" :
+                                                   sub.ordinal === 5 ? "Bảo vệ luận văn" :
+                                                   sub.milestoneCode || `Mốc ${sub.ordinal}`;
+                                          })()}
                                         </div>
                                         <div style={{ fontSize: "11px", fontWeight: "600", color: "#94a3b8" }}>Lần nộp: {sub.attemptNumber}</div>
                                       </td>

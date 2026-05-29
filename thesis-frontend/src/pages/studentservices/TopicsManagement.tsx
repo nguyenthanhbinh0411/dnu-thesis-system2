@@ -122,6 +122,7 @@ type DashboardMilestone = {
   completedAt2?: string | null;
   completedAt3?: string | null;
   completedAt4?: string | null;
+  completedAt5?: string | null;
 };
 
 type DashboardItem = {
@@ -749,8 +750,11 @@ const TopicsManagement: React.FC = () => {
   useEffect(() => {
     const fetchTemplates = async () => {
       try {
+        const url = selectedPeriodId
+          ? `/MilestoneTemplates/get-list?Page=0&PageSize=50&DefenseTermId=${selectedPeriodId}`
+          : "/MilestoneTemplates/get-list?Page=0&PageSize=50";
         const response = await fetchData<ApiResponse<MilestoneTemplate[]>>(
-          "/MilestoneTemplates/get-list?Page=0&PageSize=10",
+          url,
           { method: "GET" },
         );
         if (!response?.success) return;
@@ -761,7 +765,7 @@ const TopicsManagement: React.FC = () => {
     };
 
     void fetchTemplates();
-  }, []);
+  }, [selectedPeriodId]);
 
   const listQuery = useMemo(
     () => ({
@@ -1063,32 +1067,28 @@ const TopicsManagement: React.FC = () => {
   const detailSupervisorTags = detailItem?.supervisorTags ?? [];
 
   const detailMilestones = useMemo<DetailMilestoneView[]>(() => {
-    const fallbackCodes = ["MS_REG", "MS_PROG1", "MS_PROG2", "MS_FULL"];
-    const templateCodes = [...templates]
-      .sort((a, b) => a.ordinal - b.ordinal)
-      .slice(0, 4)
-      .map((item) => item.milestoneTemplateCode);
-    const codes = templateCodes.length === 4 ? templateCodes : fallbackCodes;
+    // Dynamically use templates if loaded, otherwise fall back to original 4 codes
+    const sortedTemplates = [...templates].sort((a, b) => a.ordinal - b.ordinal);
+    const codes = sortedTemplates.length > 0
+      ? sortedTemplates.map((item) => item.milestoneTemplateCode)
+      : ["MS_REG", "MS_PROG1", "MS_PROG2", "MS_FULL"];
 
     const currentCode =
       detailItem?.currentMilestone?.milestoneTemplateCode || "";
     const currentOrdinal = Number(detailItem?.currentMilestone?.ordinal || 0);
     const currentState = detailItem?.currentMilestone?.state;
-
-    const completedAtValues = [
-      detailItem?.currentMilestone?.completedAt1,
-      detailItem?.currentMilestone?.completedAt2,
-      detailItem?.currentMilestone?.completedAt3,
-      detailItem?.currentMilestone?.completedAt4,
-    ];
+    const totalM = codes.length;
 
     return codes.map((code, index) => {
       const ordinal = index + 1;
-      const completedAt = completedAtValues[index] || null;
+      const completedAtKey = `completedAt${ordinal}` as keyof DashboardMilestone;
+      const completedAt = detailItem?.currentMilestone 
+        ? (detailItem.currentMilestone as any)[completedAtKey] || null
+        : null;
       let isCompleted = Boolean(completedAt && String(completedAt).trim());
 
-      // If we are waiting for committee, then milestone 4 is effectively completed
-      if (ordinal === 4 && currentState === "WaitingForCommittee") {
+      // If we are waiting for committee, then the final milestone is effectively completed
+      if (ordinal === totalM && currentState === "WaitingForCommittee") {
         isCompleted = true;
       }
 
@@ -1096,12 +1096,16 @@ const TopicsManagement: React.FC = () => {
         code === currentCode || (!isCompleted && currentOrdinal === ordinal);
 
       // If waiting for committee, it's effectively finished, so don't show as current (orange)
-      if (currentState === "WaitingForCommittee" && ordinal === 4) {
+      if (currentState === "WaitingForCommittee" && ordinal === totalM) {
         isCurrent = false;
       }
 
       let label = getMilestoneLabel(code);
-      if (ordinal === 4 && currentState === "WaitingForCommittee") {
+      if (sortedTemplates.length > 0) {
+        const foundT = sortedTemplates[index];
+        if (foundT) label = foundT.name;
+      }
+      if (ordinal === totalM && currentState === "WaitingForCommittee") {
         label = "Chờ tạo hội đồng và bảo vệ";
       }
 
@@ -1123,6 +1127,7 @@ const TopicsManagement: React.FC = () => {
     detailItem?.currentMilestone?.completedAt2,
     detailItem?.currentMilestone?.completedAt3,
     detailItem?.currentMilestone?.completedAt4,
+    detailItem?.currentMilestone?.completedAt5,
   ]);
 
   const detailSummaryCards: DetailCard[] = [

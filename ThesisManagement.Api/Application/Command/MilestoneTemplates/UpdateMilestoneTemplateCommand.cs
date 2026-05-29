@@ -50,6 +50,28 @@ namespace ThesisManagement.Api.Application.Command.MilestoneTemplates
             if (dto.Deadline.HasValue)
                 entity.Deadline = dto.Deadline.Value;
 
+            if (dto.DefenseTermId.HasValue)
+            {
+                var term = await _uow.DefenseTerms.GetByIdAsync(dto.DefenseTermId.Value);
+                if (term == null)
+                    return OperationResult<MilestoneTemplateReadDto>.Failed("Specified defense term does not exist", 400);
+
+                entity.DefenseTermId = dto.DefenseTermId.Value;
+
+                // Adjust code suffix if it doesn't match the new term
+                var suffix = $"_{dto.DefenseTermId.Value}";
+                if (!entity.MilestoneTemplateCode.EndsWith(suffix))
+                {
+                    var baseCode = entity.MilestoneTemplateCode;
+                    if (baseCode.Contains('_'))
+                    {
+                        var underscoreIndex = baseCode.LastIndexOf('_');
+                        baseCode = baseCode.Substring(0, underscoreIndex);
+                    }
+                    entity.MilestoneTemplateCode = $"{baseCode}{suffix}";
+                }
+            }
+
             entity.LastUpdated = DateTime.UtcNow;
 
             _uow.MilestoneTemplates.Update(entity);

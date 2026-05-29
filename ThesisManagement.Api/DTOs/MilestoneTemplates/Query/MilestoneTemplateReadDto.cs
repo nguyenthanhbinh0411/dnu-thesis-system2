@@ -9,6 +9,7 @@ namespace ThesisManagement.Api.DTOs.MilestoneTemplates.Query
         string? Description,
         int Ordinal,
         DateTime? Deadline,
+        int? DefenseTermId,
         DateTime CreatedAt,
         DateTime? LastUpdated);
 }

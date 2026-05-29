@@ -350,7 +350,7 @@ const Dashboard: React.FC = () => {
             `/reports/student/dashboard?userCode=${encodeURIComponent(userCode)}${periodParam}`,
           ),
           fetchData<{ data?: MilestoneTemplate[] }>(
-            "/MilestoneTemplates/get-list?Page=0&PageSize=10",
+            `/MilestoneTemplates/get-list?Page=0&PageSize=10${activePeriodId ? `&DefenseTermId=${activePeriodId}` : ""}`,
           ),
         ]);
 

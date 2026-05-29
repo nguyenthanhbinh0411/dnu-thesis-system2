@@ -192,6 +192,23 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                 .OrderByDescending(x => x.MilestoneID)
                 .FirstOrDefaultAsync();
 
+            var templates = await _uow.MilestoneTemplates.Query()
+                .Where(x => x.DefenseTermId == topic.DefenseTermId)
+                .OrderBy(x => x.Ordinal)
+                .ToListAsync();
+
+            if (templates.Count == 0)
+            {
+                templates = await _uow.MilestoneTemplates.Query()
+                    .Where(x => x.DefenseTermId == null)
+                    .OrderBy(x => x.Ordinal)
+                    .ToListAsync();
+            }
+
+            var firstTemplate = templates.FirstOrDefault();
+            var targetCode = firstTemplate?.MilestoneTemplateCode ?? "MS_REG";
+            var targetOrdinal = firstTemplate?.Ordinal ?? 1;
+
             if (milestone == null)
             {
                 milestone = new ProgressMilestone
@@ -200,21 +217,38 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                     MilestoneCode = await GenerateMilestoneCodeAsync(),
                     TopicID = topic.TopicID,
                     TopicCode = topic.TopicCode,
-                    MilestoneTemplateCode = "MS_REG",
-                    Ordinal = 1,
+                    MilestoneTemplateCode = targetCode,
+                    Ordinal = targetOrdinal,
                     State = targetState,
                     CreatedAt = DateTime.UtcNow,
                     LastUpdated = DateTime.UtcNow
                 };
 
                 await AddProgressMilestoneWithRetryAsync(milestone);
+
+                // Dynamically sync steps
+                foreach (var t in templates)
+                {
+                    var step = new ProgressMilestoneStep
+                    {
+                        MilestoneID = milestone.MilestoneID,
+                        MilestoneTemplateCode = t.MilestoneTemplateCode,
+                        Ordinal = t.Ordinal,
+                        State = "Pending",
+                        CompletedAt = null,
+                        CreatedAt = DateTime.UtcNow,
+                        LastUpdated = DateTime.UtcNow
+                    };
+                    await _uow.ProgressMilestoneSteps.AddAsync(step);
+                }
+                await _uow.SaveChangesAsync();
                 return milestone.State ?? targetState;
             }
             else
             {
                 milestone.TopicCode = topic.TopicCode;
-                milestone.MilestoneTemplateCode = "MS_REG";
-                milestone.Ordinal = 1;
+                milestone.MilestoneTemplateCode = targetCode;
+                milestone.Ordinal = targetOrdinal;
                 milestone.State = targetState;
                 milestone.StartedAt = null;
                 milestone.CompletedAt1 = null;
@@ -224,6 +258,29 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                 milestone.CompletedAt5 = null;
                 milestone.LastUpdated = DateTime.UtcNow;
                 _uow.ProgressMilestones.Update(milestone);
+
+                // Dynamically refresh steps
+                var existingSteps = await _uow.ProgressMilestoneSteps.Query()
+                    .Where(x => x.MilestoneID == milestone.MilestoneID)
+                    .ToListAsync();
+                foreach (var step in existingSteps)
+                {
+                    _uow.ProgressMilestoneSteps.Remove(step);
+                }
+                foreach (var t in templates)
+                {
+                    var step = new ProgressMilestoneStep
+                    {
+                        MilestoneID = milestone.MilestoneID,
+                        MilestoneTemplateCode = t.MilestoneTemplateCode,
+                        Ordinal = t.Ordinal,
+                        State = "Pending",
+                        CompletedAt = null,
+                        CreatedAt = DateTime.UtcNow,
+                        LastUpdated = DateTime.UtcNow
+                    };
+                    await _uow.ProgressMilestoneSteps.AddAsync(step);
+                }
             }
 
             await _uow.SaveChangesAsync();
@@ -245,6 +302,23 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                 _ => "Cập nhật"
             };
 
+            var templates = await _uow.MilestoneTemplates.Query()
+                .Where(x => x.DefenseTermId == topic.DefenseTermId)
+                .OrderBy(x => x.Ordinal)
+                .ToListAsync();
+
+            if (templates.Count == 0)
+            {
+                templates = await _uow.MilestoneTemplates.Query()
+                    .Where(x => x.DefenseTermId == null)
+                    .OrderBy(x => x.Ordinal)
+                    .ToListAsync();
+            }
+
+            var secondTemplate = templates.Skip(1).FirstOrDefault() ?? templates.FirstOrDefault();
+            var nextCode = secondTemplate?.MilestoneTemplateCode ?? "MS_PROG1";
+            var nextOrdinal = secondTemplate?.Ordinal ?? 2;
+
             if (milestone == null)
             {
                 milestone = new ProgressMilestone
@@ -253,8 +327,8 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                     MilestoneCode = await GenerateMilestoneCodeAsync(),
                     TopicID = topic.TopicID,
                     TopicCode = topic.TopicCode,
-                    MilestoneTemplateCode = action == "approve" ? "MS_PROG1" : null,
-                    Ordinal = action == "approve" ? 2 : null,
+                    MilestoneTemplateCode = action == "approve" ? nextCode : null,
+                    Ordinal = action == "approve" ? nextOrdinal : null,
                     State = targetState,
                     CompletedAt1 = action == "approve" ? DateTime.UtcNow : null,
                     CreatedAt = DateTime.UtcNow,
@@ -262,15 +336,44 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                 };
 
                 await _uow.ProgressMilestones.AddAsync(milestone);
+                await _uow.SaveChangesAsync();
+
+                // Populate steps
+                foreach (var t in templates)
+                {
+                    var isCompleted = action == "approve" && t.Ordinal == 1;
+                    var step = new ProgressMilestoneStep
+                    {
+                        MilestoneID = milestone.MilestoneID,
+                        MilestoneTemplateCode = t.MilestoneTemplateCode,
+                        Ordinal = t.Ordinal,
+                        State = isCompleted ? "Completed" : "Pending",
+                        CompletedAt = isCompleted ? DateTime.UtcNow : null,
+                        CreatedAt = DateTime.UtcNow,
+                        LastUpdated = DateTime.UtcNow
+                    };
+                    await _uow.ProgressMilestoneSteps.AddAsync(step);
+                }
             }
             else
             {
                 milestone.TopicCode = topic.TopicCode;
                 if (action == "approve")
                 {
-                    milestone.MilestoneTemplateCode = "MS_PROG1";
-                    milestone.Ordinal = 2;
+                    milestone.MilestoneTemplateCode = nextCode;
+                    milestone.Ordinal = nextOrdinal;
                     milestone.CompletedAt1 = DateTime.UtcNow;
+
+                    // Update step 1 as Completed
+                    var step1 = await _db.ProgressMilestoneSteps
+                        .FirstOrDefaultAsync(x => x.MilestoneID == milestone.MilestoneID && x.Ordinal == 1);
+                    if (step1 != null)
+                    {
+                        step1.State = "Completed";
+                        step1.CompletedAt = DateTime.UtcNow;
+                        step1.LastUpdated = DateTime.UtcNow;
+                        _uow.ProgressMilestoneSteps.Update(step1);
+                    }
                 }
                 else
                 {
@@ -280,6 +383,7 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                 _uow.ProgressMilestones.Update(milestone);
             }
 
+            await _uow.SaveChangesAsync();
             return targetState;
         }
 

@@ -10,6 +10,8 @@ namespace ThesisManagement.Api.Application.Validate.MilestoneTemplates
                 return "Name is required";
             if (dto.Ordinal <= 0)
                 return "Ordinal must be greater than zero";
+            if (dto.DefenseTermId.HasValue && dto.DefenseTermId.Value <= 0)
+                return "Defense term ID must be greater than zero";
 
             return null;
         }
@@ -20,6 +22,8 @@ namespace ThesisManagement.Api.Application.Validate.MilestoneTemplates
                 return "Name cannot be empty";
             if (dto.Ordinal.HasValue && dto.Ordinal <= 0)
                 return "Ordinal must be greater than zero";
+            if (dto.DefenseTermId.HasValue && dto.DefenseTermId.Value <= 0)
+                return "Defense term ID must be greater than zero";
 
             return null;
         }
