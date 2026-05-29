@@ -203,7 +203,8 @@ namespace ThesisManagement.Api.Services.DefenseDocuments
                 Chapter3Content = parsedMinute.ChapterContents.ElementAtOrDefault(2)?.Content,
                 ChapterNContent = parsedMinute.ChapterContents.Count > 3
                     ? string.Join(Environment.NewLine, parsedMinute.ChapterContents.Skip(3).Select(x => x.Content))
-                    : null
+                    : null,
+                ChapterCount = parsedMinute.ChapterContents.Count.ToString()
             };
 
             reportData.Student = new ExportStudent

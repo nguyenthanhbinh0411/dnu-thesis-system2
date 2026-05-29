@@ -96,6 +96,8 @@ public sealed class ReportData
 
     public string? ChapterNContent { get; set; }
 
+    public string? ChapterCount { get; set; }
+
     public Student? Student { get; set; }
 
     public CommitteeMember? ChairMember { get; set; }

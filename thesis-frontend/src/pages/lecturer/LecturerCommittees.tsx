@@ -47,6 +47,7 @@ import {
   PencilRuler,
   Plus,
   Save,
+  Search,
   Star,
   Trash2,
   Undo2,
@@ -210,8 +211,15 @@ const LecturerCommittees: React.FC = () => {
   const [currentPeriod, setCurrentPeriod] = useState<CurrentDefensePeriodView | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [detailCommitteeId, setDetailCommitteeId] = useState("");
-  const [detailTab, setDetailTab] = useState<CommitteeDetailTabKey>("overview");
+  const [modalTopicSearchTerm, setModalTopicSearchTerm] = useState("");
+  const [detailTab, setDetailTab] = useState<CommitteeDetailTabKey>("members");
   const [scoringMatrix, setScoringMatrix] = useState<ScoringMatrixRow[]>([]);
+
+  useEffect(() => {
+    if (!detailCommitteeId) {
+      setModalTopicSearchTerm("");
+    }
+  }, [detailCommitteeId]);
   
   const filteredCommittees = useMemo(() => {
     const lower = searchTerm.trim().toLowerCase();
@@ -310,6 +318,18 @@ const LecturerCommittees: React.FC = () => {
 
   const detailCommittee = useMemo(() => committees.find(c => c.id === detailCommitteeId), [committees, detailCommitteeId]);
   const detailTopics = useMemo(() => scoringMatrix.filter(m => String(m.committeeCode || m.committeeId) === detailCommitteeId), [scoringMatrix, detailCommitteeId]);
+
+  const filteredDetailTopics = useMemo(() => {
+    const lower = modalTopicSearchTerm.trim().toLowerCase();
+    if (!lower) return detailTopics;
+    return detailTopics.filter(t => 
+      (t.topicTitle ?? "").toLowerCase().includes(lower) ||
+      (t.topicCode ?? "").toLowerCase().includes(lower) ||
+      (t.studentName ?? "").toLowerCase().includes(lower) ||
+      (t.studentCode ?? "").toLowerCase().includes(lower) ||
+      (t.supervisorLecturerName ?? "").toLowerCase().includes(lower)
+    );
+  }, [detailTopics, modalTopicSearchTerm]);
 
   return (
     <div className="dashboard-root" style={{ padding: "24px", maxWidth: "1400px", margin: "0 auto" }}>
@@ -580,28 +600,23 @@ const LecturerCommittees: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '12px', marginBottom: '32px' }}>
-              <button className={`action-btn ${detailTab === 'overview' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setDetailTab('overview')}>Thông tin</button>
-              <button className={`action-btn ${detailTab === 'members' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setDetailTab('members')}>Thành viên</button>
-              <button className={`action-btn ${detailTab === 'topics' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setDetailTab('topics')}>Danh sách đề tài</button>
+              <button
+                className={`action-btn ${detailTab === 'members' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setDetailTab('members')}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Users2 size={16} /> Thành viên
+              </button>
+              <button
+                className={`action-btn ${detailTab === 'topics' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setDetailTab('topics')}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <ClipboardPen size={16} /> Danh sách đề tài
+              </button>
             </div>
 
             <div style={{ minHeight: '300px' }}>
-              {detailTab === 'overview' && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-                  <div style={{ padding: '20px', borderRadius: '16px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>Địa điểm</div>
-                    <div style={{ fontSize: '16px', fontWeight: 800 }}>{detailCommittee.room}</div>
-                  </div>
-                  <div style={{ padding: '20px', borderRadius: '16px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>Thời gian</div>
-                    <div style={{ fontSize: '16px', fontWeight: 800 }}>{formatDate(detailCommittee.date)}</div>
-                  </div>
-                  <div style={{ padding: '20px', borderRadius: '16px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>Số sinh viên</div>
-                    <div style={{ fontSize: '16px', fontWeight: 800 }}>{detailCommittee.studentCount}</div>
-                  </div>
-                </div>
-              )}
 
               {detailTab === 'members' && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
@@ -678,12 +693,38 @@ const LecturerCommittees: React.FC = () => {
 
               {detailTab === 'topics' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {detailTopics.length > 0 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 16px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "12px", marginBottom: "4px" }}>
+                      <Search size={16} color="#64748b" />
+                      <input
+                        type="text"
+                        placeholder="Tìm kiếm tên đề tài, mã đề tài, sinh viên, giảng viên..."
+                        value={modalTopicSearchTerm}
+                        onChange={(e) => setModalTopicSearchTerm(e.target.value)}
+                        style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", fontWeight: 500, background: "transparent" }}
+                      />
+                      {modalTopicSearchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => setModalTopicSearchTerm("")}
+                          style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   {detailTopics.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '60px', color: '#94a3b8', background: '#f8fafc', borderRadius: '16px', border: '1px dashed #cbd5e1' }}>
                       Chưa cập nhật danh sách đề tài.
                     </div>
+                  ) : filteredDetailTopics.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', background: '#f8fafc', borderRadius: '16px', border: '1px dashed #cbd5e1' }}>
+                      Không tìm thấy đề tài nào phù hợp với từ khóa tìm kiếm.
+                    </div>
                   ) : (
-                    detailTopics.map((t, i) => (
+                    filteredDetailTopics.map((t, i) => (
                       <div 
                         key={i} 
                         style={{ 

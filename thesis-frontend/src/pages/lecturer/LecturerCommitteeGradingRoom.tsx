@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -55,11 +55,13 @@ import {
     Plus,
     PlayCircle,
     Save,
+    Search,
     Star,
     Trash2,
     Undo2,
     Unlock,
     Users2,
+    X,
     XCircle,
     AlertTriangle,
     ChevronDown,
@@ -70,7 +72,7 @@ import {
     Flag,
     Circle,
 } from "lucide-react";
-import { getAccessToken } from "../../services/auth-session.service";
+import { getAccessToken, getLecturerCode } from "../../services/auth-session.service";
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from "@microsoft/signalr";
 import { API_BASE_PATH } from "../../utils/apiConfig";
 
@@ -819,6 +821,36 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
     const [currentSnapshotError, setCurrentSnapshotError] = useState<string | null>(null);
     const [councilListLocked, setCouncilListLocked] = useState<boolean | null>(null);
     const [councilLockStatus, setCouncilLockStatus] = useState<string>("UNKNOWN");
+    const [tagMap, setTagMap] = useState<Record<string, string>>({
+        "TAG-SEC": "An toàn thông tin",
+        "TAG-DB": "Cơ sở dữ liệu",
+    });
+
+    useEffect(() => {
+        const loadTagMap = async () => {
+            try {
+                const response = await fetchData<ApiResponse<any>>("/Tags/list?Page=0&PageSize=1000");
+                if (response?.success && response.data) {
+                    const items = Array.isArray(response.data)
+                        ? response.data
+                        : (response.data.items || []);
+                    const map: Record<string, string> = {
+                        "TAG-SEC": "An toàn thông tin",
+                        "TAG-DB": "Cơ sở dữ liệu",
+                    };
+                    items.forEach((tag: any) => {
+                        if (tag && tag.tagCode && tag.tagName) {
+                            map[String(tag.tagCode).trim().toUpperCase()] = tag.tagName;
+                        }
+                    });
+                    setTagMap(map);
+                }
+            } catch (err) {
+                console.error("Error loading tag mapping:", err);
+            }
+        };
+        void loadTagMap();
+    }, []);
     const periodBase = periodId ? `/defense-periods/${periodId}` : "";
     const lecturerBase = `${periodBase}/lecturer`;
     const periodIdText = String(periodId ?? "");
@@ -1251,9 +1283,18 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
     const [activePanel, setActivePanel] = useState<PanelKey>(isGradingScreen ? "grading" : "councils");
     const [committees, setCommittees] = useState<Committee[]>([]);
     const [detailCommitteeId, setDetailCommitteeId] = useState<string>("");
-    const [detailTab, setDetailTab] = useState<CommitteeDetailTabKey>("overview");
+    const [modalTopicSearchTerm, setModalTopicSearchTerm] = useState("");
+    const [detailTab, setDetailTab] = useState<CommitteeDetailTabKey>("members");
+
+    useEffect(() => {
+        if (!detailCommitteeId) {
+            setModalTopicSearchTerm("");
+        }
+    }, [detailCommitteeId]);
     const [revisionQueue, setRevisionQueue] = useState<RevisionRequest[]>([]);
     const [selectedCommitteeId, setSelectedCommitteeId] = useState<string>("");
+    const [activeSessionTab, setActiveSessionTab] = useState<"morning" | "afternoon">("morning");
+    const myCode = useMemo(() => getLecturerCode()?.trim().toUpperCase() || "", []);
     const [joinedCommitteeId, setJoinedCommitteeId] = useState<string>("");
     const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTabKey>("scoring");
     const [loadingData, setLoadingData] = useState(false);
@@ -2516,10 +2557,102 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         () => committees.find((item) => item.id === selectedCommitteeId) ?? null,
         [committees, selectedCommitteeId]
     );
+
+    useEffect(() => {
+        if (selectedCommittee?.session === "AFTERNOON" || (selectedCommittee?.session as any) === "CHIEU") {
+            setActiveSessionTab("afternoon");
+        } else {
+            setActiveSessionTab("morning");
+        }
+    }, [selectedCommittee]);
     const joinedCommittee = useMemo(
         () => committees.find((item) => item.id === joinedCommitteeId) ?? null,
         [committees, joinedCommitteeId],
     );
+
+    const hasPushedTrapRef = React.useRef(false);
+    const isLeavingTrapRef = React.useRef(false);
+
+    useEffect(() => {
+        if (!isGradingScreen || activePanel !== "grading" || !joinedCommittee) {
+            hasPushedTrapRef.current = false;
+            isLeavingTrapRef.current = false;
+        }
+    }, [isGradingScreen, activePanel, joinedCommittee]);
+
+    // Trap browser back button (←) clicks to show leave room confirmation dialog
+    useEffect(() => {
+        if (!isGradingScreen || activePanel !== "grading" || !joinedCommittee) {
+            return;
+        }
+
+        // Push a marked history state to trap back navigation (only once per session)
+        if (!hasPushedTrapRef.current) {
+            window.history.pushState({ trap: "grading-room" }, "", window.location.href);
+            hasPushedTrapRef.current = true;
+        }
+
+        const handlePopState = (_event: PopStateEvent) => {
+            if (isLeavingTrapRef.current) {
+                // Already confirmed and leaving, let it pass through quietly
+                return;
+            }
+
+            const isClosed = joinedCommittee.status === "Đã đóng";
+            const confirmMsg = isClosed
+                ? "Bạn có chắc chắn muốn rời phòng chấm điểm hội đồng?"
+                : "Hội đồng chưa đóng phiên. Bạn có chắc chắn muốn rời phòng chấm điểm?";
+            
+            const shouldLeave = window.confirm(confirmMsg);
+            if (shouldLeave) {
+                isLeavingTrapRef.current = true;
+                setJoinedCommitteeId("");
+                setSelectedCommitteeId("");
+                setWorkspaceTab("scoring");
+                setActivePanel("councils");
+                notifyInfo("Đã rời phòng chấm điểm hội đồng.");
+                navigate("/lecturer/committees", { replace: true });
+            } else {
+                // Restore history state trap by pushing it again
+                window.history.pushState({ trap: "grading-room" }, "", window.location.href);
+            }
+        };
+
+        window.addEventListener("popstate", handlePopState);
+        return () => {
+            window.removeEventListener("popstate", handlePopState);
+        };
+    }, [
+        isGradingScreen,
+        activePanel,
+        joinedCommittee,
+        navigate,
+        setJoinedCommitteeId,
+        setSelectedCommitteeId,
+        setWorkspaceTab,
+        setActivePanel
+    ]);
+
+    // Trap browser reload/refresh (↻) and tab/window closing attempts
+    useEffect(() => {
+        if (!isGradingScreen || activePanel !== "grading" || !joinedCommittee) {
+            return;
+        }
+
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            const confirmMsg = joinedCommittee.status === "Đã đóng"
+                ? "Bạn có chắc chắn muốn rời phòng chấm điểm hội đồng?"
+                : "Hội đồng chưa đóng phiên. Bạn có chắc chắn muốn rời phòng chấm điểm?";
+            e.preventDefault();
+            e.returnValue = confirmMsg;
+            return confirmMsg;
+        };
+
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => {
+            window.removeEventListener("beforeunload", handleBeforeUnload);
+        };
+    }, [isGradingScreen, activePanel, joinedCommittee]);
     const detailCommittee = useMemo(
         () => committees.find((item) => item.id === detailCommitteeId) ?? null,
         [committees, detailCommitteeId],
@@ -2597,6 +2730,18 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         () => allScoringRows.filter((row) => isRowInCommittee(row, detailCommittee)),
         [allScoringRows, detailCommittee],
     );
+
+    const filteredDetailCommitteeRows = useMemo(() => {
+        const lower = modalTopicSearchTerm.trim().toLowerCase();
+        if (!lower) return detailCommitteeRows;
+        return detailCommitteeRows.filter(t => 
+            (t.topicTitle ?? "").toLowerCase().includes(lower) ||
+            (t.topicCode ?? t.assignmentCode ?? "").toLowerCase().includes(lower) ||
+            (t.studentName ?? "").toLowerCase().includes(lower) ||
+            (t.studentCode ?? "").toLowerCase().includes(lower) ||
+            (t.supervisorLecturerName ?? "").toLowerCase().includes(lower)
+        );
+    }, [detailCommitteeRows, modalTopicSearchTerm]);
 
     const selectedRevisionItem = useMemo(
         () =>
@@ -3521,7 +3666,6 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         label: string;
         icon: React.ReactNode;
     }> = [
-            { key: "overview", label: "Tổng quan", icon: <Info size={14} /> },
             { key: "members", label: "Thành viên", icon: <Users2 size={14} /> },
             { key: "topics", label: "Đề tài", icon: <ClipboardPen size={14} /> },
         ];
@@ -4373,6 +4517,11 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                             return;
                                         }
 
+                                        isLeavingTrapRef.current = true;
+                                        if (window.history.state && window.history.state.trap === "grading-room") {
+                                            window.history.back();
+                                        }
+
                                         setJoinedCommitteeId("");
                                         setSelectedCommitteeId("");
                                         setWorkspaceTab("scoring");
@@ -4437,218 +4586,279 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                     </button>
                                                 </div>
                                             </div>
-                                            <div style={{ fontSize: 12, color: "#475569", marginBottom: 8 }}>
+                                            <div style={{ fontSize: 12, color: "#475569", marginBottom: 12 }}>
                                                 {selectedCommittee.id} · {selectedCommittee.name}
                                             </div>
 
-                                            <div className="lec-assign-list">
-                                                <div style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>Ca sáng</div>
-                                                {morningRows.map((row) => {
-                                                    const isScored = row.finalScore != null && Number(row.finalScore) > 0;
-                                                    const isActive = selectedAssignmentId === row.assignmentId;
-                                                    return (
-                                                        <button
-                                                            key={`morning-${row.assignmentId}`}
-                                                            type="button"
-                                                            className={`lec-assign-btn ${isActive ? "active" : ""}`}
-                                                            onClick={() => setSelectedAssignmentId(row.assignmentId)}
-                                                            style={{
-                                                                background: isActive ? '#fff7ed' : isScored ? '#f8fafc' : '#ffffff',
-                                                                border: isActive ? '2px solid #f37021' : isScored ? '1px solid #e2e8f0' : '1px solid #cbd5e1',
-                                                                boxShadow: isActive ? '0 4px 12px rgba(243, 112, 33, 0.12)' : 'none',
-                                                                padding: '12px 16px',
-                                                                borderRadius: '12px',
-                                                                textAlign: 'left',
-                                                                cursor: 'pointer',
-                                                                display: 'flex',
-                                                                flexDirection: 'column',
-                                                                gap: '8px',
-                                                                transition: 'all 0.2s ease-in-out',
-                                                                width: '100%',
-                                                            }}
-                                                            onMouseEnter={(e) => {
-                                                                if (!isActive) {
-                                                                    e.currentTarget.style.background = '#f8fafc';
-                                                                    e.currentTarget.style.borderColor = '#cbd5e1';
-                                                                }
-                                                            }}
-                                                            onMouseLeave={(e) => {
-                                                                if (!isActive) {
-                                                                    e.currentTarget.style.background = isScored ? '#f8fafc' : '#ffffff';
-                                                                    e.currentTarget.style.borderColor = isScored ? '#e2e8f0' : '#cbd5e1';
-                                                                }
-                                                            }}
-                                                        >
-                                                            <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
-                                                                <div style={{ 
-                                                                    fontSize: '13px', 
-                                                                    fontWeight: 700, 
-                                                                    color: isActive ? '#ea580c' : '#1e293b',
-                                                                    lineHeight: '1.4',
-                                                                    display: '-webkit-box',
-                                                                    WebkitLineClamp: 2,
-                                                                    WebkitBoxOrient: 'vertical',
-                                                                    overflow: 'hidden',
-                                                                }}>
-                                                                    {row.topicTitle}
-                                                                </div>
-                                                                
-                                                                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                                                                    <div style={{ fontSize: '12px', color: '#475569' }}>
-                                                                        Sinh viên: <strong style={{ color: '#0f172a' }}>{row.studentName}</strong>
-                                                                    </div>
-                                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
-                                                                        MSV: <strong style={{ color: '#334155' }}>{row.studentCode}</strong>
-                                                                    </div>
-                                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
-                                                                        Mã đề tài: <strong style={{ color: '#334155' }}>{row.topicCode || row.assignmentCode}</strong>
-                                                                    </div>
-                                                                </div>
+                                            {/* Premium Session Segmented Tabs */}
+                                            <div style={{ 
+                                                display: "flex", 
+                                                background: "#f1f5f9", 
+                                                padding: 3, 
+                                                borderRadius: 12, 
+                                                marginBottom: 12, 
+                                                gap: 4,
+                                                border: "1px solid #e2e8f0"
+                                            }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setActiveSessionTab("morning")}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: "8px 12px",
+                                                        borderRadius: 9,
+                                                        fontSize: 12,
+                                                        fontWeight: 700,
+                                                        border: "none",
+                                                        cursor: "pointer",
+                                                        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                                                        background: activeSessionTab === "morning" ? "#ffffff" : "transparent",
+                                                        color: activeSessionTab === "morning" ? "#f37021" : "#475569",
+                                                        boxShadow: activeSessionTab === "morning" ? "0 2px 8px rgba(243, 112, 33, 0.08)" : "none",
+                                                    }}
+                                                >
+                                                    Ca sáng ({morningRows.length})
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setActiveSessionTab("afternoon")}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: "8px 12px",
+                                                        borderRadius: 9,
+                                                        fontSize: 12,
+                                                        fontWeight: 700,
+                                                        border: "none",
+                                                        cursor: "pointer",
+                                                        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                                                        background: activeSessionTab === "afternoon" ? "#ffffff" : "transparent",
+                                                        color: activeSessionTab === "afternoon" ? "#f37021" : "#475569",
+                                                        boxShadow: activeSessionTab === "afternoon" ? "0 2px 8px rgba(243, 112, 33, 0.08)" : "none",
+                                                    }}
+                                                >
+                                                    Ca chiều ({afternoonRows.length})
+                                                </button>
+                                            </div>
 
-                                                                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-                                                                    {isScored ? (
-                                                                        <span style={{
-                                                                            background: 'rgba(34, 197, 94, 0.1)',
-                                                                            color: '#166534',
-                                                                            border: '1px solid rgba(34, 197, 94, 0.3)',
-                                                                            fontSize: '11px',
-                                                                            fontWeight: 700,
-                                                                            padding: '2px 8px',
-                                                                            borderRadius: '99px',
-                                                                            display: 'inline-flex',
-                                                                            alignItems: 'center',
-                                                                            gap: '4px'
-                                                                        }}>
-                                                                            <CheckCircle2 size={10} color="#22c55e" />
-                                                                            Đã chấm · {formatScore(row.finalScore)} {row.finalGrade ? `(${row.finalGrade})` : ""}
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span style={{
-                                                                            background: 'rgba(245, 158, 11, 0.08)',
-                                                                            color: '#9a3412',
-                                                                            border: '1px solid rgba(245, 158, 11, 0.25)',
-                                                                            fontSize: '11px',
-                                                                            fontWeight: 700,
-                                                                            padding: '2px 8px',
-                                                                            borderRadius: '99px',
-                                                                            display: 'inline-flex',
-                                                                            alignItems: 'center',
-                                                                            gap: '4px'
-                                                                        }}>
-                                                                            <Clock3 size={10} color="#f59e0b" />
-                                                                            Chờ chấm
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })}
-                                                {morningRows.length === 0 && <div style={{ fontSize: 12, color: "#94a3b8" }}>Chưa có đề tài ca sáng.</div>}
+                                            <div className="lec-assign-list" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
-                                                <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", marginTop: 6 }}>Ca chiều</div>
-                                                {afternoonRows.map((row) => {
-                                                    const isScored = row.finalScore != null && Number(row.finalScore) > 0;
-                                                    const isActive = selectedAssignmentId === row.assignmentId;
-                                                    return (
-                                                        <button
-                                                            key={`afternoon-${row.assignmentId}`}
-                                                            type="button"
-                                                            className={`lec-assign-btn ${isActive ? "active" : ""}`}
-                                                            onClick={() => setSelectedAssignmentId(row.assignmentId)}
-                                                            style={{
-                                                                background: isActive ? '#fff7ed' : isScored ? '#f8fafc' : '#ffffff',
-                                                                border: isActive ? '2px solid #f37021' : isScored ? '1px solid #e2e8f0' : '1px solid #cbd5e1',
-                                                                boxShadow: isActive ? '0 4px 12px rgba(243, 112, 33, 0.12)' : 'none',
-                                                                padding: '12px 16px',
-                                                                borderRadius: '12px',
-                                                                textAlign: 'left',
-                                                                cursor: 'pointer',
-                                                                display: 'flex',
-                                                                flexDirection: 'column',
-                                                                gap: '8px',
-                                                                transition: 'all 0.2s ease-in-out',
-                                                                width: '100%',
-                                                            }}
-                                                            onMouseEnter={(e) => {
-                                                                if (!isActive) {
-                                                                    e.currentTarget.style.background = '#f8fafc';
-                                                                    e.currentTarget.style.borderColor = '#cbd5e1';
-                                                                }
-                                                            }}
-                                                            onMouseLeave={(e) => {
-                                                                if (!isActive) {
-                                                                    e.currentTarget.style.background = isScored ? '#f8fafc' : '#ffffff';
-                                                                    e.currentTarget.style.borderColor = isScored ? '#e2e8f0' : '#cbd5e1';
-                                                                }
-                                                            }}
-                                                        >
-                                                            <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
-                                                                <div style={{ 
-                                                                    fontSize: '13px', 
-                                                                    fontWeight: 700, 
-                                                                    color: isActive ? '#ea580c' : '#1e293b',
-                                                                    lineHeight: '1.4',
-                                                                    display: '-webkit-box',
-                                                                    WebkitLineClamp: 2,
-                                                                    WebkitBoxOrient: 'vertical',
-                                                                    overflow: 'hidden',
-                                                                }}>
-                                                                    {row.topicTitle}
-                                                                </div>
-                                                                
-                                                                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                                                                    <div style={{ fontSize: '12px', color: '#475569' }}>
-                                                                        Sinh viên: <strong style={{ color: '#0f172a' }}>{row.studentName}</strong>
-                                                                    </div>
-                                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
-                                                                        MSV: <strong style={{ color: '#334155' }}>{row.studentCode}</strong>
-                                                                    </div>
-                                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
-                                                                        Mã đề tài: <strong style={{ color: '#334155' }}>{row.topicCode || row.assignmentCode}</strong>
-                                                                    </div>
-                                                                </div>
+                                                {/* Morning Section */}
+                                                {activeSessionTab === "morning" && (
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                                        {morningRows.map((row) => {
+                                                            const isScored = row.finalScore != null && Number(row.finalScore) > 0;
+                                                            const isActive = selectedAssignmentId === row.assignmentId;
+                                                            return (
+                                                                <button
+                                                                    key={`morning-${row.assignmentId}`}
+                                                                    type="button"
+                                                                    className={`lec-assign-btn ${isActive ? "active" : ""}`}
+                                                                    onClick={() => setSelectedAssignmentId(row.assignmentId)}
+                                                                    style={{
+                                                                        background: isActive ? '#fff8f3' : (isScored ? '#f0fdf4' : '#ffffff'),
+                                                                        border: isActive ? '2px solid #f37021' : (isScored ? '1px solid #bbf7d0' : '1px solid #cbd5e1'),
+                                                                        boxShadow: isActive ? '0 10px 20px -3px rgba(243, 112, 33, 0.15), 0 4px 6px -2px rgba(243, 112, 33, 0.05)' : 'none',
+                                                                        transform: isActive ? 'translateY(-2px)' : 'none',
+                                                                        padding: '12px 16px',
+                                                                        borderRadius: '14px',
+                                                                        textAlign: 'left',
+                                                                        cursor: 'pointer',
+                                                                        display: 'flex',
+                                                                        flexDirection: 'column',
+                                                                        gap: '8px',
+                                                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                                        width: '100%',
+                                                                    }}
+                                                                    onMouseEnter={(e) => {
+                                                                        if (!isActive) {
+                                                                            e.currentTarget.style.background = isScored ? '#dcfce7' : '#f8fafc';
+                                                                            e.currentTarget.style.borderColor = isScored ? '#86efac' : '#cbd5e1';
+                                                                        }
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        if (!isActive) {
+                                                                            e.currentTarget.style.background = isScored ? '#f0fdf4' : '#ffffff';
+                                                                            e.currentTarget.style.borderColor = isScored ? '#bbf7d0' : '#cbd5e1';
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
+                                                                        <div style={{ 
+                                                                            fontSize: '13px', 
+                                                                            fontWeight: 700, 
+                                                                            color: isActive ? '#0f172a' : '#1e293b',
+                                                                            lineHeight: '1.4',
+                                                                            display: '-webkit-box',
+                                                                            WebkitLineClamp: 2,
+                                                                            WebkitBoxOrient: 'vertical',
+                                                                            overflow: 'hidden',
+                                                                        }}>
+                                                                            {row.topicTitle}
+                                                                        </div>
+                                                                        
+                                                                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                                                            <div style={{ fontSize: '12px', color: '#475569' }}>
+                                                                                Sinh viên: <strong style={{ color: '#0f172a' }}>{row.studentName}</strong>
+                                                                            </div>
+                                                                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                                MSV: <strong style={{ color: '#334155' }}>{row.studentCode}</strong>
+                                                                            </div>
+                                                                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                                Mã đề tài: <strong style={{ color: '#334155' }}>{row.topicCode || row.assignmentCode}</strong>
+                                                                            </div>
+                                                                        </div>
 
-                                                                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-                                                                    {isScored ? (
-                                                                        <span style={{
-                                                                            background: 'rgba(34, 197, 94, 0.1)',
-                                                                            color: '#166534',
-                                                                            border: '1px solid rgba(34, 197, 94, 0.3)',
-                                                                            fontSize: '11px',
-                                                                            fontWeight: 700,
-                                                                            padding: '2px 8px',
-                                                                            borderRadius: '99px',
-                                                                            display: 'inline-flex',
-                                                                            alignItems: 'center',
-                                                                            gap: '4px'
+                                                                        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                                                                            {isScored ? (
+                                                                                <span style={{
+                                                                                    background: '#ecfdf5',
+                                                                                    color: '#15803d',
+                                                                                    border: '1px solid #bbf7d0',
+                                                                                    fontSize: '11px',
+                                                                                    fontWeight: 700,
+                                                                                    padding: '2px 8px',
+                                                                                    borderRadius: '99px',
+                                                                                    display: 'inline-flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: '4px'
+                                                                                }}>
+                                                                                    <CheckCircle2 size={10} color="#22c55e" />
+                                                                                    Đã chấm · {formatScore(row.finalScore)} {row.finalGrade ? `(${row.finalGrade})` : ""}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span style={{
+                                                                                    background: '#fffbeb',
+                                                                                    color: '#b45309',
+                                                                                    border: '1px solid #fde68a',
+                                                                                    fontSize: '11px',
+                                                                                    fontWeight: 700,
+                                                                                    padding: '2px 8px',
+                                                                                    borderRadius: '99px',
+                                                                                    display: 'inline-flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: '4px'
+                                                                                }}>
+                                                                                    <Clock3 size={10} color="#f59e0b" />
+                                                                                    Chờ chấm
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                        {morningRows.length === 0 && <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center", padding: "12px 0" }}>Chưa có đề tài ca sáng.</div>}
+                                                    </div>
+                                                )}
+
+                                                {/* Afternoon Section */}
+                                                {activeSessionTab === "afternoon" && (
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                                        {afternoonRows.map((row) => {
+                                                            const isScored = row.finalScore != null && Number(row.finalScore) > 0;
+                                                            const isActive = selectedAssignmentId === row.assignmentId;
+                                                            return (
+                                                                <button
+                                                                    key={`afternoon-${row.assignmentId}`}
+                                                                    type="button"
+                                                                    className={`lec-assign-btn ${isActive ? "active" : ""}`}
+                                                                    onClick={() => setSelectedAssignmentId(row.assignmentId)}
+                                                                    style={{
+                                                                        background: isActive ? '#fff8f3' : (isScored ? '#f0fdf4' : '#ffffff'),
+                                                                        border: isActive ? '2px solid #f37021' : (isScored ? '1px solid #bbf7d0' : '1px solid #cbd5e1'),
+                                                                        boxShadow: isActive ? '0 10px 20px -3px rgba(243, 112, 33, 0.15), 0 4px 6px -2px rgba(243, 112, 33, 0.05)' : 'none',
+                                                                        transform: isActive ? 'translateY(-2px)' : 'none',
+                                                                        padding: '12px 16px',
+                                                                        borderRadius: '14px',
+                                                                        textAlign: 'left',
+                                                                        cursor: 'pointer',
+                                                                        display: 'flex',
+                                                                        flexDirection: 'column',
+                                                                        gap: '8px',
+                                                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                                        width: '100%',
+                                                                    }}
+                                                                    onMouseEnter={(e) => {
+                                                                        if (!isActive) {
+                                                                            e.currentTarget.style.background = isScored ? '#dcfce7' : '#f8fafc';
+                                                                            e.currentTarget.style.borderColor = isScored ? '#86efac' : '#cbd5e1';
+                                                                        }
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        if (!isActive) {
+                                                                            e.currentTarget.style.background = isScored ? '#f0fdf4' : '#ffffff';
+                                                                            e.currentTarget.style.borderColor = isScored ? '#bbf7d0' : '#cbd5e1';
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
+                                                                        <div style={{ 
+                                                                            fontSize: '13px', 
+                                                                            fontWeight: 700, 
+                                                                            color: isActive ? '#0f172a' : '#1e293b',
+                                                                            lineHeight: '1.4',
+                                                                            display: '-webkit-box',
+                                                                            WebkitLineClamp: 2,
+                                                                            WebkitBoxOrient: 'vertical',
+                                                                            overflow: 'hidden',
                                                                         }}>
-                                                                            <CheckCircle2 size={10} color="#22c55e" />
-                                                                            Đã chấm · {formatScore(row.finalScore)} {row.finalGrade ? `(${row.finalGrade})` : ""}
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span style={{
-                                                                            background: 'rgba(245, 158, 11, 0.08)',
-                                                                            color: '#9a3412',
-                                                                            border: '1px solid rgba(245, 158, 11, 0.25)',
-                                                                            fontSize: '11px',
-                                                                            fontWeight: 700,
-                                                                            padding: '2px 8px',
-                                                                            borderRadius: '99px',
-                                                                            display: 'inline-flex',
-                                                                            alignItems: 'center',
-                                                                            gap: '4px'
-                                                                        }}>
-                                                                            <Clock3 size={10} color="#f59e0b" />
-                                                                            Chờ chấm
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })}
-                                                {afternoonRows.length === 0 && <div style={{ fontSize: 12, color: "#94a3b8" }}>Chưa có đề tài ca chiều.</div>}
+                                                                            {row.topicTitle}
+                                                                        </div>
+                                                                        
+                                                                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                                                            <div style={{ fontSize: '12px', color: '#475569' }}>
+                                                                                Sinh viên: <strong style={{ color: '#0f172a' }}>{row.studentName}</strong>
+                                                                            </div>
+                                                                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                                MSV: <strong style={{ color: '#334155' }}>{row.studentCode}</strong>
+                                                                            </div>
+                                                                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                                Mã đề tài: <strong style={{ color: '#334155' }}>{row.topicCode || row.assignmentCode}</strong>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                                                                            {isScored ? (
+                                                                                <span style={{
+                                                                                    background: '#ecfdf5',
+                                                                                    color: '#15803d',
+                                                                                    border: '1px solid #bbf7d0',
+                                                                                    fontSize: '11px',
+                                                                                    fontWeight: 700,
+                                                                                    padding: '2px 8px',
+                                                                                    borderRadius: '99px',
+                                                                                    display: 'inline-flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: '4px'
+                                                                                }}>
+                                                                                    <CheckCircle2 size={10} color="#22c55e" />
+                                                                                    Đã chấm · {formatScore(row.finalScore)} {row.finalGrade ? `(${row.finalGrade})` : ""}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span style={{
+                                                                                    background: '#fffbeb',
+                                                                                    color: '#b45309',
+                                                                                    border: '1px solid #fde68a',
+                                                                                    fontSize: '11px',
+                                                                                    fontWeight: 700,
+                                                                                    padding: '2px 8px',
+                                                                                    borderRadius: '99px',
+                                                                                    display: 'inline-flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: '4px'
+                                                                                }}>
+                                                                                    <Clock3 size={10} color="#f59e0b" />
+                                                                                    Chờ chấm
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                        {afternoonRows.length === 0 && <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center", padding: "12px 0" }}>Chưa có đề tài ca chiều.</div>}
+                                                    </div>
+                                                )}
                                             </div>
                                     </aside>
 
@@ -4685,7 +4895,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                             gap: 20
                                         }}>
                                             {/* Details Grid */}
-                                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+                                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 }}>
                                                 {/* Left Column: Topic & Tags */}
                                                 <div style={{ 
                                                     background: "#fafaf9", 
@@ -4726,7 +4936,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                                             fontWeight: 600
                                                                         }}
                                                                     >
-                                                                        {tag}
+                                                                        {tagMap[String(tag).trim().toUpperCase()] || tag}
                                                                     </span>
                                                                 ))
                                                             ) : (
@@ -4788,59 +4998,6 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Card 3: Committee Info & Lock Status */}
-                                                <div style={{ 
-                                                    background: "#ffffff", 
-                                                    border: "1px solid #e2e8f0", 
-                                                    borderRadius: 12, 
-                                                    padding: 16,
-                                                    display: "flex",
-                                                    flexDirection: "column",
-                                                    gap: 10
-                                                }}>
-                                                    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#6366f1", fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                                                        <Lock size={14} /> Hội đồng & Khóa điểm
-                                                    </div>
-                                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                                        <div style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>
-                                                            Hội đồng: {selectedMatrixRow ? `${selectedMatrixRow.committeeCode} - ${selectedMatrixRow.committeeName}` : "-"}
-                                                        </div>
-                                                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-                                                            <span style={{ fontSize: 12, color: "#64748b" }}>Trạng thái khóa:</span>
-                                                            {selectedMatrixRow?.isLocked ? (
-                                                                <span style={{
-                                                                    background: "rgba(220, 38, 38, 0.1)",
-                                                                    border: "1px solid rgba(220, 38, 38, 0.3)",
-                                                                    borderRadius: 99,
-                                                                    padding: "2px 8px",
-                                                                    color: "#b91c1c",
-                                                                    fontSize: 11,
-                                                                    fontWeight: 700,
-                                                                    display: "inline-flex",
-                                                                    alignItems: "center",
-                                                                    gap: 4
-                                                                }}>
-                                                                    <Lock size={10} color="#dc2626" /> Đã chốt điểm
-                                                                </span>
-                                                            ) : (
-                                                                <span style={{
-                                                                    background: "rgba(16, 185, 129, 0.1)",
-                                                                    border: "1px solid rgba(16, 185, 129, 0.3)",
-                                                                    borderRadius: 99,
-                                                                    padding: "2px 8px",
-                                                                    color: "#047857",
-                                                                    fontSize: 11,
-                                                                    fontWeight: 700,
-                                                                    display: "inline-flex",
-                                                                    alignItems: "center",
-                                                                    gap: 4
-                                                                }}>
-                                                                    <Unlock size={10} color="#10b981" /> Đang mở chấm
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
                                             </div>
 
                                             {/* Full Width Grid block for Documents */}
@@ -4961,24 +5118,49 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 10, background: "#ffffff", display: "grid", gap: 10, marginTop: 10 }}>
-                                            <div style={{ fontWeight: 700 }}>Thành viên tham gia hội đồng</div>
-                                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 8 }}>
+                                        <div style={{ border: "1px solid #e2e8f0", borderRadius: 14, padding: 18, background: "#ffffff", display: "grid", gap: 12, marginTop: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.03)" }}>
+                                            <div style={{ fontWeight: 800, fontSize: 14, color: "#1e293b", letterSpacing: "0.02em" }}>Thành viên tham gia hội đồng</div>
+                                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
                                                 {selectedCommittee.members.length === 0 && (
                                                     <div style={{ fontSize: 13, color: "#64748b" }}>Snapshot chưa có danh sách thành viên cho hội đồng này.</div>
                                                 )}
                                                 {selectedCommittee.members.map((member) => {
+                                                    const isMe = member.lecturerCode.trim().toUpperCase() === myCode;
+                                                    const isOnline = (member.lecturerCode.trim().toUpperCase() === myCode) || onlineLecturerCodes.includes(member.lecturerCode.trim().toUpperCase());
+                                                    
                                                     return (
                                                         <div
                                                             key={member.memberId}
                                                             style={{
-                                                                border: "1px solid #cbd5e1",
-                                                                borderRadius: 10,
-                                                                padding: 10,
+                                                                background: isMe ? "#fff8f3" : "#ffffff",
+                                                                border: isMe ? "2px solid #f37021" : "1px solid #e2e8f0",
+                                                                borderRadius: "14px",
+                                                                padding: "16px",
                                                                 display: "grid",
-                                                                gap: 6,
+                                                                gap: "10px",
+                                                                position: "relative",
+                                                                boxShadow: isMe 
+                                                                    ? "0 10px 20px -3px rgba(243, 112, 33, 0.15), 0 4px 6px -2px rgba(243, 112, 33, 0.05)" 
+                                                                    : "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)",
+                                                                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                                                transform: isMe ? "translateY(-2px)" : "none",
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                if (!isMe) {
+                                                                    e.currentTarget.style.borderColor = "#cbd5e1";
+                                                                    e.currentTarget.style.boxShadow = "0 10px 15px -3px rgba(0, 0, 0, 0.08)";
+                                                                    e.currentTarget.style.transform = "translateY(-1px)";
+                                                                }
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                if (!isMe) {
+                                                                    e.currentTarget.style.borderColor = "#e2e8f0";
+                                                                    e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)";
+                                                                    e.currentTarget.style.transform = "none";
+                                                                }
                                                             }}
                                                         >
+                                                            {/* Header containing Role and Status */}
                                                             <div
                                                                 style={{
                                                                     display: "flex",
@@ -4987,59 +5169,86 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                                     gap: 8,
                                                                 }}
                                                             >
-                                                                 <div style={{ fontWeight: 700 }}>{member.roleLabel}</div>
-                                                                 {(() => {
-                                                                     const isOnline = onlineLecturerCodes.includes(member.lecturerCode.trim().toUpperCase());
-                                                                     return (
-                                                                         <div
-                                                                             style={{
-                                                                                 display: "flex",
-                                                                                 alignItems: "center",
-                                                                                 gap: 6,
-                                                                                 fontSize: "11px",
-                                                                                 fontWeight: 700,
-                                                                                 background: isOnline ? "#ecfdf5" : "#f8fafc",
-                                                                                 color: isOnline ? "#15803d" : "#64748b",
-                                                                                 padding: "2px 8px",
-                                                                                 borderRadius: "999px",
-                                                                                 border: `1px solid ${isOnline ? "#bbf7d0" : "#e2e8f0"}`
-                                                                             }}
-                                                                         >
-                                                                             {isOnline ? (
-                                                                                 <span style={{
-                                                                                     width: 8,
-                                                                                     height: 8,
-                                                                                     borderRadius: "50%",
-                                                                                     background: "#22c55e",
-                                                                                     display: "inline-block",
-                                                                                     animation: "pulse-green 1.5s infinite"
-                                                                                 }} />
-                                                                             ) : (
-                                                                                 <span style={{
-                                                                                     width: 8,
-                                                                                     height: 8,
-                                                                                     borderRadius: "50%",
-                                                                                     background: "#94a3b8",
-                                                                                     display: "inline-block"
-                                                                                 }} />
-                                                                             )}
-                                                                             {isOnline ? "Online" : "Offline"}
-                                                                             {member.lastActiveLabel && (
-                                                                                 <span style={{ fontSize: "10px", color: isOnline ? "#16a34a" : "#64748b", marginLeft: 4, fontWeight: 500 }}>
-                                                                                     ({member.lastActiveLabel})
-                                                                                 </span>
-                                                                             )}
-                                                                         </div>
-                                                                     );
-                                                                 })()}
+                                                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                                                    <div style={{ fontWeight: 800, color: "#1e293b", fontSize: "14px" }}>
+                                                                        {member.roleLabel}
+                                                                    </div>
+                                                                    {isMe && (
+                                                                        <span style={{
+                                                                            background: "linear-gradient(135deg, #f37021 0%, #e55a0f 100%)",
+                                                                            color: "#ffffff",
+                                                                            fontSize: "10px",
+                                                                            fontWeight: 800,
+                                                                            padding: "2px 6px",
+                                                                            borderRadius: "6px",
+                                                                            letterSpacing: "0.03em",
+                                                                            textTransform: "uppercase",
+                                                                            boxShadow: "0 2px 6px rgba(243, 112, 33, 0.25)"
+                                                                        }}>
+                                                                            Bạn
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                
+                                                                <div
+                                                                    style={{
+                                                                        display: "flex",
+                                                                        alignItems: "center",
+                                                                        gap: 6,
+                                                                        fontSize: "11px",
+                                                                        fontWeight: 700,
+                                                                        background: isOnline ? "#ecfdf5" : "#f1f5f9",
+                                                                        color: isOnline ? "#15803d" : "#475569",
+                                                                        padding: "3px 8px",
+                                                                        borderRadius: "999px",
+                                                                        border: `1px solid ${isOnline ? "#bbf7d0" : "#cbd5e1"}`
+                                                                    }}
+                                                                >
+                                                                    <span style={{
+                                                                        width: 8,
+                                                                        height: 8,
+                                                                        borderRadius: "50%",
+                                                                        background: isOnline ? "#22c55e" : "#94a3b8",
+                                                                        display: "inline-block",
+                                                                        animation: isOnline ? "pulse-green 1.5s infinite" : "none"
+                                                                    }} />
+                                                                    {isOnline ? "Online" : "Offline"}
+                                                                </div>
                                                             </div>
-                                                            <div style={{ fontSize: 13, color: "#334155" }}>
-                                                                {member.lecturerCode ? `${member.lecturerCode} - ` : ""}
-                                                                {member.degree ? `${member.degree} ` : ""}
-                                                                {member.lecturerName}
+
+                                                            {/* Member Info details */}
+                                                            <div style={{ display: "grid", gap: 3 }}>
+                                                                <div style={{ 
+                                                                    fontSize: "14px", 
+                                                                    fontWeight: 700, 
+                                                                    color: isMe ? "#7c2d12" : "#0f172a" 
+                                                                }}>
+                                                                    {member.degree ? `${member.degree} ` : ""}
+                                                                    {member.lecturerName}
+                                                                </div>
+                                                                <div style={{ 
+                                                                    fontSize: "12px", 
+                                                                    color: isMe ? "#c2410c" : "#475569",
+                                                                    fontWeight: 600,
+                                                                    fontFamily: "monospace"
+                                                                }}>
+                                                                    Mã GV: {member.lecturerCode || "-"}
+                                                                </div>
                                                             </div>
-                                                            <div style={{ fontSize: 12, color: "#475569" }}>
-                                                                {member.organization || "Chưa cập nhật nơi công tác"}
+
+                                                            <div style={{ 
+                                                                fontSize: "12px", 
+                                                                color: isMe ? "#9a3412" : "#64748b",
+                                                                borderTop: isMe ? "1px dashed rgba(243, 112, 33, 0.25)" : "1px solid #f1f5f9",
+                                                                paddingTop: 8,
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                gap: 4
+                                                            }}>
+                                                                <Building2 size={12} color={isMe ? "#f37021" : "#94a3b8"} />
+                                                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                                    {member.organization || "Chưa cập nhật nơi công tác"}
+                                                                </span>
                                                             </div>
                                                         </div>
                                                     );
@@ -5095,6 +5304,25 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                     </div>
                                                 </div>
 
+                                                {isCurrentSessionLocked && (
+                                                    <div style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: 8,
+                                                        background: "#fef2f2",
+                                                        border: "1px solid #fca5a5",
+                                                        color: "#991b1b",
+                                                        padding: "10px 14px",
+                                                        borderRadius: 10,
+                                                        fontSize: 13,
+                                                        fontWeight: 600,
+                                                        marginBottom: 10
+                                                    }}>
+                                                        <Lock size={14} color="#dc2626" />
+                                                        <span>Phiên đã chốt — Không thể chỉnh sửa hoặc cập nhật điểm số.</span>
+                                                    </div>
+                                                )}
+
                                                 <div style={{
                                                     border: "1px solid #e2e8f0",
                                                     borderRadius: 12,
@@ -5105,11 +5333,6 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                 }}>
                                                     <div style={{ fontWeight: 700, fontSize: 14, color: canScoreNow ? "#166534" : "#64748b" }}>
                                                         Chấm điểm — Vai trò: {myRoleLabel}
-                                                        {isCurrentSessionLocked && (
-                                                            <span style={{ color: "#b91c1c", fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
-                                                                (Phiên đã khóa — không thể chỉnh sửa)
-                                                            </span>
-                                                        )}
                                                     </div>
                                                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
                                                         <label style={{ display: "grid", gap: 6 }}>
@@ -5160,7 +5383,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                     </button>
                                                 </div>
 
-                                                {submitted && (
+                                                {submitted && !isCurrentSessionLocked && (
                                                     <div style={{ fontSize: 13, color: "#166534" }}>
                                                         {lastSubmitIntent === "conclusion"
                                                             ? "Đã lưu kết luận thành công."
@@ -6181,7 +6404,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                             </div>
 
                             <div className="lec-tab-bar">
-                                {detailTabs.map((tab) => (
+                                {detailTabs.filter(tab => tab.key !== "overview").map((tab) => (
                                     <button
                                         key={tab.key}
                                         type="button"
@@ -6193,60 +6416,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                 ))}
                             </div>
 
-                            {detailTab === "overview" && (
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
-                                    <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 10 }}>
-                                        <div className="lec-kicker">Mã hội đồng</div>
-                                        <div style={{ fontWeight: 700 }}>{detailCommittee.id}</div>
-                                    </div>
-                                    <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 10 }}>
-                                        <div className="lec-kicker">Vai trò của tôi</div>
-                                        <div style={{ fontWeight: 700 }}>{detailCommittee.roleLabel}</div>
-                                    </div>
-                                    <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 10 }}>
-                                        <div className="lec-kicker">Lịch bảo vệ</div>
-                                        <div style={{ fontWeight: 700 }}>{formatDate(detailCommittee.date)} · {formatSession(detailCommittee.session)}</div>
-                                    </div>
-                                    <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 10 }}>
-                                        <div className="lec-kicker">Ngành</div>
-                                        <div style={{ fontWeight: 700 }}>Công nghệ thông tin</div>
-                                    </div>
-                                    <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 10 }}>
-                                        <div className="lec-kicker">Phòng</div>
-                                        <div style={{ fontWeight: 700 }}>{detailCommittee.room}</div>
-                                    </div>
-                                    <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 10 }}>
-                                        <div className="lec-kicker">Trạng thái phiên</div>
-                                        {(() => {
-                                            const statusVisual = getCommitteeStatusVisual(detailCommittee.status);
 
-                                            return (
-                                                <span
-                                                    style={{
-                                                        display: "inline-flex",
-                                                        alignItems: "center",
-                                                        gap: 6,
-                                                        width: "fit-content",
-                                                        borderRadius: 999,
-                                                        padding: "5px 10px",
-                                                        fontSize: 12,
-                                                        fontWeight: 500,
-                                                        border: `1px solid ${statusVisual.chipBorder}`,
-                                                        background: statusVisual.chipBg,
-                                                        color: statusVisual.chipText,
-                                                    }}
-                                                >
-                                                    {statusVisual.icon} {statusVisual.label}
-                                                </span>
-                                            );
-                                        })()}
-                                    </div>
-                                    <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 10 }}>
-                                        <div className="lec-kicker">Số đề tài</div>
-                                        <div style={{ fontWeight: 700 }}>{committeeBadgeStats.get(detailCommittee.id)?.total ?? detailCommittee.studentCount}</div>
-                                    </div>
-                                </div>
-                            )}
 
                             {detailTab === "members" && (
                                 <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 10 }}>
@@ -6281,11 +6451,37 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                             )}
 
                             {detailTab === "topics" && (
-                                <div style={{ border: "1px solid #cbd5e1", borderRadius: 12, padding: 10 }}>
-                                    {detailCommitteeRows.length === 0 && (
-                                        <div style={{ fontSize: 13, color: "#64748b" }}>Chưa có assignment trong scoring matrix cho hội đồng này.</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "10px", border: "1px solid #cbd5e1", borderRadius: 12, padding: 10 }}>
+                                    {detailCommitteeRows.length > 0 && (
+                                        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", marginBottom: "4px" }}>
+                                            <Search size={16} color="#64748b" />
+                                            <input
+                                                type="text"
+                                                placeholder="Tìm kiếm tên đề tài, mã đề tài, sinh viên, giảng viên..."
+                                                value={modalTopicSearchTerm}
+                                                onChange={(e) => setModalTopicSearchTerm(e.target.value)}
+                                                style={{ flex: 1, border: "none", outline: "none", fontSize: "14px", fontWeight: 500, background: "transparent" }}
+                                            />
+                                            {modalTopicSearchTerm && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setModalTopicSearchTerm("")}
+                                                    style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                                >
+                                                    <X size={16} />
+                                                </button>
+                                            )}
+                                        </div>
                                     )}
-                                    {detailCommitteeRows.map((row) => (
+
+                                    {detailCommitteeRows.length === 0 ? (
+                                        <div style={{ fontSize: 13, color: "#64748b" }}>Chưa có assignment trong scoring matrix cho hội đồng này.</div>
+                                    ) : filteredDetailCommitteeRows.length === 0 ? (
+                                        <div style={{ fontSize: 13, color: "#64748b", textAlign: "center", padding: "20px 0" }}>
+                                            Không tìm thấy đề tài nào phù hợp với từ khóa tìm kiếm.
+                                        </div>
+                                    ) : (
+                                        filteredDetailCommitteeRows.map((row) => (
                                         <div
                                             key={`detail-topic-${row.assignmentId}`}
                                             style={{
@@ -6316,7 +6512,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                                 background: "#fff7ed",
                                                             }}
                                                         >
-                                                            {tag}
+                                                            {tagMap[String(tag).trim().toUpperCase()] || tag}
                                                         </span>
                                                     ))
                                                 ) : (
@@ -6324,7 +6520,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                 )}
                                             </div>
                                         </div>
-                                    ))}
+                                    )))}
                                 </div>
                             )}
 
