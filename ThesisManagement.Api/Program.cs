@@ -221,13 +221,22 @@ builder.Services.Configure<FileStorageOptions>(
 builder.Services.Configure<MilestoneOverdueOptions>(
     builder.Configuration.GetSection("MilestoneOverdue"));
 
-// EF Core
+// EF Core - Oracle Database
+// Connection string priority: DB_CONNECTION_STRING env var > appsettings
+var dbConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (string.IsNullOrWhiteSpace(dbConnectionString))
+{
+    throw new InvalidOperationException(
+        "Database connection string is missing. Set DB_CONNECTION_STRING environment variable or " +
+        "ConnectionStrings:DefaultConnection in appsettings.json");
+}
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    // SQL Server legacy (đã chuyển sang Oracle):
-    // options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
     options.UseOracle(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
+        dbConnectionString,
         b => b.UseOracleSQLCompatibility(OracleSQLCompatibility.DatabaseVersion19));
 });
 
@@ -795,6 +804,29 @@ app.UseStaticFiles(new Microsoft.AspNetCore.Builder.StaticFileOptions
 });
 
 app.UseAuthorization();
+
+// =============================================
+// Database Connection Info (for debugging)
+// =============================================
+var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+var startupDbConnection = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+if (!string.IsNullOrWhiteSpace(startupDbConnection))
+{
+    // Extract Data Source for logging (don't log password)
+    var dataSourceMatch = System.Text.RegularExpressions.Regex.Match(startupDbConnection, @"Data Source=([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    var userIdMatch = System.Text.RegularExpressions.Regex.Match(startupDbConnection, @"User Id=([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    var dataSource = dataSourceMatch.Success ? dataSourceMatch.Groups[1].Value : "unknown";
+    var userId = userIdMatch.Success ? userIdMatch.Groups[1].Value : "unknown";
+
+    startupLogger.LogInformation(
+        "Database configuration: Provider=Oracle, UserId={UserId}, DataSource={DataSource}",
+        userId, dataSource);
+}
+else
+{
+    startupLogger.LogWarning("DB_CONNECTION_STRING environment variable is not set. Using appsettings fallback.");
+}
 
 // =============================================
 // Database Initialization
