@@ -46,20 +46,37 @@ namespace ThesisManagement.Api.Services.MilestoneOverdue
         {
             _logger.LogInformation("[MilestoneOverdueJob] Background job started. GracePeriodDays={GracePeriod}", _options.GracePeriodDays);
 
+            bool isFirstRun = true;
+
             while (!stoppingToken.IsCancellationRequested)
             {
-                // Tính thời gian chờ đến lần chạy tiếp theo: 01:00 sáng hàng ngày
+                TimeSpan delay;
                 var now = DateTime.Now;
                 var nextRun = now.Date.AddDays(1).AddHours(1); // 01:00 sáng ngày mai
-                var delay = nextRun - now;
 
-                // Lần đầu chạy: nếu chưa đến 01:00 sáng thì đợi đến lúc đó
-                // Nhưng trong môi trường dev, chạy ngay sau 5 giây để dễ test
-                if (delay.TotalHours > 23)
-                    delay = TimeSpan.FromSeconds(5); // lần đầu tiên chạy sau 5 giây
+                if (isFirstRun)
+                {
+                    var initialDelay = nextRun - now;
+                    // Lần đầu chạy: nếu thời gian chờ đến 01:00 sáng ngày mai quá lớn (> 23 tiếng),
+                    // nghĩa là vừa qua 01:00 sáng hoặc đang chạy thử nghiệm, ta chạy ngay sau 5 giây để dễ kiểm tra.
+                    if (initialDelay.TotalHours > 23)
+                    {
+                        delay = TimeSpan.FromSeconds(5);
+                    }
+                    else
+                    {
+                        delay = initialDelay;
+                    }
+                    isFirstRun = false;
+                }
+                else
+                {
+                    // Các lần chạy tiếp theo sẽ luôn chờ đến 01:00 sáng hôm sau
+                    delay = nextRun - now;
+                }
 
                 _logger.LogInformation("[MilestoneOverdueJob] Next run in {Minutes} minutes at {NextRun:HH:mm dd/MM/yyyy}",
-                    (int)delay.TotalMinutes, nextRun);
+                    (int)delay.TotalMinutes, now + delay);
 
                 try
                 {
@@ -71,9 +88,6 @@ namespace ThesisManagement.Api.Services.MilestoneOverdue
                 }
 
                 await RunCheckAsync(stoppingToken);
-
-                // Sau lần đầu chạy ngay, reset về cycle 24h
-                delay = TimeSpan.FromHours(24);
             }
 
             _logger.LogInformation("[MilestoneOverdueJob] Background job stopped.");

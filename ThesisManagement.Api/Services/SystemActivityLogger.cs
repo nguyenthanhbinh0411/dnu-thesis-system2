@@ -79,9 +79,13 @@ namespace ThesisManagement.Api.Services
                 await _db.SystemActivityLogs.AddAsync(log, cancellationToken);
                 await _db.SaveChangesAsync(cancellationToken);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Do not throw to avoid breaking the main business flow
+                Console.Error.WriteLine($"[SystemActivityLogger ERROR] {ex.Message}\n{ex.StackTrace}");
+                if (ex.InnerException != null)
+                {
+                    Console.Error.WriteLine($"[SystemActivityLogger INNER ERROR] {ex.InnerException.Message}");
+                }
             }
         }
     }

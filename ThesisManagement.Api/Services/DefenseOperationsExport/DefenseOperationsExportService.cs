@@ -84,6 +84,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
                         "official-transcript" => DefenseExportTemplates.OfficialTranscript.ToList(),
                         "council-minutes" => DefenseExportTemplates.CouncilMinutes.ToList(),
                         "statistics" => DefenseExportTemplates.Statistics.ToList(),
+                        DefenseExportConstants.Templates.RoomMatrix => new List<string>(),
                         _ => DefenseExportTemplates.Dashboard.ToList()
                     };
                 }
@@ -240,6 +241,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
                 DefenseExportConstants.Templates.PostDefense => "hau-bao-ve",
                 DefenseExportConstants.Templates.Councils => "hoi-dong",
                 DefenseExportConstants.Templates.Topics => "de-tai",
+                DefenseExportConstants.Templates.RoomMatrix => "phong-bao-ve",
                 _ => "export"
             };
             return $"{prefix}_{snapshot.DefenseTermId}_{now:yyyyMMdd_HHmm}";

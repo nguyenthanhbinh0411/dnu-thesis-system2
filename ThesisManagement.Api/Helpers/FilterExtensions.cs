@@ -977,13 +977,13 @@ namespace ThesisManagement.Api.Helpers
         {
             if (filter.ImportantOnly == true)
             {
-                // Chỉ hiển thị các thao tác quan trọng:
-                // Committee: tạo/sửa/xóa hội đồng
-                // Defense: công bố lịch, nhập điểm, khóa điểm, mở/đóng phiên, tạo yêu cầu hậu bảo vệ, phê duyệt/từ chối hồ sơ, nộp hồ sơ
-                query = query.Where(x => 
-                    (x.Module == "Committee" && (x.ActionType == "CREATE" || x.ActionType == "UPDATE" || x.ActionType == "DELETE")) ||
-                    (x.Module == "Defense" && (x.ActionType == "PUBLISH" || x.ActionType == "SUBMIT" || x.ActionType == "LOCK" || x.ActionType == "CREATE" || x.ActionType == "APPROVE" || x.ActionType == "REJECT" || x.ActionType == "UPDATE" || x.ActionType == "OPEN_SESSION" || x.ActionType == "CLOSE_SESSION" || x.ActionType == "PAUSE_SESSION" || x.ActionType == "RESUME_SESSION"))
-                );
+                // Chỉ hiển thị các thao tác quan trọng từ tất cả các phân hệ:
+                var importantActions = new[] {
+                    "CREATE", "UPDATE", "DELETE", "LOCK", "UNLOCK", "ENTER_ROOM", "LEAVE_ROOM",
+                    "PUBLISH", "SUBMIT", "APPROVE", "REJECT", "OPEN_SESSION", "CLOSE_SESSION",
+                    "PAUSE_SESSION", "RESUME_SESSION", "UNLOCK_SESSION", "REOPEN_SESSION"
+                };
+                query = query.Where(x => importantActions.Contains(x.ActionType));
             }
 
             if (!string.IsNullOrEmpty(filter.Search))
@@ -1033,6 +1033,12 @@ namespace ThesisManagement.Api.Helpers
 
             if (filter.ToDate.HasValue)
                 query = query.Where(x => x.PerformedAt <= filter.ToDate.Value);
+
+            if (string.IsNullOrEmpty(filter.SortBy))
+            {
+                filter.SortBy = "PerformedAt";
+                filter.SortDescending = true;
+            }
 
             return ApplySorting(query, filter);
         }

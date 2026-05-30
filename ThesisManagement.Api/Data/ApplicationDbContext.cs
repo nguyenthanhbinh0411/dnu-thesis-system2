@@ -1681,12 +1681,56 @@ namespace ThesisManagement.Api.Data
 
                         if (modifiedProperties.Any())
                         {
+                            var actionType = "UPDATE";
+                            var actionDescription = $"Cập nhật {GetFriendlyEntityName(entityName)} - Thay đổi: {string.Join(", ", modifiedProperties)}";
+
+                            if (entityName == "Committee" && modifiedProperties.Contains("Status"))
+                            {
+                                var newStatus = entry.CurrentValues["Status"]?.ToString()?.ToUpperInvariant();
+                                var comCode = entry.CurrentValues["CommitteeCode"]?.ToString() ?? entry.CurrentValues["Name"]?.ToString();
+                                
+                                if (newStatus == "COMPLETED")
+                                {
+                                    actionType = "LOCK";
+                                    actionDescription = $"[LOCK_SESSION] Chốt/Khóa điểm ca bảo vệ hội đồng {comCode}";
+                                }
+                                else if (newStatus == "ONGOING")
+                                {
+                                    var oldStatus = entry.OriginalValues["Status"]?.ToString()?.ToUpperInvariant();
+                                    if (oldStatus == "COMPLETED")
+                                    {
+                                        actionType = "UNLOCK_SESSION";
+                                        actionDescription = $"[UNLOCK_SESSION] Mở chốt điểm bảo vệ hội đồng {comCode}";
+                                    }
+                                    else if (oldStatus == "FINALIZED")
+                                    {
+                                        actionType = "REOPEN_SESSION";
+                                        actionDescription = $"[REOPEN_SESSION] Mở lại phiên bảo vệ hội đồng {comCode} (sau khi đã đóng vĩnh viễn)";
+                                    }
+                                    else
+                                    {
+                                        actionType = "OPEN_SESSION";
+                                        actionDescription = $"[OPEN_SESSION] Mở phiên bảo vệ hội đồng {comCode}";
+                                    }
+                                }
+                                else if (newStatus == "PAUSED")
+                                {
+                                    actionType = "PAUSE_SESSION";
+                                    actionDescription = $"[PAUSE_SESSION] Tạm dừng phiên bảo vệ hội đồng {comCode}";
+                                }
+                                else if (newStatus == "FINALIZED")
+                                {
+                                    actionType = "CLOSE_SESSION";
+                                    actionDescription = $"[CLOSE_SESSION] Đóng phiên bảo vệ hội đồng {comCode} vĩnh viễn";
+                                }
+                            }
+
                             log = new SystemActivityLog
                             {
                                 EntityName = entityName,
                                 EntityID = entityId,
-                                ActionType = "UPDATE",
-                                ActionDescription = $"Cập nhật {GetFriendlyEntityName(entityName)} - Thay đổi: {string.Join(", ", modifiedProperties)}",
+                                ActionType = actionType,
+                                ActionDescription = actionDescription,
                                 OldValue = SerializeEntity(entry.OriginalValues.ToObject()), // Snapshot đầy đủ trước thay đổi
                                 NewValue = SerializeEntity(entry.CurrentValues.ToObject()), // Snapshot đầy đủ sau thay đổi
                                 Module = module,
@@ -1774,36 +1818,67 @@ namespace ThesisManagement.Api.Data
             var entity = entry.Entity;
             var type = entity.GetType();
 
-            // Ưu tiên lấy các trường Code
-            var codeProperty = type.GetProperty("TopicCode") ?? 
-                             type.GetProperty("ConversationCode") ??
-                             type.GetProperty("StudentCode") ?? 
-                             type.GetProperty("LecturerCode") ??
-                             type.GetProperty("UserCode") ??
-                             type.GetProperty("DepartmentCode") ??
-                             type.GetProperty("MilestoneCode") ??
-                             type.GetProperty("SubmissionCode") ??
-                             type.GetProperty("CommitteeCode") ??
-                             type.GetProperty("TagCode");
+            // 1. Ưu tiên tìm các thuộc tính chứa mã (Code) dễ đọc
+            var codeProperties = new[] {
+                "TopicCode", "ConversationCode", "StudentCode", "LecturerCode", "UserCode",
+                "DepartmentCode", "MilestoneCode", "SubmissionCode", "CommitteeCode", "TagCode",
+                "ClassCode", "CohortCode", "RoomCode", "DefenseTermCode", "DefenseGroupCode"
+            };
 
-            if (codeProperty != null)
+            foreach (var propName in codeProperties)
             {
-                return codeProperty.GetValue(entity)?.ToString();
+                var prop = type.GetProperty(propName);
+                if (prop != null)
+                {
+                    var val = prop.GetValue(entity)?.ToString();
+                    if (!string.IsNullOrWhiteSpace(val)) return val;
+                }
             }
 
-            // Fallback về ID
-            var idProperty = type.GetProperty("TopicID") ?? 
-                           type.GetProperty("ConversationID") ??
-                           type.GetProperty("MessageID") ??
-                           type.GetProperty("StudentProfileID") ?? 
-                           type.GetProperty("LecturerProfileID") ??
-                           type.GetProperty("UserID") ??
-                           type.GetProperty("DepartmentID") ??
-                           type.GetProperty("MilestoneID") ??
-                           type.GetProperty("SubmissionID") ??
-                           type.GetProperty("CommitteeID");
+            // 2. Tìm theo tên ID cụ thể
+            var idProperties = new[] {
+                "TopicID", "ConversationID", "MessageID", "StudentProfileID", "LecturerProfileID",
+                "UserID", "DepartmentID", "MilestoneID", "SubmissionID", "CommitteeID",
+                "ClassID", "CohortID", "RoomID", "DefenseTermID", "DefenseGroupID", "TagID",
+                "DefenseAssignmentID", "DefenseScoreID", "DefenseTermStudentID", "DefenseTermLecturerID",
+                "TopicRenameRequestID", "TopicTitleHistoryID", "ProgressMilestoneStepID", "MilestoneTemplateID",
+                "SubmissionFileID", "ExportFileID", "EvaluationReviewID", "DefenseMinuteID", "DefenseResultID",
+                "DefenseRevisionID", "DefenseDocumentID", "CommitteeCodeReservationID", "CommitteeTagID",
+                "TopicLecturerID", "CatalogTopicTagID", "LecturerTagID"
+            };
 
-            return idProperty?.GetValue(entity)?.ToString();
+            foreach (var propName in idProperties)
+            {
+                var prop = type.GetProperty(propName);
+                if (prop != null)
+                {
+                    var val = prop.GetValue(entity)?.ToString();
+                    if (!string.IsNullOrWhiteSpace(val)) return val;
+                }
+            }
+
+            // 3. Fallback dùng EF Core Primary Key
+            try
+            {
+                var primaryKey = entry.Metadata.FindPrimaryKey();
+                if (primaryKey != null)
+                {
+                    var keyValues = primaryKey.Properties
+                        .Select(p => entry.Property(p.Name).CurrentValue?.ToString())
+                        .Where(v => !string.IsNullOrEmpty(v));
+                    
+                    if (keyValues.Any())
+                    {
+                        return string.Join(",", keyValues);
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -1836,15 +1911,14 @@ namespace ThesisManagement.Api.Data
         {
             return entityName switch
             {
-                "User" or "StudentProfile" or "LecturerProfile" => "User",
-                "Topic" or "CatalogTopic" or "TopicLecturer" or "TopicTag" => "Topic",
-                "ProgressMilestone" or "ProgressSubmission" or "MilestoneTemplate" => "Milestone",
-                "Committee" or "CommitteeMember" or "CommitteeSession" or "CommitteeTag" => "Committee",
-                "DefenseAssignment" or "DefenseScore" => "Defense",
-                "SubmissionFile" => "Submission",
-                "Conversation" or "ConversationMember" or "Message" or "MessageAttachment" or "MessageReaction" or "MessageReadReceipt" => "Chat",
+                "User" or "StudentProfile" or "LecturerProfile" or "NotificationPreference" => "Authentication",
+                "Topic" or "CatalogTopic" or "TopicLecturer" or "TopicTag" or "TopicRenameRequest" or "TopicRenameRequestFile" or "TopicTitleHistory" or "TopicWorkflowAudit" => "Topic",
+                "ProgressMilestone" or "ProgressMilestoneStep" or "MilestoneTemplate" => "Milestone",
+                "ProgressSubmission" or "SubmissionFile" => "Submission",
+                "Committee" or "CommitteeMember" or "CommitteeSession" or "CommitteeTag" or "CommitteeCodeReservation" => "Committee",
+                "DefenseAssignment" or "DefenseScore" or "DefenseTerm" or "DefenseTermStudent" or "DefenseTermLecturer" or "DefenseGroup" or "EvaluationReview" or "DefenseMinute" or "DefenseResult" or "DefenseRevision" or "DefenseDocument" => "Defense",
                 "Department" => "Department",
-                "Tag" or "CatalogTopicTag" or "LecturerTag" => "Catalog",
+                "Class" or "Cohort" or "Room" or "Tag" or "CatalogTopicTag" or "LecturerTag" => "Catalog",
                 _ => "System"
             };
         }
@@ -1856,25 +1930,61 @@ namespace ThesisManagement.Api.Data
         {
             return entityName switch
             {
-                "User" => "người dùng",
+                "User" => "tài khoản người dùng",
                 "StudentProfile" => "hồ sơ sinh viên",
                 "LecturerProfile" => "hồ sơ giảng viên",
+                "NotificationPreference" => "cấu hình thông báo",
                 "Topic" => "đề tài",
                 "CatalogTopic" => "danh mục đề tài",
-                "ProgressMilestone" => "tiến độ",
-                "ProgressSubmission" => "bài nộp",
+                "TopicLecturer" => "giảng viên hướng dẫn đề tài",
+                "TopicTag" => "tag đề tài",
+                "TopicRenameRequest" => "yêu cầu đổi tên đề tài",
+                "TopicRenameRequestFile" => "tệp đính kèm đổi tên đề tài",
+                "TopicTitleHistory" => "lịch sử thay đổi tên đề tài",
+                "TopicWorkflowAudit" => "nhật ký quy trình đề tài",
+                "ProgressMilestone" => "mốc tiến độ",
+                "ProgressMilestoneStep" => "bước của mốc tiến độ",
+                "MilestoneTemplate" => "mẫu mốc tiến độ",
                 "Committee" => "hội đồng",
                 "CommitteeMember" => "thành viên hội đồng",
+                "CommitteeSession" => "phiên bảo vệ hội đồng",
+                "CommitteeTag" => "tag hội đồng",
+                "CommitteeCodeReservation" => "mã hội đồng đã cấp",
                 "DefenseAssignment" => "phân công đồ án tốt nghiệp",
-                "DefenseScore" => "điểm đồ án tốt nghiệp",
+                "DefenseScore" => "điểm số bảo vệ",
+                "DefenseTerm" => "đợt bảo vệ",
+                "DefenseTermStudent" => "sinh viên tham gia đợt bảo vệ",
+                "DefenseTermLecturer" => "giảng viên tham gia đợt bảo vệ",
+                "DefenseGroup" => "nhóm bảo vệ",
+                "EvaluationReview" => "nhận xét đánh giá",
+                "DefenseMinute" => "biên bản bảo vệ",
+                "DefenseResult" => "kết quả bảo vệ",
+                "DefenseRevision" => "sửa đổi sau bảo vệ",
+                "DefenseDocument" => "tài liệu đợt bảo vệ",
+                "ProgressSubmission" => "bài nộp của sinh viên",
+                "SubmissionFile" => "tệp đính kèm bài nộp",
+                "Department" => "khoa/bộ môn",
+                "Class" => "lớp",
+                "Cohort" => "khóa học",
+                "Room" => "phòng bảo vệ",
+                "Tag" => "tag/nhãn",
+                "CatalogTopicTag" => "tag danh mục đề tài",
+                "LecturerTag" => "tag giảng viên",
+                "ExportFile" => "tệp xuất bản dữ liệu",
+                "IdempotencyRecord" => "bản ghi Idempotency",
+                "SyncAuditLog" => "nhật ký đồng bộ",
+                "SystemActivityLog" => "nhật ký hoạt động hệ thống",
                 "Conversation" => "cuộc trò chuyện",
                 "ConversationMember" => "thành viên cuộc trò chuyện",
                 "Message" => "tin nhắn",
                 "MessageAttachment" => "tệp đính kèm tin nhắn",
                 "MessageReaction" => "cảm xúc tin nhắn",
-                "MessageReadReceipt" => "trạng thái đã đọc",
-                "Department" => "khoa",
-                "Tag" => "tag",
+                "MessageReadReceipt" => "trạng thái đọc tin nhắn",
+                "Notification" => "thông báo",
+                "NotificationRecipient" => "người nhận thông báo",
+                "NotificationOutbox" => "hộp thư đi thông báo",
+                "ChatSession" => "phiên chat AI",
+                "ChatMessage" => "tin nhắn chat AI",
                 _ => entityName.ToLower()
             };
         }

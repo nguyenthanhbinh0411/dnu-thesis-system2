@@ -50,6 +50,10 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerOverviewAsync(string? lecturerCode, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
+            if (string.IsNullOrWhiteSpace(effectiveLecturerCode))
+            {
+                return Array.Empty<Dictionary<string, object?>>();
+            }
             var defenseTermCondition = defenseTermId.HasValue 
                 ? $" AND da.DEFENSETERMID = {defenseTermId.Value}" 
                 : string.Empty;
@@ -107,6 +111,10 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerReviewQueueAsync(string? lecturerCode, int limit, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
+            if (string.IsNullOrWhiteSpace(effectiveLecturerCode))
+            {
+                return Array.Empty<Dictionary<string, object?>>();
+            }
             var innerSql = @"
                 SELECT 
                     s.*,
@@ -154,6 +162,10 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerScoringProgressAsync(string? lecturerCode, int limit, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
+            if (string.IsNullOrWhiteSpace(effectiveLecturerCode))
+            {
+                return Array.Empty<Dictionary<string, object?>>();
+            }
             var innerSql = "SELECT * FROM VW_DASH_LECTURER_SCORING_PROGRESS WHERE 1=1";
             var parameters = new List<(string Name, object? Value)>();
 
@@ -179,6 +191,10 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerDeadlineRiskAsync(string? lecturerCode, int limit, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
+            if (string.IsNullOrWhiteSpace(effectiveLecturerCode))
+            {
+                return Array.Empty<Dictionary<string, object?>>();
+            }
             var innerSql = @"
                 SELECT 
                     v.*, 
@@ -216,11 +232,18 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerDefenseScheduleAsync(string? lecturerCode, int limit, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
+            if (string.IsNullOrWhiteSpace(effectiveLecturerCode))
+            {
+                return Array.Empty<Dictionary<string, object?>>();
+            }
             var innerSql = @"
                 SELECT 
+                    c.COMMITTEEID as COMMITTEEID,
                     c.NAME as COMMITTEENAME,
                     c.DEFENSEDATE,
                     c.ROOM as ROOMCODE,
+                    t.TOPICID as TOPICID,
+                    t.TOPICCODE as TOPICCODE,
                     t.TITLE as TOPICTITLE,
                     st.FULLNAME as STUDENTFULLNAME,
                     cm.ROLE as LECTURERROLE
@@ -257,11 +280,17 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerCommitteesAsync(string? lecturerCode, int limit, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
+            if (string.IsNullOrWhiteSpace(effectiveLecturerCode))
+            {
+                return Array.Empty<Dictionary<string, object?>>();
+            }
             var innerSql = @"
                 SELECT 
+                    c.COMMITTEEID as COMMITTEEID,
                     c.COMMITTEECODE,
                     c.NAME as COMMITTEENAME,
                     c.DEFENSEDATE,
+                    c.ROOM as ROOMCODE,
                     cm.ROLE,
                     (SELECT COUNT(*) FROM DEFENSEASSIGNMENTS da WHERE da.COMMITTEEID = c.COMMITTEEID) as TOPIC_COUNT
                 FROM COMMITTEEMEMBERS cm
@@ -491,6 +520,10 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerWorkloadDailyAsync(string? lecturerCode, int days)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
+            if (string.IsNullOrWhiteSpace(effectiveLecturerCode))
+            {
+                return Array.Empty<Dictionary<string, object?>>();
+            }
             var sql = "SELECT * FROM MV_DASH_LECTURER_WORKLOAD_DAILY WHERE SNAP_DATE >= (TRUNC(SYSDATE) - :P_DAYS)";
             var parameters = new List<(string Name, object? Value)> { ("P_DAYS", ClampDays(days)) };
 
@@ -507,6 +540,10 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerProgressStatusBreakdownAsync(string? lecturerCode, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
+            if (string.IsNullOrWhiteSpace(effectiveLecturerCode))
+            {
+                return Array.Empty<Dictionary<string, object?>>();
+            }
             var termCondition = defenseTermId.HasValue
                 ? $" AND m.TOPICID IN (SELECT TOPICID FROM TOPICS WHERE DEFENSETERMID = {defenseTermId.Value})"
                 : string.Empty;
@@ -578,6 +615,10 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerOverdueTrendAsync(string? lecturerCode, int days, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
+            if (string.IsNullOrWhiteSpace(effectiveLecturerCode))
+            {
+                return Array.Empty<Dictionary<string, object?>>();
+            }
             var sql = @"
                 SELECT 
                     TRUNC(s.SUBMITTEDAT) AS ""DATE"",
@@ -609,6 +650,10 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerTopicTypeBreakdownAsync(string? lecturerCode, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
+            if (string.IsNullOrWhiteSpace(effectiveLecturerCode))
+            {
+                return Array.Empty<Dictionary<string, object?>>();
+            }
             var sql = @"
                 SELECT 
                     t.""Type"" as TOPIC_TYPE,
@@ -638,6 +683,10 @@ namespace ThesisManagement.Api.Application.Query.Dashboards
         public async Task<IReadOnlyList<Dictionary<string, object?>>> GetLecturerReviewStatusBreakdownAsync(string? lecturerCode, int? defenseTermId = null)
         {
             var effectiveLecturerCode = await ResolveLecturerCodeAsync(lecturerCode);
+            if (string.IsNullOrWhiteSpace(effectiveLecturerCode))
+            {
+                return Array.Empty<Dictionary<string, object?>>();
+            }
             var sql = @"
                 SELECT 
                     CASE 

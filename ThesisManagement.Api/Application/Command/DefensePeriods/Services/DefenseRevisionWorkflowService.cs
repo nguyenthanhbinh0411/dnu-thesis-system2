@@ -358,6 +358,17 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 .FirstOrDefaultAsync(cancellationToken);
 
             var isApprove = normalizedAction == "APPROVE";
+            if (isApprove && studentInfoForLog != null && !string.IsNullOrWhiteSpace(studentInfoForLog.TopicCode))
+            {
+                var topic = await _db.Topics.FirstOrDefaultAsync(t => t.TopicCode == studentInfoForLog.TopicCode, cancellationToken);
+                if (topic != null)
+                {
+                    topic.Status = "Hoàn thành bảo vệ";
+                    topic.LastUpdated = DateTime.UtcNow;
+                    _db.Topics.Update(topic);
+                    await _uow.SaveChangesAsync();
+                }
+            }
             await _systemActivityLogger.WriteLogAsync(
                 entityName: "DefenseRevision",
                 entityId: revisionId.ToString(),

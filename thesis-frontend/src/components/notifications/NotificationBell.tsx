@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Settings2,
   X,
+  ShieldAlert,
 } from "lucide-react";
 import {
   HubConnection,
@@ -36,15 +37,17 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
   updateMyNotificationPreference,
+  scanSystemAlerts,
 } from "../../services/notification.service";
 import { getAccessToken } from "../../services/auth-session.service";
 import { useToast } from "../../context/useToast";
 import {
   normalizeDefensePeriodId,
   setActiveDefensePeriodId,
+  useActiveDefensePeriodId,
 } from "../../utils/defensePeriod";
 
-type NotificationTheme = "student" | "lecturer";
+type NotificationTheme = "student" | "lecturer" | "admin" | "secretary";
 type PanelMode = "feed" | "preferences";
 type ReadFilter = "all" | "unread";
 
@@ -240,7 +243,26 @@ const resolveCategoryTarget = (
   if (theme === "lecturer") {
     if (category === "TOPIC_WORKFLOW") return "/lecturer/topic-review";
     if (category === "PROGRESS_SUBMISSION") return "/lecturer/reports";
-    if (category === "DEFENSE_REVISION") return "/lecturer/post-defense";
+    if (category === "DEFENSE_REVISION" || category === "POSTDEFENSE") return "/lecturer/post-defense";
+  }
+
+  if (theme === "admin" || theme === "secretary") {
+    if (category === "REGISTRATION") {
+      return "/admin/topic-review";
+    }
+    if (
+      category === "ASSIGNMENT" ||
+      category === "PROGRESS" ||
+      category === "COMMITTEE"
+    ) {
+      return "/admin/committees/operations?tab=lifecycle";
+    }
+    if (category === "GRADING") {
+      return "/admin/committees/operations?tab=scoring";
+    }
+    if (category === "POSTDEFENSE") {
+      return "/admin/committees/operations?tab=post-defense";
+    }
   }
 
   return null;
@@ -330,14 +352,17 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const connectionRef = useRef<HubConnection | null>(null);
 
-  const themedColor = theme === "lecturer" ? "#FFFFFF" : "#F37021";
+  const activePeriodId = useActiveDefensePeriodId();
+  const [scanning, setScanning] = useState(false);
+
+  const themedColor = (theme === "lecturer" || theme === "admin" || theme === "secretary") ? "#FFFFFF" : "#F37021";
   const themedBg =
-    theme === "lecturer"
+    (theme === "lecturer" || theme === "admin" || theme === "secretary")
       ? "rgba(255, 255, 255, 0.1)"
       : "rgba(243, 112, 33, 0.1)";
   const themedBorder =
-    theme === "lecturer"
-      ? "1px solid rgba(255, 255, 255, 0.25)"
+    (theme === "lecturer" || theme === "admin" || theme === "secretary")
+      ? "1px solid rgba(255, 255, 255, 0.2)"
       : "1px solid rgba(243, 112, 33, 0.2)";
 
   const hasMore = notifications.length < totalCount;
@@ -407,6 +432,29 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
   const syncFeed = useCallback(async () => {
     await fetchFeed(1, true);
   }, [fetchFeed]);
+
+  const handleScanAlerts = useCallback(async () => {
+    if (!activePeriodId) {
+      addToast("Khong tim thay dot bao ve hien hanh de quet.", "warning");
+      return;
+    }
+    setScanning(true);
+    try {
+      const response = await scanSystemAlerts(activePeriodId);
+      if (response.success) {
+        addToast("Da quet va phat hanh canh bao thanh cong.", "success");
+        await fetchFeed(1, true);
+        await fetchUnreadCount();
+      } else {
+        throw new Error(response.message || "Quet canh bao that bai.");
+      }
+    } catch (error: any) {
+      console.error("Scan system alerts failed:", error);
+      addToast(error.message || "Khong the quet he thong canh bao.", "error");
+    } finally {
+      setScanning(false);
+    }
+  }, [activePeriodId, addToast, fetchFeed, fetchUnreadCount]);
 
   const fetchPreferences = useCallback(async () => {
     setLoadingPreferences(true);
@@ -868,7 +916,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
                   gap: 8,
                 }}
               >
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button
                     style={{
                       ...feedButtonBase,
@@ -904,6 +952,29 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
                     <RefreshCw size={12} />
                     Đồng bộ
                   </button>
+                  {(theme === "admin" || theme === "secretary") && (
+                    <button
+                      style={{
+                        ...feedButtonBase,
+                        background: scanning ? "#F3F4F6" : "#F59E0B",
+                        color: scanning ? "#9CA3AF" : "#FFFFFF",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        cursor: scanning ? "not-allowed" : "pointer",
+                      }}
+                      onClick={() => void handleScanAlerts()}
+                      disabled={scanning}
+                    >
+                      <ShieldAlert
+                        size={12}
+                        style={{
+                          animation: scanning ? "spin 1s linear infinite" : undefined,
+                        }}
+                      />
+                      {scanning ? "Đang quét..." : "Quét cảnh báo"}
+                    </button>
+                  )}
                   <button
                     style={{
                       ...feedButtonBase,

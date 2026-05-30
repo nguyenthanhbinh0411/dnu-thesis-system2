@@ -549,9 +549,13 @@ const formatLecturerNameWithDegree = (
   lecturerName: string | null | undefined,
   degree: string | null | undefined,
 ) => {
-  const safeName = String(lecturerName ?? "").trim() || "Chưa rõ giảng viên";
-  const safeDegree = String(degree ?? "").trim() || "Chưa cập nhật học vị";
-  return `${safeName} (${safeDegree})`;
+  const safeName = String(lecturerName ?? "").trim();
+  const safeDegree = String(degree ?? "").trim();
+  if (!safeName) return "Chưa rõ giảng viên";
+  if (!safeDegree || safeDegree.toLowerCase().includes("chưa cập nhật") || safeDegree === "-") {
+    return safeName;
+  }
+  return `${safeDegree} ${safeName}`;
 };
 
 const FIXED_MANUAL_MEMBER_SLOT_COUNT = 3;
@@ -1179,6 +1183,7 @@ const CommitteeManagement: React.FC = () => {
     () => queryPeriodId ?? getActiveDefensePeriodId(),
   );
   const [periods, setPeriods] = useState<any[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const [students, setStudents] = useState<EligibleStudent[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -3203,7 +3208,7 @@ const CommitteeManagement: React.FC = () => {
     };
 
     void hydrateFromBackend();
-  }, [adminApi, defensePeriodId, notifyWarning, parseApiEnvelope]);
+  }, [adminApi, defensePeriodId, notifyWarning, parseApiEnvelope, refreshTrigger]);
 
   const validRows = useMemo(
     () => students.filter((item: EligibleStudent) => item.valid),
@@ -4742,9 +4747,8 @@ const CommitteeManagement: React.FC = () => {
           `Đã tạo ${committeesCreated} hội đồng, phân công ${topicsAssigned} đề tài.`,
         );
       }
-      if (typeof window !== "undefined") {
-        window.location.reload();
-      }
+      // Trigger a clean state update to sync students, rooms, and metrics
+      setRefreshTrigger((prev) => prev + 1);
     } catch (error) {
       if (error instanceof FetchDataError) {
         const fallback =
@@ -5615,6 +5619,21 @@ const CommitteeManagement: React.FC = () => {
         );
         const statusValue = String(item.status ?? "").trim();
 
+        // Check if student is assigned to any council in the drafts
+        const sCodeUpper = String(item.studentCode ?? "").trim().toUpperCase();
+        const assignedCouncil = drafts.find((d) => {
+          const morningHas = (d.morningStudents || []).some(
+            (sc) => String(sc ?? "").trim().toUpperCase() === sCodeUpper,
+          );
+          const afternoonHas = (d.afternoonStudents || []).some(
+            (sc) => String(sc ?? "").trim().toUpperCase() === sCodeUpper,
+          );
+          const assignmentsHas = (d.assignments || []).some(
+            (a) => String(a.studentCode ?? "").trim().toUpperCase() === sCodeUpper,
+          );
+          return morningHas || afternoonHas || assignmentsHas;
+        });
+
         return {
           studentCode: String(item.studentCode ?? "").trim(),
           topicCode: resolvedTopicCode,
@@ -5631,6 +5650,16 @@ const CommitteeManagement: React.FC = () => {
                 ? "Đủ điều kiện bảo vệ"
                 : "Chưa đủ điều kiện"
               : "Có cảnh báo"),
+          isAssignedToCouncil: Boolean(assignedCouncil) || Boolean(item.isAssignedToCouncil),
+          assignedCouncilInfo: assignedCouncil
+            ? {
+                id: assignedCouncil.id,
+                name: assignedCouncil.name || assignedCouncil.id,
+                room: assignedCouncil.room,
+                defenseDate: assignedCouncil.defenseDate,
+                session: assignedCouncil.session || (assignedCouncil.sessionCode === "MORNING" ? "Sáng" : "Chiều"),
+              }
+            : null,
         };
       })
       .sort((left, right) => {
@@ -5643,6 +5672,7 @@ const CommitteeManagement: React.FC = () => {
     eligibleStudents,
     getLecturerDisplayNameByCode,
     lecturerDirectory,
+    drafts,
   ]);
 
   const eligibleTopicModalSummary = useMemo(() => {
@@ -6387,10 +6417,8 @@ const CommitteeManagement: React.FC = () => {
       setManualMode(null);
       setManualReadOnly(false);
       notifySuccess(`Đã xóa hội đồng ${target.id}.`);
-      // Ensure UI fully refreshes to reflect deletion (avoid stale state/caching)
-      if (typeof window !== "undefined") {
-        window.location.reload();
-      }
+      // Trigger a clean state update to sync students, rooms, and metrics
+      setRefreshTrigger((prev) => prev + 1);
     } catch {
       notifyError(
         `Không xóa được hội đồng ${target.id}. Vui lòng tải lại dữ liệu và thử lại.`,
@@ -6445,8 +6473,9 @@ const CommitteeManagement: React.FC = () => {
       if (failed > 0) {
         notifyError(`Xóa thất bại ${failed} hội đồng.`);
       }
-      if (succeeded > 0 && typeof window !== "undefined") {
-        window.location.reload();
+      if (succeeded > 0) {
+        // Trigger a clean state update to sync students, rooms, and metrics
+        setRefreshTrigger((prev) => prev + 1);
       }
     } catch (err: any) {
       notifyError(err.message || "Lỗi hệ thống khi xóa hàng loạt hội đồng.");
@@ -7295,9 +7324,8 @@ const CommitteeManagement: React.FC = () => {
           ? `Đã thêm hội đồng ${savedCouncilCode}.`
           : `Đã lưu thay đổi hội đồng ${savedCouncilCode}.`,
       );
-      if (typeof window !== "undefined") {
-        window.location.reload();
-      }
+      // Trigger a clean state update to sync students, rooms, and metrics
+      setRefreshTrigger((prev) => prev + 1);
     } catch (error) {
       await tryRollbackCreatedCouncil();
       if (error instanceof FetchDataError) {
@@ -7707,13 +7735,39 @@ const CommitteeManagement: React.FC = () => {
     showAutoGenerateModal,
   ]);
 
+  const [eligibleTopicsSearch, setEligibleTopicsSearch] = useState("");
+
+  const filteredEligibleTopicRows = useMemo(() => {
+    return eligibleTopicRows.filter((row) => {
+      // Strictly only display eligible topics that are NOT yet assigned to any committee
+      if (row.isAssignedToCouncil) return false;
+
+      // Search filter
+      const search = eligibleTopicsSearch.trim().toLowerCase();
+      if (search) {
+        const titleMatch = row.topicTitle.toLowerCase().includes(search);
+        const codeMatch = (row.topicCode || "").toLowerCase().includes(search);
+        const studentNameMatch = row.studentName.toLowerCase().includes(search);
+        const studentCodeMatch = row.studentCode.toLowerCase().includes(search);
+        const supervisorMatch = row.supervisorName.toLowerCase().includes(search);
+        return titleMatch || codeMatch || studentNameMatch || studentCodeMatch || supervisorMatch;
+      }
+
+      return true;
+    });
+  }, [eligibleTopicRows, eligibleTopicsSearch]);
+
+  useEffect(() => {
+    setEligibleTopicsPage(1);
+  }, [eligibleTopicsSearch]);
+
   const ELIGIBLE_TOPICS_PAGE_SIZE = 10;
   const paginatedEligibleTopics = useMemo(() => {
     const start = (eligibleTopicsPage - 1) * ELIGIBLE_TOPICS_PAGE_SIZE;
-    return eligibleTopicRows.slice(start, start + ELIGIBLE_TOPICS_PAGE_SIZE);
-  }, [eligibleTopicRows, eligibleTopicsPage]);
+    return filteredEligibleTopicRows.slice(start, start + ELIGIBLE_TOPICS_PAGE_SIZE);
+  }, [filteredEligibleTopicRows, eligibleTopicsPage]);
   
-  const totalEligiblePages = Math.ceil(eligibleTopicRows.length / ELIGIBLE_TOPICS_PAGE_SIZE);
+  const totalEligiblePages = Math.ceil(filteredEligibleTopicRows.length / ELIGIBLE_TOPICS_PAGE_SIZE);
 
   if (!stateHydrated) {
     return (
@@ -9675,7 +9729,7 @@ const CommitteeManagement: React.FC = () => {
                 Xem danh sách
               </button>
             </div>
-            <div style={{ fontSize: 32, fontWeight: 900, color: "#f37021" }}>{eligibleStudents.length}</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: "#f37021" }}>{Math.max(0, eligibleStudents.length - assignedTopicsCount)}</div>
             <div style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>
               Đề tài sẵn sàng phân công hội đồng
             </div>
@@ -10374,36 +10428,93 @@ const CommitteeManagement: React.FC = () => {
                 >
                   {/* Header with gradient */}
                   <div style={{ padding: "32px 40px 24px", background: "linear-gradient(to bottom, #f8fafc, white)", borderBottom: "1px solid #f1f5f9" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20 }}>
                       <div style={{ flex: 1 }}>
-                        <h2 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.02em", marginBottom: 8 }}>
-                          Danh sách đề tài đủ điều kiện
+                        <h2 style={{ margin: 0, fontSize: 26, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.02em", marginBottom: 6 }}>
+                          Danh sách đề tài đủ điều kiện bảo vệ
                         </h2>
                         <p style={{ margin: 0, fontSize: 14, color: "#64748b", fontWeight: 600 }}>
-                          Tổng cộng <span style={{ fontWeight: 800, color: "#1e3a5f" }}>{eligibleTopicRows.length}</span> đề tài sẵn sàng phân công hội đồng trong đợt hiện tại
+                          Tổng cộng <span style={{ fontWeight: 800, color: "#e65100" }}>{Math.max(0, eligibleStudents.length - assignedTopicsCount)}</span> đề tài sẵn sàng phân công hội đồng (chưa gán hội đồng)
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowEligibleTopicsModal(false)}
-                        style={{
-                          border: "none",
-                          background: "#f1f5f9",
-                          padding: 10,
-                          borderRadius: 14,
-                          cursor: "pointer",
-                          color: "#64748b",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          transition: "all 0.2s",
-                          flexShrink: 0
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = "#e2e8f0"}
-                        onMouseLeave={(e) => e.currentTarget.style.background = "#f1f5f9"}
-                      >
-                        <X size={24} />
-                      </button>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                        {/* Search input with icon */}
+                        <div style={{
+                          position: "relative",
+                          width: "280px"
+                        }}>
+                          <input
+                            type="text"
+                            placeholder="Tìm kiếm nhanh..."
+                            value={eligibleTopicsSearch}
+                            onChange={(e) => setEligibleTopicsSearch(e.target.value)}
+                            style={{
+                              width: "100%",
+                              padding: "10px 16px 10px 40px",
+                              borderRadius: "16px",
+                              border: "1px solid #cbd5e1",
+                              fontSize: "13px",
+                              fontWeight: 600,
+                              color: "#1e293b",
+                              outline: "none",
+                              transition: "all 0.2s"
+                            }}
+                            onFocus={(e) => e.currentTarget.style.borderColor = "#1e3a5f"}
+                            onBlur={(e) => e.currentTarget.style.borderColor = "#cbd5e1"}
+                          />
+                          <Search size={16} style={{
+                            position: "absolute",
+                            left: 14,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            color: "#94a3b8"
+                          }} />
+                          {eligibleTopicsSearch && (
+                            <button
+                              type="button"
+                              onClick={() => setEligibleTopicsSearch("")}
+                              style={{
+                                position: "absolute",
+                                right: 12,
+                                top: "50%",
+                                transform: "translateY(-50%)",
+                                border: "none",
+                                background: "none",
+                                cursor: "pointer",
+                                color: "#94a3b8",
+                                padding: 0,
+                                display: "flex",
+                                alignItems: "center"
+                              }}
+                            >
+                              <X size={16} />
+                            </button>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowEligibleTopicsModal(false)}
+                          style={{
+                            border: "none",
+                            background: "#f1f5f9",
+                            padding: 10,
+                            borderRadius: 14,
+                            cursor: "pointer",
+                            color: "#64748b",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "all 0.2s",
+                            flexShrink: 0
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = "#e2e8f0"}
+                          onMouseLeave={(e) => e.currentTarget.style.background = "#f1f5f9"}
+                        >
+                          <X size={24} />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -10583,9 +10694,9 @@ const CommitteeManagement: React.FC = () => {
                       <div style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>
                         Hiển thị <span style={{ fontWeight: 800, color: "#1e293b" }}>{(eligibleTopicsPage - 1) * 10 + 1}</span> -{" "}
                         <span style={{ fontWeight: 800, color: "#1e293b" }}>
-                          {Math.min(eligibleTopicsPage * 10, eligibleTopicRows.length)}
+                          {Math.min(eligibleTopicsPage * 10, filteredEligibleTopicRows.length)}
                         </span>{" "}
-                        trong <span style={{ fontWeight: 800, color: "#1e293b" }}>{eligibleTopicRows.length}</span> đề tài
+                        trong <span style={{ fontWeight: 800, color: "#1e293b" }}>{filteredEligibleTopicRows.length}</span> đề tài
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <button
