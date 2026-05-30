@@ -216,10 +216,11 @@ ssh -v -p 1912 devfit@118.70.169.236 "echo 'SSH OK'"
 ├── .deploy.env           # Non-sensitive config (auto-generated)
 ├── .env                  # Merged (auto-generated)
 ├── docker-compose.production.yml
-└── images/
-    ├── backend-image-{sha}.tar.gz
-    └── frontend-image-{sha}.tar.gz
+├── deploy_wait.sh        # Deployment helper script
+└── (No images/ directory - images are loaded directly into Docker daemon)
 ```
+
+> **Note:** Docker images are transferred via SSH pipe and loaded directly into Docker daemon. No `.tar.gz` files are stored on the server.
 
 ### Create .env.runtime
 
@@ -296,7 +297,15 @@ git push origin main
 1. Go to GitHub → Actions
 2. Select "Deploy to Production"
 3. Click "Run workflow"
-4. Optionally skip frontend/backend build
+4. Optionally skip frontend/backend build with `skip_frontend` and `skip_backend` inputs
+
+### Workflow Requirements
+
+The GitHub Actions workflow uses:
+- `actions/setup-dotnet@v4` for .NET SDK
+- `actions/setup-node@v4` for Node.js
+- `docker/setup-buildx-action@v3` for Docker builds
+- SSH pipe (`docker save | ssh | docker load`) for image transfer - **no GitHub artifacts used**
 
 ### Deployment Flow
 
@@ -305,7 +314,7 @@ git push origin main
 │   Source    │───  main    ──▶│ GitHub Actions  │
 │   Code      │               │                 │
 └─────────────┘               └────────┬────────┘
-                                      │
+                                       │
                           ┌───────────┴───────────┐
                           ▼                       ▼
                     ┌──────────┐            ┌──────────┐
@@ -313,46 +322,55 @@ git push origin main
                     │ Backend │            │ Frontend │
                     │  (DLL)  │            │  (dist)  │
                     └────┬─────┘            └────┬─────┘
-                          │                      │
-                          └──────────┬───────────┘
-                                     ▼
-                          ┌──────────────────┐
-                          │ Build Docker      │
-                          │ Images           │
-                          │ graduation-thesis │
-                          │ -api:{sha}       │
-                          │ -web:{sha}       │
-                          └────────┬─────────┘
-                                   │
-                          ┌────────┴────────┐
-                          ▼                 ▼
+                         │                      │
+                         └──────────┬───────────┘
+                                    ▼
+                         ┌──────────────────┐
+                         │ Build Docker      │
+                         │ Images           │
+                         │ graduation-thesis │
+                         │ -api:{sha}       │
+                         │ -web:{sha}       │
+                         └────────┬─────────┘
+                                  │
+                         ┌────────┴────────┐
+                         ▼                 ▼
                     ┌──────────┐      ┌──────────┐
-                    │  Save   │      │  Upload  │
-                    │  .tar.gz│─────▶│ via SCP │
-                    └──────────┘      └────┬─────┘
-                                           │
-                          ┌─────────────────┴─────────────────┐
-                          ▼                                   ▼
-                    ┌──────────┐                       ┌──────────┐
-                    │  Load   │                       │ Verify   │
-                    │ Images  │                       │ .env.    │
-                    └────┬─────┘                       │ runtime  │
-                         │                             └────┬─────┘
-                         └────────────┬──────────────────────┘
-                                      ▼
-                          ┌─────────────────────┐
-                          │ Merge .deploy.env   │
-                          │ + .env.runtime      │
-                          │ = .env              │
-                          └──────────┬──────────┘
-                                     │
-                          ┌──────────┴──────────┐
-                          ▼                     ▼
-                    ┌──────────┐         ┌──────────┐
-                    │ Deploy  │────────▶│ Health   │
-                    │ Services│         │ Check   │
-                    └──────────┘         └──────────┘
+                    │  Save   │      │  Save   │
+                    │ + Pipe │      │ + Pipe │
+                    │  via   │      │  via   │
+                    │  SSH   │      │  SSH   │
+                    └────┬─────┘      └────┬─────┘
+                         │                │
+                         └───────┬────────┘
+                                 ▼
+                    ┌─────────────────────┐
+                    │ Load Docker Images │
+                    │ on Server         │
+                    └──────────┬──────────┘
+                               │
+                    ┌──────────┴──────────┐
+                    ▼                     ▼
+              ┌──────────┐         ┌──────────┐
+              │ Verify   │         │ Merge    │
+              │ .env.    │         │ .deploy  │
+              │ runtime  │         │ + .env   │
+              └────┬─────┘         │ .runtime │
+                  │                └────┬─────┘
+                  └────────────┬──────────┘
+                               ▼
+                    ┌─────────────────────┐
+                    │ Deploy Services     │
+                    │ + Health Check     │
+                    └─────────────────────┘
 ```
+
+### Key Differences from Old Workflow
+
+- **No GitHub Artifacts**: Docker images are transferred directly via SSH pipe (`docker save | ssh | docker load`)
+- **No artifact storage quota issues**: Images are never stored on GitHub servers
+- **Faster transfer**: Direct pipe transfer can be faster for moderate image sizes
+- **Single job deployment**: All steps run in one job for simplicity
 
 ---
 
@@ -783,3 +801,5 @@ Before deployment, verify:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-05-16 | Initial CI/CD with security model |
+| 1.1 | 2026-05-30 | Updated for SSH pipe image transfer (no artifacts) |
+| 1.2 | 2026-05-30 | Added actions/setup-dotnet for .NET SDK installation |
