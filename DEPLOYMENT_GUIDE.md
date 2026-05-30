@@ -878,6 +878,7 @@ Before deployment, verify:
 | 1.5 | 2026-05-30 | Fixed compose network and depends_on issues |
 | 1.6 | 2026-05-30 | Fixed production migration: disabled auto-migrate, added RUN_DB_MIGRATIONS flag, added baseline script |
 | 1.7 | 2026-05-30 | Fixed DB_CONNECTION_STRING env var in docker-compose, improved startup logging |
+| 1.8 | 2026-05-30 | Fixed Nginx proxy from host.docker.internal to 127.0.0.1 |
 
 ## Connection String Configuration Guide
 
@@ -941,3 +942,44 @@ When using fallback (should NOT happen in production):
 ```
 DB_CONNECTION_STRING environment variable is not set. Using ConnectionStrings:DefaultConnection from appsettings.json. This fallback should only be used in development.
 ```
+
+---
+
+## Nginx Configuration Verification
+
+After deployment, verify Nginx can proxy to backend correctly:
+
+```bash
+# Navigate to deployment directory
+cd /opt/graduation-thesis
+
+# 1. Check Nginx config syntax
+docker exec graduation-thesis-web nginx -t
+
+# 2. Verify Nginx can resolve 127.0.0.1
+docker exec graduation-thesis-web getent hosts 127.0.0.1
+
+# 3. Check Nginx logs for errors
+docker logs graduation-thesis-web --tail 50
+
+# 4. Test API proxy through Nginx
+curl -v http://127.0.0.1:8888/api/
+
+# 5. Check backend is accessible from host
+curl -v http://127.0.0.1:9699/healthz
+```
+
+### Common Nginx Issues
+
+**"host not found in upstream host.docker.internal"**
+- This means Nginx config uses `host.docker.internal` which doesn't resolve on Linux
+- Fix: Change to `127.0.0.1` (backend uses `network_mode: host`)
+
+**502 Bad Gateway**
+- Backend may not be running or on wrong port
+- Check: `docker ps | grep graduation-thesis-api`
+- Verify: `curl http://127.0.0.1:9699/healthz`
+
+**Nginx container restarting**
+- Check logs: `docker logs graduation-thesis-web --tail 100`
+- Common cause: invalid config or missing upstream
