@@ -284,6 +284,24 @@ namespace ThesisManagement.Api.Controllers
                 .GroupBy(ctt => ctt.CatalogTopicCode!)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
+            // Preload MilestoneTemplates for dynamic steps initialization
+            var termId = students.Values.FirstOrDefault()?.DefenseTermId;
+            var templates = new List<MilestoneTemplate>();
+            if (termId.HasValue)
+            {
+                templates = await _context.MilestoneTemplates
+                    .Where(x => x.DefenseTermId == termId.Value)
+                    .OrderBy(x => x.Ordinal)
+                    .ToListAsync();
+            }
+            if (templates.Count == 0)
+            {
+                templates = await _context.MilestoneTemplates
+                    .Where(x => x.DefenseTermId == null)
+                    .OrderBy(x => x.Ordinal)
+                    .ToListAsync();
+            }
+
             // Sequence counters for ID and Code generation
             var maxMilestoneId = await _context.ProgressMilestones.Select(x => (int?)x.MilestoneID).MaxAsync() ?? 0;
             var nextMilestoneId = maxMilestoneId + 1;
@@ -381,6 +399,23 @@ namespace ThesisManagement.Api.Controllers
                         LastUpdated = DateTime.UtcNow
                     };
                     _context.ProgressMilestones.Add(milestoneEntity);
+
+                    // Populate milestone steps
+                    foreach (var t in templates)
+                    {
+                        var isCompleted = t.Ordinal == 1; // Step 1 is registration, which is completed
+                        var step = new ProgressMilestoneStep
+                        {
+                            MilestoneID = milestoneEntity.MilestoneID,
+                            MilestoneTemplateCode = t.MilestoneTemplateCode,
+                            Ordinal = t.Ordinal,
+                            State = isCompleted ? "Completed" : "Pending",
+                            CompletedAt = isCompleted ? DateTime.UtcNow : null,
+                            CreatedAt = DateTime.UtcNow,
+                            LastUpdated = DateTime.UtcNow
+                        };
+                        _context.ProgressMilestoneSteps.Add(step);
+                    }
 
                     // 2. Primary TopicLecturer link
                     var topicLecturer = new TopicLecturer
