@@ -30,14 +30,14 @@ USER appuser
 
 # Environment defaults
 ENV ASPNETCORE_ENVIRONMENT=Production
-ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://+:9699
 
 # Expose internal port
-EXPOSE 8080
+EXPOSE 9699
 
 # Healthcheck using wget (aspnet image has wget)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-    CMD wget -qO- http://localhost:8080/healthz || exit 1
+    CMD wget -qO- http://localhost:9699/healthz || exit 1
 
 # Entry point - runs migrations then starts the application
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

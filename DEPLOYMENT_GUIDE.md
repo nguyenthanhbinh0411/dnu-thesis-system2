@@ -19,7 +19,7 @@
 
 | Component | Technology | Location | Port |
 |-----------|------------|----------|------|
-| Backend API | ASP.NET Core 8 | `ThesisManagement.Api/` | 8080 (internal) |
+| Backend API | ASP.NET Core 8 | `ThesisManagement.Api/` | 9699 (internal) |
 | Frontend Web | React + Vite | `thesis-frontend/` | 80 (nginx) |
 | Database | Oracle External | N/A | N/A |
 | Web Server | Nginx Alpine | Container | 8888 (public) |
@@ -37,7 +37,7 @@ Internet (port 8888)
           │ /api, /hubs
           ▼
 ┌───────────────────┐
-│   ASP.NET Core    │  :8080 (internal only)
+│   ASP.NET Core    │  :9699 (internal only)
 │   graduation-thesis-api │
 └─────────┬─────────┘
           │ DB Connection
@@ -91,7 +91,7 @@ Internet (port 8888)
 | Port | Service | Access | Notes |
 |------|---------|--------|-------|
 | 8888 | Frontend (nginx) | Public | HTTP only |
-| 8080 | Backend API | Internal only | Not exposed to host |
+| 9699 | Backend API | Internal only | Not exposed to host |
 | 1912 | SSH | Admin only | Server firewall |
 | 5432 | Database | Internal only | Not exposed |
 
@@ -408,7 +408,7 @@ ssh -p 1912 devfit@118.70.169.236 "docker logs graduation-thesis-web --tail 50"
 ssh -p 1912 devfit@118.70.169.236 "curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:8888/"
 
 # Test backend health (internal)
-ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:8080/healthz"
+ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:9699/healthz"
 
 # Test API proxy
 ssh -p 1912 devfit@118.70.169.236 "curl -fsS http://127.0.0.1:8888/api/"
@@ -417,13 +417,13 @@ ssh -p 1912 devfit@118.70.169.236 "curl -fsS http://127.0.0.1:8888/api/"
 ### Verify Listening Ports
 
 ```bash
-ssh -p 1912 devfit@118.70.169.236 "ss -tulpn | grep -E ':(8888|8080)'"
+ssh -p 1912 devfit@118.70.169.236 "ss -tulpn | grep -E ':(8888|9699)'"
 ```
 
 Expected output:
 ```
 tcp   LISTEN   0.511   0.0.0.0:8888   0.0.0.0:*   nginx/graduation-thesis-web
-tcp   LISTEN   0.128   172.28.0.2:8080   0.0.0.0:*   dotnet/ThesisManagement.Api
+tcp   LISTEN   0.128   127.0.0.1:9699   0.0.0.0:*   dotnet/ThesisManagement.Api
 ```
 
 ---
@@ -601,7 +601,7 @@ nginx
 ssh -p 1912 devfit@118.70.169.236 "docker ps | grep backend"
 
 # Check backend health
-ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:8080/healthz"
+ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:9699/healthz"
 
 # Check nginx logs
 ssh -p 1912 devfit@118.70.169.236 "docker logs graduation-thesis-web --tail 20"
@@ -614,7 +614,7 @@ ssh -p 1912 devfit@118.70.169.236 "docker restart graduation-thesis-api"
 
 # Wait and check
 sleep 30
-ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:8080/healthz"
+ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:9699/healthz"
 ```
 
 ---
@@ -657,7 +657,7 @@ Container graduation-thesis-api health check exceeded timeout
 **Diagnosis:**
 ```bash
 # Check if health endpoint is accessible
-ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:8080/healthz"
+ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:9699/healthz"
 
 # Check container startup logs
 ssh -p 1912 devfit@118.70.169.236 "docker logs graduation-thesis-api --tail 200"
@@ -768,7 +768,7 @@ docker compose --env-file .env -f docker-compose.production.yml up -d
 ```bash
 curl http://127.0.0.1:8888/
 curl http://127.0.0.1:8888/api/
-docker exec graduation-thesis-api wget -qO- http://localhost:8080/healthz
+docker exec graduation-thesis-api wget -qO- http://localhost:9699/healthz
 ```
 
 ### Backup Before Deploy

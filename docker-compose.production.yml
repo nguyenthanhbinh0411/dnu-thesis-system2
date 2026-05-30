@@ -25,7 +25,7 @@ services:
     environment:
       # ASP.NET Core settings
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
-      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_URLS=http://+:9699
 
       # Database connection (from .env.runtime)
       # Format: User Id=USER;Password=PASS;Data Source=HOST:PORT/SERVICE;
@@ -52,7 +52,7 @@ services:
 
     # Healthcheck using wget (aspnet image has wget, not curl)
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9699/healthz || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -112,7 +112,7 @@ networks:
 # - Connection string is stored in /opt/graduation-thesis/.env.runtime
 #
 # Security:
-# - Backend (port 8080) is internal only, not exposed to host.
+# - Backend (port 9699) is internal only, not exposed to host.
 # - Frontend (port 80) is proxied through nginx and accessible via port 8888.
 # - API calls from frontend go to /api/ which is proxied to backend.
 #
