@@ -152,15 +152,11 @@ jobs:
       # =============================================
       # Build Backend Docker image
       # =============================================
-      - name: Install .NET SDK
+      - name: Setup .NET SDK
         if: env.SKIP_BACKEND != 'true'
-        run: |
-          set -euo pipefail
-          wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
-          chmod +x dotnet-install.sh
-          ./dotnet-install.sh --channel 8.0 --install-dir /usr/share/dotnet
-          ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
-          dotnet --version
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
       - name: Build and Transfer Backend
         if: env.SKIP_BACKEND != 'true'
