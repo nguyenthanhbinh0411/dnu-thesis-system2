@@ -276,6 +276,11 @@ namespace ThesisManagement.Api.Services.DataExchange
             var finalLecturerCode = lecturer?.LecturerCode ?? lecturerCodeVal;
             var finalLecturerName = lecturer?.FullName ?? lecturerNameVal;
 
+            var activePeriod = await _uow.DefenseTerms.Query()
+                .Where(x => x.Status != "Closed" && x.Status != "Archived")
+                .OrderByDescending(x => x.DefenseTermId)
+                .FirstOrDefaultAsync();
+
             var defenseTermIdStr = Get(row, "defenseTermId") ?? Get(row, "defense_term_id");
             var defenseTermCodeVal = Get(row, "defenseTermCode") ?? Get(row, "defense_term_code") ?? Get(row, "termCode") ?? Get(row, "term_code");
             int? parsedDefenseTermId = null;
@@ -292,6 +297,11 @@ namespace ThesisManagement.Api.Services.DataExchange
                 {
                     parsedDefenseTermId = term.DefenseTermId;
                 }
+            }
+
+            if (parsedDefenseTermId == null && activePeriod != null)
+            {
+                parsedDefenseTermId = activePeriod.DefenseTermId;
             }
 
             var action = UpsertAction.Updated;
@@ -336,10 +346,7 @@ namespace ThesisManagement.Api.Services.DataExchange
                 {
                     entity.LecturerName = finalLecturerName;
                 }
-                if (!string.IsNullOrWhiteSpace(defenseTermIdStr) || !string.IsNullOrWhiteSpace(defenseTermCodeVal))
-                {
-                    entity.DefenseTermId = parsedDefenseTermId;
-                }
+                entity.DefenseTermId = parsedDefenseTermId ?? entity.DefenseTermId;
                 entity.LastUpdated = DateTime.UtcNow;
                 await _uow.SaveChangesAsync();
             }
@@ -454,9 +461,8 @@ namespace ThesisManagement.Api.Services.DataExchange
                 ? await _uow.Departments.GetByCodeAsync(departmentCode)
                 : null;
 
-            var activeStatuses = new[] { "Registration", "Assignment", "ProgressTracking", "CommitteePreparation", "Running", "ScoringLocked" };
             var activePeriod = await _uow.DefenseTerms.Query()
-                .Where(x => activeStatuses.Contains(x.Status))
+                .Where(x => x.Status != "Closed" && x.Status != "Archived")
                 .OrderByDescending(x => x.DefenseTermId)
                 .FirstOrDefaultAsync();
 
@@ -539,32 +545,37 @@ namespace ThesisManagement.Api.Services.DataExchange
                 return (UpsertAction.Created, entity.StudentCode);
             }
 
-            // Duplicate student code: only update defense term and class, and do not change other personal information
-            var hasStudentChanges = false;
+            // Duplicate student code: overwrite all data and update to the resolved defense term
+            entity.DepartmentCode = department?.DepartmentCode;
+            entity.DepartmentID = department?.DepartmentID;
+            entity.ClassID = finalClassId;
+            entity.ClassCode = finalClassCode;
+            entity.FullName = Get(row, "fullName") ?? entity.FullName;
+            entity.StudentEmail = Get(row, "studentEmail") ?? entity.StudentEmail;
+            entity.PhoneNumber = Get(row, "phoneNumber") ?? entity.PhoneNumber;
 
-            if (finalClassId != null && entity.ClassID != finalClassId)
+            var enrollmentYearVal = ParseInt(Get(row, "enrollmentYear"));
+            if (enrollmentYearVal != null)
             {
-                entity.ClassID = finalClassId;
-                hasStudentChanges = true;
+                entity.EnrollmentYear = enrollmentYearVal.Value;
             }
 
-            if (!string.IsNullOrWhiteSpace(finalClassCode) && entity.ClassCode != finalClassCode)
+            var graduationYearVal = ParseInt(Get(row, "graduationYear"));
+            if (graduationYearVal != null)
             {
-                entity.ClassCode = finalClassCode;
-                hasStudentChanges = true;
+                entity.GraduationYear = graduationYearVal.Value;
             }
 
-            if (finalDefenseTermId != null && entity.DefenseTermId != finalDefenseTermId)
-            {
-                entity.DefenseTermId = finalDefenseTermId;
-                hasStudentChanges = true;
-            }
+            entity.Status = Get(row, "status") ?? entity.Status ?? "Đang học";
+            entity.Gender = Get(row, "gender") ?? entity.Gender;
+            entity.DateOfBirth = ParseDate(Get(row, "dateOfBirth")) ?? entity.DateOfBirth;
+            entity.GPA = ParseDecimal(Get(row, "gpa")) ?? entity.GPA;
+            entity.Address = Get(row, "address") ?? entity.Address;
+            entity.Notes = Get(row, "notes") ?? entity.Notes;
+            entity.DefenseTermId = finalDefenseTermId ?? entity.DefenseTermId;
+            entity.LastUpdated = DateTime.UtcNow;
 
-            if (hasStudentChanges || finalDefenseTermId != null)
-            {
-                entity.LastUpdated = DateTime.UtcNow;
-                await _uow.SaveChangesAsync();
-            }
+            await _uow.SaveChangesAsync();
 
             return (UpsertAction.Updated, entity.StudentCode);
         }
@@ -602,9 +613,8 @@ namespace ThesisManagement.Api.Services.DataExchange
                 ? await _uow.Departments.GetByCodeAsync(departmentCode)
                 : null;
 
-            var activeStatuses = new[] { "Registration", "Assignment", "ProgressTracking", "CommitteePreparation", "Running", "ScoringLocked" };
             var activePeriod = await _uow.DefenseTerms.Query()
-                .Where(x => activeStatuses.Contains(x.Status))
+                .Where(x => x.Status != "Closed" && x.Status != "Archived")
                 .OrderByDescending(x => x.DefenseTermId)
                 .FirstOrDefaultAsync();
 
@@ -675,47 +685,50 @@ namespace ThesisManagement.Api.Services.DataExchange
                 return (UpsertAction.Created, entity.LecturerCode);
             }
 
-            // Duplicate lecturer code: only update the defense term and do not change personal information
-            // except for GuideQuota, DefenseQuota, and CurrentGuidingCount which are overwritten from the import file if provided.
-            var hasQuotaChanges = false;
-            
+            // Duplicate lecturer code: overwrite all data and update to the resolved defense term
+            entity.DepartmentCode = department?.DepartmentCode;
+            entity.DepartmentID = department?.DepartmentID;
+            entity.FullName = Get(row, "fullName") ?? entity.FullName;
+            entity.Degree = Get(row, "degree") ?? entity.Degree;
+            entity.Email = Get(row, "email") ?? entity.Email;
+            entity.PhoneNumber = Get(row, "phoneNumber") ?? entity.PhoneNumber;
+
             var guideQuotaVal = ParseInt(Get(row, "guideQuota"));
             if (guideQuotaVal != null)
             {
                 entity.GuideQuota = guideQuotaVal.Value;
-                hasQuotaChanges = true;
             }
 
             var defenseQuotaVal = ParseInt(Get(row, "defenseQuota"));
             if (defenseQuotaVal != null)
             {
                 entity.DefenseQuota = defenseQuotaVal.Value;
-                hasQuotaChanges = true;
             }
 
             var currentGuidingCountVal = ParseInt(Get(row, "currentGuidingCount"));
             if (currentGuidingCountVal != null)
             {
                 entity.CurrentGuidingCount = currentGuidingCountVal.Value;
-                hasQuotaChanges = true;
+            }
+            else if (finalDefenseTermId != null && entity.DefenseTermId != finalDefenseTermId)
+            {
+                entity.CurrentGuidingCount = 0;
             }
 
-            var hasLecturerChanges = hasQuotaChanges;
+            entity.Gender = Get(row, "gender") ?? entity.Gender;
+            entity.DateOfBirth = ParseDate(Get(row, "dateOfBirth")) ?? entity.DateOfBirth;
+            entity.Address = Get(row, "address") ?? entity.Address;
+            entity.Specialties = Get(row, "specialties") ?? entity.Specialties;
+            entity.Organization = Get(row, "organization") ?? entity.Organization;
+            entity.Notes = Get(row, "notes") ?? entity.Notes;
+            entity.DefenseTermId = finalDefenseTermId ?? entity.DefenseTermId;
+            entity.LastUpdated = DateTime.UtcNow;
 
-            if (finalDefenseTermId != null && entity.DefenseTermId != finalDefenseTermId)
-            {
-                entity.DefenseTermId = finalDefenseTermId;
-                if (currentGuidingCountVal == null)
-                {
-                    entity.CurrentGuidingCount = 0;
-                }
-                hasLecturerChanges = true;
-            }
+            await _uow.SaveChangesAsync();
 
-            if (hasLecturerChanges || finalDefenseTermId != null)
+            if (hasTagCodesColumn)
             {
-                entity.LastUpdated = DateTime.UtcNow;
-                await _uow.SaveChangesAsync();
+                await SyncLecturerTagsAsync(entity.LecturerProfileID, entity.LecturerCode, incomingTagCodes, existingTagMap, Get(row, "assignedByUserCode"));
             }
 
             return (UpsertAction.Updated, entity.LecturerCode);

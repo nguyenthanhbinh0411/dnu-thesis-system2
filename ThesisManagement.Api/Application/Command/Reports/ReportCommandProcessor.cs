@@ -147,7 +147,9 @@ namespace ThesisManagement.Api.Application.Command.Reports
             */
 
             var latestSubmissionForMilestone = await _uow.ProgressSubmissions.Query()
-                .Where(x => x.StudentUserCode == payload.StudentUserCode && x.MilestoneID == milestone.MilestoneID)
+                .Where(x => x.StudentUserCode == payload.StudentUserCode 
+                    && x.MilestoneID == milestone.MilestoneID
+                    && x.Ordinal == milestone.Ordinal)
                 .OrderByDescending(x => x.SubmittedAt)
                 .ThenByDescending(x => x.SubmissionID)
                 .FirstOrDefaultAsync();
@@ -185,6 +187,11 @@ namespace ThesisManagement.Api.Application.Command.Reports
 
             var studentProfile = await _uow.StudentProfiles.Query().FirstOrDefaultAsync(x => x.UserCode == payload.StudentUserCode);
 
+            var attemptNumberCount = await _uow.ProgressSubmissions.Query()
+                .CountAsync(x => x.StudentUserCode == payload.StudentUserCode 
+                    && x.MilestoneID == milestone.MilestoneID 
+                    && x.Ordinal == milestone.Ordinal);
+
             await using var transaction = await _db.Database.BeginTransactionAsync();
             try
             {
@@ -201,7 +208,7 @@ namespace ThesisManagement.Api.Application.Command.Reports
                     LecturerCode = lecturerProfile.LecturerCode,
                     LecturerProfileID = lecturerProfile.LecturerProfileID,
                     Ordinal = milestone.Ordinal,
-                    AttemptNumber = (latestSubmissionForMilestone?.AttemptNumber ?? 0) + 1,
+                    AttemptNumber = attemptNumberCount + 1,
                     LecturerState = "PENDING",
                     ReportTitle = payload.ReportTitle,
                     ReportDescription = payload.ReportDescription,
@@ -417,30 +424,7 @@ namespace ThesisManagement.Api.Application.Command.Reports
             var currentOrdinal = currentMilestone.Ordinal ?? 0;
             var topicId = currentMilestone.TopicID;
 
-            // 1. Update dynamic steps table
-            var currentStep = await _db.ProgressMilestoneSteps
-                .FirstOrDefaultAsync(x => x.MilestoneID == currentMilestone.MilestoneID && x.Ordinal == currentOrdinal);
-            if (currentStep != null)
-            {
-                currentStep.State = "Completed";
-                currentStep.CompletedAt = DateTime.UtcNow;
-                currentStep.LastUpdated = DateTime.UtcNow;
-                _uow.ProgressMilestoneSteps.Update(currentStep);
-            }
-
-            // 2. Backward compatible flat columns update
-            switch (currentOrdinal)
-            {
-                case 1: currentMilestone.CompletedAt1 = DateTime.UtcNow; break;
-                case 2: currentMilestone.CompletedAt2 = DateTime.UtcNow; break;
-                case 3: currentMilestone.CompletedAt3 = DateTime.UtcNow; break;
-                case 4: currentMilestone.CompletedAt4 = DateTime.UtcNow; break;
-                case 5: currentMilestone.CompletedAt5 = DateTime.UtcNow; break;
-            }
-
-            currentMilestone.LastUpdated = DateTime.UtcNow;
-
-            // 3. Retrieve dynamic templates for this topic's DefenseTermId to avoid global leak
+            // Retrieve dynamic templates for this topic's DefenseTermId to avoid global leak
             var topic = await _uow.Topics.GetByIdAsync(topicId);
             var templates = await _uow.MilestoneTemplates.Query()
                 .Where(x => x.DefenseTermId == (topic != null ? topic.DefenseTermId : null))
@@ -454,6 +438,62 @@ namespace ThesisManagement.Api.Application.Command.Reports
                     .OrderBy(x => x.Ordinal)
                     .ToListAsync();
             }
+
+            // Ensure all dynamic steps exist in the database
+            var existingSteps = await _db.ProgressMilestoneSteps
+                .Where(x => x.MilestoneID == currentMilestone.MilestoneID)
+                .ToListAsync();
+
+            foreach (var t in templates)
+            {
+                var step = existingSteps.FirstOrDefault(x => x.Ordinal == t.Ordinal);
+                if (step == null)
+                {
+                    var isCompleted = t.Ordinal <= currentOrdinal;
+                    step = new ProgressMilestoneStep
+                    {
+                        MilestoneID = currentMilestone.MilestoneID,
+                        MilestoneTemplateCode = t.MilestoneTemplateCode,
+                        Ordinal = t.Ordinal,
+                        State = isCompleted ? "Completed" : "Pending",
+                        CompletedAt = isCompleted ? (t.Ordinal == currentOrdinal ? DateTime.UtcNow : (t.Ordinal switch
+                        {
+                            1 => currentMilestone.CompletedAt1 ?? DateTime.UtcNow,
+                            2 => currentMilestone.CompletedAt2 ?? DateTime.UtcNow,
+                            3 => currentMilestone.CompletedAt3 ?? DateTime.UtcNow,
+                            4 => currentMilestone.CompletedAt4 ?? DateTime.UtcNow,
+                            5 => currentMilestone.CompletedAt5 ?? DateTime.UtcNow,
+                            _ => DateTime.UtcNow
+                        })) : null,
+                        CreatedAt = DateTime.UtcNow,
+                        LastUpdated = DateTime.UtcNow
+                    };
+                    await _uow.ProgressMilestoneSteps.AddAsync(step);
+                    existingSteps.Add(step);
+                }
+                else if (t.Ordinal == currentOrdinal)
+                {
+                    step.State = "Completed";
+                    step.CompletedAt = DateTime.UtcNow;
+                    step.LastUpdated = DateTime.UtcNow;
+                    if (step.StepID > 0)
+                    {
+                        _uow.ProgressMilestoneSteps.Update(step);
+                    }
+                }
+            }
+
+            // 2. Backward compatible flat columns update
+            switch (currentOrdinal)
+            {
+                case 1: currentMilestone.CompletedAt1 = DateTime.UtcNow; break;
+                case 2: currentMilestone.CompletedAt2 = DateTime.UtcNow; break;
+                case 3: currentMilestone.CompletedAt3 = DateTime.UtcNow; break;
+                case 4: currentMilestone.CompletedAt4 = DateTime.UtcNow; break;
+                case 5: currentMilestone.CompletedAt5 = DateTime.UtcNow; break;
+            }
+
+            currentMilestone.LastUpdated = DateTime.UtcNow;
 
             var totalMilestones = templates.Count;
             var isFinalMilestone = currentOrdinal >= totalMilestones || currentMilestone.MilestoneTemplateCode == "MS_FULL" || (currentMilestone.MilestoneTemplateCode != null && currentMilestone.MilestoneTemplateCode.StartsWith("MS_FULL"));
@@ -518,8 +558,19 @@ namespace ThesisManagement.Api.Application.Command.Reports
                 {
                     currentMilestone.Ordinal = nextOrdinal;
                     currentMilestone.MilestoneTemplateCode = nextTemplate.MilestoneTemplateCode;
-                    currentMilestone.State = "Pending";
+                    currentMilestone.State = "Đang thực hiện";
                     currentMilestone.Deadline = nextTemplate.Deadline;
+
+                    var nextStep = existingSteps.FirstOrDefault(x => x.Ordinal == nextOrdinal);
+                    if (nextStep != null)
+                    {
+                        nextStep.State = "Đang thực hiện";
+                        nextStep.LastUpdated = DateTime.UtcNow;
+                        if (nextStep.StepID > 0)
+                        {
+                            _uow.ProgressMilestoneSteps.Update(nextStep);
+                        }
+                    }
                 }
             }
 

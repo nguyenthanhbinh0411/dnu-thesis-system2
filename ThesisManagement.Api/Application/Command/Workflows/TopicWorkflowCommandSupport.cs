@@ -364,15 +364,37 @@ namespace ThesisManagement.Api.Application.Command.Workflows
                     milestone.Ordinal = nextOrdinal;
                     milestone.CompletedAt1 = DateTime.UtcNow;
 
-                    // Update step 1 as Completed
-                    var step1 = await _db.ProgressMilestoneSteps
-                        .FirstOrDefaultAsync(x => x.MilestoneID == milestone.MilestoneID && x.Ordinal == 1);
-                    if (step1 != null)
+                    // Update step 1 as Completed (ensuring all steps are populated first)
+                    var existingSteps = await _db.ProgressMilestoneSteps
+                        .Where(x => x.MilestoneID == milestone.MilestoneID)
+                        .ToListAsync();
+
+                    foreach (var t in templates)
                     {
-                        step1.State = "Completed";
-                        step1.CompletedAt = DateTime.UtcNow;
-                        step1.LastUpdated = DateTime.UtcNow;
-                        _uow.ProgressMilestoneSteps.Update(step1);
+                        var step = existingSteps.FirstOrDefault(x => x.Ordinal == t.Ordinal);
+                        if (step == null)
+                        {
+                            var isStep1 = t.Ordinal == 1;
+                            step = new ProgressMilestoneStep
+                            {
+                                MilestoneID = milestone.MilestoneID,
+                                MilestoneTemplateCode = t.MilestoneTemplateCode,
+                                Ordinal = t.Ordinal,
+                                State = isStep1 ? "Completed" : "Pending",
+                                CompletedAt = isStep1 ? DateTime.UtcNow : null,
+                                CreatedAt = DateTime.UtcNow,
+                                LastUpdated = DateTime.UtcNow
+                            };
+                            await _uow.ProgressMilestoneSteps.AddAsync(step);
+                            existingSteps.Add(step);
+                        }
+                        else if (t.Ordinal == 1)
+                        {
+                            step.State = "Completed";
+                            step.CompletedAt = DateTime.UtcNow;
+                            step.LastUpdated = DateTime.UtcNow;
+                            _uow.ProgressMilestoneSteps.Update(step);
+                        }
                     }
                 }
                 else

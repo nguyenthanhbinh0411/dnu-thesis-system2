@@ -1089,16 +1089,18 @@ const DefensePeriodsManagement: React.FC = () => {
     }
   }, [selectedId, addToast]);
 
-  const handleSaveMilestones = async () => {
+  const handleSaveMilestones = async (shouldReload = true): Promise<boolean> => {
     setMilestonesSaving(true);
     try {
       for (let i = 0; i < milestones.length - 1; i++) {
-        const current = new Date(milestones[i].deadline!);
-        const next = new Date(milestones[i + 1].deadline!);
-        if (current >= next) {
-          addToast(`Hạn nộp mốc ${i + 1} phải trước mốc ${i + 2}.`, "warning");
-          setMilestonesSaving(false);
-          return;
+        if (milestones[i].deadline && milestones[i + 1].deadline) {
+          const current = new Date(milestones[i].deadline);
+          const next = new Date(milestones[i + 1].deadline);
+          if (current >= next) {
+            addToast(`Hạn nộp mốc ${i + 1} phải trước mốc ${i + 2}.`, "warning");
+            setMilestonesSaving(false);
+            return false;
+          }
         }
       }
       const promises = milestones.map(m =>
@@ -1111,16 +1113,23 @@ const DefensePeriodsManagement: React.FC = () => {
       );
       const results = await Promise.all(promises);
       if (results.every(r => readEnvelopeSuccess(r))) {
-        addToast("Cập nhật lộ trình thành công!", "success");
-        loadMilestones();
+        if (shouldReload) {
+          addToast("Cập nhật lộ trình thành công!", "success");
+          await loadMilestones();
+        }
+        return true;
       } else {
         addToast("Cập nhật thất bại.", "error");
+        return false;
       }
     } catch (err: any) {
       const errMsg = err.data?.message || err.data?.Message || err.message || "Lỗi hệ thống khi cập nhật lộ trình.";
       addToast(errMsg, "error");
+      return false;
     } finally {
-      setMilestonesSaving(false);
+      if (shouldReload) {
+        setMilestonesSaving(false);
+      }
     }
   };
 
@@ -1128,6 +1137,12 @@ const DefensePeriodsManagement: React.FC = () => {
     if (!selectedId) return;
     setMilestonesSaving(true);
     try {
+      // Auto-save existing milestone edits first to prevent resetting them
+      const saveSuccess = await handleSaveMilestones(false);
+      if (!saveSuccess) {
+        return; // Abort if validation or saving failed
+      }
+
       const nextOrdinal = milestones.length + 1;
       const baseCode = nextOrdinal === 1 ? "MS_REG" : `MS_PROG${nextOrdinal - 1}`;
       const payload = {
@@ -1158,6 +1173,12 @@ const DefensePeriodsManagement: React.FC = () => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa mốc thời gian này khỏi lộ trình?")) return;
     setMilestonesSaving(true);
     try {
+      // Auto-save remaining edits first to prevent resetting them
+      const saveSuccess = await handleSaveMilestones(false);
+      if (!saveSuccess) {
+        return; // Abort if validation or saving failed
+      }
+
       const res = await milestoneApi.delete(id);
       if (readEnvelopeSuccess(res)) {
         addToast("Xóa mốc thời gian thành công!", "success");
@@ -2350,27 +2371,30 @@ const DefensePeriodsManagement: React.FC = () => {
           <div style={{ background: "#fff", padding: "24px", borderRadius: "20px", border: "1px solid #e2e8f0", position: "sticky", top: "100px" }}>
             <h4 style={{ margin: "0 0 20px 0", fontSize: "16px", fontWeight: "800", color: DEEP_BLUE_PRIMARY }}>Tóm tắt lộ trình</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-              {milestones.map((m, idx) => (
-                <React.Fragment key={m.milestoneTemplateID}>
-                  <div style={{ display: "flex", gap: "16px", alignItems: "center", padding: "12px 0" }}>
-                    <div style={{
-                      width: "32px", height: "32px", background: m.ordinal === 4 ? "#fff7ed" : "#f1f5f9",
-                      color: m.ordinal === 4 ? "#f97316" : DEEP_BLUE_PRIMARY,
-                      borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center",
-                      fontWeight: "800", fontSize: "14px", flexShrink: 0, border: `1px solid ${m.ordinal === 4 ? "#ffedd5" : "#e2e8f0"}`
-                    }}>
-                      {m.ordinal}
+              {milestones.map((m, idx) => {
+                const isLast = idx === milestones.length - 1;
+                return (
+                  <React.Fragment key={m.milestoneTemplateID}>
+                    <div style={{ display: "flex", gap: "16px", alignItems: "center", padding: "12px 0" }}>
+                      <div style={{
+                        width: "32px", height: "32px", background: isLast ? "#fff7ed" : "#f1f5f9",
+                        color: isLast ? "#f97316" : DEEP_BLUE_PRIMARY,
+                        borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center",
+                        fontWeight: "800", fontSize: "14px", flexShrink: 0, border: `1px solid ${isLast ? "#ffedd5" : "#e2e8f0"}`
+                      }}>
+                        {m.ordinal}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: "14px", fontWeight: "700", color: "#334155", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
+                        <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>{m.deadline ? new Date(m.deadline).toLocaleDateString('vi-VN') : '---'}</div>
+                      </div>
                     </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: "14px", fontWeight: "700", color: "#334155", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
-                      <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>{m.deadline ? new Date(m.deadline).toLocaleDateString('vi-VN') : '---'}</div>
-                    </div>
-                  </div>
-                  {idx < milestones.length - 1 && (
-                    <div style={{ width: "2px", height: "20px", background: "#e2e8f0", marginLeft: "15px" }}></div>
-                  )}
-                </React.Fragment>
-              ))}
+                    {idx < milestones.length - 1 && (
+                      <div style={{ width: "2px", height: "20px", background: "#e2e8f0", marginLeft: "15px" }}></div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </div>
             <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: "8px", color: "#94a3b8", fontSize: "12px", fontWeight: "600" }}>
               <Info size={14} />
@@ -2380,75 +2404,78 @@ const DefensePeriodsManagement: React.FC = () => {
 
           {/* Main Content: Timeline Editor */}
           <div style={{ display: "grid", gap: "32px" }}>
-            {milestones.map((m, idx) => (
-              <div key={m.milestoneTemplateID} style={{ display: "flex", gap: "24px" }}>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "48px" }}>
+            {milestones.map((m, idx) => {
+              const isLast = idx === milestones.length - 1;
+              return (
+                <div key={m.milestoneTemplateID} style={{ display: "flex", gap: "24px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "48px" }}>
+                    <div style={{
+                      width: "48px", height: "48px", background: "white",
+                      border: `3px solid ${isLast ? "#F37021" : DEEP_BLUE_PRIMARY}`,
+                      color: isLast ? "#F37021" : DEEP_BLUE_PRIMARY,
+                      borderRadius: "50%", display: "flex", alignItems: "center",
+                      justifyContent: "center", zIndex: 2, boxShadow: `0 0 0 6px ${isLast ? "#fff7ed" : "#f0f7ff"}`
+                    }}>
+                      {m.ordinal === 1 ? <Target size={20} /> : isLast ? <Flag size={20} /> : <BookOpen size={20} />}
+                    </div>
+                    {idx < milestones.length - 1 && (
+                      <div style={{ width: "3px", flex: 1, background: "#e2e8f0", margin: "10px 0", borderRadius: "10px" }}></div>
+                    )}
+                  </div>
+
                   <div style={{
-                    width: "48px", height: "48px", background: "white",
-                    border: `3px solid ${m.ordinal === 4 ? "#F37021" : DEEP_BLUE_PRIMARY}`,
-                    color: m.ordinal === 4 ? "#F37021" : DEEP_BLUE_PRIMARY,
-                    borderRadius: "50%", display: "flex", alignItems: "center",
-                    justifyContent: "center", zIndex: 2, boxShadow: `0 0 0 6px ${m.ordinal === 4 ? "#fff7ed" : "#f0f7ff"}`
+                    flex: 1, background: "white", borderRadius: "24px", padding: "24px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.02)", border: "1px solid #e2e8f0"
                   }}>
-                    {m.ordinal === 1 ? <Target size={20} /> : m.ordinal === 4 ? <Flag size={20} /> : <BookOpen size={20} />}
-                  </div>
-                  {idx < milestones.length - 1 && (
-                    <div style={{ width: "3px", flex: 1, background: "#e2e8f0", margin: "10px 0", borderRadius: "10px" }}></div>
-                  )}
-                </div>
-
-                <div style={{
-                  flex: 1, background: "white", borderRadius: "24px", padding: "24px",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.02)", border: "1px solid #e2e8f0"
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                    <span style={{ fontSize: "12px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1px" }}>Giai đoạn {m.ordinal}</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <div style={{ fontFamily: "monospace", fontSize: "11px", color: "#94a3b8", background: "#f8fafc", padding: "4px 10px", borderRadius: "8px", border: "1px solid #f1f5f9" }}>{m.milestoneTemplateCode}</div>
-                      <button
-                        onClick={() => handleDeleteMilestone(m.milestoneTemplateID)}
-                        style={{
-                          background: "#fee2e2", color: "#b91c1c", border: "none", padding: "4px 10px",
-                          borderRadius: "8px", fontSize: "11px", fontWeight: "700", cursor: "pointer",
-                          display: "flex", alignItems: "center", gap: "4px"
-                        }}
-                      >
-                        <Trash2 size={12} />
-                        <span>Xóa mốc</span>
-                      </button>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                      <span style={{ fontSize: "12px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1px" }}>Giai đoạn {m.ordinal}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <div style={{ fontFamily: "monospace", fontSize: "11px", color: "#94a3b8", background: "#f8fafc", padding: "4px 10px", borderRadius: "8px", border: "1px solid #f1f5f9" }}>{m.milestoneTemplateCode}</div>
+                        <button
+                          onClick={() => handleDeleteMilestone(m.milestoneTemplateID)}
+                          style={{
+                            background: "#fee2e2", color: "#b91c1c", border: "none", padding: "4px 10px",
+                            borderRadius: "8px", fontSize: "11px", fontWeight: "700", cursor: "pointer",
+                            display: "flex", alignItems: "center", gap: "4px"
+                          }}
+                        >
+                          <Trash2 size={12} />
+                          <span>Xóa mốc</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  <div style={{ display: "grid", gap: "20px" }}>
-                    <div>
-                      <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>Tên giai đoạn</label>
-                      <input
-                        type="text"
-                        value={m.name}
-                        onChange={(e) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? { ...x, name: e.target.value } : x))}
-                        style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: "10px", fontSize: "14px", color: "#1e293b", outline: "none" }}
+                    <div style={{ display: "grid", gap: "20px" }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>Tên giai đoạn</label>
+                        <input
+                          type="text"
+                          value={m.name}
+                          onChange={(e) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? { ...x, name: e.target.value } : x))}
+                          style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: "10px", fontSize: "14px", color: "#1e293b", outline: "none" }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>Mô tả yêu cầu</label>
+                        <textarea
+                          rows={2}
+                          value={m.description || ""}
+                          onChange={(e) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? { ...x, description: e.target.value } : x))}
+                          style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: "10px", fontSize: "14px", color: "#1e293b", outline: "none", resize: "none" }}
+                        />
+                      </div>
+                      <CustomDatePicker
+                        label="Hạn nộp bài cuối cùng"
+                        value={m.deadline}
+                        onChange={(val) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? { ...x, deadline: val } : x))}
+                        isOpen={activeMilestonePickerId === m.milestoneTemplateID}
+                        onToggle={(open) => setActiveMilestonePickerId(open ? m.milestoneTemplateID : null)}
                       />
                     </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>Mô tả yêu cầu</label>
-                      <textarea
-                        rows={2}
-                        value={m.description || ""}
-                        onChange={(e) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? { ...x, description: e.target.value } : x))}
-                        style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: "10px", fontSize: "14px", color: "#1e293b", outline: "none", resize: "none" }}
-                      />
-                    </div>
-                    <CustomDatePicker
-                      label="Hạn nộp bài cuối cùng"
-                      value={m.deadline}
-                      onChange={(val) => setMilestones(prev => prev.map(x => x.milestoneTemplateID === m.milestoneTemplateID ? { ...x, deadline: val } : x))}
-                      isOpen={activeMilestonePickerId === m.milestoneTemplateID}
-                      onToggle={(open) => setActiveMilestonePickerId(open ? m.milestoneTemplateID : null)}
-                    />
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

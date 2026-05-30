@@ -1516,7 +1516,8 @@ namespace ThesisManagement.Api.Data
                 ["TOPICS"] = new HashSet<string>(StringComparer.Ordinal) { "Type" },
                 ["SYSTEMACTIVITYLOGS"] = new HashSet<string>(StringComparer.Ordinal) { "Comment" },
                 ["PROGRESSMILESTONES"] = new HashSet<string>(StringComparer.Ordinal) { "Ordinal" },
-                ["PROGRESSSUBMISSIONS"] = new HashSet<string>(StringComparer.Ordinal) { "Ordinal" }
+                ["PROGRESSSUBMISSIONS"] = new HashSet<string>(StringComparer.Ordinal) { "Ordinal" },
+                ["PROGRESSMILESTONESTEPS"] = new HashSet<string>(StringComparer.Ordinal) { "Ordinal" }
             };
 
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
