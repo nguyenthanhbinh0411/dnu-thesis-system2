@@ -1093,9 +1093,11 @@ const DefensePeriodsManagement: React.FC = () => {
     setMilestonesSaving(true);
     try {
       for (let i = 0; i < milestones.length - 1; i++) {
-        if (milestones[i].deadline && milestones[i + 1].deadline) {
-          const current = new Date(milestones[i].deadline);
-          const next = new Date(milestones[i + 1].deadline);
+        const currentDeadline = milestones[i].deadline;
+        const nextDeadline = milestones[i + 1].deadline;
+        if (currentDeadline && nextDeadline) {
+          const current = new Date(currentDeadline);
+          const next = new Date(nextDeadline);
           if (current >= next) {
             addToast(`Hạn nộp mốc ${i + 1} phải trước mốc ${i + 2}.`, "warning");
             setMilestonesSaving(false);
@@ -2352,7 +2354,7 @@ const DefensePeriodsManagement: React.FC = () => {
               <span>Thêm mốc mới</span>
             </button>
             <button
-              onClick={handleSaveMilestones}
+              onClick={() => { void handleSaveMilestones(); }}
               disabled={milestonesSaving}
               style={{
                 background: DEEP_BLUE_PRIMARY, color: "white", border: "none", padding: "12px 24px",
