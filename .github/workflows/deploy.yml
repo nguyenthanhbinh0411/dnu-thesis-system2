@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+      - 'README*'
   workflow_dispatch:
     inputs:
       skip_frontend:
@@ -19,7 +25,7 @@ on:
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -31,6 +37,8 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Validate required GitHub Secrets
         shell: bash
@@ -43,9 +51,6 @@ jobs:
           SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
         run: |
           set -euo pipefail
-
-          echo "=== Validating GitHub Configuration ==="
-
           for name in SERVER_HOST SERVER_USER SERVER_SSH_PORT SERVER_APP_DIR PUBLIC_PORT SERVER_SSH_KEY; do
             value="${!name:-}"
             if [ -z "$value" ]; then
@@ -55,39 +60,17 @@ jobs:
             echo "✓ $name: [SET]"
           done
 
-          if ! [[ "$SERVER_SSH_PORT" =~ ^[0-9]+$ ]] || [ "$SERVER_SSH_PORT" -lt 1 ] || [ "$SERVER_SSH_PORT" -gt 65535 ]; then
-            echo "::error::SERVER_SSH_PORT must be a valid port number"
-            exit 1
-          fi
-
-          if ! [[ "$PUBLIC_PORT" =~ ^[0-9]+$ ]] || [ "$PUBLIC_PORT" -lt 1 ] || [ "$PUBLIC_PORT" -gt 65535 ]; then
-            echo "::error::PUBLIC_PORT must be a valid port number"
-            exit 1
-          fi
-
-          echo "=== Security Validation ==="
-          echo "✓ Runtime secrets remain on the server only"
-          echo "✓ DB_CONNECTION_STRING is not required in GitHub Secrets"
-          echo "✓ JWT_SECRET is not required in GitHub Secrets"
-
       - name: Export workflow flags
         id: flags
         shell: bash
         run: |
           set -euo pipefail
-
           skip_frontend=false
           skip_backend=false
-
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            if [ "${{ inputs.skip_frontend }}" = "true" ]; then
-              skip_frontend=true
-            fi
-            if [ "${{ inputs.skip_backend }}" = "true" ]; then
-              skip_backend=true
-            fi
+            if [ "${{ inputs.skip_frontend }}" = "true" ]; then skip_frontend=true; fi
+            if [ "${{ inputs.skip_backend }}" = "true" ]; then skip_backend=true; fi
           fi
-
           echo "skip_frontend=$skip_frontend" >> "$GITHUB_OUTPUT"
           echo "skip_backend=$skip_backend" >> "$GITHUB_OUTPUT"
 
@@ -109,11 +92,13 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       # =============================================
-      # Setup SSH
+      # Setup SSH (combined into single step)
       # =============================================
-      - name: Setup SSH key
+      - name: Setup SSH and test connection
         shell: bash
         run: |
           set -euo pipefail
@@ -121,36 +106,17 @@ jobs:
           chmod 700 ~/.ssh
           printf '%s\n' "$SERVER_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keygen -y -f ~/.ssh/deploy_key > ~/.ssh/deploy_key.pub 2>/dev/null
-
-      - name: Create SSH known_hosts
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
           ssh-keyscan -p "$SERVER_SSH_PORT" "$SERVER_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-
-      - name: Test SSH connection
-        shell: bash
-        run: |
-          set -euo pipefail
           ssh -i ~/.ssh/deploy_key \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -p "$SERVER_SSH_PORT" \
             "$SERVER_USER@$SERVER_HOST" \
-            "whoami && hostname && docker --version"
+            "whoami && docker --version"
 
       # =============================================
-      # Setup Docker Buildx
-      # =============================================
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # =============================================
-      # Build Backend Docker image
+      # Build Backend
       # =============================================
       - name: Setup .NET SDK
         if: env.SKIP_BACKEND != 'true'
@@ -165,14 +131,12 @@ jobs:
           set -euo pipefail
           echo "=== Building Backend ==="
 
-          # Build backend
+          # Build backend (skip separate build step, go straight to publish)
           cd ThesisManagement.Api
           dotnet restore ThesisManagement.Api.csproj
-          dotnet build ThesisManagement.Api.csproj -c Release --no-restore
           dotnet publish ThesisManagement.Api.csproj \
             -c Release \
             --output ../backend-publish \
-            -p:PublishSingleFile=false \
             -p:PublishReadyToRun=true \
             -p:PublishTrimmed=false
           cd ..
@@ -182,7 +146,7 @@ jobs:
             echo "::error::ThesisManagement.Api.dll not found"
             exit 1
           fi
-          echo "✓ Backend DLL built successfully"
+          echo "✓ Backend built"
 
           # Prepare Docker context
           mkdir -p backend-docker
@@ -190,12 +154,12 @@ jobs:
           cp ThesisManagement.Api/Dockerfile.runtime backend-docker/Dockerfile
           cp ThesisManagement.Api/docker-entrypoint.sh backend-docker/
 
-          # Build Docker image
+          # Build Docker image with cache
           echo "=== Building Backend Docker Image ==="
           docker build --tag graduation-thesis-api:${{ github.sha }} --file backend-docker/Dockerfile backend-docker/
 
           # Transfer via SSH pipe
-          echo "=== Transferring Backend Image to Server ==="
+          echo "=== Transferring Backend Image ==="
           docker save graduation-thesis-api:${{ github.sha }} | \
             ssh -i ~/.ssh/deploy_key \
               -o IdentitiesOnly=yes \
@@ -204,10 +168,10 @@ jobs:
               -p "$SERVER_SSH_PORT" \
               "$SERVER_USER@$SERVER_HOST" \
               "docker load"
-          echo "✓ Backend image transferred"
+          echo "✓ Backend transferred"
 
       # =============================================
-      # Build Frontend Docker image
+      # Build Frontend
       # =============================================
       - name: Setup Node.js
         if: env.SKIP_FRONTEND != 'true'
@@ -222,11 +186,9 @@ jobs:
           set -euo pipefail
           echo "=== Building Frontend ==="
 
-          # Install dependencies
+          # Install and build
           cd thesis-frontend
           npm ci
-
-          # Build
           VITE_API_BASE_URL=/api npm run build
 
           # Verify output
@@ -234,7 +196,7 @@ jobs:
             echo "::error::index.html not found in dist"
             exit 1
           fi
-          echo "✓ Frontend built successfully"
+          echo "✓ Frontend built"
 
           # Prepare Docker context
           cd ..
@@ -253,12 +215,12 @@ jobs:
           cp -r thesis-frontend/src frontend-docker/
           cp -r thesis-frontend/public frontend-docker/
 
-          # Build Docker image
+          # Build Docker image WITH cache (removed --no-cache)
           echo "=== Building Frontend Docker Image ==="
-          docker build --tag graduation-thesis-web:${{ github.sha }} --file frontend-docker/Dockerfile --build-arg VITE_API_BASE_URL=/api --no-cache frontend-docker/
+          docker build --tag graduation-thesis-web:${{ github.sha }} --file frontend-docker/Dockerfile --build-arg VITE_API_BASE_URL=/api frontend-docker/
 
           # Transfer via SSH pipe
-          echo "=== Transferring Frontend Image to Server ==="
+          echo "=== Transferring Frontend Image ==="
           docker save graduation-thesis-web:${{ github.sha }} | \
             ssh -i ~/.ssh/deploy_key \
               -o IdentitiesOnly=yes \
@@ -267,99 +229,51 @@ jobs:
               -p "$SERVER_SSH_PORT" \
               "$SERVER_USER@$SERVER_HOST" \
               "docker load"
-          echo "✓ Frontend image transferred"
+          echo "✓ Frontend transferred"
 
       # =============================================
       # Deploy to server
       # =============================================
-      - name: Create remote directory
+      - name: Deploy to server
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/deploy_key \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=~/.ssh/known_hosts \
-            -p "$SERVER_SSH_PORT" \
-            "$SERVER_USER@$SERVER_HOST" \
-            "mkdir -p '$SERVER_APP_DIR'"
 
-      - name: Verify .env.runtime exists
-        shell: bash
-        run: |
-          set -euo pipefail
-          RESULT=$(ssh -i ~/.ssh/deploy_key \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=~/.ssh/known_hosts \
-            -p "$SERVER_SSH_PORT" \
-            "$SERVER_USER@$SERVER_HOST" \
-            "test -f '$SERVER_APP_DIR/.env.runtime' && echo EXISTS || echo NOT_FOUND")
+          # Create .deploy.env
+          printf 'BACKEND_IMAGE=graduation-thesis-api:%s\n' "${{ github.sha }}" > .deploy.env
+          printf 'FRONTEND_IMAGE=graduation-thesis-web:%s\n' "${{ github.sha }}" >> .deploy.env
+          printf 'PUBLIC_PORT=%s\n' "${{ secrets.PUBLIC_PORT }}" >> .deploy.env
+
+          # Create SSH command helper
+          SSH_CMD="ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -p $SERVER_SSH_PORT $SERVER_USER@$SERVER_HOST"
+          SCP_CMD="scp -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -P $SERVER_SSH_PORT"
+
+          # Create remote directory
+          $SSH_CMD "mkdir -p '$SERVER_APP_DIR'"
+
+          # Verify .env.runtime
+          RESULT=$($SSH_CMD "test -f '$SERVER_APP_DIR/.env.runtime' && echo EXISTS || echo NOT_FOUND")
           if [ "$RESULT" != "EXISTS" ]; then
             echo "::error::Missing .env.runtime on server"
             exit 1
           fi
           echo "✓ .env.runtime exists"
 
-      - name: Upload compose and deploy script
-        shell: bash
-        run: |
-          set -euo pipefail
-          scp -i ~/.ssh/deploy_key \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=~/.ssh/known_hosts \
-            -P "$SERVER_SSH_PORT" \
-            docker-compose.production.yml deploy_wait.sh \
-            "$SERVER_USER@$SERVER_HOST:$SERVER_APP_DIR/"
-          ssh -i ~/.ssh/deploy_key \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=~/.ssh/known_hosts \
-            -p "$SERVER_SSH_PORT" \
-            "$SERVER_USER@$SERVER_HOST" \
-            "chmod +x '$SERVER_APP_DIR/deploy_wait.sh'"
+          # Upload files
+          $SCP_CMD docker-compose.production.yml "$SERVER_USER@$SERVER_HOST:$SERVER_APP_DIR/"
+          $SCP_CMD deploy_wait.sh "$SERVER_USER@$SERVER_HOST:$SERVER_APP_DIR/"
+          $SCP_CMD .deploy.env "$SERVER_USER@$SERVER_HOST:/tmp/graduation-thesis.deploy.env"
 
-      - name: Create deploy env
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # Create .deploy.env with image tags using printf
-          printf '# Deployment Configuration\n' > .deploy.env
-          printf '# Auto-generated by GitHub Actions\n' >> .deploy.env
-          printf '\n' >> .deploy.env
-          printf 'BACKEND_IMAGE=graduation-thesis-api:%s\n' "${{ github.sha }}" >> .deploy.env
-          printf 'FRONTEND_IMAGE=graduation-thesis-web:%s\n' "${{ github.sha }}" >> .deploy.env
-          printf 'PUBLIC_PORT=%s\n' "${{ secrets.PUBLIC_PORT }}" >> .deploy.env
-
-          scp -i ~/.ssh/deploy_key \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=~/.ssh/known_hosts \
-            -P "$SERVER_SSH_PORT" \
-            .deploy.env \
-            "$SERVER_USER@$SERVER_HOST:/tmp/graduation-thesis.deploy.env"
-
-          ssh -i ~/.ssh/deploy_key \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=~/.ssh/known_hosts \
-            -p "$SERVER_SSH_PORT" \
-            "$SERVER_USER@$SERVER_HOST" \
-            "mv /tmp/graduation-thesis.deploy.env '$SERVER_APP_DIR/.deploy.env' && chmod 600 '$SERVER_APP_DIR/.deploy.env' && cd '$SERVER_APP_DIR' && cat .deploy.env > .env && printf '\n# Runtime Secrets\n' >> .env && cat .env.runtime >> .env"
-
-      - name: Deploy services and wait for healthy
-        shell: bash
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=~/.ssh/known_hosts \
-            -p "$SERVER_SSH_PORT" \
-            "$SERVER_USER@$SERVER_HOST" \
-            "cd '$SERVER_APP_DIR' && ./deploy_wait.sh docker-compose.production.yml .env graduation-thesis-api 300"
+          # Merge env files and deploy
+          $SSH_CMD "chmod +x '$SERVER_APP_DIR/deploy_wait.sh' && \
+            mv /tmp/graduation-thesis.deploy.env '$SERVER_APP_DIR/.deploy.env' && \
+            chmod 600 '$SERVER_APP_DIR/.deploy.env' && \
+            cd '$SERVER_APP_DIR' && \
+            cat .deploy.env > .env && \
+            printf '\n# Runtime Secrets\n' >> .env && \
+            cat .env.runtime >> .env && \
+            ./deploy_wait.sh docker-compose.production.yml .env graduation-thesis-api 300"
+          echo "✓ Services deployed"
 
       - name: Healthcheck
         shell: bash
@@ -384,21 +298,21 @@ jobs:
               exit 0
             fi
 
-            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: HTTP $HTTP_CODE (waiting...)"
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: HTTP $HTTP_CODE"
             sleep 5
           done
 
-          echo "::error::Healthcheck failed after ${MAX_ATTEMPTS} attempts"
+          echo "::error::Healthcheck failed"
           ssh -i ~/.ssh/deploy_key \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -p "$SERVER_SSH_PORT" \
             "$SERVER_USER@$SERVER_HOST" \
-            "cd '$SERVER_APP_DIR' && docker compose --env-file .env -f docker-compose.production.yml ps && docker logs graduation-thesis-api --tail 50 && docker logs graduation-thesis-web --tail 50"
+            "cd '$SERVER_APP_DIR' && docker compose --env-file .env -f docker-compose.production.yml ps && docker logs graduation-thesis-api --tail 50"
           exit 1
 
-      - name: Cleanup old Docker images on server
+      - name: Cleanup old images
         shell: bash
         run: |
           set -euo pipefail
@@ -408,4 +322,4 @@ jobs:
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -p "$SERVER_SSH_PORT" \
             "$SERVER_USER@$SERVER_HOST" \
-            "docker image prune -af --filter 'until=168h' 2>/dev/null || true; echo 'Cleanup completed'"
+            "docker image prune -af --filter 'until=168h' 2>/dev/null || true; echo 'Cleanup done'"
