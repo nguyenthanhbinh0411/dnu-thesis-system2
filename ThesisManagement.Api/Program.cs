@@ -809,23 +809,34 @@ app.UseAuthorization();
 // Database Connection Info (for debugging)
 // =============================================
 var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
-var startupDbConnection = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
-if (!string.IsNullOrWhiteSpace(startupDbConnection))
-{
-    // Extract Data Source for logging (don't log password)
-    var dataSourceMatch = System.Text.RegularExpressions.Regex.Match(startupDbConnection, @"Data Source=([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-    var userIdMatch = System.Text.RegularExpressions.Regex.Match(startupDbConnection, @"User Id=([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-    var dataSource = dataSourceMatch.Success ? dataSourceMatch.Groups[1].Value : "unknown";
-    var userId = userIdMatch.Success ? userIdMatch.Groups[1].Value : "unknown";
+// Check which source is being used
+var dbEnvConnection = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+var configConnection = builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (!string.IsNullOrWhiteSpace(dbEnvConnection))
+{
+    // Extract for safe logging (don't log password)
+    var dataSourceMatch = System.Text.RegularExpressions.Regex.Match(dbEnvConnection, @"Data Source=([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    var userIdMatch = System.Text.RegularExpressions.Regex.Match(dbEnvConnection, @"User Id=([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     startupLogger.LogInformation(
-        "Database configuration: Provider=Oracle, UserId={UserId}, DataSource={DataSource}",
-        userId, dataSource);
+        "Database configuration loaded from DB_CONNECTION_STRING environment variable. Provider=Oracle, UserId={UserId}, DataSource={DataSource}",
+        userIdMatch.Success ? userIdMatch.Groups[1].Value : "unknown",
+        dataSourceMatch.Success ? dataSourceMatch.Groups[1].Value : "unknown");
+}
+else if (!string.IsNullOrWhiteSpace(configConnection))
+{
+    startupLogger.LogWarning(
+        "DB_CONNECTION_STRING environment variable is not set. Using ConnectionStrings:DefaultConnection from appsettings.json. " +
+        "This fallback should only be used in development. For production, set DB_CONNECTION_STRING environment variable.");
+
+    var dataSourceMatch = System.Text.RegularExpressions.Regex.Match(configConnection, @"Data Source=([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    startupLogger.LogInformation("Fallback config DataSource={DataSource}", dataSourceMatch.Success ? dataSourceMatch.Groups[1].Value : "unknown");
 }
 else
 {
-    startupLogger.LogWarning("DB_CONNECTION_STRING environment variable is not set. Using appsettings fallback.");
+    startupLogger.LogCritical("No database connection string configured. Set DB_CONNECTION_STRING or ConnectionStrings:DefaultConnection.");
 }
 
 // =============================================

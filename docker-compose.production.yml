@@ -30,6 +30,9 @@ services:
 
       # Database connection (from .env.runtime)
       # Format: User Id=USER;Password=PASS;Data Source=HOST:PORT/SERVICE;
+      # IMPORTANT: Set DB_CONNECTION_STRING directly for Program.cs which reads it via Environment.GetEnvironmentVariable()
+      - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
+      # Keep ConnectionStrings__DefaultConnection as fallback for appsettings.json config system
       - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
 
       # JWT Configuration (from .env.runtime)

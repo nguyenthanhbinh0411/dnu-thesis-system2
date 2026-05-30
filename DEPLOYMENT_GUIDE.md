@@ -877,3 +877,67 @@ Before deployment, verify:
 | 1.4 | 2026-05-30 | Added .dockerignore and optimized deploy workflow |
 | 1.5 | 2026-05-30 | Fixed compose network and depends_on issues |
 | 1.6 | 2026-05-30 | Fixed production migration: disabled auto-migrate, added RUN_DB_MIGRATIONS flag, added baseline script |
+| 1.7 | 2026-05-30 | Fixed DB_CONNECTION_STRING env var in docker-compose, improved startup logging |
+
+## Connection String Configuration Guide
+
+### Environment Variable Priority
+
+The application uses the following priority order for database connection string:
+
+1. **`DB_CONNECTION_STRING`** environment variable (highest priority - recommended for production)
+2. **`ConnectionStrings:DefaultConnection`** from `appsettings.json` (fallback - development only)
+
+### How It Works
+
+1. **Program.cs** reads `DB_CONNECTION_STRING` directly via `Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")`
+2. If not set, it falls back to `Configuration.GetConnectionString("DefaultConnection")`
+3. If neither is available, the application throws an error on startup
+
+### Docker Compose Configuration
+
+The production `docker-compose.production.yml` sets both:
+
+```yaml
+environment:
+  - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}                    # For Program.cs (PRIMARY)
+  - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}  # For appsettings fallback
+```
+
+### Verification Commands
+
+After deployment, verify the connection string is correctly configured:
+
+```bash
+# Navigate to deployment directory
+cd /opt/graduation-thesis
+
+# 1. Check .env.runtime has DB_CONNECTION_STRING
+cat .env.runtime | grep DB_CONNECTION_STRING
+
+# 2. Verify merged .env has the value
+cat .env | grep DB_CONNECTION_STRING
+
+# 3. Check docker-compose config shows correct env
+docker compose -f docker-compose.production.yml config | grep -A2 DB_CONNECTION_STRING
+
+# 4. Verify env is set inside container
+docker compose -f docker-compose.production.yml exec backend printenv | grep DB_CONNECTION_STRING
+
+# 5. Check startup logs for database configuration
+docker compose -f docker-compose.production.yml logs --tail=100 backend | grep -E "Database configuration|DataSource|DB_CONNECTION_STRING"
+```
+
+### Expected Log Output
+
+When `DB_CONNECTION_STRING` is correctly set:
+
+```
+Database configuration loaded from DB_CONNECTION_STRING environment variable. Provider=Oracle, UserId=DEV, DataSource=//127.0.0.1:1522/XEPDB1
+```
+
+When using fallback (should NOT happen in production):
+
+```
+DB_CONNECTION_STRING environment variable is not set. Using ConnectionStrings:DefaultConnection from appsettings.json. This fallback should only be used in development.
+```
