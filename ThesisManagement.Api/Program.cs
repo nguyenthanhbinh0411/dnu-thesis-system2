@@ -933,13 +933,6 @@ try
 
     // Seed admin user after migrations (always run, idempotent)
     await ThesisManagement.Api.Helpers.DbSeeder.SeedAdminAsync(app.Services);
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"[ERROR] Database initialization failed: {ex.Message}");
-    Console.WriteLine("[ERROR] Application cannot start. Please check database configuration.");
-    throw;
-}
 
     // Programmatic log module alignment: Update "User" to "Authentication" for historical logs
     try
@@ -961,7 +954,8 @@ catch (Exception ex)
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"[Startup Error] Failed to initialize database: {ex.Message}");
+    Console.WriteLine($"[ERROR] Database initialization failed: {ex.Message}");
+    Console.WriteLine("[ERROR] Application cannot start. Please check database configuration.");
     throw;
 }
 
