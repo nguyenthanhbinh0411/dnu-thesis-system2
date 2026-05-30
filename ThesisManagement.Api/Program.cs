@@ -796,65 +796,118 @@ app.UseStaticFiles(new Microsoft.AspNetCore.Builder.StaticFileOptions
 
 app.UseAuthorization();
 
-// Auto-apply migrations on startup & seed admin user
+// =============================================
+// Database Initialization
+// =============================================
 try
 {
     using (var scope = app.Services.CreateScope())
     {
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
-        // Log migration status with retry/backoff so app doesn't crash if DB is not yet ready
-        const int maxMigrationAttempts = 10;
-        const int baseDelayMs = 2000; // 2s
-        for (int attempt = 1; attempt <= maxMigrationAttempts; attempt++)
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+
+        // Check if automatic migrations are enabled
+        var isDevelopment = app.Environment.IsDevelopment();
+        var runMigrations = configuration.GetValue<bool>("RUN_DB_MIGRATIONS", false);
+
+        if (!isDevelopment && !runMigrations)
         {
+            logger.LogWarning(
+                "Production automatic migrations are DISABLED. " +
+                "Set RUN_DB_MIGRATIONS=true environment variable to enable migrations. " +
+                "Current pending migrations will NOT be applied automatically.");
+
+            // Still check and log pending migrations for visibility
             try
             {
-                var pendingMigrations = dbContext.Database.GetPendingMigrations();
-                if (pendingMigrations.Any())
+                var pending = dbContext.Database.GetPendingMigrations().ToList();
+                if (pending.Any())
                 {
-                    Console.WriteLine($"[Migration] Found {pendingMigrations.Count()} pending migrations. Applying...");
-                    try
+                    logger.LogWarning("Found {Count} pending migrations that are NOT applied:", pending.Count);
+                    foreach (var migration in pending)
                     {
-                        dbContext.Database.Migrate();
-                        Console.WriteLine("[Migration] Migrations applied successfully.");
+                        logger.LogWarning("  - {Migration}", migration);
                     }
-                    catch (Exception migrationEx) when (migrationEx.Message.Contains("ORA-00955") || migrationEx.Message.Contains("name is already used"))
-                    {
-                        // Database tables already exist, skip migration
-                        Console.WriteLine($"[Migration] Database tables already exist, skipping migration: {migrationEx.Message}");
-                    }
+                    logger.LogWarning("To apply these migrations, set RUN_DB_MIGRATIONS=true and redeploy.");
                 }
-                else
-                {
-                    Console.WriteLine("[Migration] Database is up to date.");
-                }
-
-                break; // success
-            }
-            catch (Exception ex) when (!(ex.Message.Contains("ORA-00955") || ex.Message.Contains("name is already used")))
-            {
-                Console.WriteLine($"[Migration] Database not ready (attempt {attempt}/{maxMigrationAttempts}): {ex.Message}");
-                if (attempt == maxMigrationAttempts)
-                {
-                    Console.WriteLine("[Startup Error] Failed to initialize database after retries.");
-                    throw;
-                }
-
-                var delay = baseDelayMs * attempt;
-                await Task.Delay(delay);
             }
             catch (Exception ex)
             {
-                // ORA-00955 error - database already initialized, continue
-                Console.WriteLine($"[Migration] Database already initialized (skipping): {ex.Message}");
-                break;
+                logger.LogWarning("Could not check pending migrations: {Error}", ex.Message);
+            }
+
+            logger.LogInformation("Proceeding with application startup (migrations skipped).");
+        }
+        else
+        {
+            // Development or explicit migration enabled
+            logger.LogInformation(
+                "Running automatic migrations. " +
+                "Environment: {Environment}, RUN_DB_MIGRATIONS: {RunMigrations}",
+                app.Environment.EnvironmentName, runMigrations);
+
+            // Retry logic for database connection
+            const int maxAttempts = 10;
+            const int baseDelayMs = 2000;
+
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    var pendingMigrations = dbContext.Database.GetPendingMigrations().ToList();
+
+                    if (pendingMigrations.Any())
+                    {
+                        logger.LogInformation(
+                            "[Migration] Found {Count} pending migrations. Applying...",
+                            pendingMigrations.Count);
+
+                        foreach (var migration in pendingMigrations)
+                        {
+                            logger.LogInformation("  - {Migration}", migration);
+                        }
+
+                        dbContext.Database.Migrate();
+                        logger.LogInformation("[Migration] Migrations applied successfully.");
+                    }
+                    else
+                    {
+                        logger.LogInformation("[Migration] Database is up to date.");
+                    }
+
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Migration attempt {Attempt}/{MaxAttempts} failed", attempt, maxAttempts);
+
+                    if (attempt == maxAttempts)
+                    {
+                        logger.LogCritical(
+                            "All migration attempts failed. " +
+                            "Please check database connectivity and manually apply migrations. " +
+                            "Error: {Error}", ex.Message);
+                        throw;
+                    }
+
+                    var delay = baseDelayMs * (int)Math.Pow(2, attempt - 1);
+                    logger.LogWarning("Retrying in {Delay}ms...", delay);
+                    await Task.Delay(delay);
+                }
             }
         }
     }
-    
-    // Seed admin user after migrations
+
+    // Seed admin user after migrations (always run, idempotent)
     await ThesisManagement.Api.Helpers.DbSeeder.SeedAdminAsync(app.Services);
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[ERROR] Database initialization failed: {ex.Message}");
+    Console.WriteLine("[ERROR] Application cannot start. Please check database configuration.");
+    throw;
+}
 
     // Programmatic log module alignment: Update "User" to "Authentication" for historical logs
     try

@@ -26,6 +26,7 @@ services:
       # ASP.NET Core settings
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
       - ASPNETCORE_URLS=http://+:9699
+      - RUN_DB_MIGRATIONS=false
 
       # Database connection (from .env.runtime)
       # Format: User Id=USER;Password=PASS;Data Source=HOST:PORT/SERVICE;

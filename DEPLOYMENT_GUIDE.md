@@ -280,6 +280,7 @@ ls -la /opt/graduation-thesis/.env.runtime
 | `JWT_AUDIENCE` | No | JWT audience (default: ThesisManagement.Client) |
 | `JWT_EXPIRY_MINUTES` | No | Token expiry (default: 60) |
 | `MEGA_API_KEY` | No | Mega.nz API key (optional) |
+| `RUN_DB_MIGRATIONS` | No | Set to `true` only when needing to run EF migrations. Default: `false` (recommended for production) |
 
 ---
 
@@ -673,7 +674,76 @@ ssh -p 1912 devfit@118.70.169.236 "docker restart graduation-thesis-api"
 
 ---
 
-## 9. Database Backup
+## 9. EF Core Migration Management
+
+> **IMPORTANT:** Production does NOT auto-migrate by default. This is intentional to prevent schema corruption.
+
+### Migration Safety Model
+
+| Environment | Auto Migrate | Setting |
+|-------------|--------------|---------|
+| Development | Yes | `ASPNETCORE_ENVIRONMENT=Development` |
+| Production | **No** | `RUN_DB_MIGRATIONS=false` (default) |
+
+### If You Need to Run Migrations
+
+**Option 1: One-time migration with environment variable**
+
+1. Set `RUN_DB_MIGRATIONS=true` in `.env.runtime` on server
+2. Deploy - migrations will run automatically
+3. After deployment succeeds, set `RUN_DB_MIGRATIONS=false`
+4. Redeploy to disable auto-migration
+
+```bash
+# On server, edit .env.runtime
+nano /opt/graduation-thesis/.env.runtime
+# Add: RUN_DB_MIGRATIONS=true
+
+# Redeploy
+cd /opt/graduation-thesis
+docker compose -f docker-compose.production.yml up -d --no-deps backend
+
+# After migrations complete, disable
+# Change RUN_DB_MIGRATIONS=false and redeploy
+```
+
+**Option 2: Manual migration using baseline script**
+
+If database schema already exists but EF doesn't know about it:
+
+1. Run the baseline script on Oracle:
+   ```bash
+   sqlplus user/password@host:1521/service @scripts/baseline-migration-history.sql
+   ```
+
+2. Deploy with `RUN_DB_MIGRATIONS=false`
+
+### Checking Pending Migrations
+
+```bash
+# SSH to server and check container logs
+ssh -p 1912 devfit@118.70.169.236 "docker logs graduation-thesis-api --tail 100" | grep -i migration
+```
+
+Expected log when migration is disabled:
+```
+warn: Production automatic migrations are DISABLED.
+warn: Found 9 pending migrations that are NOT applied:
+warn:   - 20260516144500_InitialCreate
+...
+```
+
+### Error: ORA-00955
+
+**Cause:** EF tries to create a table that already exists.
+
+**Solution:**
+1. Run `scripts/baseline-migration-history.sql` on Oracle to mark existing migrations as applied
+2. Deploy with `RUN_DB_MIGRATIONS=false`
+
+---
+
+## 10. Database Backup
 
 > **IMPORTANT: Always backup database before any deployment that might affect schema.**
 
@@ -803,3 +873,7 @@ Before deployment, verify:
 | 1.0 | 2026-05-16 | Initial CI/CD with security model |
 | 1.1 | 2026-05-30 | Updated for SSH pipe image transfer (no artifacts) |
 | 1.2 | 2026-05-30 | Added actions/setup-dotnet for .NET SDK installation |
+| 1.3 | 2026-05-30 | Changed backend port from 8080 to 9699 |
+| 1.4 | 2026-05-30 | Added .dockerignore and optimized deploy workflow |
+| 1.5 | 2026-05-30 | Fixed compose network and depends_on issues |
+| 1.6 | 2026-05-30 | Fixed production migration: disabled auto-migrate, added RUN_DB_MIGRATIONS flag, added baseline script |
