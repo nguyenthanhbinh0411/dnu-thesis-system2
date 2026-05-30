@@ -201,6 +201,7 @@ jobs:
           mkdir -p backend-docker
           cp -r backend/* backend-docker/
           cp ThesisManagement.Api/Dockerfile.runtime backend-docker/Dockerfile
+          cp ThesisManagement.Api/docker-entrypoint.sh backend-docker/
 
       - name: Prepare frontend Docker context
         shell: bash

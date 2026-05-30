@@ -25,7 +25,7 @@ services:
     environment:
       # ASP.NET Core settings
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
-      - ASPNETCORE_URLS=http://+:18080
+      - ASPNETCORE_URLS=http://+:8080
 
       # Database connection (from .env.runtime)
       # Format: User Id=USER;Password=PASS;Data Source=HOST:PORT/SERVICE;
@@ -52,7 +52,7 @@ services:
 
     # Healthcheck using wget (aspnet image has wget, not curl)
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:18080/healthz || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
