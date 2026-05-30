@@ -21,7 +21,10 @@ services:
     image: ${BACKEND_IMAGE}
     container_name: graduation-thesis-api
     restart: unless-stopped
-    network_mode: host
+    networks:
+      - graduation-thesis-net
+    ports:
+      - "9699:9699"
     environment:
       # ASP.NET Core settings
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
@@ -48,11 +51,6 @@ services:
       - Logging__LogLevel__Default=Information
       - Logging__LogLevel__Microsoft=Warning
       - Logging__LogLevel__Microsoft.EntityFrameworkCore=Warning
-
-    # Internal network only - NOT exposed to host
-
-
-    # Docker internal network
 
     # Healthcheck using wget (aspnet image has wget, not curl)
     healthcheck:
@@ -82,7 +80,7 @@ services:
     ports:
       - "${PUBLIC_PORT:-8888}:80"
 
-    # Backend uses host network, so depends_on without condition is sufficient
+    # Backend and Frontend cung network Docker
     depends_on:
       - backend
 
@@ -108,15 +106,12 @@ networks:
 # Notes
 # ================================================
 #
-# Database Configuration:
-# - This system uses external Oracle database.
-# - Database is NOT managed by this docker-compose.
-# - Connection string is stored in /opt/graduation-thesis/.env.runtime
-#
-# Security:
-# - Backend (port 9699) is internal only, not exposed to host.
-# - Frontend (port 80) is proxied through nginx and accessible via port 8888.
-# - API calls from frontend go to /api/ which is proxied to backend.
+# Network Configuration:
+# - Backend and Frontend cung network Docker (graduation-thesis-net)
+# - Backend listen tren 0.0.0.0:9699 trong container
+# - Nginx proxy toi backend bang service name: http://backend:9699
+# - Backend expose port 9699 ra host (neu can truy cap truc tiep)
+# - Database la Oracle external (khong trong Docker)
 #
 # Environment Files:
 # - .deploy.env: Non-sensitive deployment config (image tags, ports).
