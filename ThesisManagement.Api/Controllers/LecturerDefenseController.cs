@@ -1378,8 +1378,7 @@ namespace ThesisManagement.Api.Controllers
             }
 
             var periods = await _uow.DefenseTerms.Query().AsNoTracking()
-                .Where(x => !string.Equals(x.Status, "Closed", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(x.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+                .Where(x => x.Status != "Closed" && x.Status != "Archived")
                 .OrderByDescending(x => x.Status == "Running")
                 .ThenByDescending(x => x.StartDate)
                 .ThenByDescending(x => x.DefenseTermId)

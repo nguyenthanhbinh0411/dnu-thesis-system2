@@ -579,12 +579,36 @@ const StudentDefenseInfo: React.FC = () => {
                   </div>
                 )}
                 
-                <div className="mt-4 p-6 bg-slate-50 rounded-2xl border border-slate-200">
-                  <h5 className="flex items-center gap-2 text-sm font-black text-slate-900 mb-4"><AlertCircle size={16} className="text-blue-500" /> Lưu ý quan trọng</h5>
-                  <ul className="space-y-3">
-                    <li className="flex gap-3 text-xs font-bold text-slate-600"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0"></span>Có mặt tại phòng đồ án tốt nghiệp trước ít nhất 20 phút để chuẩn bị thiết bị và tinh thần.</li>
-                    <li className="flex gap-3 text-xs font-bold text-slate-600"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0"></span>Chuẩn bị slide trình bày ngắn gọn, tập trung vào kết quả và sản phẩm chính.</li>
-                  </ul>
+                <div className="mt-4 p-6 bg-orange-50 rounded-2xl border border-orange-200">
+                  <h5 className="flex items-center gap-2 text-sm font-black text-orange-950 mb-4"><AlertCircle size={16} className="text-[#F37021]" /> LƯU Ý cho buổi bảo vệ ĐATN sắp tới:</h5>
+                  <div className="space-y-4">
+                    <div className="flex gap-3 text-xs font-bold text-slate-700">
+                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-orange-100 text-[#F37021] flex items-center justify-center font-black">1</span>
+                      <div>
+                        Mua hoa quả, bánh kẹo, nước đóng chai và cốc giấy cho hội đồng.
+                        <span className="text-[11px] font-bold text-slate-500 italic block mt-1 bg-white/70 backdrop-blur-sm p-3 rounded-xl border border-orange-100 leading-relaxed">
+                          Khăn trải bàn và lọ hoa Khoa sẽ chuẩn bị, các em đến sớm để trang trí. (Lọ hoa đã bao gồm hoa)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 text-xs font-bold text-slate-700">
+                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-orange-100 text-[#F37021] flex items-center justify-center font-black">2</span>
+                      <div>Đến sớm trước giờ bảo vệ 30p để bày trí bánh kẹo, khăn trải bàn phục vụ hội đồng.</div>
+                    </div>
+                    <div className="flex gap-3 text-xs font-bold text-slate-700">
+                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-orange-100 text-[#F37021] flex items-center justify-center font-black">3</span>
+                      <div>
+                        Trang phục sinh viên đi bảo vệ:
+                        <ul className="list-disc pl-5 mt-1 space-y-1 text-slate-600 font-bold">
+                          <li>Nam: áo trắng, quần tây, giày</li>
+                          <li>Nữ: áo dài</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-orange-100 text-[11px] font-bold text-orange-600 italic">
+                    Các em có thể mua thêm hoa tươi để tặng hội đồng sau khi buổi bảo vệ kết thúc.
+                  </div>
                 </div>
               </div>
             ) : (

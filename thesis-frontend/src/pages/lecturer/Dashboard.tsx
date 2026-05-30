@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Chart, registerables } from "chart.js";
 import {
   Bell,
@@ -20,6 +21,7 @@ import {
 import {
   getLecturerDeadlineRisk,
   getLecturerDefenseSchedule,
+  getLecturerCommittees,
   getLecturerOverview,
   getLecturerOverdueTrend,
   getLecturerProgressStatusBreakdown,
@@ -362,6 +364,7 @@ function buildEvents(rows: DashboardRecord[]): UpcomingEvent[] {
 const Dashboard: React.FC = () => {
   const auth = useAuth();
   const activeDefensePeriodId = useActiveDefensePeriodId();
+  const navigate = useNavigate();
   const chartCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartInstanceRef = useRef<Chart | null>(null);
 
@@ -371,7 +374,7 @@ const Dashboard: React.FC = () => {
   const [scoringRows, setScoringRows] = useState<DashboardRecord[]>([]);
   const [riskRows, setRiskRows] = useState<DashboardRecord[]>([]);
   const [workloadRows, setWorkloadRows] = useState<DashboardRecord[]>([]);
-  const [defenseRows, setDefenseRows] = useState<DefenseScheduleRecord[]>([]);
+  const [defenseRows, setDefenseRows] = useState<DashboardRecord[]>([]);
   const [progressStatusRows, setProgressStatusRows] = useState<
     DashboardRecord[]
   >([]);
@@ -430,7 +433,7 @@ const Dashboard: React.FC = () => {
           getLecturerScoringProgress(listQuery),
           getLecturerDeadlineRisk(listQuery),
           getLecturerWorkloadSnapshot(workloadQuery),
-          getLecturerDefenseSchedule(listQuery),
+          getLecturerCommittees(listQuery),
           getLecturerProgressStatusBreakdown(chartQuery),
           getLecturerOverdueTrend(overdueQuery),
           getLecturerTopicTypeBreakdown(chartQuery),
@@ -468,7 +471,7 @@ const Dashboard: React.FC = () => {
           ),
         );
         setDefenseRows(
-          normalizeDashboardItems<DefenseScheduleRecord>(
+          normalizeDashboardItems<DashboardRecord>(
             normalizeDashboardResponse(defenseResponse),
           ),
         );
@@ -1736,26 +1739,6 @@ const Dashboard: React.FC = () => {
                       fontWeight: "600",
                     }}
                   >
-                    SINH VIÊN
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 8px",
-                      fontSize: "13px",
-                      color: "#64748b",
-                      fontWeight: "600",
-                    }}
-                  >
-                    ĐỀ TÀI
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 8px",
-                      fontSize: "13px",
-                      color: "#64748b",
-                      fontWeight: "600",
-                    }}
-                  >
                     HỘI ĐỒNG
                   </th>
                   <th
@@ -1766,7 +1749,27 @@ const Dashboard: React.FC = () => {
                       fontWeight: "600",
                     }}
                   >
+                    PHÒNG BẢO VỆ
+                  </th>
+                  <th
+                    style={{
+                      padding: "12px 8px",
+                      fontSize: "13px",
+                      color: "#64748b",
+                      fontWeight: "600",
+                    }}
+                  >
                     THỜI GIAN
+                  </th>
+                  <th
+                    style={{
+                      padding: "12px 8px",
+                      fontSize: "13px",
+                      color: "#64748b",
+                      fontWeight: "600",
+                    }}
+                  >
+                    SỐ ĐỀ TÀI
                   </th>
                   <th
                     style={{
@@ -1796,111 +1799,109 @@ const Dashboard: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  defenseRows.slice(0, 5).map((row, idx) => (
-                    <tr
-                      key={idx}
-                      style={{
-                        borderBottom: "1px solid #f1f5f9",
-                        transition: "background 0.2s",
-                      }}
-                      onMouseOver={(e) =>
-                        (e.currentTarget.style.background = "#f8fafc")
-                      }
-                      onMouseOut={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
-                    >
-                      <td
+                  defenseRows.slice(0, 5).map((row, idx) => {
+                    const committeeId = readDashboardNumber(row, ["committeeid", "committeeId"], 0);
+                    const committeeName = readDashboardString(row, ["committeename", "committeeName", "name"], "N/A");
+                    return (
+                      <tr
+                        key={idx}
                         style={{
-                          padding: "16px 8px",
-                          fontSize: "14px",
-                          fontWeight: "600",
-                          color: "#1e293b",
+                          borderBottom: "1px solid #f1f5f9",
+                          transition: "background 0.2s",
+                          cursor: committeeId ? "pointer" : "default",
+                        }}
+                        onMouseOver={(e) =>
+                          (e.currentTarget.style.background = "#f8fafc")
+                        }
+                        onMouseOut={(e) =>
+                          (e.currentTarget.style.background = "transparent")
+                        }
+                        onClick={() => {
+                          if (committeeId) {
+                            navigate(`/lecturer/committees/grading?committeeId=${committeeId}`);
+                          }
                         }}
                       >
-                        {readDashboardString(
-                          row,
-                          ["studentfullname", "studentFullName", "studentName"],
-                          "N/A",
-                        )}
-                      </td>
-                      <td
-                        style={{
-                          padding: "16px 8px",
-                          fontSize: "13px",
-                          color: "#475569",
-                          maxWidth: "250px",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {readDashboardString(
-                          row,
-                          ["topictitle", "topicTitle", "title"],
-                          "N/A",
-                        )}
-                      </td>
-                      <td
-                        style={{
-                          padding: "16px 8px",
-                          fontSize: "13px",
-                          color: "#64748b",
-                        }}
-                      >
-                        <div
-                          style={{ fontWeight: "600", color: "var(--primary)" }}
-                        >
-                          {readDashboardString(
-                            row,
-                            ["committeename", "committeeName", "name"],
-                            "Hội đồng",
-                          )}
-                        </div>
-                        <div style={{ fontSize: "11px" }}>
-                          Phòng:{" "}
-                          {readDashboardString(
-                            row,
-                            ["roomcode", "roomCode", "location"],
-                            "N/A",
-                          )}
-                        </div>
-                      </td>
-                      <td
-                        style={{
-                          padding: "16px 8px",
-                          fontSize: "13px",
-                          color: "#1e293b",
-                        }}
-                      >
-                        {formatDate(
-                          readDashboardString(
-                            row,
-                            ["defensedate", "defenseDate", "date"],
-                            "",
-                          ),
-                        )}
-                      </td>
-                      <td style={{ padding: "16px 8px" }}>
-                        <span
+                        {/* HỘI ĐỒNG */}
+                        <td
                           style={{
-                            padding: "4px 8px",
-                            borderRadius: "4px",
-                            fontSize: "11px",
-                            fontWeight: "700",
-                            background: "#eff6ff",
-                            color: "#3b82f6",
+                            padding: "16px 8px",
+                            fontSize: "14px",
+                            fontWeight: "600",
+                            color: "var(--primary)",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.textDecoration = "underline";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.textDecoration = "none";
+                          }}
+                        >
+                          {committeeName}
+                        </td>
+                        {/* PHÒNG BẢO VỆ */}
+                        <td
+                          style={{
+                            padding: "16px 8px",
+                            fontSize: "13px",
+                            color: "#475569",
                           }}
                         >
                           {readDashboardString(
                             row,
-                            ["lecturerrole", "lecturerRole", "role"],
-                            "UV",
+                            ["roomcode", "roomCode", "room", "location"],
+                            "N/A",
                           )}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        {/* THỜI GIAN */}
+                        <td
+                          style={{
+                            padding: "16px 8px",
+                            fontSize: "13px",
+                            color: "#1e293b",
+                          }}
+                        >
+                          {formatDate(
+                            readDashboardString(
+                              row,
+                              ["defensedate", "defenseDate", "date"],
+                              "",
+                            ),
+                          )}
+                        </td>
+                        {/* SỐ ĐỀ TÀI */}
+                        <td
+                          style={{
+                            padding: "16px 8px",
+                            fontSize: "13px",
+                            color: "#475569",
+                            fontWeight: "600",
+                          }}
+                        >
+                          {readDashboardNumber(row, ["topic_count", "topicCount", "topic_Count"], 0)} đề tài
+                        </td>
+                        {/* VAI TRÒ */}
+                        <td style={{ padding: "16px 8px" }}>
+                          <span
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "4px",
+                              fontSize: "11px",
+                              fontWeight: "700",
+                              background: "#eff6ff",
+                              color: "#3b82f6",
+                            }}
+                          >
+                            {readDashboardString(
+                              row,
+                              ["role", "lecturerRole"],
+                              "UV",
+                            )}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

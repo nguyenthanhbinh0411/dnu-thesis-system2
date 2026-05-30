@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import AdminNav from "../SideNavs/AdminNav";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import NotificationBell from "../notifications/NotificationBell";
 import {
   LogOut,
   Bell,
@@ -419,6 +420,7 @@ const AdminLayout: React.FC = () => {
             flexDirection: "column",
             marginLeft: sidebarWidth,
             transition: "margin-left 0.28s ease",
+            minWidth: 0,
           }}
         >
           <header
@@ -461,51 +463,7 @@ const AdminLayout: React.FC = () => {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
               {/* Notification Icon with Badge */}
-              <div
-                className="admin-notification-bell"
-                style={{
-                  position: "relative",
-                  cursor: "pointer",
-                  padding: "10px",
-                  borderRadius: "10px",
-                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                  backgroundColor: "transparent",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "rgba(243, 112, 33, 0.2)";
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.transform = "translateY(0)";
-                }}
-                title="Thông báo"
-              >
-                <Bell size={20} strokeWidth={2.5} />
-                <span
-                  style={{
-                    position: "absolute",
-                    top: "6px",
-                    right: "6px",
-                    backgroundColor: "#FF3D00",
-                    color: "#FFFFFF",
-                    borderRadius: "50%",
-                    width: "18px",
-                    height: "18px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    border: "2px solid #001C3D",
-                    boxShadow: "0 2px 6px rgba(255, 61, 0, 0.4)",
-                    animation: "pulse 2s infinite",
-                  }}
-                >
-                  3
-                </span>
-              </div>
+              <NotificationBell theme={auth.user?.role?.toLowerCase() === "admin" ? "admin" : "secretary"} />
 
               {/* User Dropdown */}
               <div style={{ position: "relative" }} data-dropdown>
@@ -744,6 +702,10 @@ const AdminLayout: React.FC = () => {
               marginTop: 72,
               height: "calc(100vh - 72px)",
               overflowY: "auto",
+              overflowX: "hidden",
+              minWidth: 0,
+              boxSizing: "border-box",
+              width: "100%",
             }}
             onPointerDownCapture={collapseSidebarOnActivity}
             onFocusCapture={collapseSidebarOnActivity}

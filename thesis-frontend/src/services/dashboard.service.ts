@@ -50,6 +50,9 @@ export interface DashboardResponseEnvelope<TRecord = DashboardRecord> {
 }
 
 export interface DefenseScheduleRecord {
+  committeeid?: number;
+  topicid?: number;
+  topiccode?: string;
   committeename: string;
   defensedate: string;
   roomcode: string;

@@ -6,9 +6,11 @@ import {
   AlertCircle,
   AlertTriangle,
   Archive,
+  ArrowLeft,
   Award,
   BarChart3,
   Book,
+  CalendarDays,
   BookOpen,
   CheckCircle2,
   CheckSquare,
@@ -270,7 +272,7 @@ type CommitteeExportType = "scoreboard" | "minutes" | "review";
 // PreviewModalType is already defined above at line 94.
 
 type ExportScopeMode = "per-period" | "per-council" | "per-topic" | "free-config";
-type ExportTemplateMode = "dashboard" | "scoring" | "post-defense" | "councils" | "topics" | "official-transcript" | "council-minutes" | "statistics" | "custom";
+type ExportTemplateMode = "dashboard" | "scoring" | "post-defense" | "councils" | "topics" | "official-transcript" | "council-minutes" | "statistics" | "custom" | "room-matrix";
 
 type ExportFieldOption = {
   key: string;
@@ -290,6 +292,7 @@ type DashboardAlert = {
   title: string;
   detail: string;
   committeeCode: string;
+  committeeName?: string;
   focusKey: string;
   priority: number;
 };
@@ -464,6 +467,21 @@ const normalizeStatusKey = (value: string | null | undefined) =>
     .toUpperCase()
     .replace(/\s+/g, "_");
 
+const reformatLecturerName = (fullName: string | null | undefined): string => {
+  const text = String(fullName ?? "").trim();
+  if (!text || text === "-") return text;
+  const match = text.match(/^(.+?)\s*\((.+?)\)$/);
+  if (match) {
+    const name = match[1].trim();
+    const degree = match[2].trim();
+    if (degree && !degree.toLowerCase().includes("chưa cập nhật") && degree !== "-") {
+      return `${degree} ${name}`;
+    }
+    return name;
+  }
+  return text;
+};
+
 // Deep Blue Primary Palette
 const DEEP_BLUE_PRIMARY = "#1e3a5f";
 const DEEP_BLUE_HOVER = "#0f1e36";
@@ -489,7 +507,7 @@ const statusToneMap: Record<string, ToneStyle> = {
   TAM_DUNG: { bg: "#fffbeb", border: "none", text: "#b45309" },
   FINALIZED: { bg: "#f5f3ff", border: "none", text: "#6d28d9" },
   // Active primary state
-  READY: { bg: DEEP_BLUE_PRIMARY, border: "none", text: "#ffffff" },
+  READY: { bg: "#e0f2fe", border: "none", text: "#0369a1" },
   // Neutral states
   DRAFT: { bg: "#f8fafc", border: "none", text: "#64748b" },
   ARCHIVED: { bg: "#f8fafc", border: "none", text: "#64748b" },
@@ -516,7 +534,7 @@ const statusLabelMap: Record<string, string> = {
   COMPLETED: "Đã hoàn thành",
   DELAYED: "Đang trễ",
   DRAFT: "Nháp",
-  READY: "Ready",
+  READY: "Sẵn sàng",
   FINALIZED: "Đã chốt",
   PUBLISHED: "Đã công bố",
   ARCHIVED: "Đã lưu trữ",
@@ -746,6 +764,12 @@ const exportTemplateOptions: Array<{ value: ExportTemplateMode; label: string; d
     description: "Tự cấu hình các trường cần xuất",
     icon: <Settings size={16} />,
   },
+  {
+    value: "room-matrix",
+    label: "Bảng phân phòng bảo vệ",
+    description: "Bảng ma trận phòng - ca họp hội đồng",
+    icon: <Grid size={16} />,
+  },
 ];
 
 const exportFieldGroups: ExportFieldGroup[] = [
@@ -912,6 +936,7 @@ const exportTemplateFieldPresets: Record<ExportTemplateMode, string[]> = {
     "IsLocked",
   ],
   custom: ["StudentCode", "StudentName", "TopicTitle", "Score", "Grade"],
+  "room-matrix": [],
 };
 
 const formatCompactDuration = (minutes: number) => {
@@ -983,7 +1008,13 @@ const normalizeCommitteeStatus = (value: string | null | undefined) => {
   if (normalized.includes("DELAY")) {
     return "DELAYED";
   }
-  return "ONGOING";
+  if (normalized.includes("ONGOING") || normalized.includes("PROGRESS") || normalized === "ONGOING" || normalized === "IN_PROGRESS") {
+    return "ONGOING";
+  }
+  if (normalized.includes("PAUSED") || normalized === "PAUSED" || normalized === "TAM_DUNG") {
+    return "PAUSED";
+  }
+  return "READY";
 };
 
 const getCommitteeCompletionLabel = (scoredTopics: number, totalTopics: number) => {
@@ -1154,6 +1185,22 @@ const ModalOverlay: React.FC<{ onClose: () => void; children: React.ReactNode; w
     document.body
   );
 };
+const formatLogDateTime = (dateString: any): string => {
+  if (!dateString) return "-";
+  let str = String(dateString);
+  const hasTimezone = /Z$|[+-]\d{2}:?\d{2}$/.test(str);
+  if (!hasTimezone) {
+    str = str + "Z";
+  }
+  return new Date(str).toLocaleString("vi-VN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+};
 
 const CommitteeOperationsManagement: React.FC = () => {
   const { addToast } = useToast();
@@ -1179,12 +1226,17 @@ const CommitteeOperationsManagement: React.FC = () => {
   const [lastLoadedAt, setLastLoadedAt] = useState<string>("");
 
   const [committeeIdFilter, setCommitteeIdFilter] = useState("");
+  const [committeeStatusFilter, setCommitteeStatusFilter] = useState<string>("all");
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [navigatorFilter, setNavigatorFilter] = useState<NavigatorFilter>("all");
   const [committeeRoomFilter, setCommitteeRoomFilter] = useState("");
   const [committeeChairFilter, setCommitteeChairFilter] = useState("");
   const [revisionStatus, setRevisionStatus] = useState<RevisionStatus>("all");
   const [isPassedFilter, setIsPassedFilter] = useState<string>("all");
   const [revisionKeyword, setRevisionKeyword] = useState("");
+  const [selectedRevisionCommitteeCode, setSelectedRevisionCommitteeCode] = useState<string | null>(null);
+  const [isModuleMenuOpen, setIsModuleMenuOpen] = useState(false);
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [revisionPage, setRevisionPage] = useState(1);
   const [revisionSize, setRevisionSize] = useState(20);
 
@@ -1239,6 +1291,12 @@ const CommitteeOperationsManagement: React.FC = () => {
   const [selectedTopic, setSelectedTopic] = useState<ScoringMatrixRow | null>(null);
   const [studentTablePage, setStudentTablePage] = useState(1);
   const studentTablePageSize = 10;
+  const [committeeTopicsPage, setCommitteeTopicsPage] = useState(1);
+  const committeeTopicsPageSize = 5;
+
+  useEffect(() => {
+    setCommitteeTopicsPage(1);
+  }, [selectedCouncilCode]);
   const [studentTableIsPassedFilter, setStudentTableIsPassedFilter] = useState<boolean | "all">("all");
   const [studentTableStatusFilter, setStudentTableStatusFilter] = useState<"all" | "post-defense" | "locked" | "scoring">("all");
   const [studentTableSortField, setStudentTableSortField] = useState<"studentCode" | "studentName" | "topicTitle" | "finalScore" | "committeeCode">("finalScore");
@@ -1309,6 +1367,9 @@ const CommitteeOperationsManagement: React.FC = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (exportDownloadMenuRef.current && !exportDownloadMenuRef.current.contains(event.target as Node)) {
         setExportDownloadMenuOpen(false);
+      }
+      if (!(event.target as Element).closest("[data-status-dropdown]")) {
+        setIsStatusDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -1946,106 +2007,11 @@ const CommitteeOperationsManagement: React.FC = () => {
     }
   };
 
-  const fetchSystemLogs = useCallback(async () => {
-    setLogsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("page", String(logsPage));
-      params.set("pageSize", String(logsPageSize));
-      params.set("ImportantOnly", "true");
-      if (logsSearch.trim()) {
-        params.set("search", logsSearch.trim());
-      }
-      if (logsActionFilter !== "all") {
-        params.set("actionType", logsActionFilter);
-      }
-      if (logsModuleFilter !== "all") {
-        params.set("module", logsModuleFilter);
-      }
-
-      const response = await fetchData<ApiResponse<any[]>>(
-        `/SystemActivityLogs/get-list?${params.toString()}`,
-        { method: "GET" }
-      );
-
-      const parsed = parseEnvelope(response, "Không tải được nhật ký hoạt động hệ thống.");
-      if (parsed.ok && parsed.data) {
-        setSystemLogs(parsed.data);
-        const total = readEnvelopeTotalCount(response);
-        setLogsTotalCount(total || parsed.data.length);
-      }
-    } catch (error) {
-      console.error("System logs error:", error);
-      notifyError("Lỗi đồng bộ dữ liệu nhật ký hoạt động.");
-    } finally {
-      setLogsLoading(false);
-    }
-  }, [
-    logsPage,
-    logsPageSize,
-    logsSearch,
-    logsActionFilter,
-    logsModuleFilter,
-    parseEnvelope,
-    notifyError
-  ]);
-
-  const exportSystemLogs = useCallback(async () => {
-    setLogIsExporting(true);
-    try {
-      const payload = {
-        fields: logExportSelectedFields,
-        format: toApiExportFormat(logExportFormat),
-        filters: {
-          search: logsSearch || undefined,
-          module: logsModuleFilter !== "all" ? logsModuleFilter : undefined,
-          actionType: logsActionFilter !== "all" ? logsActionFilter : undefined,
-          importantOnly: true,
-        },
-      };
-
-      const arrayBuffer = await fetchData<ArrayBuffer>(`/SystemActivityLogs/export`, {
-        method: "POST",
-        body: payload,
-        timeoutMs: 300000,
-        headers: { Accept: logExportFormat === "pdf" ? "application/pdf" : logExportFormat === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv" },
-      });
-
-      if (!arrayBuffer) {
-        throw new Error("Không nhận được dữ liệu file từ server.");
-      }
-
-      const mime = logExportFormat === "pdf" ? "application/pdf" : logExportFormat === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv";
-      const ext = logExportFormat === "pdf" ? "pdf" : logExportFormat === "excel" ? "xlsx" : "csv";
-      const blob = new Blob([arrayBuffer as ArrayBuffer], { type: mime });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `system-activity-logs.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-
-      notifySuccess("Đã xuất nhật ký hoạt động.");
-      setLogExportModalOpen(false);
-    } catch (error) {
-      console.error("Export system logs error:", error);
-      notifyError(error instanceof Error ? error.message : "Không thể xuất nhật ký hoạt động.");
-    } finally {
-      setLogIsExporting(false);
-    }
-  }, [logExportFormat, logExportSelectedFields, logsSearch, logsModuleFilter, logsActionFilter, notifyError, notifySuccess]);
 
   useEffect(() => {
     void loadOperationsSnapshot();
   }, [loadOperationsSnapshot]);
 
-  useEffect(() => {
-    if (activeTab === "audit") {
-      void fetchSystemLogs();
-    }
-  }, [activeTab, fetchSystemLogs]);
 
   useEffect(() => {
     if (activeTab !== "analytics" || !periodId) return;
@@ -2224,7 +2190,7 @@ const CommitteeOperationsManagement: React.FC = () => {
         let data: ArrayBuffer;
         let fileName: string;
 
-        const isModularTemplate = ["dashboard", "scoring", "post-defense", "councils", "topics", "custom"].includes(effectiveTemplate);
+        const isModularTemplate = ["dashboard", "scoring", "post-defense", "councils", "topics", "custom", "room-matrix"].includes(effectiveTemplate);
 
         if (activeTab === "export" || (isModularTemplate && ["pdf", "excel", "xlsx", "csv"].includes(apiFormat))) {
           // Use the new modular export endpoint
@@ -2813,6 +2779,127 @@ const CommitteeOperationsManagement: React.FC = () => {
     }
   }, [committeeOperationalRows, bulkSelectedCommitteeIds.length]);
 
+  const selectedCommittee = useMemo(() => {
+    if (selectedCouncilCode) {
+      const code = selectedCouncilCode.trim().toUpperCase();
+      const numeric = selectedCouncilNumericId != null ? String(selectedCouncilNumericId) : "";
+      const directMatch = committeeOperationalRows.find((row) => row.code.toUpperCase() === code || row.key.toUpperCase() === code);
+      if (directMatch) {
+        return directMatch;
+      }
+
+      if (numeric) {
+        const numericMatch = committeeOperationalRows.find((row) => row.code.replace(/[^\d]/g, "") === numeric || row.key.replace(/[^\d]/g, "") === numeric);
+        if (numericMatch) {
+          return numericMatch;
+        }
+      }
+    }
+
+    return committeeOperationalRows[0] ?? null;
+  }, [committeeOperationalRows, selectedCouncilCode, selectedCouncilNumericId]);
+
+
+  const fetchSystemLogs = useCallback(async () => {
+    setLogsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", String(logsPage));
+      params.set("pageSize", String(logsPageSize));
+      params.set("ImportantOnly", "true");
+      params.set("SortBy", "PerformedAt");
+      params.set("SortDescending", "true");
+      if (logsSearch.trim()) {
+        params.set("search", logsSearch.trim());
+      }
+      if (logsActionFilter !== "all") {
+        params.set("actionType", logsActionFilter);
+      }
+      if (logsModuleFilter !== "all") {
+        params.set("module", logsModuleFilter);
+      }
+
+      const response = await fetchData<ApiResponse<any[]>>(
+        `/SystemActivityLogs/get-list?${params.toString()}`,
+        { method: "GET" }
+      );
+
+      const parsed = parseEnvelope(response, "Không tải được nhật ký hoạt động hệ thống.");
+      if (parsed.ok && parsed.data) {
+        setSystemLogs(parsed.data);
+        const total = readEnvelopeTotalCount(response);
+        setLogsTotalCount(total || parsed.data.length);
+      }
+    } catch (error) {
+      console.error("System logs error:", error);
+      notifyError("Lỗi đồng bộ dữ liệu nhật ký hoạt động.");
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [
+    logsPage,
+    logsPageSize,
+    logsSearch,
+    logsActionFilter,
+    logsModuleFilter,
+    parseEnvelope,
+    notifyError
+  ]);
+
+  const exportSystemLogs = useCallback(async () => {
+    setLogIsExporting(true);
+    try {
+      const payload = {
+        fields: logExportSelectedFields,
+        format: toApiExportFormat(logExportFormat),
+        filters: {
+          search: logsSearch || undefined,
+          module: logsModuleFilter !== "all" ? logsModuleFilter : undefined,
+          actionType: logsActionFilter !== "all" ? logsActionFilter : undefined,
+          importantOnly: true,
+        },
+      };
+
+      const arrayBuffer = await fetchData<ArrayBuffer>(`/SystemActivityLogs/export`, {
+        method: "POST",
+        body: payload,
+        timeoutMs: 300000,
+        headers: { Accept: logExportFormat === "pdf" ? "application/pdf" : logExportFormat === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv" },
+      });
+
+      if (!arrayBuffer) {
+        throw new Error("Không nhận được dữ liệu file từ server.");
+      }
+
+      const mime = logExportFormat === "pdf" ? "application/pdf" : logExportFormat === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv";
+      const ext = logExportFormat === "pdf" ? "pdf" : logExportFormat === "excel" ? "xlsx" : "csv";
+      const blob = new Blob([arrayBuffer as ArrayBuffer], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `system-activity-logs.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      notifySuccess("Đã xuất nhật ký hoạt động.");
+      setLogExportModalOpen(false);
+    } catch (error) {
+      console.error("Export system logs error:", error);
+      notifyError(error instanceof Error ? error.message : "Không thể xuất nhật ký hoạt động.");
+    } finally {
+      setLogIsExporting(false);
+    }
+  }, [logExportFormat, logExportSelectedFields, logsSearch, logsModuleFilter, logsActionFilter, notifyError, notifySuccess]);
+
+  useEffect(() => {
+    if (activeTab === "audit") {
+      void fetchSystemLogs();
+    }
+  }, [activeTab, fetchSystemLogs]);
+
+
   // 1. Đề tài đã đóng hội đồng không có đủ điểm
   const topicsClosedNoScoreAlerts = useMemo(() => {
     return scoringMatrix.filter((row) => {
@@ -2883,25 +2970,7 @@ const CommitteeOperationsManagement: React.FC = () => {
     [scoringMatrix],
   );
 
-  const selectedCommittee = useMemo(() => {
-    if (selectedCouncilCode) {
-      const code = selectedCouncilCode.trim().toUpperCase();
-      const numeric = selectedCouncilNumericId != null ? String(selectedCouncilNumericId) : "";
-      const directMatch = committeeOperationalRows.find((row) => row.code.toUpperCase() === code || row.key.toUpperCase() === code);
-      if (directMatch) {
-        return directMatch;
-      }
 
-      if (numeric) {
-        const numericMatch = committeeOperationalRows.find((row) => row.code.replace(/[^\d]/g, "") === numeric || row.key.replace(/[^\d]/g, "") === numeric);
-        if (numericMatch) {
-          return numericMatch;
-        }
-      }
-    }
-
-    return committeeOperationalRows[0] ?? null;
-  }, [committeeOperationalRows, selectedCouncilCode, selectedCouncilNumericId]);
 
   const selectedCommitteeRows = useMemo(() => {
     if (!selectedCommittee) {
@@ -3006,6 +3075,23 @@ const CommitteeOperationsManagement: React.FC = () => {
         return false;
       }
 
+      if (committeeStatusFilter !== "all") {
+        const normalizedRowStatus = normalizeStatusKey(row.status);
+        if (committeeStatusFilter === "FINALIZED") {
+          if (normalizedRowStatus !== "FINALIZED" && normalizedRowStatus !== "LOCKED") return false;
+        } else if (committeeStatusFilter === "ONGOING") {
+          if (normalizedRowStatus !== "ONGOING" && normalizedRowStatus !== "IN_PROGRESS") return false;
+        } else if (committeeStatusFilter === "COMPLETED") {
+          if (normalizedRowStatus !== "COMPLETED" && normalizedRowStatus !== "PUBLISHED") return false;
+        } else if (committeeStatusFilter === "READY") {
+          if (normalizedRowStatus !== "READY" && normalizedRowStatus !== "WAITING_PUBLIC" && normalizedRowStatus !== "DRAFT") return false;
+        } else if (committeeStatusFilter === "PAUSED") {
+          if (normalizedRowStatus !== "PAUSED" && normalizedRowStatus !== "TAM_DUNG") return false;
+        } else {
+          if (normalizedRowStatus !== committeeStatusFilter) return false;
+        }
+      }
+
       switch (navigatorFilter) {
         case "active":
           return ["READY", "ONGOING", "DELAYED"].includes(row.status) && row.progressPercent < 100;
@@ -3020,23 +3106,25 @@ const CommitteeOperationsManagement: React.FC = () => {
           return true;
       }
     });
-  }, [committeeChairFilter, committeeIdFilter, committeeOperationalRows, committeeRoomFilter, navigatorFilter]);
+  }, [committeeChairFilter, committeeIdFilter, committeeOperationalRows, committeeRoomFilter, navigatorFilter, committeeStatusFilter]);
 
-  const keyAlerts = useMemo<DashboardAlert[]>(() => {
+  const keyAlerts = useMemo(() => {
     const alertItems: DashboardAlert[] = [
       ...topicsClosedNoScoreAlerts.map((row) => ({
         severity: "critical" as DashboardAlertSeverity,
         title: `Đóng hội đồng thiếu điểm: ${row.topicTitle ?? "-"}`,
-        detail: `Hội đồng ${row.committeeCode} · SV: ${row.studentName} (${row.studentCode}) · Nhập: ${row.submittedCount}/${row.requiredCount} cột điểm`,
+        detail: `Hội đồng ${row.committeeName || row.committeeCode} · SV: ${row.studentName} (${row.studentCode}) · Nhập: ${row.submittedCount}/${row.requiredCount} cột điểm`,
         committeeCode: row.committeeCode ?? "-",
+        committeeName: row.committeeName ?? row.committeeCode ?? "-",
         focusKey: row.committeeCode ?? "-",
         priority: 1,
       })),
       ...overdueCommitteesAlerts.map((row) => ({
         severity: "critical" as DashboardAlertSeverity,
-        title: `Hội đồng quá hạn chưa đóng phiên: ${row.code}`,
+        title: `Hội đồng quá hạn chưa đóng phiên: ${row.name || row.code}`,
         detail: `Ngày bảo vệ: ${row.defenseDate} · Phòng: ${row.room} · Chưa khóa chốt điểm`,
         committeeCode: row.code,
+        committeeName: row.name || row.code,
         focusKey: row.code,
         priority: 1,
       })),
@@ -3048,6 +3136,7 @@ const CommitteeOperationsManagement: React.FC = () => {
           title: row.topicTitle ?? "-",
           detail: `${row.studentName ?? "-"} · ${row.studentCode ?? "-"}`,
           committeeCode: row.committeeCode ?? "-",
+          committeeName: row.committeeName ?? row.committeeCode ?? "-",
           focusKey: row.committeeCode ?? "-",
           priority: 1,
         })),
@@ -3057,8 +3146,9 @@ const CommitteeOperationsManagement: React.FC = () => {
         .map((row) => ({
           severity: "warning" as DashboardAlertSeverity,
           title: row.topicTitle ?? "-",
-          detail: `${row.committeeCode ?? "-"} · chờ khóa ca`,
+          detail: `${row.committeeName || row.committeeCode || "-"} · chờ khóa ca`,
           committeeCode: row.committeeCode ?? "-",
+          committeeName: row.committeeName ?? row.committeeCode ?? "-",
           focusKey: row.committeeCode ?? "-",
           priority: 2,
         })),
@@ -3067,9 +3157,10 @@ const CommitteeOperationsManagement: React.FC = () => {
         .slice(0, 3)
         .map((row) => ({
           severity: "warning" as DashboardAlertSeverity,
-          title: row.code,
+          title: row.name || row.code,
           detail: `${row.delayLabel} · ${row.currentTopic}`,
           committeeCode: row.code,
+          committeeName: row.name || row.code,
           focusKey: row.code,
           priority: 2,
         })),
@@ -3081,6 +3172,7 @@ const CommitteeOperationsManagement: React.FC = () => {
           title: row.topicTitle ?? "-",
           detail: `Variance ${row.variance}`,
           committeeCode: row.committeeCode ?? "-",
+          committeeName: row.committeeName ?? row.committeeCode ?? "-",
           focusKey: row.committeeCode ?? "-",
           priority: 1,
         })),
@@ -3102,22 +3194,22 @@ const CommitteeOperationsManagement: React.FC = () => {
 
     return {
       highest: topTopic
-        ? { label: "Điểm cao nhất", title: topTopic.studentName ?? "-", score: String(topTopic.finalScore ?? "-"), committee: `${topTopic.committeeCode ?? "-"} · Phòng ${topTopic.room ?? "-"}`, detail: `${topTopic.scheduledAt ? new Date(topTopic.scheduledAt).toLocaleDateString("vi-VN") : "-"} · ${topTopic.topicTitle ?? "-"}` }
+        ? { label: "Điểm cao nhất", title: topTopic.studentName ?? "-", score: String(topTopic.finalScore ?? "-"), committee: `${topTopic.committeeName || topTopic.committeeCode || "-"} · Phòng ${topTopic.room ?? "-"}`, detail: `${topTopic.scheduledAt ? new Date(topTopic.scheduledAt).toLocaleDateString("vi-VN") : "-"} · ${topTopic.topicTitle ?? "-"}` }
         : null,
       lowest: lowTopic
-        ? { label: "Điểm thấp nhất", title: lowTopic.studentName ?? "-", score: String(lowTopic.finalScore ?? "-"), committee: `${lowTopic.committeeCode ?? "-"} · Phòng ${lowTopic.room ?? "-"}`, detail: `${lowTopic.scheduledAt ? new Date(lowTopic.scheduledAt).toLocaleDateString("vi-VN") : "-"} · ${lowTopic.topicTitle ?? "-"}` }
+        ? { label: "Điểm thấp nhất", title: lowTopic.studentName ?? "-", score: String(lowTopic.finalScore ?? "-"), committee: `${lowTopic.committeeName || lowTopic.committeeCode || "-"} · Phòng ${lowTopic.room ?? "-"}`, detail: `${lowTopic.scheduledAt ? new Date(lowTopic.scheduledAt).toLocaleDateString("vi-VN") : "-"} · ${lowTopic.topicTitle ?? "-"}` }
         : null,
       strictest: completionSorted[completionSorted.length - 1]
-        ? { label: "Hội đồng chặt chẽ nhất", title: completionSorted[completionSorted.length - 1].name, score: `${completionSorted[completionSorted.length - 1].progressPercent}%`, committee: completionSorted[completionSorted.length - 1].code, detail: completionSorted[completionSorted.length - 1].currentTopic }
+        ? { label: "Hội đồng chặt chẽ nhất", title: completionSorted[completionSorted.length - 1].name, score: `${completionSorted[completionSorted.length - 1].progressPercent}%`, committee: completionSorted[completionSorted.length - 1].name || completionSorted[completionSorted.length - 1].code, detail: completionSorted[completionSorted.length - 1].currentTopic }
         : null,
       lenient: completionSorted[0]
-        ? { label: "Hội đồng lỏng lẻo nhất", title: completionSorted[0].name, score: `${completionSorted[0].progressPercent}%`, committee: completionSorted[0].code, detail: completionSorted[0].currentTopic }
+        ? { label: "Hội đồng lỏng lẻo nhất", title: completionSorted[0].name, score: `${completionSorted[0].progressPercent}%`, committee: completionSorted[0].name || completionSorted[0].code, detail: completionSorted[0].currentTopic }
         : null,
       fastest: completionSorted[0]
-        ? { label: "Hội đồng nhanh nhất", title: completionSorted[0].code, score: completionSorted[0].estimatedCompletion, committee: completionSorted[0].room, detail: completionSorted[0].currentStudent }
+        ? { label: "Hội đồng nhanh nhất", title: completionSorted[0].name || completionSorted[0].code, score: completionSorted[0].estimatedCompletion, committee: completionSorted[0].room, detail: completionSorted[0].currentStudent }
         : null,
       delayed: delaySorted[0]
-        ? { label: "Hội đồng trễ nhất", title: delaySorted[0].code, score: delaySorted[0].delayLabel, committee: delaySorted[0].room, detail: delaySorted[0].currentTopic }
+        ? { label: "Hội đồng trễ nhất", title: delaySorted[0].name || delaySorted[0].code, score: delaySorted[0].delayLabel, committee: delaySorted[0].room, detail: delaySorted[0].currentTopic }
         : null,
     };
   }, [committeeOperationalRows, lowTopic, scoresPublished, topTopic, snapshot]);
@@ -3368,32 +3460,83 @@ const CommitteeOperationsManagement: React.FC = () => {
       .slice(0, Math.max(1, auditSize));
   }, [audit, auditActionFilter, auditKeyword, auditSize]);
 
-  const revisionRows = useMemo(() => {
+  const revisionCommittees = useMemo(() => {
     const items = postDefense?.items ?? [];
+    const groupsMap = new Map<string, any[]>();
+
+    items.forEach((item) => {
+      const matrixRow = scoringMatrix.find((m) => m.studentCode === item.studentCode);
+      const code = item.committeeCode || matrixRow?.committeeCode || "UNKNOWN";
+      const current = groupsMap.get(code) ?? [];
+      current.push({
+        ...item,
+        committeeCode: code,
+        committeeSecretaryName: matrixRow?.committeeSecretaryName,
+        statusLabel: item.status === "APPROVED" ? "Đã duyệt" : item.status === "PENDING" ? "Chờ duyệt" : "Yêu cầu sửa",
+        deadlineDate: item.submissionDeadline ? new Date(item.submissionDeadline).toLocaleDateString("vi-VN") : "-",
+      });
+      groupsMap.set(code, current);
+    });
+
     const keyword = revisionKeyword.trim().toLowerCase();
     const status = revisionStatus;
 
-    return items
-      .filter((item) => {
-        if (status === "all") return true;
-        return String(item.status ?? "").toLowerCase() === status;
-      })
-      .filter((item) => {
-        if (!keyword) return true;
-        const haystack = `${item.studentCode} ${item.studentName} ${item.topicTitle}`.toLowerCase();
-        return haystack.includes(keyword);
-      })
-      .map((item) => {
-        const matrixRow = scoringMatrix.find(m => m.studentCode === item.studentCode);
+    return Array.from(groupsMap.entries())
+      .map(([code, groupItems]) => {
+        const commRow = committeeOperationalRows.find((c) => c.code === code);
+        const name = commRow?.name ?? `Hội đồng ${code}`;
+        const room = commRow?.room ?? "-";
+        const defenseDate = commRow?.defenseDate ?? "-";
+        const chair = commRow?.chair ?? "-";
+        const chairCode = commRow?.chairCode ?? "";
+        const secretary = commRow?.secretary ?? "-";
+        const secretaryCode = commRow?.secretaryCode ?? "";
+        const reviewer = commRow?.reviewer ?? "-";
+        const reviewerCode = commRow?.reviewerCode ?? "";
+
+        const pendingCount = groupItems.filter((i) => String(i.status ?? "").toLowerCase() === "pending").length;
+        const approvedCount = groupItems.filter((i) => String(i.status ?? "").toLowerCase() === "approved").length;
+        const rejectedCount = groupItems.filter((i) => String(i.status ?? "").toLowerCase() === "rejected" || String(i.status ?? "").toLowerCase() === "fail").length;
+
+        const filteredGroupItems = groupItems.filter((item) => {
+          if (status !== "all" && String(item.status ?? "").toLowerCase() !== status) return false;
+          if (keyword) {
+            const haystack = `${item.studentCode} ${item.studentName} ${item.topicTitle}`.toLowerCase();
+            if (!haystack.includes(keyword)) return false;
+          }
+          return true;
+        });
+
         return {
-          ...item,
-          committeeCode: item.committeeCode || matrixRow?.committeeCode,
-          committeeSecretaryName: matrixRow?.committeeSecretaryName,
-          statusLabel: item.status === "APPROVED" ? "Đã duyệt" : item.status === "PENDING" ? "Chờ duyệt" : "Yêu cầu sửa",
-          deadlineDate: item.submissionDeadline ? new Date(item.submissionDeadline).toLocaleDateString("vi-VN") : "-",
+          committeeCode: code,
+          committeeName: name,
+          room,
+          defenseDate,
+          chair,
+          chairCode,
+          secretary,
+          secretaryCode,
+          reviewer,
+          reviewerCode,
+          pendingCount,
+          approvedCount,
+          rejectedCount,
+          totalCount: groupItems.length,
+          revisions: filteredGroupItems,
         };
-      });
-  }, [postDefense?.items, revisionKeyword, revisionStatus]);
+      })
+      .filter((group) => {
+        if (!keyword && status === "all") return true;
+        return group.revisions.length > 0;
+      })
+      .sort((a, b) => a.committeeCode.localeCompare(b.committeeCode));
+  }, [postDefense?.items, scoringMatrix, committeeOperationalRows, revisionKeyword, revisionStatus]);
+
+  const revisionRows = useMemo(() => {
+    if (!selectedRevisionCommitteeCode) return [];
+    const targetGroup = revisionCommittees.find((g) => g.committeeCode === selectedRevisionCommitteeCode);
+    return targetGroup?.revisions ?? [];
+  }, [selectedRevisionCommitteeCode, revisionCommittees]);
 
   const recentExports = useMemo(
 
@@ -3732,7 +3875,6 @@ const CommitteeOperationsManagement: React.FC = () => {
         return;
       }
 
-      setCommitteeIdFilter(normalizedCode);
       const matchedRow = committeeOperationalRows.find(
         (row) => row.code.toUpperCase() === normalizedCode.toUpperCase() || row.key.toUpperCase() === normalizedCode.toUpperCase(),
       );
@@ -4009,7 +4151,7 @@ const CommitteeOperationsManagement: React.FC = () => {
                   {overdueCommitteesAlerts.map((row) => (
                     <div key={row.key} style={{ fontSize: 13, padding: 12, borderRadius: 12, background: "#fef2f2", color: "#991b1b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
-                        <strong>{row.code}</strong> - {row.name}
+                        <strong>{row.name || row.code}</strong>
                         <div style={{ fontSize: 11, color: "#b91c1c", marginTop: 2 }}>Phòng: {row.room} • Ngày bảo vệ: {row.defenseDate}</div>
                       </div>
                       <span style={{ fontSize: 11, background: "#fecaca", padding: "2px 6px", borderRadius: 6, fontWeight: 700 }}>QUÁ HẠN</span>
@@ -4032,7 +4174,7 @@ const CommitteeOperationsManagement: React.FC = () => {
                       <strong>{row.studentName}</strong> ({row.studentCode})
                       <div style={{ fontSize: 12, fontWeight: 600, color: "#9a3412", marginTop: 2 }}>{row.topicTitle}</div>
                       <div style={{ fontSize: 11, color: "#ea580c", marginTop: 2 }}>
-                        Hội đồng: {row.committeeCode} • Nhập: {row.submittedCount}/{row.requiredCount} cột điểm • Tổng: {row.finalScore ?? "Chưa có"}
+                        Hội đồng: {row.committeeName || row.committeeCode} • Nhập: {row.submittedCount}/{row.requiredCount} cột điểm • Tổng: {row.finalScore ?? "Chưa có"}
                       </div>
                     </div>
                   ))}
@@ -4090,7 +4232,7 @@ const CommitteeOperationsManagement: React.FC = () => {
                     transition: "transform 0.2s ease"
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                      <span style={{ fontWeight: 800, color: "#1e293b", fontSize: 15 }}>{row.code}</span>
+                      <span style={{ fontWeight: 800, color: "#1e293b", fontSize: 15 }}>{row.name || row.code}</span>
                       <span style={{
                         padding: "4px 10px",
                         borderRadius: 8,
@@ -4242,7 +4384,7 @@ const CommitteeOperationsManagement: React.FC = () => {
                     </div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b" }}>{alert.title}</div>
-                      <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{alert.committeeCode} • {alert.detail}</div>
+                      <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{alert.committeeName || alert.committeeCode} • {alert.detail}</div>
                     </div>
                   </div>
                 ))
@@ -4802,8 +4944,13 @@ const CommitteeOperationsManagement: React.FC = () => {
     </section>
   );
 
-  const renderCommitteeTab = () => (
-    <section style={{ display: "grid", gridTemplateColumns: "350px 1fr", gap: 24 }}>
+  const renderCommitteeTab = () => {
+    const startIndex = (committeeTopicsPage - 1) * committeeTopicsPageSize;
+    const paginatedRows = selectedCommitteeRows.slice(startIndex, startIndex + committeeTopicsPageSize);
+    const totalPages = Math.ceil(selectedCommitteeRows.length / committeeTopicsPageSize);
+
+    return (
+      <section style={{ display: "grid", gridTemplateColumns: "350px 1fr", gap: 24 }}>
       {/* 1. Left Sidebar: Committee List */}
       <aside style={{
         background: "white",
@@ -4832,6 +4979,139 @@ const CommitteeOperationsManagement: React.FC = () => {
           />
         </div>
 
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>Trạng thái hội đồng:</label>
+          <div style={{ position: "relative" }} data-status-dropdown>
+            <button
+              type="button"
+              onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                borderRadius: 14,
+                border: "1px solid #e2e8f0",
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#1e293b",
+                background: "white",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+                transition: "all 0.2s"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = "#cbd5e1"}
+              onMouseLeave={(e) => { if (!isStatusDropdownOpen) e.currentTarget.style.borderColor = "#e2e8f0"; }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {(() => {
+                  const statusOptions = [
+                    { value: "all", label: "Tất cả trạng thái", icon: <Grid size={15} color="#64748b" /> },
+                    { value: "READY", label: "Chuẩn bị (Sẵn sàng)", icon: <Clock size={15} color="#0369a1" /> },
+                    { value: "ONGOING", label: "Đang họp (Đang diễn ra)", icon: <PlayCircle size={15} color="#15803d" /> },
+                    { value: "PAUSED", label: "Tạm dừng", icon: <PauseCircle size={15} color="#ea580c" /> },
+                    { value: "FINALIZED", label: "Đã chốt điểm", icon: <CheckCircle2 size={15} color="#15803d" /> },
+                    { value: "COMPLETED", label: "Đã đóng phiên (Hoàn thành)", icon: <Lock size={15} color="#64748b" /> },
+                  ];
+                  const selectedOption = statusOptions.find(opt => opt.value === committeeStatusFilter) || statusOptions[0];
+                  return (
+                    <>
+                      {selectedOption.icon}
+                      <span>{selectedOption.label}</span>
+                    </>
+                  );
+                })()}
+              </div>
+              <ChevronDown
+                size={16}
+                style={{
+                  color: "#64748b",
+                  transition: "transform 0.2s",
+                  transform: isStatusDropdownOpen ? "rotate(180deg)" : "rotate(0deg)"
+                }}
+              />
+            </button>
+
+            {isStatusDropdownOpen && (
+              <div style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                marginTop: 8,
+                background: "white",
+                border: "1px solid #e2e8f0",
+                borderRadius: 16,
+                boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.05)",
+                zIndex: 1000,
+                overflow: "hidden",
+                padding: 6,
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+                animation: "fadeIn 0.15s ease"
+              }}>
+                {(() => {
+                  const statusOptions = [
+                    { value: "all", label: "Tất cả trạng thái", icon: <Grid size={15} color="#64748b" /> },
+                    { value: "READY", label: "Chuẩn bị (Sẵn sàng)", icon: <Clock size={15} color="#0369a1" /> },
+                    { value: "ONGOING", label: "Đang họp (Đang diễn ra)", icon: <PlayCircle size={15} color="#15803d" /> },
+                    { value: "PAUSED", label: "Tạm dừng", icon: <PauseCircle size={15} color="#ea580c" /> },
+                    { value: "FINALIZED", label: "Đã chốt điểm", icon: <CheckCircle2 size={15} color="#15803d" /> },
+                    { value: "COMPLETED", label: "Đã đóng phiên (Hoàn thành)", icon: <Lock size={15} color="#64748b" /> },
+                  ];
+                  return statusOptions.map((opt) => {
+                    const isSelected = opt.value === committeeStatusFilter;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          setCommitteeStatusFilter(opt.value);
+                          setIsStatusDropdownOpen(false);
+                        }}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          border: "none",
+                          background: isSelected ? "#f1f5f9" : "transparent",
+                          color: isSelected ? "#0f172a" : "#475569",
+                          fontWeight: isSelected ? 800 : 600,
+                          fontSize: 13,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          textAlign: "left",
+                          width: "100%",
+                          transition: "all 0.15s"
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.background = "#f8fafc";
+                            e.currentTarget.style.color = "#0f172a";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.background = "transparent";
+                            e.currentTarget.style.color = "#475569";
+                          }
+                        }}
+                      >
+                        {opt.icon}
+                        <span>{opt.label}</span>
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+            )}
+          </div>
+        </div>
+
         <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 8, paddingRight: 4 }}>
           {visibleCommitteeRows.map((row) => {
             const isActive = selectedCommittee?.code === row.code;
@@ -4853,7 +5133,7 @@ const CommitteeOperationsManagement: React.FC = () => {
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: 800, color: "#1e293b" }}>{row.code}</span>
+                  <span style={{ fontWeight: 800, color: "#1e293b" }}>{row.name || row.code}</span>
                   <span style={{
                     padding: "2px 8px",
                     borderRadius: 6,
@@ -4864,7 +5144,7 @@ const CommitteeOperationsManagement: React.FC = () => {
                   }}>{getStatusLabel(row.status)}</span>
                 </div>
                 <div style={{ fontSize: 12, color: "#64748b" }}>
-                  Phòng: {row.room} • {row.chair}
+                  Phòng: {row.room} • {reformatLecturerName(row.chair)}
                 </div>
                 <div style={{ height: 4, borderRadius: 99, background: "#e2e8f0", marginTop: 4 }}>
                   <div style={{ width: `${row.progressPercent}%`, height: "100%", background: DEEP_BLUE_PRIMARY, borderRadius: 99 }} />
@@ -4897,7 +5177,7 @@ const CommitteeOperationsManagement: React.FC = () => {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                    <h2 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: "#1e293b" }}>{selectedCommittee.code}</h2>
+                    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: "#1e293b", whiteSpace: "nowrap" }}>{selectedCommittee.name || selectedCommittee.code}</h2>
                     <span style={{
                       padding: "6px 16px",
                       borderRadius: 99,
@@ -4913,29 +5193,31 @@ const CommitteeOperationsManagement: React.FC = () => {
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 12 }}>
-                  <button
-                    onClick={() => {
-                      setPreviewModalType("scoreSheet");
-                    }}
-                    style={{
-                      background: "white",
-                      border: "1px solid #cbd5e1",
-                      padding: "12px 24px",
-                      borderRadius: 14,
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: DEEP_BLUE_PRIMARY,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      transition: "all 0.2s"
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY}
-                    onMouseLeave={(e) => e.currentTarget.style.borderColor = "#cbd5e1"}
-                  >
-                    <Download size={18} /> Xem bảng điểm HĐ
-                  </button>
+                  {selectedCommitteeFinalized && (
+                    <button
+                      onClick={() => {
+                        setPreviewModalType("scoreSheet");
+                      }}
+                      style={{
+                        background: "white",
+                        border: "1px solid #cbd5e1",
+                        padding: "12px 24px",
+                        borderRadius: 14,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: DEEP_BLUE_PRIMARY,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        transition: "all 0.2s"
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY}
+                      onMouseLeave={(e) => e.currentTarget.style.borderColor = "#cbd5e1"}
+                    >
+                      <Download size={18} /> Xem bảng điểm HĐ
+                    </button>
+                  )}
                   {selectedCommitteeAdminAction && (
                     <button
                       onClick={() => void submitCommitteeAction(selectedCommitteeAdminAction.action, selectedCommittee)}
@@ -4983,13 +5265,12 @@ const CommitteeOperationsManagement: React.FC = () => {
                   { role: "Chủ tịch", name: selectedCommittee.chair, code: selectedCommittee.chairCode, icon: <User size={16} /> },
                   { role: "Thư ký", name: selectedCommittee.secretary, code: selectedCommittee.secretaryCode, icon: <MessageSquare size={16} /> },
                   { role: "Phản biện", name: selectedCommittee.reviewer, code: selectedCommittee.reviewerCode, icon: <Activity size={16} /> },
-                  { role: "Hướng dẫn", name: selectedCommitteeSupervisor, code: selectedCommitteeSupervisorCode, icon: <Users size={16} /> },
                 ].map((member, i) => (
                   <div key={i} style={{ padding: 20, borderRadius: 20, background: "#f8fafc", border: "1px solid #f1f5f9" }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                       {member.icon} {member.role}
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b" }}>{member.name || "Chưa phân công"}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b" }}>{reformatLecturerName(member.name) || "Chưa phân công"}</div>
                     {member.name && member.name !== "-" && member.code && (
                       <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{member.code}</div>
                     )}
@@ -4999,136 +5280,178 @@ const CommitteeOperationsManagement: React.FC = () => {
             </section>
 
             {/* Topics List Table */}
-            <section style={{ background: "white", borderRadius: 28, padding: 32, border: "1px solid #e2e8f0" }}>
-              <h3 style={{ margin: "0 0 24px 0", fontSize: 20, fontWeight: 800 }}>Danh sách Đề tài</h3>
+            <section style={{ background: "white", borderRadius: 28, padding: "24px 32px", border: "1px solid #e2e8f0" }}>
+              <h3 style={{ margin: "0 0 20px 0", fontSize: 18, fontWeight: 800 }}>Danh sách Đề tài (Tổng số: {selectedCommitteeRows.length})</h3>
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 12px" }}>
+                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 10px" }}>
                   <thead>
-                    <tr style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>
-                      <th style={{ padding: "0 16px", textAlign: "left" }}>Sinh viên</th>
-                      <th style={{ padding: "0 16px", textAlign: "left" }}>Đề tài</th>
-                      <th style={{ padding: "0 16px", textAlign: "center" }}>Điểm tổng</th>
-                      <th style={{ padding: "0 16px", textAlign: "center" }}>Kết quả</th>
-                      <th style={{ padding: "0 16px", textAlign: "right" }}>Tài liệu</th>
+                    <tr style={{ color: "#64748b", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>
+                      <th style={{ padding: "0 12px", textAlign: "left" }}>Sinh viên</th>
+                      <th style={{ padding: "0 12px", textAlign: "left" }}>Đề tài</th>
+                      <th style={{ padding: "0 12px", textAlign: "center" }}>Điểm tổng</th>
+                      <th style={{ padding: "0 12px", textAlign: "center" }}>Kết quả</th>
+                      <th style={{ padding: "0 12px", textAlign: "right" }}>Tài liệu</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedCommitteeRows.map((row, i) => (
+                    {paginatedRows.map((row, i) => (
                       <tr key={i} style={{ background: "#f8fafc" }}>
-                        <td style={{ padding: "20px 16px", borderRadius: "16px 0 0 16px" }}>
-                          <div style={{ fontWeight: 800, color: "#1e293b" }}>{row.studentName}</div>
-                          <div style={{ fontSize: 12, color: "#64748b" }}>{row.studentCode}</div>
+                        <td style={{ padding: "12px 14px", borderRadius: "16px 0 0 16px" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{row.studentName}</div>
+                          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{row.studentCode}</div>
                         </td>
-                        <td style={{ padding: "20px 16px" }}>
-                          <div style={{ fontWeight: 600, color: "#1e293b" }}>{row.topicTitle}</div>
-                          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{row.topicCode}</div>
+                        <td style={{ padding: "12px 14px" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", lineHeight: "1.4" }}>{row.topicTitle}</div>
+                          <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>{row.topicCode}</div>
+                          <div style={{ fontSize: 11, color: "#475569", marginTop: 4, fontWeight: 500 }}>GVHD: {reformatLecturerName(row.supervisorLecturerName || row.supervisorName)}</div>
                         </td>
-                        <td style={{ padding: "20px 16px", textAlign: "center" }}>
-                          <div style={{ fontSize: 20, fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{getTopicScoreDisplay(row)}</div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>{getTopicGradeDisplay(row)}</div>
+                        <td style={{ padding: "12px 14px", textAlign: "center" }}>
+                          <div style={{ fontSize: 15, fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{getTopicScoreDisplay(row)}</div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>{getTopicGradeDisplay(row)}</div>
                         </td>
-                        <td style={{ padding: "20px 16px", textAlign: "center" }}>
-                          <span style={{
-                            padding: "6px 16px",
-                            borderRadius: 99,
-                            fontSize: 11,
-                            fontWeight: 800,
-                            background: row.isPassed ? "#dcfce7" : "#fee2e2",
-                            color: row.isPassed ? "#16a34a" : "#ef4444"
-                          }}>{row.isPassed ? "ĐẠT" : "TRƯỢT"}</span>
+                        <td style={{ padding: "12px 14px", textAlign: "center" }}>
+                          {row.isPassed === true ? (
+                            <span style={{
+                              padding: "4px 10px",
+                              borderRadius: 99,
+                              fontSize: 10,
+                              fontWeight: 800,
+                              background: "#dcfce7",
+                              color: "#16a34a",
+                              whiteSpace: "nowrap"
+                            }}>ĐẠT</span>
+                          ) : row.isPassed === false ? (
+                            <span style={{
+                              padding: "4px 10px",
+                              borderRadius: 99,
+                              fontSize: 10,
+                              fontWeight: 800,
+                              background: "#fee2e2",
+                              color: "#ef4444",
+                              whiteSpace: "nowrap"
+                            }}>TRƯỢT</span>
+                          ) : (
+                            <span style={{
+                              padding: "4px 10px",
+                              borderRadius: 99,
+                              fontSize: 10,
+                              fontWeight: 800,
+                              background: "#f1f5f9",
+                              color: "#64748b",
+                              whiteSpace: "nowrap"
+                            }}>Chưa có</span>
+                          )}
                         </td>
-                        <td style={{ padding: "20px 16px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
+                        <td style={{ padding: "12px 14px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
                             {/* Dropdown for documents */}
-                            <div style={{ position: "relative" }}>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const rowId = `${row.studentCode}-${row.committeeCode}-op`;
-                                  setActiveRowActionId(activeRowActionId === rowId ? null : rowId);
-                                }}
-                                title="Tài liệu liên quan"
-                                style={{
-                                  padding: "8px",
-                                  borderRadius: 10,
-                                  border: "1px solid #e2e8f0",
-                                  background: activeRowActionId === `${row.studentCode}-${row.committeeCode}-op` ? "#f1f5f9" : "white",
-                                  cursor: "pointer",
-                                  color: DEEP_BLUE_PRIMARY,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  transition: "all 0.2s"
-                                }}
-                                onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; }}
-                                onMouseLeave={(e) => { if (activeRowActionId !== `${row.studentCode}-${row.committeeCode}-op`) e.currentTarget.style.borderColor = "#e2e8f0"; }}
-                              >
-                                <Files size={18} />
-                              </button>
-
-                              {activeRowActionId === `${row.studentCode}-${row.committeeCode}-op` && (
-                                <div
-                                  style={{
-                                    position: "absolute",
-                                    right: 0,
-                                    top: "calc(100% + 8px)",
-                                    background: "white",
-                                    borderRadius: 14,
-                                    boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
-                                    border: "1px solid #f1f5f9",
-                                    minWidth: 180,
-                                    zIndex: 100,
-                                    padding: "6px",
-                                    animation: "fadeIn 0.2s ease"
+                            {selectedCommitteeFinalized && (
+                              <div style={{ position: "relative" }}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const rowId = `${row.studentCode}-${row.committeeCode}-op`;
+                                    setActiveRowActionId(activeRowActionId === rowId ? null : rowId);
                                   }}
-                                  onClick={(e) => e.stopPropagation()}
+                                  title="Tài liệu liên quan"
+                                  style={{
+                                    padding: "6px",
+                                    borderRadius: 8,
+                                    border: "1px solid #e2e8f0",
+                                    background: activeRowActionId === `${row.studentCode}-${row.committeeCode}-op` ? "#f1f5f9" : "white",
+                                    cursor: "pointer",
+                                    color: DEEP_BLUE_PRIMARY,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    transition: "all 0.2s"
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; }}
+                                  onMouseLeave={(e) => { if (activeRowActionId !== `${row.studentCode}-${row.committeeCode}-op`) e.currentTarget.style.borderColor = "#e2e8f0"; }}
                                 >
-                                  {[
-                                    { label: "Xem biên bản", icon: <FileText size={14} />, type: "meeting" },
-                                    { label: "Xem nhận xét", icon: <MessageSquare size={14} />, type: "reviewer" },
-                                  ].map((item) => (
-                                    <button
-                                      key={item.type}
-                                      onClick={() => {
-                                        setSelectedMatrixRow(row);
-                                        hydrateMinutes(row.assignmentId as number, row.committeeId as number);
-                                        setPreviewModalType(item.type as any);
-                                        setActiveRowActionId(null);
-                                      }}
-                                      style={{
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 10,
-                                        padding: "10px 12px",
-                                        borderRadius: 8,
-                                        border: "none",
-                                        background: "transparent",
-                                        cursor: "pointer",
-                                        fontSize: 13,
-                                        fontWeight: 600,
-                                        color: "#334155",
-                                        textAlign: "left",
-                                        transition: "all 0.15s"
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = "#f1f5f9";
-                                        e.currentTarget.style.color = DEEP_BLUE_PRIMARY;
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = "transparent";
-                                        e.currentTarget.style.color = "#334155";
-                                      }}
-                                    >
-                                      {item.icon}
-                                      {item.label}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
+                                  <Files size={16} />
+                                </button>
 
-                            <button onClick={() => { setSelectedTopic(row); setTopicDetailModalOpen(true); }} style={{ padding: "8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: "#64748b" }} title="Chi tiết"><Search size={18} /></button>
+                                {activeRowActionId === `${row.studentCode}-${row.committeeCode}-op` && (
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      right: 0,
+                                      top: "calc(100% + 8px)",
+                                      background: "white",
+                                      borderRadius: 14,
+                                      boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+                                      border: "1px solid #f1f5f9",
+                                      minWidth: 180,
+                                      zIndex: 100,
+                                      padding: "6px",
+                                      animation: "fadeIn 0.2s ease"
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {[
+                                      { label: "Xem biên bản", icon: <FileText size={14} />, type: "meeting" },
+                                      { label: "Xem nhận xét", icon: <MessageSquare size={14} />, type: "reviewer" },
+                                    ].map((item) => (
+                                      <button
+                                        key={item.type}
+                                        onClick={() => {
+                                          setSelectedMatrixRow(row);
+                                          hydrateMinutes(row.assignmentId as number, row.committeeId as number);
+                                          setPreviewModalType(item.type as any);
+                                          setActiveRowActionId(null);
+                                        }}
+                                        style={{
+                                          width: "100%",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 10,
+                                          padding: "10px 12px",
+                                          borderRadius: 8,
+                                          border: "none",
+                                          background: "transparent",
+                                          cursor: "pointer",
+                                          fontSize: 13,
+                                          fontWeight: 600,
+                                          color: "#334155",
+                                          textAlign: "left",
+                                          transition: "all 0.15s"
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.background = "#f1f5f9";
+                                          e.currentTarget.style.color = DEEP_BLUE_PRIMARY;
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.background = "transparent";
+                                          e.currentTarget.style.color = "#334155";
+                                        }}
+                                      >
+                                        {item.icon}
+                                        {item.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <button
+                              onClick={() => { setSelectedTopic(row); setTopicDetailModalOpen(true); }}
+                              style={{
+                                padding: "6px",
+                                borderRadius: 8,
+                                border: "1px solid #e2e8f0",
+                                background: "white",
+                                cursor: "pointer",
+                                color: "#64748b",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center"
+                              }}
+                              title="Chi tiết"
+                            >
+                              <Search size={16} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -5136,121 +5459,317 @@ const CommitteeOperationsManagement: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+
+              {/* Topics Pagination Controls */}
+              {selectedCommitteeRows.length > committeeTopicsPageSize && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20, padding: "8px 4px 0 4px", borderTop: "1px dashed #e2e8f0" }}>
+                  <div style={{ fontSize: 13, color: "#64748b", fontWeight: 500 }}>
+                    Hiển thị {startIndex + 1} - {Math.min(startIndex + committeeTopicsPageSize, selectedCommitteeRows.length)} trên tổng số {selectedCommitteeRows.length} đề tài
+                  </div>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <button
+                      disabled={committeeTopicsPage === 1}
+                      onClick={() => setCommitteeTopicsPage(p => Math.max(1, p - 1))}
+                      style={{
+                        padding: "8px 16px",
+                        borderRadius: 12,
+                        border: "1px solid #e2e8f0",
+                        background: committeeTopicsPage === 1 ? "#f1f5f9" : "white",
+                        color: committeeTopicsPage === 1 ? "#94a3b8" : "#1e293b",
+                        fontWeight: 700,
+                        cursor: committeeTopicsPage === 1 ? "not-allowed" : "pointer",
+                        fontSize: 13,
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      Trước
+                    </button>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>
+                      Trang {committeeTopicsPage} / {totalPages || 1}
+                    </span>
+                    <button
+                      disabled={committeeTopicsPage >= totalPages}
+                      onClick={() => setCommitteeTopicsPage(p => Math.min(totalPages, p + 1))}
+                      style={{
+                        padding: "8px 16px",
+                        borderRadius: 12,
+                        border: "1px solid #e2e8f0",
+                        background: committeeTopicsPage >= totalPages ? "#f1f5f9" : "white",
+                        color: committeeTopicsPage >= totalPages ? "#94a3b8" : "#1e293b",
+                        fontWeight: 700,
+                        cursor: committeeTopicsPage >= totalPages ? "not-allowed" : "pointer",
+                        fontSize: 13,
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      Tiếp theo
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
           </>
         )}
       </main>
     </section>
   );
+};
 
-  const renderPostDefenseTab = () => (
-    <section style={{ display: "grid", gap: 24 }}>
-      {/* 1. Header Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
-        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Đã duyệt sửa đổi</div>
-          <div style={{ fontSize: 32, fontWeight: 900, color: "#16a34a" }}>{postDefense?.approvedRevisions ?? 0}</div>
-          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Trên tổng số {postDefense?.totalRevisions ?? 0} đề tài</p>
-        </section>
+  const renderPostDefenseTab = () => {
+    const hasActiveSelection = selectedRevisionCommitteeCode !== null;
+    const currentSelectedGroup = revisionCommittees.find(g => g.committeeCode === selectedRevisionCommitteeCode);
 
-        <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Chờ xác nhận</div>
-          <div style={{ fontSize: 32, fontWeight: 900, color: "#f59e0b" }}>{postDefense?.pendingRevisions ?? 0}</div>
-          <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Cần giảng viên & thư ký kiểm tra</p>
-        </section>
-      </div>
+    return (
+      <section style={{ display: "grid", gap: 24 }}>
+        {/* 1. Header Stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+          <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Đã duyệt sửa đổi</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: "#16a34a" }}>{postDefense?.approvedRevisions ?? 0}</div>
+            <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Trên tổng số {postDefense?.totalRevisions ?? 0} đề tài</p>
+          </section>
 
-      {/* 2. Revisions Table */}
-      <section style={{ background: "white", borderRadius: 28, padding: 32, border: "1px solid #e2e8f0" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Dữ liệu Sửa đổi Đồ án</h3>
-          <div style={{ display: "flex", gap: 12 }}>
-            <input
-              placeholder="Mã SV, mã đề tài..."
-              style={{ padding: "10px 16px", borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 14, width: 250 }}
-              value={revisionKeyword}
-              onChange={(e) => setRevisionKeyword(e.target.value)}
-            />
-            <select
-              style={{
-                padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
-                backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
-                backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", transition: "all 0.2s", outline: "none"
-              }}
-              value={revisionStatus}
-              onChange={(e) => setRevisionStatus(e.target.value as any)}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.boxShadow = "none"; }}
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="approved">Đã duyệt</option>
-              <option value="pending">Chờ duyệt</option>
-              <option value="rejected">Yêu cầu sửa lại</option>
-            </select>
-          </div>
+          <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Chờ xác nhận</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: "#f59e0b" }}>{postDefense?.pendingRevisions ?? 0}</div>
+            <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Cần giảng viên & thư ký kiểm tra</p>
+          </section>
         </div>
 
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
-            <thead>
-              <tr style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>
-                <th style={{ padding: "12px 20px", textAlign: "left" }}>Sinh viên</th>
-                <th style={{ padding: "12px 20px", textAlign: "left" }}>Đề tài</th>
-                <th style={{ padding: "12px 20px", textAlign: "center" }}>Hội đồng</th>
-                <th style={{ padding: "12px 20px", textAlign: "center" }}>Người phụ trách</th>
-                <th style={{ padding: "12px 20px", textAlign: "center" }}>Hạn chốt</th>
-                <th style={{ padding: "12px 20px", textAlign: "center" }}>Trạng thái</th>
-                <th style={{ padding: "12px 20px", textAlign: "right" }}>Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {revisionRows.map((row, i) => (
-                <tr key={i} style={{ background: "#f8fafc" }}>
-                  <td style={{ padding: "16px 20px", borderRadius: "16px 0 0 16px" }}>
-                    <div style={{ fontWeight: 800, color: "#1e293b" }}>{row.studentName}</div>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>{row.studentCode}</div>
-                  </td>
-                  <td style={{ padding: "16px 20px" }}>
-                    <div style={{ fontSize: 14, color: "#1e293b", fontWeight: 600 }}>{row.topicTitle}</div>
-                  </td>
-                  <td style={{ padding: "16px 20px", textAlign: "center" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: DEEP_BLUE_PRIMARY }}>{row.committeeCode || "-"}</div>
-                  </td>
-                  <td style={{ padding: "16px 20px", textAlign: "center" }}>
-                    <div style={{ fontSize: 13, color: "#475569", fontWeight: 600 }}>{row.committeeSecretaryName || "-"}</div>
-                    <div style={{ fontSize: 11, color: "#64748b" }}>Thư ký</div>
-                  </td>
-                  <td style={{ padding: "16px 20px", textAlign: "center" }}>
-                    <div style={{ fontSize: 13, color: "#475569" }}>{row.deadlineDate}</div>
-                  </td>
-                  <td style={{ padding: "16px 20px", textAlign: "center" }}>
-                    <span style={{
-                      padding: "6px 12px",
-                      borderRadius: 99,
-                      fontSize: 11,
-                      fontWeight: 800,
-                      background: row.status === "APPROVED" ? "#dcfce7" : row.status === "PENDING" ? "#fef3c7" : "#fee2e2",
-                      color: row.status === "APPROVED" ? "#16a34a" : row.status === "PENDING" ? "#b45309" : "#ef4444"
-                    }}>{row.statusLabel}</span>
-                  </td>
-                  <td style={{ padding: "16px 20px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
-                    <button
-                      onClick={() => {
-                        const matrixMatch = scoringMatrix.find(m => m.studentCode === row.studentCode);
-                        setSelectedTopic({ ...matrixMatch, ...row });
-                        setTopicDetailModalOpen(true);
+        {/* 2. Main Content Area */}
+        <section style={{ background: "white", borderRadius: 28, padding: 32, border: "1px solid #e2e8f0" }}>
+          {!hasActiveSelection ? (
+            /* LEVEL 1: COMMITTEES LIST */
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Hội đồng có hồ sơ Sau bảo vệ</h3>
+                  <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Chọn hội đồng để xem chi tiết và duyệt danh sách đề tài sửa đổi</p>
+                </div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <input
+                    placeholder="Tìm mã HĐ, phòng..."
+                    style={{ padding: "10px 16px", borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 14, width: 250 }}
+                    value={revisionKeyword}
+                    onChange={(e) => setRevisionKeyword(e.target.value)}
+                  />
+                  <select
+                    style={{
+                      padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
+                      backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
+                      backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", transition: "all 0.2s", outline: "none"
+                    }}
+                    value={revisionStatus}
+                    onChange={(e) => setRevisionStatus(e.target.value as any)}
+                  >
+                    <option value="all">Tất cả trạng thái</option>
+                    <option value="approved">Đã duyệt</option>
+                    <option value="pending">Chờ duyệt</option>
+                    <option value="rejected">Yêu cầu sửa lại</option>
+                  </select>
+                </div>
+              </div>
+
+              {revisionCommittees.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "80px 20px", border: "1px dashed #cbd5e1", borderRadius: 24 }}>
+                  <ClipboardList size={48} color="#94a3b8" style={{ marginBottom: 16 }} />
+                  <p style={{ color: "#64748b", fontWeight: 600, fontSize: 15 }}>Không tìm thấy hội đồng nào có hồ sơ hậu bảo vệ phù hợp bộ lọc.</p>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 24 }}>
+                  {revisionCommittees.map((group) => (
+                    <div
+                      key={group.committeeCode}
+                      onClick={() => setSelectedRevisionCommitteeCode(group.committeeCode)}
+                      style={{
+                        background: "white",
+                        borderRadius: 24,
+                        padding: 24,
+                        border: "1px solid #e2e8f0",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+                        cursor: "pointer",
+                        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        minHeight: 180,
+                        borderLeft: `6px solid ${DEEP_BLUE_PRIMARY}`
                       }}
-                      style={{ background: "white", border: "1px solid #e2e8f0", padding: "8px 12px", borderRadius: 10, cursor: "pointer", color: DEEP_BLUE_PRIMARY, fontWeight: 700 }}
-                    >Chi tiết</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "translateY(-4px)";
+                        e.currentTarget.style.boxShadow = "0 12px 20px rgba(30, 58, 95, 0.08)";
+                        e.currentTarget.style.borderColor = "#0284c7";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "translateY(0)";
+                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.03)";
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: "#0ea5e9", background: "#f0f9ff", padding: "4px 8px", borderRadius: 8 }}>
+                            {group.committeeCode}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                          {group.pendingCount > 0 && (
+                            <span style={{ background: "#fff7ed", color: "#ea580c", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, border: "1px solid #ffedd5" }}>
+                              {group.pendingCount} chờ duyệt
+                            </span>
+                          )}
+                          {group.approvedCount > 0 && (
+                            <span style={{ background: "#f0fdf4", color: "#16a34a", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 800, border: "1px solid #dcfce7" }}>
+                              {group.approvedCount} đã duyệt
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: 16 }}>
+                        <h4 style={{ margin: "0 0 8px 0", fontSize: 16, fontWeight: 800, color: "#0f172a" }}>{group.committeeName}</h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#64748b" }}>
+                            <CalendarDays size={14} /> Ngày: {group.defenseDate}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#64748b" }}>
+                            <MapPin size={14} /> Phòng: {group.room}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#475569", fontWeight: 600 }}>
+                            <Users size={14} /> Thư ký: {reformatLecturerName(group.secretary)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px dashed #f1f5f9" }}>
+                        <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>
+                          Tổng số: {group.totalCount} đề tài
+                        </span>
+                        <div style={{ color: DEEP_BLUE_PRIMARY, fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 4 }}>
+                          Xem chi tiết <ChevronRight size={14} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            /* LEVEL 2: DETAILED REVISIONS FOR SELECT COMMITTEE */
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
+                <div>
+                  <button
+                    onClick={() => setSelectedRevisionCommitteeCode(null)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#64748b",
+                      fontWeight: 700,
+                      fontSize: 14,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: 0,
+                      marginBottom: 8
+                    }}
+                  >
+                    <ArrowLeft size={16} /> Quay lại danh sách hội đồng
+                  </button>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>
+                    Hồ sơ Sau bảo vệ: {currentSelectedGroup?.committeeName} ({selectedRevisionCommitteeCode})
+                  </h3>
+                </div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <input
+                    placeholder="Mã SV, mã đề tài..."
+                    style={{ padding: "10px 16px", borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 14, width: 250 }}
+                    value={revisionKeyword}
+                    onChange={(e) => setRevisionKeyword(e.target.value)}
+                  />
+                  <select
+                    style={{
+                      padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
+                      backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
+                      backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", transition: "all 0.2s", outline: "none"
+                    }}
+                    value={revisionStatus}
+                    onChange={(e) => setRevisionStatus(e.target.value as any)}
+                  >
+                    <option value="all">Tất cả trạng thái</option>
+                    <option value="approved">Đã duyệt</option>
+                    <option value="pending">Chờ duyệt</option>
+                    <option value="rejected">Yêu cầu sửa lại</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
+                  <thead>
+                    <tr style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>
+                      <th style={{ padding: "12px 20px", textAlign: "left" }}>Sinh viên</th>
+                      <th style={{ padding: "12px 20px", textAlign: "left" }}>Đề tài</th>
+                      <th style={{ padding: "12px 20px", textAlign: "center" }}>Hạn chốt</th>
+                      <th style={{ padding: "12px 20px", textAlign: "center" }}>Trạng thái</th>
+                      <th style={{ padding: "12px 20px", textAlign: "right" }}>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {revisionRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: "center", padding: "48px", color: "#94a3b8" }}>
+                          Không có đề tài nào phù hợp bộ lọc.
+                        </td>
+                      </tr>
+                    ) : (
+                      revisionRows.map((row, i) => (
+                        <tr key={i} style={{ background: "#f8fafc" }}>
+                          <td style={{ padding: "16px 20px", borderRadius: "16px 0 0 16px" }}>
+                            <div style={{ fontWeight: 800, color: "#1e293b" }}>{row.studentName}</div>
+                            <div style={{ fontSize: 12, color: "#64748b" }}>{row.studentCode}</div>
+                          </td>
+                          <td style={{ padding: "16px 20px" }}>
+                            <div style={{ fontSize: 14, color: "#1e293b", fontWeight: 600 }}>{row.topicTitle}</div>
+                            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Mã đề tài: {row.topicCode}</div>
+                          </td>
+                          <td style={{ padding: "16px 20px", textAlign: "center" }}>
+                            <div style={{ fontSize: 13, color: "#475569" }}>{row.deadlineDate}</div>
+                          </td>
+                          <td style={{ padding: "16px 20px", textAlign: "center" }}>
+                            <span style={{
+                              padding: "6px 12px",
+                              borderRadius: 99,
+                              fontSize: 11,
+                              fontWeight: 800,
+                              background: row.status === "APPROVED" ? "#dcfce7" : row.status === "PENDING" ? "#fef3c7" : "#fee2e2",
+                              color: row.status === "APPROVED" ? "#16a34a" : row.status === "PENDING" ? "#b45309" : "#ef4444",
+                              whiteSpace: "nowrap"
+                            }}>{row.statusLabel}</span>
+                          </td>
+                          <td style={{ padding: "16px 20px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
+                            <button
+                              onClick={() => {
+                                const matrixMatch = scoringMatrix.find(m => m.studentCode === row.studentCode);
+                                setSelectedTopic({ ...matrixMatch, ...row });
+                                setTopicDetailModalOpen(true);
+                              }}
+                              style={{ background: "white", border: "1px solid #e2e8f0", padding: "8px 12px", borderRadius: 10, cursor: "pointer", color: DEEP_BLUE_PRIMARY, fontWeight: 700 }}
+                            >Chi tiết</button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
       </section>
-    </section>
-  );
+    );
+  };
 
   const renderBulkDocumentsTab = () => {
     const hasSelectedAll = bulkSelectedCommitteeIds.length === committeeOperationalRows.length;
@@ -5705,106 +6224,403 @@ const CommitteeOperationsManagement: React.FC = () => {
   };
 
   const renderSystemLogsTab = () => {
+    const sortedSystemLogs = [...systemLogs].sort((a, b) => {
+      const dateA = a.performedAt ? (a.performedAt.endsWith("Z") || a.performedAt.includes("+") || a.performedAt.includes("-") ? new Date(a.performedAt) : new Date(a.performedAt + "Z")) : new Date(0);
+      const dateB = b.performedAt ? (b.performedAt.endsWith("Z") || b.performedAt.includes("+") || b.performedAt.includes("-") ? new Date(b.performedAt) : new Date(b.performedAt + "Z")) : new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
     return (
-      <section style={{ display: "grid", gap: 24 }}>
+      <section style={{ display: "grid", gap: 24, animation: "fadeIn 0.3s ease" }}>
         {/* 1. Summary Header */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
-          <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Tổng số tác vụ</div>
-            <div style={{ fontSize: 32, fontWeight: 900, color: DEEP_BLUE_PRIMARY }}>{logsTotalCount}</div>
-            <p style={{ margin: "8px 0 0 0", fontSize: 13, color: "#64748b" }}>Ghi nhận hoạt động quan trọng trong hệ thống</p>
+          {/* Total Tasks Card */}
+          <section 
+            style={{ 
+              background: "white", 
+              borderRadius: 24, 
+              padding: 24, 
+              border: "1px solid #e2e8f0",
+              borderLeft: "6px solid #1e3a5f",
+              boxShadow: "0 4px 20px -2px rgba(15, 23, 42, 0.04)",
+              display: "flex",
+              alignItems: "center",
+              gap: 20,
+              transition: "transform 0.2s ease, box-shadow 0.2s ease",
+              cursor: "default"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-3px)";
+              e.currentTarget.style.boxShadow = "0 12px 24px -4px rgba(15, 23, 42, 0.08)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "none";
+              e.currentTarget.style.boxShadow = "0 4px 20px -2px rgba(15, 23, 42, 0.04)";
+            }}
+          >
+            <div style={{ 
+              width: 54, 
+              height: 54, 
+              borderRadius: 16, 
+              background: "#f0f4f8", 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center",
+              color: "#1e3a5f"
+            }}>
+              <Activity size={24} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tổng số tác vụ</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: "#1e3a5f", lineHeight: "1.2", margin: "4px 0" }}>{logsTotalCount}</div>
+              <p style={{ margin: 0, fontSize: 12, color: "#94a3b8" }}>Ghi nhận hoạt động quan trọng trong hệ thống</p>
+            </div>
           </section>
 
-          <section style={{ background: "white", borderRadius: 24, padding: 24, border: "1px solid #e2e8f0" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 12 }}>Trạng thái hoạt động</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 18, fontWeight: 800, color: "#16a34a", marginTop: 8 }}>
-              <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#16a34a", display: "inline-block" }} />
-              Đang hoạt động ổn định
+          {/* Active Status Card */}
+          <section 
+            style={{ 
+              background: "white", 
+              borderRadius: 24, 
+              padding: 24, 
+              border: "1px solid #e2e8f0",
+              borderLeft: "6px solid #10b981",
+              boxShadow: "0 4px 20px -2px rgba(15, 23, 42, 0.04)",
+              display: "flex",
+              alignItems: "center",
+              gap: 20,
+              transition: "transform 0.2s ease, box-shadow 0.2s ease",
+              cursor: "default"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-3px)";
+              e.currentTarget.style.boxShadow = "0 12px 24px -4px rgba(15, 23, 42, 0.08)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "none";
+              e.currentTarget.style.boxShadow = "0 4px 20px -2px rgba(15, 23, 42, 0.04)";
+            }}
+          >
+            <div style={{ 
+              width: 54, 
+              height: 54, 
+              borderRadius: 16, 
+              background: "#ecfdf5", 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center",
+              color: "#10b981"
+            }}>
+              <ShieldCheck size={24} />
             </div>
-            <p style={{ margin: "14px 0 0 0", fontSize: 13, color: "#64748b" }}>Tự động ghi nhận log kiểm toán thời gian thực</p>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Trạng thái hoạt động</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 18, fontWeight: 800, color: "#16a34a", margin: "8px 0" }}>
+                <span style={{ 
+                  width: 10, 
+                  height: 10, 
+                  borderRadius: "50%", 
+                  background: "#16a34a", 
+                  display: "inline-block",
+                  boxShadow: "0 0 8px #16a34a",
+                  animation: "pulse 2s infinite"
+                }} />
+                Đang hoạt động ổn định
+              </div>
+              <p style={{ margin: 0, fontSize: 12, color: "#94a3b8" }}>Tự động ghi nhận log kiểm toán thời gian thực</p>
+            </div>
           </section>
         </div>
 
         {/* 2. Log History Table Card */}
-        <section style={{ background: "white", borderRadius: 28, padding: 32, border: "1px solid #e2e8f0" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
+        <section style={{ 
+          background: "white", 
+          borderRadius: 28, 
+          padding: 32, 
+          border: "1px solid #e2e8f0",
+          boxShadow: "0 10px 30px -5px rgba(0,0,0,0.03), 0 5px 15px -3px rgba(0,0,0,0.02)"
+        }}>
+          {/* Header Controls */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28, flexWrap: "wrap", gap: 16 }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Lịch sử Hoạt động Hệ thống</h3>
-              <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Nhật ký các thao tác tạo/sửa hội đồng, công bố lịch, nhập/khóa điểm, duyệt hồ sơ hậu bảo vệ</p>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.02em" }}>Lịch sử Hoạt động Hệ thống</h3>
+              <p style={{ margin: "6px 0 0 0", fontSize: 13, color: "#64748b" }}>Nhật ký các thao tác tạo/sửa hội đồng, công bố lịch, nhập/khóa điểm, duyệt hồ sơ hậu bảo vệ</p>
             </div>
+            
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
               {/* Search */}
               <div style={{ position: "relative" }}>
-                <Search size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
                 <input
                   placeholder="Mã SV, mã đề tài, người dùng..."
-                  style={{ padding: "10px 16px 10px 38px", borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 14, width: 240, outline: "none" }}
+                  style={{ 
+                    padding: "11px 16px 11px 42px", 
+                    borderRadius: 14, 
+                    border: "1px solid #cbd5e1", 
+                    fontSize: 14, 
+                    width: 260, 
+                    outline: "none",
+                    background: "#f8fafc",
+                    transition: "all 0.2s ease"
+                  }}
                   value={logsSearch}
                   onChange={(e) => {
                     setLogsSearch(e.target.value);
                     setLogsPage(1);
                   }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#1e3a5f";
+                    e.target.style.background = "#ffffff";
+                    e.target.style.boxShadow = "0 0 0 3px rgba(30, 58, 95, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "#cbd5e1";
+                    e.target.style.background = "#f8fafc";
+                    e.target.style.boxShadow = "none";
+                  }}
                 />
               </div>
 
               {/* Module Filter */}
-              <select
-                style={{
-                  padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
-                  backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
-                  backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", outline: "none"
-                }}
-                value={logsModuleFilter}
-                onChange={(e) => {
-                  setLogsModuleFilter(e.target.value);
-                  setLogsPage(1);
-                }}
-              >
-                <option value="all">Tất cả Phân hệ</option>
-                <option value="Defense">Lịch & Đợt bảo vệ</option>
-                <option value="Committee">Quản lý Hội đồng</option>
-                <option value="Topic">Đề tài & Hồ sơ</option>
-              </select>
+              <div style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  onClick={() => setIsModuleMenuOpen(!isModuleMenuOpen)}
+                  style={{
+                    padding: "11px 38px 11px 16px", 
+                    borderRadius: 14, 
+                    border: isModuleMenuOpen ? "1px solid #1e3a5f" : "1px solid #cbd5e1", 
+                    fontSize: 14, 
+                    fontWeight: 700, 
+                    color: "#1e293b", 
+                    background: "linear-gradient(to bottom, #ffffff, #f8fafc)",
+                    display: "flex", 
+                    alignItems: "center", 
+                    gap: 10, 
+                    cursor: "pointer", 
+                    outline: "none", 
+                    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+                    transition: "all 0.2s ease"
+                  }}
+                  onMouseEnter={(e) => { if (!isModuleMenuOpen) e.currentTarget.style.borderColor = "#94a3b8"; }}
+                  onMouseLeave={(e) => { if (!isModuleMenuOpen) e.currentTarget.style.borderColor = "#cbd5e1"; }}
+                >
+                  <Filter size={14} color="#64748b" />
+                  <span>{
+                    logsModuleFilter === "all" ? "Tất cả Phân hệ" :
+                    logsModuleFilter === "Defense" ? "Lịch & Đợt bảo vệ" :
+                    logsModuleFilter === "Committee" ? "Quản lý Hội đồng" : "Đề tài & Hồ sơ"
+                  }</span>
+                  <ChevronDown size={16} color="#64748b" style={{ position: "absolute", right: 14, transform: isModuleMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                </button>
+                
+                {isModuleMenuOpen && (
+                  <>
+                    <div style={{ position: "fixed", inset: 0, zIndex: 999 }} onClick={() => setIsModuleMenuOpen(false)} />
+                    <div style={{
+                      position: "absolute", top: "100%", left: 0, marginTop: 8, 
+                      background: "rgba(255, 255, 255, 0.96)", 
+                      backdropFilter: "blur(12px)",
+                      borderRadius: 18,
+                      border: "1px solid #e2e8f0", 
+                      boxShadow: "0 20px 40px -10px rgba(15, 23, 42, 0.15), 0 10px 20px -5px rgba(15, 23, 42, 0.08)",
+                      padding: 8, display: "grid", gap: 4, minWidth: 220, zIndex: 1000, animation: "fadeIn 0.2s ease"
+                    }}>
+                      {[
+                        { value: "all", label: "Tất cả Phân hệ", color: "#64748b", icon: <Grid size={14} /> },
+                        { value: "Defense", label: "Lịch & Đợt bảo vệ", color: "#0284c7", icon: <CalendarDays size={14} /> },
+                        { value: "Committee", label: "Quản lý Hội đồng", color: "#6d28d9", icon: <Users size={14} /> },
+                        { value: "Topic", label: "Đề tài & Hồ sơ", color: "#d97706", icon: <BookOpen size={14} /> }
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            setLogsModuleFilter(opt.value);
+                            setLogsPage(1);
+                            setIsModuleMenuOpen(false);
+                          }}
+                          style={{
+                            padding: "10px 14px", 
+                            borderRadius: 12, 
+                            border: "none", 
+                            background: logsModuleFilter === opt.value ? `${DEEP_BLUE_PRIMARY}0e` : "transparent",
+                            color: logsModuleFilter === opt.value ? DEEP_BLUE_PRIMARY : "#334155", 
+                            fontSize: 13, 
+                            fontWeight: logsModuleFilter === opt.value ? 800 : 600,
+                            textAlign: "left", 
+                            cursor: "pointer", 
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            transition: "all 0.15s ease"
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = logsModuleFilter === opt.value ? `${DEEP_BLUE_PRIMARY}16` : "#f1f5f9"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = logsModuleFilter === opt.value ? `${DEEP_BLUE_PRIMARY}0e` : "transparent"; }}
+                        >
+                          <span style={{ color: opt.color, display: "inline-flex", alignItems: "center" }}>{opt.icon}</span>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
 
               {/* Action Filter */}
-              <select
-                style={{
-                  padding: "10px 36px 10px 16px", borderRadius: 14, border: "1px solid #e2e8f0", fontSize: 14, fontWeight: 700, color: "#1e293b", background: "white",
-                  backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E\")",
-                  backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "16px", appearance: "none", cursor: "pointer", outline: "none"
-                }}
-                value={logsActionFilter}
-                onChange={(e) => {
-                  setLogsActionFilter(e.target.value);
-                  setLogsPage(1);
-                }}
-              >
-                <option value="all">Tất cả Hành động</option>
-                <option value="CREATE">Tạo mới (CREATE)</option>
-                <option value="UPDATE">Cập nhật (UPDATE)</option>
-                <option value="PUBLISH">Công bố (PUBLISH)</option>
-                <option value="LOCK">Khóa điểm (LOCK)</option>
-                <option value="SUBMIT">Nhập điểm/Nộp (SUBMIT)</option>
-                <option value="APPROVE">Phê duyệt (APPROVE)</option>
-                <option value="REJECT">Từ chối (REJECT)</option>
-                <option value="OPEN_SESSION">Mở phiên (OPEN_SESSION)</option>
-                <option value="UNLOCK_SESSION">Mở chốt điểm (UNLOCK_SESSION)</option>
-                <option value="CLOSE_SESSION">Đóng phiên (CLOSE_SESSION)</option>
-              </select>
+              <div style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  onClick={() => setIsActionMenuOpen(!isActionMenuOpen)}
+                  style={{
+                    padding: "11px 38px 11px 16px", 
+                    borderRadius: 14, 
+                    border: isActionMenuOpen ? "1px solid #1e3a5f" : "1px solid #cbd5e1", 
+                    fontSize: 14, 
+                    fontWeight: 700, 
+                    color: "#1e293b", 
+                    background: "linear-gradient(to bottom, #ffffff, #f8fafc)",
+                    display: "flex", 
+                    alignItems: "center", 
+                    gap: 10, 
+                    cursor: "pointer", 
+                    outline: "none", 
+                    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+                    transition: "all 0.2s ease"
+                  }}
+                  onMouseEnter={(e) => { if (!isActionMenuOpen) e.currentTarget.style.borderColor = "#94a3b8"; }}
+                  onMouseLeave={(e) => { if (!isActionMenuOpen) e.currentTarget.style.borderColor = "#cbd5e1"; }}
+                >
+                  <Settings size={14} color="#64748b" />
+                  <span>{
+                    logsActionFilter === "all" ? "Tất cả Hành động" :
+                    logsActionFilter === "CREATE" ? "Tạo mới (CREATE)" :
+                    logsActionFilter === "UPDATE" ? "Cập nhật (UPDATE)" :
+                    logsActionFilter === "PUBLISH" ? "Công bố (PUBLISH)" :
+                    logsActionFilter === "LOCK" ? "Khóa điểm (LOCK)" :
+                    logsActionFilter === "SUBMIT" ? "Nhập điểm/Nộp (SUBMIT)" :
+                    logsActionFilter === "APPROVE" ? "Phê duyệt (APPROVE)" :
+                    logsActionFilter === "REJECT" ? "Từ chối (REJECT)" :
+                    logsActionFilter === "OPEN_SESSION" ? "Mở phiên (OPEN_SESSION)" :
+                    logsActionFilter === "UNLOCK_SESSION" ? "Mở chốt (UNLOCK_SESSION)" :
+                    logsActionFilter === "ENTER_ROOM" ? "Vào phòng (ENTER_ROOM)" :
+                    logsActionFilter === "LEAVE_ROOM" ? "Rời/Thoát phòng (LEAVE_ROOM)" : "Đóng phiên (CLOSE_SESSION)"
+                  }</span>
+                  <ChevronDown size={16} color="#64748b" style={{ position: "absolute", right: 14, transform: isActionMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                </button>
+                
+                {isActionMenuOpen && (
+                  <>
+                    <div style={{ position: "fixed", inset: 0, zIndex: 999 }} onClick={() => setIsActionMenuOpen(false)} />
+                    <div style={{
+                      position: "absolute", top: "100%", right: 0, marginTop: 8, 
+                      background: "rgba(255, 255, 255, 0.96)", 
+                      backdropFilter: "blur(12px)",
+                      borderRadius: 18,
+                      border: "1px solid #e2e8f0", 
+                      boxShadow: "0 20px 40px -10px rgba(15, 23, 42, 0.15), 0 10px 20px -5px rgba(15, 23, 42, 0.08)",
+                      padding: 8, display: "grid", gap: 4, minWidth: 260, zIndex: 1000, maxHeight: 320, overflowY: "auto", animation: "fadeIn 0.2s ease"
+                    }}>
+                      {[
+                        { value: "all", label: "Tất cả Hành động", color: "#64748b", icon: <Grid size={14} /> },
+                        { value: "CREATE", label: "Tạo mới (CREATE)", color: "#16a34a", icon: <Plus size={14} /> },
+                        { value: "UPDATE", label: "Cập nhật (UPDATE)", color: "#2563eb", icon: <Pencil size={14} /> },
+                        { value: "PUBLISH", label: "Công bố (PUBLISH)", color: "#4f46e5", icon: <Send size={14} /> },
+                        { value: "LOCK", label: "Khóa điểm (LOCK)", color: "#d97706", icon: <Lock size={14} /> },
+                        { value: "SUBMIT", label: "Nhập điểm/Nộp (SUBMIT)", color: "#2563eb", icon: <CheckSquare size={14} /> },
+                        { value: "APPROVE", label: "Phê duyệt (APPROVE)", color: "#10b981", icon: <CheckCircle2 size={14} /> },
+                        { value: "REJECT", label: "Từ chối (REJECT)", color: "#ef4444", icon: <X size={14} /> },
+                        { value: "OPEN_SESSION", label: "Mở phiên (OPEN_SESSION)", color: "#10b981", icon: <PlayCircle size={14} /> },
+                        { value: "UNLOCK_SESSION", label: "Mở chốt (UNLOCK_SESSION)", color: "#16a34a", icon: <Unlock size={14} /> },
+                        { value: "CLOSE_SESSION", label: "Đóng phiên (CLOSE)", color: "#64748b", icon: <X size={14} /> },
+                        { value: "ENTER_ROOM", label: "Vào phòng (ENTER_ROOM)", color: "#10b981", icon: <PlayCircle size={14} /> },
+                        { value: "LEAVE_ROOM", label: "Rời/Thoát phòng (LEAVE_ROOM)", color: "#ef4444", icon: <X size={14} /> }
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            setLogsActionFilter(opt.value);
+                            setLogsPage(1);
+                            setIsActionMenuOpen(false);
+                          }}
+                          style={{
+                            padding: "10px 14px", 
+                            borderRadius: 12, 
+                            border: "none", 
+                            background: logsActionFilter === opt.value ? `${DEEP_BLUE_PRIMARY}0e` : "transparent",
+                            color: logsActionFilter === opt.value ? DEEP_BLUE_PRIMARY : "#334155", 
+                            fontSize: 13, 
+                            fontWeight: logsActionFilter === opt.value ? 800 : 600,
+                            textAlign: "left", 
+                            cursor: "pointer", 
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            transition: "all 0.15s ease"
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = logsActionFilter === opt.value ? `${DEEP_BLUE_PRIMARY}16` : "#f1f5f9"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = logsActionFilter === opt.value ? `${DEEP_BLUE_PRIMARY}0e` : "transparent"; }}
+                        >
+                          <span style={{ color: opt.color, display: "inline-flex", alignItems: "center" }}>{opt.icon}</span>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
 
               {/* Refresh Button */}
               <button
                 onClick={() => fetchSystemLogs()}
                 disabled={logsLoading}
-                style={{ padding: "10px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", color: "#64748b" }}
+                style={{ 
+                  padding: "11px", 
+                  borderRadius: 14, 
+                  border: "1px solid #cbd5e1", 
+                  background: "white", 
+                  cursor: "pointer", 
+                  color: "#64748b",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#94a3b8"; e.currentTarget.style.background = "#f8fafc"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#cbd5e1"; e.currentTarget.style.background = "white"; }}
               >
                 <RefreshCw size={18} className={logsLoading ? "animate-spin" : ""} />
               </button>
+
               {/* Export Button */}
               <button
                 onClick={() => setLogExportModalOpen(true)}
                 disabled={logsLoading}
-                style={{ marginLeft: 8, padding: "10px 14px", borderRadius: 12, border: "1px solid #1e3a5f", background: "#1e3a5f", color: "white", cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}
+                style={{ 
+                  marginLeft: 4, 
+                  padding: "11px 18px", 
+                  borderRadius: 14, 
+                  border: "none", 
+                  background: `linear-gradient(135deg, ${DEEP_BLUE_PRIMARY} 0%, #2b4c7e 100%)`, 
+                  color: "white", 
+                  cursor: "pointer", 
+                  fontWeight: 800, 
+                  fontSize: 14,
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: 8,
+                  boxShadow: "0 4px 12px rgba(30, 58, 95, 0.18)",
+                  transition: "all 0.2s ease"
+                }}
+                onMouseEnter={(e) => { 
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.boxShadow = "0 6px 16px rgba(30, 58, 95, 0.25)";
+                }}
+                onMouseLeave={(e) => { 
+                  e.currentTarget.style.transform = "none";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(30, 58, 95, 0.18)";
+                }}
               >
                 <Download size={16} /> Tải xuống
               </button>
@@ -5813,9 +6629,9 @@ const CommitteeOperationsManagement: React.FC = () => {
 
           {/* Table */}
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
+            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 10px" }}>
               <thead>
-                <tr style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>
+                <tr style={{ color: "#475569", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   <th style={{ padding: "12px 20px", textAlign: "left" }}>Thời gian</th>
                   <th style={{ padding: "12px 20px", textAlign: "left" }}>Tài khoản</th>
                   <th style={{ padding: "12px 20px", textAlign: "left" }}>Phân hệ</th>
@@ -5828,82 +6644,157 @@ const CommitteeOperationsManagement: React.FC = () => {
               <tbody>
                 {logsLoading ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
-                      <Loader2 size={32} className="animate-spin" style={{ margin: "0 auto 12px auto", display: "block" }} />
-                      Đang tải dữ liệu lịch sử nhật ký...
+                    <td colSpan={7} style={{ textAlign: "center", padding: "60px", color: "#64748b" }}>
+                      <Loader2 size={36} className="animate-spin" style={{ margin: "0 auto 16px auto", display: "block", color: DEEP_BLUE_PRIMARY }} />
+                      <span style={{ fontWeight: 600, fontSize: 14 }}>Đang tải dữ liệu lịch sử nhật ký...</span>
                     </td>
                   </tr>
-                ) : systemLogs.length === 0 ? (
+                ) : sortedSystemLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "#64748b", fontStyle: "italic" }}>
+                    <td colSpan={7} style={{ textAlign: "center", padding: "60px", color: "#64748b", fontStyle: "italic", background: "#f8fafc", borderRadius: 20 }}>
+                      <Info size={32} style={{ margin: "0 auto 12px auto", display: "block", color: "#94a3b8" }} />
                       Không tìm thấy bản ghi nhật ký hoạt động nào.
                     </td>
                   </tr>
                 ) : (
-                  systemLogs.map((log) => {
+                  sortedSystemLogs.map((log) => {
                     const isSuccess = String(log.status || "").toUpperCase() === "SUCCESS";
+                    const leftBorderColor = 
+                      log.module === "Defense" ? "#0284c7" : 
+                      log.module === "Committee" ? "#6d28d9" : "#d97706";
+
                     return (
                       <tr
                         key={log.logID}
-                        style={{ background: "#f8fafc", transition: "all 0.2s", borderRadius: 16 }}
+                        style={{ 
+                          background: "#f8fafc", 
+                          transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", 
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#ffffff";
+                          e.currentTarget.style.boxShadow = "0 4px 16px rgba(15, 23, 42, 0.05)";
+                          e.currentTarget.style.transform = "translateY(-1px)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "#f8fafc";
+                          e.currentTarget.style.boxShadow = "none";
+                          e.currentTarget.style.transform = "none";
+                        }}
                       >
-                        <td style={{ padding: "16px 20px", borderRadius: "16px 0 0 16px", whiteSpace: "nowrap", fontSize: 13, fontWeight: 600 }}>
-                          {new Date(log.performedAt).toLocaleString("vi-VN")}
+                        <td style={{ 
+                          padding: "16px 20px", 
+                          borderRadius: "16px 0 0 16px", 
+                          whiteSpace: "nowrap", 
+                          fontSize: 13, 
+                          fontWeight: 700,
+                          color: "#334155",
+                          borderLeft: `5px solid ${leftBorderColor}`
+                        }}>
+                          {formatLogDateTime(log.performedAt)}
                         </td>
                         <td style={{ padding: "16px 20px" }}>
-                          <div style={{ fontWeight: 700, color: "#1e293b" }}>{log.userCode || "Hệ thống"}</div>
-                          <div style={{ fontSize: 11, color: "#94a3b8" }}>{log.userRole || "-"}</div>
+                          <div style={{ fontWeight: 800, color: "#1e293b", fontSize: 14 }}>{log.userCode || "Hệ thống"}</div>
+                          <span style={{ 
+                            fontSize: 10, 
+                            fontWeight: 700,
+                            color: "#64748b",
+                            background: "#e2e8f0",
+                            padding: "2px 6px",
+                            borderRadius: 6,
+                            marginTop: 4,
+                            display: "inline-block"
+                          }}>{log.userRole || "-"}</span>
                         </td>
                         <td style={{ padding: "16px 20px" }}>
                           <span style={{
-                            padding: "4px 8px", borderRadius: 8, fontSize: 11, fontWeight: 700,
-                            background: log.module === "Defense" ? "#e0f2fe" : log.module === "Committee" ? "#f5f3ff" : "#f1f5f9",
-                            color: log.module === "Defense" ? "#0369a1" : log.module === "Committee" ? "#6d28d9" : "#475569"
+                            padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800,
+                            background: log.module === "Defense" ? "#e0f2fe" : log.module === "Committee" ? "#f5f3ff" : "#fef3c7",
+                            color: log.module === "Defense" ? "#0369a1" : log.module === "Committee" ? "#6d28d9" : "#b45309",
+                            border: `1px solid ${log.module === "Defense" ? "#bae6fd" : log.module === "Committee" ? "#ddd6fe" : "#fde68a"}`
                           }}>{log.module || "Hệ thống"}</span>
                         </td>
                         <td style={{ padding: "16px 20px" }}>
                           <span style={{
-                            padding: "4px 8px", borderRadius: 8, fontSize: 11, fontWeight: 800,
+                            padding: "5px 10px", borderRadius: 8, fontSize: 10, fontWeight: 900,
                             background:
                               log.actionType === "CREATE" ? "#dcfce7" :
-                                log.actionType === "UPDATE" ? "#eff6ff" :
-                                  log.actionType === "DELETE" ? "#fee2e2" :
-                                    log.actionType === "LOCK" ? "#fef3c7" :
-                                      log.actionType === "PUBLISH" ? "#e0e7ff" :
-                                        log.actionType === "APPROVE" ? "#d1fae5" :
-                                          log.actionType === "REJECT" ? "#ffe4e6" :
-                                            log.actionType === "SUBMIT" ? "#dbeafe" :
-                                              log.actionType === "OPEN_SESSION" ? "#ecfdf5" :
-                                                log.actionType === "UNLOCK_SESSION" ? "#f0fdf4" :
-                                                  log.actionType === "CLOSE_SESSION" ? "#fef9c3" : "#f1f5f9",
+                              log.actionType === "UPDATE" ? "#eff6ff" :
+                              log.actionType === "DELETE" ? "#fee2e2" :
+                              log.actionType === "LOCK" ? "#fef3c7" :
+                              log.actionType === "PUBLISH" ? "#e0e7ff" :
+                              log.actionType === "APPROVE" ? "#d1fae5" :
+                              log.actionType === "REJECT" ? "#ffe4e6" :
+                              log.actionType === "SUBMIT" ? "#dbeafe" :
+                              log.actionType === "OPEN_SESSION" ? "#ecfdf5" :
+                              log.actionType === "UNLOCK_SESSION" ? "#f0fdf4" :
+                              log.actionType === "CLOSE_SESSION" ? "#fef9c3" :
+                              log.actionType === "ENTER_ROOM" ? "#dcfce7" :
+                              log.actionType === "LEAVE_ROOM" ? "#fee2e2" : "#f1f5f9",
                             color:
                               log.actionType === "CREATE" ? "#15803d" :
-                                log.actionType === "UPDATE" ? "#1d4ed8" :
-                                  log.actionType === "DELETE" ? "#991b1b" :
-                                    log.actionType === "LOCK" ? "#b45309" :
-                                      log.actionType === "PUBLISH" ? "#4338ca" :
-                                        log.actionType === "APPROVE" ? "#047857" :
-                                          log.actionType === "REJECT" ? "#be123c" :
-                                            log.actionType === "SUBMIT" ? "#1e40af" :
-                                              log.actionType === "OPEN_SESSION" ? "#059669" :
-                                                log.actionType === "UNLOCK_SESSION" ? "#15803d" :
-                                                  log.actionType === "CLOSE_SESSION" ? "#a16207" : "#475569"
+                              log.actionType === "UPDATE" ? "#1d4ed8" :
+                              log.actionType === "DELETE" ? "#991b1b" :
+                              log.actionType === "LOCK" ? "#b45309" :
+                              log.actionType === "PUBLISH" ? "#4338ca" :
+                              log.actionType === "APPROVE" ? "#047857" :
+                              log.actionType === "REJECT" ? "#be123c" :
+                              log.actionType === "SUBMIT" ? "#1e40af" :
+                              log.actionType === "OPEN_SESSION" ? "#059669" :
+                              log.actionType === "UNLOCK_SESSION" ? "#15803d" :
+                              log.actionType === "CLOSE_SESSION" ? "#a16207" :
+                              log.actionType === "ENTER_ROOM" ? "#15803d" :
+                              log.actionType === "LEAVE_ROOM" ? "#be123c" : "#475569"
                           }}>{log.actionType}</span>
                         </td>
                         <td style={{ padding: "16px 20px", fontSize: 13, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          <span title={log.actionDescription}>{log.actionDescription || "-"}</span>
+                          <span title={log.actionDescription} style={{ color: "#475569", fontWeight: 500 }}>{log.actionDescription || "-"}</span>
                         </td>
                         <td style={{ padding: "16px 20px", textAlign: "center" }}>
                           <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 6,
                             padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800,
-                            background: isSuccess ? "#dcfce7" : "#fee2e2",
-                            color: isSuccess ? "#16a34a" : "#ef4444"
-                          }}>{isSuccess ? "Thành công" : "Lỗi"}</span>
+                            background: isSuccess ? "#ecfdf5" : "#fef2f2",
+                            color: isSuccess ? "#047857" : "#b91c1c",
+                            border: `1px solid ${isSuccess ? "#a7f3d0" : "#fecaca"}`
+                          }}>
+                            <span style={{ 
+                              width: 6, 
+                              height: 6, 
+                              borderRadius: "50%", 
+                              background: isSuccess ? "#10b981" : "#ef4444", 
+                              display: "inline-block", 
+                              boxShadow: isSuccess ? "0 0 6px #10b981" : "0 0 6px #ef4444" 
+                            }} />
+                            {isSuccess ? "Thành công" : "Lỗi"}
+                          </span>
                         </td>
                         <td style={{ padding: "16px 20px", textAlign: "right", borderRadius: "0 16px 16px 0" }}>
                           <button
                             onClick={() => setSelectedLogDetail(log)}
-                            style={{ background: "white", border: "1px solid #e2e8f0", padding: "8px", borderRadius: 10, cursor: "pointer", color: DEEP_BLUE_PRIMARY, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                            style={{ 
+                              background: "#ffffff", 
+                              border: "1px solid #e2e8f0", 
+                              padding: "8px", 
+                              borderRadius: 10, 
+                              cursor: "pointer", 
+                              color: DEEP_BLUE_PRIMARY, 
+                              display: "inline-flex", 
+                              alignItems: "center", 
+                              justifyContent: "center",
+                              transition: "all 0.2s ease"
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = DEEP_BLUE_PRIMARY;
+                              e.currentTarget.style.color = "#ffffff";
+                              e.currentTarget.style.borderColor = DEEP_BLUE_PRIMARY;
+                              e.currentTarget.style.boxShadow = "0 4px 10px rgba(30, 58, 95, 0.25)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = "#ffffff";
+                              e.currentTarget.style.color = DEEP_BLUE_PRIMARY;
+                              e.currentTarget.style.borderColor = "#e2e8f0";
+                              e.currentTarget.style.boxShadow = "none";
+                            }}
                             title="Xem chi tiết"
                           >
                             <Eye size={18} />
@@ -5919,20 +6810,46 @@ const CommitteeOperationsManagement: React.FC = () => {
 
           {/* Pagination */}
           {logsTotalCount > 0 && (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, padding: "0 8px" }}>
-              <div style={{ fontSize: 14, color: "#64748b" }}>
-                Hiển thị {(logsPage - 1) * logsPageSize + 1} - {Math.min(logsPage * logsPageSize, logsTotalCount)} trên tổng số {logsTotalCount} kết quả
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, padding: "12px 8px 0 8px", borderTop: "1px solid #f1f5f9" }}>
+              <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+                Hiển thị <span style={{ color: "#0f172a", fontWeight: 700 }}>{(logsPage - 1) * logsPageSize + 1}</span> - <span style={{ color: "#0f172a", fontWeight: 700 }}>{Math.min(logsPage * logsPageSize, logsTotalCount)}</span> trên tổng số <span style={{ color: DEEP_BLUE_PRIMARY, fontWeight: 800 }}>{logsTotalCount}</span> kết quả
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button
                   disabled={logsPage === 1}
                   onClick={() => setLogsPage(p => Math.max(1, p - 1))}
-                  style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", fontWeight: 700, cursor: logsPage === 1 ? "not-allowed" : "pointer", opacity: logsPage === 1 ? 0.5 : 1 }}
+                  style={{ 
+                    padding: "8px 16px", 
+                    borderRadius: 10, 
+                    border: "1px solid #cbd5e1", 
+                    background: "white", 
+                    fontWeight: 700, 
+                    fontSize: 13,
+                    color: "#475569",
+                    cursor: logsPage === 1 ? "not-allowed" : "pointer", 
+                    opacity: logsPage === 1 ? 0.5 : 1,
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => { if (logsPage !== 1) { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.borderColor = "#94a3b8"; } }}
+                  onMouseLeave={(e) => { if (logsPage !== 1) { e.currentTarget.style.background = "white"; e.currentTarget.style.borderColor = "#cbd5e1"; } }}
                 >Trước</button>
                 <button
                   disabled={logsPage * logsPageSize >= logsTotalCount}
                   onClick={() => setLogsPage(p => p + 1)}
-                  style={{ padding: "10px 20px", borderRadius: 12, border: "1px solid #e2e8f0", background: "white", fontWeight: 700, cursor: logsPage * logsPageSize >= logsTotalCount ? "not-allowed" : "pointer", opacity: logsPage * logsPageSize >= logsTotalCount ? 0.5 : 1 }}
+                  style={{ 
+                    padding: "8px 16px", 
+                    borderRadius: 10, 
+                    border: "1px solid #cbd5e1", 
+                    background: "white", 
+                    fontWeight: 700, 
+                    fontSize: 13,
+                    color: "#475569",
+                    cursor: logsPage * logsPageSize >= logsTotalCount ? "not-allowed" : "pointer", 
+                    opacity: logsPage * logsPageSize >= logsTotalCount ? 0.5 : 1,
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => { if (logsPage * logsPageSize < logsTotalCount) { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.borderColor = "#94a3b8"; } }}
+                  onMouseLeave={(e) => { if (logsPage * logsPageSize < logsTotalCount) { e.currentTarget.style.background = "white"; e.currentTarget.style.borderColor = "#cbd5e1"; } }}
                 >Tiếp theo</button>
               </div>
             </div>
@@ -5943,89 +6860,153 @@ const CommitteeOperationsManagement: React.FC = () => {
         {selectedLogDetail && (
           <div style={{
             position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-            background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(8px)",
-            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
-            animation: "fadeIn 0.2s ease"
+            background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(8px)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000,
+            animation: "fadeIn 0.25s ease"
           }}>
             <div style={{
-              background: "white", borderRadius: 24, width: "100%", maxWidth: 640,
-              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", overflow: "hidden",
-              border: "1px solid #e2e8f0"
+              background: "white", borderRadius: 24, width: "100%", maxWidth: 680,
+              boxShadow: "0 30px 60px -15px rgba(15, 23, 42, 0.3)", overflow: "hidden",
+              border: "1px solid #e2e8f0",
+              animation: "slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)"
             }}>
               {/* Modal Header */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "24px 32px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between", 
+                alignItems: "center", 
+                padding: "24px 32px", 
+                borderBottom: "1px solid #f1f5f9", 
+                background: "linear-gradient(to right, #f8fafc, #ffffff)" 
+              }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#0f172a" }}>Chi tiết Nhật ký Hoạt động</h3>
-                  <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>Log ID: #{selectedLogDetail.logID}</p>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.01em" }}>Chi tiết Nhật ký Hoạt động</h3>
+                  <p style={{ margin: "4px 0 0 0", fontSize: 12, color: "#64748b", fontFamily: "monospace", fontWeight: 600 }}>Log ID: #{selectedLogDetail.logID}</p>
                 </div>
                 <button
                   onClick={() => setSelectedLogDetail(null)}
-                  style={{ background: "#e2e8f0", border: "none", width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569" }}
+                  style={{ 
+                    background: "#f1f5f9", 
+                    border: "none", 
+                    width: 36, 
+                    height: 36, 
+                    borderRadius: "50%", 
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: "center", 
+                    cursor: "pointer", 
+                    color: "#475569",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#e2e8f0"; e.currentTarget.style.color = "#0f172a"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = "#475569"; }}
                 >
                   <X size={18} />
                 </button>
               </div>
 
               {/* Modal Content */}
-              <div style={{ padding: 32, display: "grid", gap: 16, maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: 16, fontSize: 14 }}>
-                  <div style={{ fontWeight: 700, color: "#64748b" }}>Thời gian:</div>
-                  <div style={{ color: "#0f172a" }}>{new Date(selectedLogDetail.performedAt).toLocaleString("vi-VN")}</div>
+              <div style={{ padding: 32, display: "grid", gap: 20, maxHeight: "calc(100vh - 220px)", overflowY: "auto" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "170px 1fr", gap: "16px 20px", fontSize: 14, alignItems: "center" }}>
+                  <div style={{ fontWeight: 800, color: "#64748b" }}>Thời gian:</div>
+                  <div style={{ color: "#0f172a", fontWeight: 600 }}>{formatLogDateTime(selectedLogDetail.performedAt)}</div>
 
-                  <div style={{ fontWeight: 700, color: "#64748b" }}>Tài khoản:</div>
-                  <div style={{ color: "#0f172a", fontWeight: 600 }}>{selectedLogDetail.userCode || "Hệ thống"} ({selectedLogDetail.userRole || "-"})</div>
-
-                  <div style={{ fontWeight: 700, color: "#64748b" }}>IP Address / Device:</div>
-                  <div style={{ color: "#0f172a" }}>{selectedLogDetail.ipAddress || "-"} <span style={{ fontSize: 12, color: "#64748b" }}>({selectedLogDetail.deviceInfo || "-"})</span></div>
-
-                  <div style={{ fontWeight: 700, color: "#64748b" }}>Phân hệ & Thao tác:</div>
+                  <div style={{ fontWeight: 800, color: "#64748b" }}>Tài khoản thực hiện:</div>
                   <div style={{ color: "#0f172a" }}>
-                    <span style={{ padding: "2px 6px", borderRadius: 4, background: "#f1f5f9", marginRight: 8, fontSize: 12, fontWeight: 700 }}>{selectedLogDetail.module}</span>
-                    <span style={{ padding: "2px 6px", borderRadius: 4, background: "#eff6ff", color: "#1d4ed8", fontSize: 12, fontWeight: 700 }}>{selectedLogDetail.actionType}</span>
+                    <span style={{ fontWeight: 800, color: "#1e3a5f" }}>{selectedLogDetail.userCode || "Hệ thống"}</span>
+                    <span style={{ 
+                      fontSize: 11, 
+                      fontWeight: 700, 
+                      color: "#475569", 
+                      background: "#e2e8f0", 
+                      padding: "2px 8px", 
+                      borderRadius: 6,
+                      marginLeft: 8
+                    }}>{selectedLogDetail.userRole || "-"}</span>
                   </div>
 
-                  <div style={{ fontWeight: 700, color: "#64748b" }}>Mô tả chi tiết:</div>
-                  <div style={{ color: "#0f172a", lineHeight: 1.5 }}>{selectedLogDetail.actionDescription || "-"}</div>
+                  <div style={{ fontWeight: 800, color: "#64748b" }}>IP & Thiết bị:</div>
+                  <div style={{ color: "#334155", fontSize: 13, fontWeight: 500 }}>
+                    <code style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontFamily: "monospace", fontWeight: 700 }}>{selectedLogDetail.ipAddress || "-"}</code> 
+                    <span style={{ color: "#64748b", marginLeft: 8 }}>({selectedLogDetail.deviceInfo || "-"})</span>
+                  </div>
 
-                  <div style={{ fontWeight: 700, color: "#64748b" }}>Trạng thái:</div>
+                  <div style={{ fontWeight: 800, color: "#64748b" }}>Phân hệ & Thao tác:</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <span style={{ padding: "3px 8px", borderRadius: 6, background: "#f1f5f9", fontSize: 12, fontWeight: 800, color: "#475569" }}>{selectedLogDetail.module}</span>
+                    <span style={{ padding: "3px 8px", borderRadius: 6, background: "#eff6ff", color: "#1d4ed8", fontSize: 12, fontWeight: 800 }}>{selectedLogDetail.actionType}</span>
+                  </div>
+
+                  <div style={{ fontWeight: 800, color: "#64748b" }}>Mô tả chi tiết:</div>
+                  <div style={{ color: "#0f172a", lineHeight: 1.5, fontWeight: 600 }}>{selectedLogDetail.actionDescription || "-"}</div>
+
+                  <div style={{ fontWeight: 800, color: "#64748b" }}>Trạng thái:</div>
                   <div>
                     <span style={{
-                      padding: "4px 8px", borderRadius: 99, fontSize: 12, fontWeight: 800,
-                      background: String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "#dcfce7" : "#fee2e2",
-                      color: String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "#16a34a" : "#ef4444"
-                    }}>{String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "Thành công" : "Thất bại"}</span>
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "4px 10px", borderRadius: 99, fontSize: 12, fontWeight: 800,
+                      background: String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "#ecfdf5" : "#fef2f2",
+                      color: String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "#047857" : "#b91c1c",
+                      border: `1px solid ${String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "#a7f3d0" : "#fecaca"}`
+                    }}>
+                      <span style={{ 
+                        width: 6, 
+                        height: 6, 
+                        borderRadius: "50%", 
+                        background: String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "#10b981" : "#ef4444", 
+                        display: "inline-block",
+                        boxShadow: String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "0 0 6px #10b981" : "0 0 6px #ef4444" 
+                      }} />
+                      {String(selectedLogDetail.status || "").toUpperCase() === "SUCCESS" ? "Thành công" : "Thất bại"}
+                    </span>
                   </div>
 
                   {selectedLogDetail.relatedRecordCode && (
                     <>
-                      <div style={{ fontWeight: 700, color: "#64748b" }}>Đề tài/Bản ghi liên quan:</div>
-                      <div style={{ color: "#0f172a", fontWeight: 600 }}>{selectedLogDetail.relatedRecordCode}</div>
+                      <div style={{ fontWeight: 800, color: "#64748b" }}>Bản ghi liên quan:</div>
+                      <div style={{ color: "#0f172a", fontWeight: 700 }}>
+                        <code style={{ background: "#fffbeb", color: "#b45309", border: "1px solid #fde68a", padding: "2px 6px", borderRadius: 6, fontFamily: "monospace" }}>{selectedLogDetail.relatedRecordCode}</code>
+                      </div>
                     </>
                   )}
 
                   {selectedLogDetail.comment && (
                     <>
-                      <div style={{ fontWeight: 700, color: "#64748b" }}>Ghi chú:</div>
-                      <div style={{ color: "#0f172a", fontStyle: "italic" }}>{selectedLogDetail.comment}</div>
+                      <div style={{ fontWeight: 800, color: "#64748b" }}>Ghi chú / Lý do:</div>
+                      <div style={{ color: "#475569", fontStyle: "italic", lineHeight: 1.5 }}>{selectedLogDetail.comment}</div>
                     </>
                   )}
                 </div>
 
                 {/* Old vs New Values */}
                 {(selectedLogDetail.oldValue || selectedLogDetail.newValue) && (
-                  <div style={{ borderTop: "1px solid #f1f5f9", marginTop: 16, paddingTop: 16 }}>
-                    <div style={{ fontWeight: 700, color: "#64748b", marginBottom: 12 }}>Thay đổi dữ liệu chi tiết:</div>
+                  <div style={{ borderTop: "1px solid #f1f5f9", marginTop: 8, paddingTop: 20 }}>
+                    <div style={{ fontWeight: 800, color: "#475569", marginBottom: 12, fontSize: 14 }}>Thay đổi dữ liệu chi tiết:</div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                       <div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 6 }}>Dữ liệu cũ:</div>
-                        <pre style={{ margin: 0, padding: 12, background: "#f8fafc", borderRadius: 8, fontSize: 12, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 150, border: "1px solid #e2e8f0" }}>
-                          {selectedLogDetail.oldValue || "(Không có)"}
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "#ef4444", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444" }} /> Dữ liệu trước thay đổi:
+                        </div>
+                        <pre style={{ 
+                          margin: 0, padding: 14, background: "#fef2f2", color: "#991b1b",
+                          borderRadius: 12, fontSize: 12, overflowX: "auto", whiteSpace: "pre-wrap", 
+                          wordBreak: "break-all", maxHeight: 180, border: "1px solid #fee2e2",
+                          fontFamily: "monospace", fontWeight: 500, lineHeight: 1.4
+                        }}>
+                          {selectedLogDetail.oldValue || "(Trống / Không có)"}
                         </pre>
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", marginBottom: 6 }}>Dữ liệu mới:</div>
-                        <pre style={{ margin: 0, padding: 12, background: "#f8fafc", borderRadius: 8, fontSize: 12, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 150, border: "1px solid #e2e8f0" }}>
-                          {selectedLogDetail.newValue || "(Không có)"}
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "#16a34a", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a" }} /> Dữ liệu sau thay đổi:
+                        </div>
+                        <pre style={{ 
+                          margin: 0, padding: 14, background: "#f0fdf4", color: "#15803d",
+                          borderRadius: 12, fontSize: 12, overflowX: "auto", whiteSpace: "pre-wrap", 
+                          wordBreak: "break-all", maxHeight: 180, border: "1px solid #dcfce7",
+                          fontFamily: "monospace", fontWeight: 500, lineHeight: 1.4
+                        }}>
+                          {selectedLogDetail.newValue || "(Trống / Không có)"}
                         </pre>
                       </div>
                     </div>
@@ -6037,7 +7018,18 @@ const CommitteeOperationsManagement: React.FC = () => {
               <div style={{ display: "flex", justifyContent: "flex-end", padding: "16px 32px", borderTop: "1px solid #f1f5f9", background: "#f8fafc" }}>
                 <button
                   onClick={() => setSelectedLogDetail(null)}
-                  style={{ padding: "10px 20px", borderRadius: 10, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", fontWeight: 700, color: "#475569" }}
+                  style={{ 
+                    padding: "10px 22px", 
+                    borderRadius: 12, 
+                    border: "1px solid #cbd5e1", 
+                    background: "white", 
+                    cursor: "pointer", 
+                    fontWeight: 700, 
+                    color: "#475569",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.borderColor = "#94a3b8"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "white"; e.currentTarget.style.borderColor = "#cbd5e1"; }}
                 >Đóng</button>
               </div>
             </div>
@@ -6050,7 +7042,194 @@ const CommitteeOperationsManagement: React.FC = () => {
   const renderExportPreviewModal = () => {
     if (!exportPreviewModalOpen) return null;
 
-    // Get a sample of fields for preview (e.g., first 5 rows)
+    const getSession = (row: ScoringMatrixRow) => {
+      if (row.sessionCode) {
+        const s = row.sessionCode.toUpperCase();
+        if (s === "MORNING" || s === "SÁNG" || s === "SESSION_1" || s === "1") return "Sáng";
+        if (s === "AFTERNOON" || s === "CHIỀU" || s === "SESSION_2" || s === "2") return "Chiều";
+      }
+      if (row.startTime) {
+        const hour = parseInt(row.startTime.split(":")[0], 10);
+        if (!isNaN(hour)) {
+          return hour < 12 ? "Sáng" : "Chiều";
+        }
+      }
+      if (row.scheduledAt) {
+        const date = new Date(row.scheduledAt);
+        if (!isNaN(date.getTime())) {
+          return date.getHours() < 12 ? "Sáng" : "Chiều";
+        }
+      }
+      return "Sáng";
+    };
+
+    const getFormattedDate = (row: ScoringMatrixRow) => {
+      if (row.scheduledAt) {
+        const date = new Date(row.scheduledAt);
+        if (!isNaN(date.getTime())) {
+          const day = String(date.getDate()).padStart(2, "0");
+          const month = String(date.getMonth() + 1).padStart(2, "0");
+          return `${day}/${month}`;
+        }
+      }
+      return "-";
+    };
+
+    const getCommitteeColor = (code: string) => {
+      const normalized = code.toUpperCase();
+      if (normalized.includes("-Y")) {
+        return { bg: "#E67E22", fg: "white" };
+      }
+      if (normalized.includes("-DL")) {
+        return { bg: "#7A93A6", fg: "white" };
+      }
+      if (normalized.includes("-LOG")) {
+        return { bg: "#6E6E6E", fg: "white" };
+      }
+      return { bg: "#FFFFFF", fg: "#1e293b" };
+    };
+
+    if (exportTemplateMode === "room-matrix") {
+      const roomsSet = new Set<string>();
+      const datesSet = new Set<string>();
+
+      analyticsTopics.forEach((row) => {
+        if (row.room && row.room.trim() && row.room.trim() !== "-") {
+          roomsSet.add(row.room.trim());
+        }
+        const d = getFormattedDate(row);
+        if (d !== "-") {
+          datesSet.add(d);
+        }
+      });
+
+      const rooms = Array.from(roomsSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const dates = Array.from(datesSet).sort((a, b) => {
+        const [dayA, monthA] = a.split("/").map(Number);
+        const [dayB, monthB] = b.split("/").map(Number);
+        if (monthA !== monthB) return monthA - monthB;
+        return dayA - dayB;
+      });
+
+      const cellMap = new Map<string, string>();
+      analyticsTopics.forEach((row) => {
+        if (row.room && row.committeeCode) {
+          const d = getFormattedDate(row);
+          const s = getSession(row);
+          const key = `${row.room.trim()}|${d}|${s}`;
+          cellMap.set(key, row.committeeCode);
+        }
+      });
+
+      return (
+        <ModalOverlay onClose={() => setExportPreviewModalOpen(false)} width={1200}>
+          <div style={{ padding: 32 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#0f172a" }}>Xem trước bảng phân phòng bảo vệ</h2>
+                <p style={{ margin: "4px 0 0 0", fontSize: 14, color: "#64748b" }}>Cấu hình trực quan dưới dạng bảng ma trận phòng và ca bảo vệ</p>
+              </div>
+              <button
+                onClick={() => setExportPreviewModalOpen(false)}
+                style={{ background: "#f1f5f9", border: "none", padding: 10, borderRadius: 12, cursor: "pointer" }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ overflowX: "auto", background: "white", borderRadius: 20, border: "1px solid #cbd5e1", padding: 24 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Times New Roman" }}>
+                <thead>
+                  <tr>
+                    <th rowSpan={2} style={{ border: "1px solid #475569", padding: "12px 8px", background: "#f1f5f9", fontSize: 13, fontWeight: 800, color: "#1e293b", textAlign: "center", width: 50 }}>TT</th>
+                    <th rowSpan={2} style={{ border: "1px solid #475569", padding: "12px 8px", background: "#f1f5f9", fontSize: 13, fontWeight: 800, color: "#1e293b", textAlign: "center", minWidth: 120 }}>Phòng</th>
+                    {dates.map((date) => (
+                      <th key={date} colSpan={2} style={{ border: "1px solid #475569", padding: "10px 8px", background: "#f1f5f9", fontSize: 13, fontWeight: 800, color: "#1e293b", textAlign: "center" }}>
+                        {date}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr>
+                    {dates.map((date) => (
+                      <React.Fragment key={`${date}-sessions`}>
+                        <th style={{ border: "1px solid #475569", padding: "8px", background: "#f8fafc", fontSize: 12, fontWeight: 800, color: "#475569", textAlign: "center", width: 140 }}>Sáng</th>
+                        <th style={{ border: "1px solid #475569", padding: "8px", background: "#f8fafc", fontSize: 12, fontWeight: 800, color: "#475569", textAlign: "center", width: 140 }}>Chiều</th>
+                      </React.Fragment>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rooms.length === 0 ? (
+                    <tr>
+                      <td colSpan={2 + dates.length * 2} style={{ padding: 40, textAlign: "center", color: "#64748b", border: "1px solid #cbd5e1" }}>Không tìm thấy dữ liệu phân phòng bảo vệ</td>
+                    </tr>
+                  ) : (
+                    rooms.map((room, rIdx) => (
+                      <tr key={room} style={{ height: 42 }}>
+                        <td style={{ border: "1px solid #475569", padding: "6px 8px", fontSize: 13, color: "#1e293b", textAlign: "center", background: "#f8fafc", fontWeight: 700 }}>
+                          {rIdx + 1}
+                        </td>
+                        <td style={{ border: "1px solid #475569", padding: "6px 12px", fontSize: 13, color: "#0f172a", textAlign: "center", fontWeight: 700, background: "#fcfdfe" }}>
+                          {room}
+                        </td>
+                        {dates.map((date) => {
+                          const valSang = cellMap.get(`${room}|${date}|Sáng`) || "";
+                          const valChieu = cellMap.get(`${room}|${date}|Chiều`) || "";
+
+                          const colorSang = valSang ? getCommitteeColor(valSang) : null;
+                          const colorChieu = valChieu ? getCommitteeColor(valChieu) : null;
+
+                          return (
+                            <React.Fragment key={`${room}-${date}-cells`}>
+                              <td
+                                style={{
+                                  border: "1px solid #475569",
+                                  padding: "6px",
+                                  fontSize: 12,
+                                  textAlign: "center",
+                                  fontWeight: 800,
+                                  backgroundColor: colorSang ? colorSang.bg : "transparent",
+                                  color: colorSang ? colorSang.fg : "inherit",
+                                }}
+                              >
+                                {valSang}
+                              </td>
+                              <td
+                                style={{
+                                  border: "1px solid #475569",
+                                  padding: "6px",
+                                  fontSize: 12,
+                                  textAlign: "center",
+                                  fontWeight: 800,
+                                  backgroundColor: colorChieu ? colorChieu.bg : "transparent",
+                                  color: colorChieu ? colorChieu.fg : "inherit",
+                                }}
+                              >
+                                {valChieu}
+                              </td>
+                            </React.Fragment>
+                          );
+                        })}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ marginTop: 32, display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setExportPreviewModalOpen(false)}
+                style={{ padding: "12px 24px", borderRadius: 12, background: DEEP_BLUE_PRIMARY, color: "white", border: "none", fontWeight: 800, cursor: "pointer" }}
+              >
+                Đóng xem trước
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      );
+    }
+
     const previewRows = analyticsTopics.slice(0, 5);
     const selectedFieldConfigs = exportFieldGroups.flatMap(g => g.fields).filter(f => exportSelectedFields.includes(f.key));
 
@@ -6814,6 +7993,11 @@ const CommitteeOperationsManagement: React.FC = () => {
       fontFamily: "'Be Vietnam Pro', sans-serif",
       padding: "0 0 40px 0"
     }}>
+      <style>{`
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
       {/* 1. Header Section */}
       <div style={{
         background: DEEP_BLUE_PRIMARY,
@@ -7049,8 +8233,13 @@ const CommitteeOperationsManagement: React.FC = () => {
               position: "sticky",
               top: 16,
               zIndex: 100,
-              border: "1px solid rgba(255, 255, 255, 0.8)"
-            }}>
+              border: "1px solid rgba(255, 255, 255, 0.8)",
+              overflowX: "auto",
+              scrollbarWidth: "none",
+              msOverflowStyle: "none",
+              maxWidth: "100%",
+              boxSizing: "border-box"
+            }} className="hide-scrollbar">
               {[
                 { key: "overview", label: "Điều hành Dashboard", icon: <LayoutDashboard size={18} />, badge: null },
                 { key: "analytics", label: "Phân tích & Thống kê", icon: <Activity size={18} />, badge: null },
@@ -7066,6 +8255,7 @@ const CommitteeOperationsManagement: React.FC = () => {
                     onClick={() => setActiveTab(tab.key as any)}
                     style={{
                       flex: 1,
+                      flexShrink: 0,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",

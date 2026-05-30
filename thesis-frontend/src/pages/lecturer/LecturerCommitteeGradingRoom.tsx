@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -2998,7 +2998,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
     }, [isChairRole, selectedCommitteeId, selectedAssignmentId]);
 
     useEffect(() => {
-        if (!joinedCommittee || !selectedCommitteeNumericId) {
+        if (!joinedCommitteeId || !selectedCommitteeNumericId) {
             setOnlineLecturerCodes([]);
             return;
         }
@@ -3106,7 +3106,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             };
             void stopHubConnection();
         };
-    }, [joinedCommittee, selectedCommitteeNumericId]);
+    }, [joinedCommitteeId, selectedCommitteeNumericId]);
 
     // Browser tab close protection (beforeunload)
     useEffect(() => {
@@ -4508,7 +4508,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                     type="button"
                                     className="lec-ghost"
                                     onClick={() => {
-                                        const isClosed = joinedCommittee.status === "Đã đóng";
+                                        const isClosed = joinedCommittee?.status === "Đã đóng";
                                         const confirmMsg = isClosed
                                             ? "Bạn có chắc chắn muốn rời phòng chấm điểm hội đồng?"
                                             : "Hội đồng chưa đóng phiên. Bạn có chắc chắn muốn rời phòng chấm điểm?";
@@ -4518,16 +4518,22 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                         }
 
                                         isLeavingTrapRef.current = true;
+
+                                        const performNavigation = () => {
+                                            setJoinedCommitteeId("");
+                                            setSelectedCommitteeId("");
+                                            setWorkspaceTab("scoring");
+                                            setActivePanel("councils");
+                                            notifyInfo("Đã rời phòng chấm điểm hội đồng.");
+                                            navigate("/lecturer/committees", { replace: true });
+                                        };
+
                                         if (window.history.state && window.history.state.trap === "grading-room") {
                                             window.history.back();
+                                            setTimeout(performNavigation, 100);
+                                        } else {
+                                            performNavigation();
                                         }
-
-                                        setJoinedCommitteeId("");
-                                        setSelectedCommitteeId("");
-                                        setWorkspaceTab("scoring");
-                                        setActivePanel("councils");
-                                        notifyInfo("Đã rời phòng chấm điểm hội đồng.");
-                                        navigate("/lecturer/committees");
                                     }}
                                     style={{
                                         borderRadius: "12px",

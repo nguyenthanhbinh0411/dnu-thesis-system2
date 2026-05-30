@@ -849,7 +849,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                         // Rank all eligible lecturers
-                        var avoidSupervisor = request.Constraints?.AvoidSupervisorConflict ?? true;
+                        var avoidSupervisor = true;
 
                         var eligibleLecturers = lecturers
                             .Where(l => (!avoidSupervisor || !chunkSupervisorCodes.Contains(l.LecturerCode))
@@ -1092,11 +1092,9 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                             availableLecturers.SelectMany(l => lecturerTagMap.TryGetValue(l.LecturerCode, out var tags) ? tags.AsEnumerable() : Enumerable.Empty<string>()))
                         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                    var finalCouncilTags = preferredTags.Count > 0
-                        ? heuristicTargetTags
-                        : topicDerivedCouncilTags
-                            .Union(selectedLecturerTags, StringComparer.OrdinalIgnoreCase)
-                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var finalCouncilTags = topicDerivedCouncilTags
+                        .Intersect(selectedLecturerTags, StringComparer.OrdinalIgnoreCase)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                     await AddCommitteeTagsAsync(
                         committee,
@@ -1262,6 +1260,39 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 if (councils.Count == 0)
                 {
                     throw new BusinessRuleException("Không tìm thấy hội đồng trong đợt để chốt danh sách.", "UC2.6.NO_COUNCILS");
+                }
+
+                // Verify that ALL eligible topics for this defense period are assigned to a committee before locking
+                var candidateTopics = await _db.Topics
+                    .AsNoTracking()
+                    .Where(t => t.DefenseTermId == periodId)
+                    .OrderBy(t => t.TopicCode)
+                    .ToListAsync(cancellationToken);
+
+                var eligibleTopicCodes = await LoadEligibleTopicCodesFromMilestonesAsync(candidateTopics, cancellationToken);
+                var eligibleTopics = candidateTopics
+                    .Where(t => eligibleTopicCodes.Contains(t.TopicCode))
+                    .ToList();
+
+                var assignments = await GetPeriodAssignmentsAsync(periodId, config, cancellationToken);
+                var assignedTopicCodes = assignments
+                    .Where(x => x.CommitteeID.HasValue && !string.IsNullOrWhiteSpace(x.TopicCode))
+                    .Select(x => x.TopicCode!.Trim())
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var unassignedEligibleTopics = eligibleTopics
+                    .Where(t => !assignedTopicCodes.Contains(t.TopicCode))
+                    .ToList();
+
+                if (unassignedEligibleTopics.Count > 0)
+                {
+                    var unassignedDetails = unassignedEligibleTopics
+                        .Select(t => $"{t.TopicCode}: {t.Title}")
+                        .ToList();
+                    throw new BusinessRuleException(
+                        $"Không thể chốt danh sách hội đồng vì vẫn còn {unassignedEligibleTopics.Count} đề tài đủ điều kiện chưa được phân công hội đồng.",
+                        "UC2.6.UNASSIGNED_ELIGIBLE_TOPICS_EXIST",
+                        unassignedDetails);
                 }
 
                 var warnings = new List<string>();
@@ -3369,6 +3400,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                     await DeployRoadmapAsync(periodId, cancellationToken);
                 }
 
+                if (nextStatus == DefenseTermStatus.Archived || nextStatus == DefenseTermStatus.Closed)
+                {
+                    await EnsureAllAssignedTopicsAreFinishedAsync(periodId, cancellationToken);
+                }
+
                 var config = ReadConfig(period);
                 config.PreviousStatus = period.Status;
                 config.CanRollbackStage = true;
@@ -3666,6 +3702,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 {
                     throw new BusinessRuleException("Cần finalize đợt đồ án tốt nghiệp trước khi đóng.", "UC2.CLOSE.NOT_FINALIZED");
                 }
+
+                await EnsureAllAssignedTopicsAreFinishedAsync(periodId, cancellationToken);
 
                 config.PreviousStatus = period.Status;
                 config.CanRollbackStage = true;
@@ -4901,6 +4939,36 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods
                 topic.Status = "Đủ điều kiện bảo vệ";
                 topic.LastUpdated = now;
                 _uow.Topics.Update(topic);
+            }
+        }
+
+        private async Task EnsureAllAssignedTopicsAreFinishedAsync(int periodId, CancellationToken cancellationToken)
+        {
+            var assignedTopicCodes = await _db.DefenseAssignments
+                .Where(x => x.DefenseTermId == periodId && x.CommitteeID.HasValue && x.TopicCode != null)
+                .Select(x => x.TopicCode!)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            if (assignedTopicCodes.Count == 0)
+            {
+                return;
+            }
+
+            var unfinishedTopics = await _db.Topics
+                .Where(x => x.DefenseTermId == periodId 
+                    && assignedTopicCodes.Contains(x.TopicCode)
+                    && x.Status != "Hoàn thành bảo vệ")
+                .Select(x => new { x.TopicCode, x.Title, x.Status })
+                .ToListAsync(cancellationToken);
+
+            if (unfinishedTopics.Count > 0)
+            {
+                throw new BusinessRuleException(
+                    "Không thể đóng hoặc lưu trữ đợt đồ án vì vẫn còn đề tài đã phân hội đồng chưa hoàn thành bảo vệ.",
+                    "UC2.CLOSE.UNFINISHED_TOPICS",
+                    new { UnfinishedTopics = unfinishedTopics }
+                );
             }
         }
 

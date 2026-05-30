@@ -116,6 +116,9 @@ public class PostDefenseWorkflowServiceTests
         approved.SecretaryUserCode.Should().Be("SEC001");
         approved.SecretaryComment.Should().Be("Dat yeu cau");
         approved.SecretaryApprovedAt.Should().NotBeNull();
+
+        var topic = await db.Topics.SingleAsync(x => x.TopicCode == "TOP-001");
+        topic.Status.Should().Be("Hoàn thành bảo vệ");
     }
 
     [Fact]

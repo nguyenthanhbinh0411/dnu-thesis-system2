@@ -111,6 +111,12 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport.Exporters
                             if (ShouldRenderTitle(customTitle)) column.Item().PaddingTop(12).Text(customTitle).Bold().FontSize(11);
                             column.Item().PaddingTop(6).Table(table => BuildPdfGenericTable(table, scoringRows, selectedFields ?? new List<string>()));
                         }
+                        else if (template == DefenseExportConstants.Templates.RoomMatrix)
+                        {
+                            var title = "BẢNG PHÂN PHÒNG BẢO VỆ";
+                            if (ShouldRenderTitle(title)) column.Item().PaddingTop(12).Text(title).Bold().FontSize(11);
+                            column.Item().PaddingTop(6).Text("Để có trải nghiệm xem bảng ma trận đầy đủ nhất, vui lòng xuất báo cáo dưới định dạng Excel (.xlsx).").Italic();
+                        }
 
                         // Summary Section
                         var scores = scoringRows
@@ -221,6 +227,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport.Exporters
             DefenseExportConstants.Templates.PostDefense => "DANH SÁCH THEO DÕI HẬU ĐỒ ÁN TỐT NGHIỆP",
             DefenseExportConstants.Templates.Councils => "DANH SÁCH HỘI ĐỒNG ĐỒ ÁN TỐT NGHIỆP",
             DefenseExportConstants.Templates.Topics => "DANH SÁCH ĐỀ TÀI ĐỒ ÁN TỐT NGHIỆP",
+            DefenseExportConstants.Templates.RoomMatrix => "BẢNG PHÂN PHÒNG BẢO VỆ ĐỒ ÁN TỐT NGHIỆP",
             _ => "BÁO CÁO ĐIỀU HÀNH CHẤM ĐIỂM"
         };
 

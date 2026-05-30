@@ -10,6 +10,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport.Internal
             public const string PostDefense = "post-defense";
             public const string Councils = "councils";
             public const string Topics = "topics";
+            public const string RoomMatrix = "room-matrix";
         }
     }
 

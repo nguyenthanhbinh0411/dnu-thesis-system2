@@ -63,6 +63,10 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport.Exporters
                     WriteTopicListSection(worksheet, scoringRows, selectedFields ?? new List<string>(), ref row);
                     break;
 
+                case DefenseExportConstants.Templates.RoomMatrix:
+                    WriteRoomMatrixSection(worksheet, scoringRows, ref row);
+                    break;
+
                 case "custom":
                 case "official-transcript":
                 case "council-minutes":
@@ -370,6 +374,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport.Exporters
                 DefenseExportConstants.Templates.PostDefense => "DANH SÁCH THEO DÕI HẬU ĐỒ ÁN TỐT NGHIỆP",
                 DefenseExportConstants.Templates.Councils => "DANH SÁCH HỘI ĐỒNG ĐỒ ÁN TỐT NGHIỆP",
                 DefenseExportConstants.Templates.Topics => "DANH SÁCH ĐỀ TÀI ĐỒ ÁN TỐT NGHIỆP",
+                DefenseExportConstants.Templates.RoomMatrix => "BẢNG PHÂN PHÒNG BẢO VỆ ĐỒ ÁN TỐT NGHIỆP",
                 _ => "BÁO CÁO ĐIỀU HÀNH CHẤM ĐIỂM"
             };
         }
@@ -382,6 +387,199 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport.Exporters
             if (!state.EndDate.HasValue) return "-";
             var days = Math.Ceiling((state.EndDate.Value.Date - DateTime.Today).TotalDays);
             return Math.Max(0, (int)days).ToString(CultureInfo.InvariantCulture);
+        }
+
+        private void WriteRoomMatrixSection(IXLWorksheet worksheet, IReadOnlyList<ScoringExportRawDto> scoringRows, ref int row)
+        {
+            var rooms = scoringRows
+                .Select(x => x.Room?.Trim())
+                .Where(r => !string.IsNullOrWhiteSpace(r) && r != "-")
+                .Distinct()
+                .OrderBy(r => r)
+                .ToList();
+
+            var dates = scoringRows
+                .Where(x => x.DefenseDate.HasValue)
+                .Select(x => x.DefenseDate!.Value.Date)
+                .Distinct()
+                .OrderBy(d => d)
+                .ToList();
+
+            if (rooms.Count == 0 || dates.Count == 0)
+            {
+                WriteSectionTitle(worksheet, row, 1, 10, "BẢNG PHÂN PHÒNG BẢO VỆ (Không có dữ liệu)");
+                row += 2;
+                return;
+            }
+
+            WriteSectionTitle(worksheet, row, 1, 2 + dates.Count * 2, "BẢNG PHÂN PHÒNG BẢO VỆ");
+            row += 1;
+
+            MergeAndStyleMatrixHeader(worksheet, row, 1, row + 1, 1, "TT");
+            MergeAndStyleMatrixHeader(worksheet, row, 2, row + 1, 2, "Phòng");
+
+            worksheet.Column(1).Width = 6;
+            worksheet.Column(2).Width = 15;
+
+            for (var d = 0; d < dates.Count; d++)
+            {
+                var col = 3 + d * 2;
+                var dateStr = dates[d].ToString("dd/MM");
+                MergeAndStyleMatrixHeader(worksheet, row, col, row, col + 1, dateStr);
+
+                StyleMatrixHeaderCell(worksheet, row + 1, col, "Sáng");
+                StyleMatrixHeaderCell(worksheet, row + 1, col + 1, "Chiều");
+
+                worksheet.Column(col).Width = 15;
+                worksheet.Column(col + 1).Width = 15;
+            }
+
+            row += 2;
+
+            var cellLookup = new Dictionary<string, string>();
+            foreach (var sRow in scoringRows)
+            {
+                if (string.IsNullOrWhiteSpace(sRow.Room) || !sRow.DefenseDate.HasValue) continue;
+
+                var rName = sRow.Room.Trim();
+                var dStr = sRow.DefenseDate.Value.ToString("yyyy-MM-dd");
+
+                var session = "Sáng";
+                if (sRow.Session != null)
+                {
+                    var sLower = sRow.Session.ToLowerInvariant();
+                    if (sLower == "morning" || sLower == "sáng" || sLower.Contains("session_1") || sLower.Contains("1"))
+                    {
+                        session = "Sáng";
+                    }
+                    else if (sLower == "afternoon" || sLower == "chiều" || sLower.Contains("session_2") || sLower.Contains("2"))
+                    {
+                        session = "Chiều";
+                    }
+                }
+                else if (sRow.StartTime != null)
+                {
+                    var parts = sRow.StartTime.Split(':');
+                    if (parts.Length > 0 && int.TryParse(parts[0], out var hr))
+                    {
+                        session = hr < 12 ? "Sáng" : "Chiều";
+                    }
+                }
+                else if (sRow.DefenseDate.HasValue)
+                {
+                    session = sRow.DefenseDate.Value.Hour < 12 ? "Sáng" : "Chiều";
+                }
+
+                var key = $"{rName}|{dStr}|{session}";
+                if (!cellLookup.ContainsKey(key) && !string.IsNullOrWhiteSpace(sRow.CommitteeCode))
+                {
+                    cellLookup[key] = sRow.CommitteeCode.Trim();
+                }
+            }
+
+            for (var r = 0; r < rooms.Count; r++)
+            {
+                worksheet.Row(row).Height = 25;
+
+                var cellTt = worksheet.Cell(row, 1);
+                cellTt.Value = (r + 1).ToString();
+                StyleDataCell(cellTt, "");
+
+                var cellRoom = worksheet.Cell(row, 2);
+                cellRoom.Value = rooms[r];
+                StyleDataCell(cellRoom, "");
+                cellRoom.Style.Font.Bold = true;
+
+                for (var d = 0; d < dates.Count; d++)
+                {
+                    var colSang = 3 + d * 2;
+                    var colChieu = colSang + 1;
+
+                    var keySang = $"{rooms[r]}|{dates[d]:yyyy-MM-dd}|Sáng";
+                    var keyChieu = $"{rooms[r]}|{dates[d]:yyyy-MM-dd}|Chiều";
+
+                    var sangVal = cellLookup.ContainsKey(keySang) ? cellLookup[keySang] : "";
+                    var chieuVal = cellLookup.ContainsKey(keyChieu) ? cellLookup[keyChieu] : "";
+
+                    var cellSang = worksheet.Cell(row, colSang);
+                    cellSang.Value = sangVal;
+                    StyleDataCell(cellSang, sangVal);
+
+                    var cellChieu = worksheet.Cell(row, colChieu);
+                    cellChieu.Value = chieuVal;
+                    StyleDataCell(cellChieu, chieuVal);
+                }
+
+                row++;
+            }
+        }
+
+        private void StyleDataCell(IXLCell cell, string code)
+        {
+            cell.Style.Font.FontName = "Times New Roman";
+            cell.Style.Font.FontSize = 10;
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            cell.Style.Alignment.WrapText = true;
+
+            if (string.IsNullOrWhiteSpace(code)) return;
+
+            cell.Style.Font.Bold = true;
+            var normalized = code.ToUpperInvariant();
+
+            if (normalized.Contains("-Y"))
+            {
+                cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#E67E22");
+                cell.Style.Font.FontColor = XLColor.White;
+            }
+            else if (normalized.Contains("-DL"))
+            {
+                cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#7A93A6");
+                cell.Style.Font.FontColor = XLColor.White;
+            }
+            else if (normalized.Contains("-LOG"))
+            {
+                cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#6E6E6E");
+                cell.Style.Font.FontColor = XLColor.White;
+            }
+            else
+            {
+                cell.Style.Fill.BackgroundColor = XLColor.White;
+                cell.Style.Font.FontColor = XLColor.Black;
+            }
+        }
+
+        private void MergeAndStyleMatrixHeader(IXLWorksheet worksheet, int startRow, int startCol, int endRow, int endCol, string text)
+        {
+            var range = worksheet.Range(startRow, startCol, endRow, endCol);
+            range.Merge();
+            range.Value = text;
+            range.Style.Font.FontName = "Times New Roman";
+            range.Style.Font.Bold = true;
+            range.Style.Font.FontSize = 11;
+            range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+
+            for (var r = startRow; r <= endRow; r++)
+            {
+                for (var c = startCol; c <= endCol; c++)
+                {
+                    worksheet.Cell(r, c).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                }
+            }
+        }
+
+        private void StyleMatrixHeaderCell(IXLWorksheet worksheet, int row, int col, string text)
+        {
+            var cell = worksheet.Cell(row, col);
+            cell.Value = text;
+            cell.Style.Font.FontName = "Times New Roman";
+            cell.Style.Font.Bold = true;
+            cell.Style.Font.FontSize = 11;
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
         }
     }
 }

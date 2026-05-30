@@ -107,3 +107,12 @@ function getNormalizedBaseUrl(): string {
 export function getNotificationsHubUrl(): string {
   return `${getNormalizedBaseUrl()}/hubs/notifications`;
 }
+
+export async function scanSystemAlerts(periodId: number): Promise<ApiResponse<any>> {
+  return await fetchData<ApiResponse<any>>(
+    `/Notifications/system-alerts/scan?periodId=${periodId}`,
+    {
+      method: "POST",
+    },
+  );
+}

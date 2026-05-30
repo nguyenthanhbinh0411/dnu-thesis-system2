@@ -59,7 +59,7 @@ public class DefensePeriodEndToEndFlowTests
 
         var generateResult = await processor.GenerateCouncilsAsync(1, new GenerateCouncilsRequestDto
         {
-            SelectedTopicCodes = new List<string> { "T001", "T002", "T003", "T004", "T005", "T006", "T007", "T008" },
+            SelectedTopicCodes = new List<string> { "T001", "T002", "T003", "T004", "T005", "T006" },
             SelectedLecturerCodes = new List<string> { "L001", "L002", "L003", "L004" },
             SelectedRooms = new List<string> { "R101" },
             IdempotencyKey = "generate-e2e"
@@ -325,8 +325,8 @@ public class DefensePeriodEndToEndFlowTests
             new Topic { TopicID = 4, TopicCode = "T004", Title = "Topic 4", Type = "Research", ProposerUserID = 4, ProposerStudentCode = "S004", SupervisorLecturerCode = "SUP004", DefenseTermId = 1, Status = "Eligible" },
             new Topic { TopicID = 5, TopicCode = "T005", Title = "Topic 5", Type = "Research", ProposerUserID = 5, ProposerStudentCode = "S005", SupervisorLecturerCode = "SUP005", DefenseTermId = 1, Status = "Eligible" },
             new Topic { TopicID = 6, TopicCode = "T006", Title = "Topic 6", Type = "Research", ProposerUserID = 6, ProposerStudentCode = "S006", SupervisorLecturerCode = "SUP006", DefenseTermId = 1, Status = "Eligible" },
-            new Topic { TopicID = 7, TopicCode = "T007", Title = "Topic 7", Type = "Research", ProposerUserID = 7, ProposerStudentCode = "S007", SupervisorLecturerCode = "SUP007", DefenseTermId = 1, Status = "Eligible" },
-            new Topic { TopicID = 8, TopicCode = "T008", Title = "Topic 8", Type = "Research", ProposerUserID = 8, ProposerStudentCode = "S008", SupervisorLecturerCode = "SUP008", DefenseTermId = 1, Status = "Eligible" });
+            new Topic { TopicID = 7, TopicCode = "T007", Title = "Topic 7", Type = "Research", ProposerUserID = 7, ProposerStudentCode = "S007", SupervisorLecturerCode = "SUP007", DefenseTermId = 1, Status = "Draft" },
+            new Topic { TopicID = 8, TopicCode = "T008", Title = "Topic 8", Type = "Research", ProposerUserID = 8, ProposerStudentCode = "S008", SupervisorLecturerCode = "SUP008", DefenseTermId = 1, Status = "Draft" });
 
         db.ProgressMilestones.AddRange(
             new ProgressMilestone { MilestoneID = 1, MilestoneCode = "MS-1", TopicID = 1, TopicCode = "T001", MilestoneTemplateCode = "MS_PROG1", State = "Eligible", CreatedAt = now, LastUpdated = now },
@@ -335,8 +335,8 @@ public class DefensePeriodEndToEndFlowTests
             new ProgressMilestone { MilestoneID = 4, MilestoneCode = "MS-4", TopicID = 4, TopicCode = "T004", MilestoneTemplateCode = "MS_PROG1", State = "Eligible", CreatedAt = now, LastUpdated = now },
             new ProgressMilestone { MilestoneID = 5, MilestoneCode = "MS-5", TopicID = 5, TopicCode = "T005", MilestoneTemplateCode = "MS_PROG1", State = "Eligible", CreatedAt = now, LastUpdated = now },
             new ProgressMilestone { MilestoneID = 6, MilestoneCode = "MS-6", TopicID = 6, TopicCode = "T006", MilestoneTemplateCode = "MS_PROG1", State = "Eligible", CreatedAt = now, LastUpdated = now },
-            new ProgressMilestone { MilestoneID = 7, MilestoneCode = "MS-7", TopicID = 7, TopicCode = "T007", MilestoneTemplateCode = "MS_PROG1", State = "Eligible", CreatedAt = now, LastUpdated = now },
-            new ProgressMilestone { MilestoneID = 8, MilestoneCode = "MS-8", TopicID = 8, TopicCode = "T008", MilestoneTemplateCode = "MS_PROG1", State = "Eligible", CreatedAt = now, LastUpdated = now });
+            new ProgressMilestone { MilestoneID = 7, MilestoneCode = "MS-7", TopicID = 7, TopicCode = "T007", MilestoneTemplateCode = "MS_PROG1", State = "Draft", CreatedAt = now, LastUpdated = now },
+            new ProgressMilestone { MilestoneID = 8, MilestoneCode = "MS-8", TopicID = 8, TopicCode = "T008", MilestoneTemplateCode = "MS_PROG1", State = "Draft", CreatedAt = now, LastUpdated = now });
 
         db.SaveChanges();
     }
@@ -564,5 +564,57 @@ public class DefensePeriodEndToEndFlowTests
 
         Assert.False(secondTopicsResult.Success);
         Assert.Contains("không được chọn đề tài đã tồn tại ở hội đồng khác", secondTopicsResult.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CloseAsync_ShouldThrowException_WhenAssignedTopicsNotFinished()
+    {
+        await using var db = CreateDbContext();
+        var uow = new UnitOfWork(db);
+
+        SeedPeriodAndMasterData(db);
+
+        // Put one topic in assigned state to a council
+        db.Committees.Add(new Committee
+        {
+            CommitteeID = 20,
+            CommitteeCode = "CMT-20",
+            Status = "Draft"
+        });
+        db.DefenseAssignments.Add(new DefenseAssignment
+        {
+            AssignmentID = 201,
+            AssignmentCode = "ASG-201",
+            TopicCode = "T001",
+            CommitteeID = 20,
+            DefenseTermId = 1,
+            Status = "Pending"
+        });
+
+        // Topic status starts as something other than "Hoàn thành bảo vệ" (e.g. "Đã phân hội đồng")
+        var topic = await db.Topics.SingleAsync(t => t.TopicCode == "T001");
+        topic.Status = "Đã phân hội đồng";
+        await db.SaveChangesAsync();
+
+        var (processor, _) = BuildProcessor(db, uow);
+
+        // Advance period status to Published so it's not Draft, and set Finalized to true
+        var period = await db.DefenseTerms.SingleAsync(x => x.DefenseTermId == 1);
+        period.Status = "Published";
+        period.ConfigJson = "{\"Finalized\":true}";
+        await db.SaveChangesAsync();
+
+        // Call CloseAsync - should fail since T001 is not finished
+        var closeResult = await processor.CloseAsync(1, actorUserId: 1001);
+        Assert.False(closeResult.Success);
+        Assert.Contains("vẫn còn đề tài đã phân hội đồng chưa hoàn thành bảo vệ", closeResult.Message);
+
+        // Advance topic status to "Hoàn thành bảo vệ"
+        topic.Status = "Hoàn thành bảo vệ";
+        await db.SaveChangesAsync();
+
+        // Call CloseAsync - should succeed now that all assigned topics are finished
+        var closeResultSuccess = await processor.CloseAsync(1, actorUserId: 1001);
+        Assert.True(closeResultSuccess.Success);
     }
 }

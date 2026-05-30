@@ -187,6 +187,24 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
         ClockSkew = TimeSpan.Zero
     };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+
+            // If the request is for our SignalR hubs...
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) &&
+                (path.StartsWithSegments("/hubs") || path.StartsWithSegments("/api/hubs")))
+            {
+                // Read the token out of the query string
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 builder.Services.AddAuthorization();
@@ -598,14 +616,103 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     try
     {
-        // Drop the unique constraint if it exists in Oracle database to allow multiple files/links per progress submission.
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"SUBMISSIONFILES\" DROP CONSTRAINT \"UQ_SUBMISSIONFILES_SUBMISSIONCODE\"");
-        Console.WriteLine("[INFO] Successfully dropped UQ_SUBMISSIONFILES_SUBMISSIONCODE unique constraint.");
+        // Check if constraint exists before trying to drop it to avoid error logs in EF Core
+        var constraintExists = false;
+        using (var command = db.Database.GetDbConnection().CreateCommand())
+        {
+            command.CommandText = "SELECT COUNT(*) FROM USER_CONSTRAINTS WHERE CONSTRAINT_NAME = 'UQ_SUBMISSIONFILES_SUBMISSIONCODE'";
+            if (command.Connection != null)
+            {
+                if (command.Connection.State != System.Data.ConnectionState.Open)
+                {
+                    command.Connection.Open();
+                }
+                var count = Convert.ToInt32(command.ExecuteScalar());
+                constraintExists = count > 0;
+            }
+        }
+
+        if (constraintExists)
+        {
+            // Drop the unique constraint if it exists in Oracle database to allow multiple files/links per progress submission.
+            db.Database.ExecuteSqlRaw("ALTER TABLE \"SUBMISSIONFILES\" DROP CONSTRAINT \"UQ_SUBMISSIONFILES_SUBMISSIONCODE\"");
+            Console.WriteLine("[INFO] Successfully dropped UQ_SUBMISSIONFILES_SUBMISSIONCODE unique constraint.");
+        }
+        else
+        {
+            Console.WriteLine("[INFO] Unique constraint UQ_SUBMISSIONFILES_SUBMISSIONCODE already dropped or does not exist.");
+        }
     }
     catch (System.Exception ex)
     {
         // Ignore if the constraint does not exist or was already dropped
         Console.WriteLine($"[INFO] Safe ignore UQ_SUBMISSIONFILES_SUBMISSIONCODE drop: {ex.Message}");
+    }
+
+    // Safely check if DEFENSETERMID column already exists in MILESTONETEMPLATES and register migration if missing from history to avoid Oracle ORA-01430 errors.
+    try
+    {
+        // 1. Create __EFMigrationsHistory table if it doesn't exist yet
+        db.Database.ExecuteSqlRaw(@"
+            DECLARE
+                V_COUNT INTEGER;
+            BEGIN
+                SELECT COUNT(TABLE_NAME) INTO V_COUNT FROM USER_TABLES WHERE TABLE_NAME = '__EFMigrationsHistory';
+                IF V_COUNT = 0 THEN
+                    EXECUTE IMMEDIATE 'CREATE TABLE ""__EFMigrationsHistory"" (
+                        ""MigrationId"" NVARCHAR2(150) NOT NULL,
+                        ""ProductVersion"" NVARCHAR2(32) NOT NULL,
+                        CONSTRAINT ""PK___EFMigrationsHistory"" PRIMARY KEY (""MigrationId"")
+                    )';
+                END IF;
+            END;");
+
+        // 2. Check if migration is already registered
+        var hasMigration = false;
+        using (var command = db.Database.GetDbConnection().CreateCommand())
+        {
+            command.CommandText = "SELECT COUNT(*) FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" = '20260529095631_AddDefenseTermIdToMilestoneTemplate'";
+            if (command.Connection != null)
+            {
+                if (command.Connection.State != System.Data.ConnectionState.Open)
+                {
+                    command.Connection.Open();
+                }
+                var count = Convert.ToInt32(command.ExecuteScalar());
+                hasMigration = count > 0;
+            }
+        }
+
+        if (!hasMigration)
+        {
+            // Check if DEFENSETERMID column already exists in MILESTONETEMPLATES
+            var hasColumn = false;
+            using (var command = db.Database.GetDbConnection().CreateCommand())
+            {
+                command.CommandText = "SELECT COUNT(*) FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'MILESTONETEMPLATES' AND COLUMN_NAME = 'DEFENSETERMID'";
+                if (command.Connection != null)
+                {
+                    if (command.Connection.State != System.Data.ConnectionState.Open)
+                    {
+                        command.Connection.Open();
+                    }
+                    var count = Convert.ToInt32(command.ExecuteScalar());
+                    hasColumn = count > 0;
+                }
+            }
+
+            if (hasColumn)
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+                    VALUES ('20260529095631_AddDefenseTermIdToMilestoneTemplate', '8.0.8')");
+                Console.WriteLine("[INFO] Programmatically registered 20260529095631_AddDefenseTermIdToMilestoneTemplate in __EFMigrationsHistory.");
+            }
+        }
+    }
+    catch (System.Exception ex)
+    {
+        Console.WriteLine($"[INFO] Safe ignore dynamic migration history check: {ex.Message}");
     }
 }
 
@@ -748,6 +855,24 @@ try
     
     // Seed admin user after migrations
     await ThesisManagement.Api.Helpers.DbSeeder.SeedAdminAsync(app.Services);
+
+    // Programmatic log module alignment: Update "User" to "Authentication" for historical logs
+    try
+    {
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            int updatedRows = db.Database.ExecuteSqlRaw("UPDATE \"SYSTEMACTIVITYLOGS\" SET \"MODULE\" = 'Authentication' WHERE \"MODULE\" = 'User'");
+            if (updatedRows > 0)
+            {
+                Console.WriteLine($"[INFO] Programmatically updated {updatedRows} historical logs from 'User' to 'Authentication'.");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[INFO] Safe ignore logs historical update: {ex.Message}");
+    }
 }
 catch (Exception ex)
 {

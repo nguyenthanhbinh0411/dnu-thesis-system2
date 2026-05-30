@@ -1019,7 +1019,10 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
 
             var lecturerNameMap = lecturerNameRows
                 .Where(x => !string.IsNullOrWhiteSpace(x.LecturerCode))
-                .ToDictionary(x => x.LecturerCode, x => x.Name, StringComparer.OrdinalIgnoreCase);
+                .ToDictionary(
+                    x => x.LecturerCode, 
+                    x => !string.IsNullOrWhiteSpace(x.Degree) ? $"{x.Name} ({x.Degree})" : x.Name, 
+                    StringComparer.OrdinalIgnoreCase);
             var lecturerDegreeMap = lecturerNameRows
                 .Where(x => !string.IsNullOrWhiteSpace(x.LecturerCode))
                 .ToDictionary(x => x.LecturerCode, x => x.Degree, StringComparer.OrdinalIgnoreCase);
@@ -2171,13 +2174,17 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                     .Select(x => new LecturerNameSnapshotRow
                     {
                         LecturerCode = x.LecturerCode!,
-                        Name = x.FullName ?? x.LecturerCode!
+                        Name = x.FullName ?? x.LecturerCode!,
+                        Degree = x.Degree
                     })
                     .ToListAsync(cancellationToken);
 
             var committeeMemberNameMap = committeeMemberNameRows
                 .Where(x => !string.IsNullOrWhiteSpace(x.LecturerCode))
-                .ToDictionary(x => x.LecturerCode, x => x.Name, StringComparer.OrdinalIgnoreCase);
+                .ToDictionary(
+                    x => x.LecturerCode, 
+                    x => !string.IsNullOrWhiteSpace(x.Degree) ? $"{x.Name} ({x.Degree})" : x.Name, 
+                    StringComparer.OrdinalIgnoreCase);
 
             var memberCountMap = committeeMembers
                 .GroupBy(x => x.CommitteeId)
