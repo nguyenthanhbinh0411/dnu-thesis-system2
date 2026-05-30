@@ -78,11 +78,9 @@ services:
     ports:
       - "${PUBLIC_PORT:-8888}:80"
 
-    extra_hosts:
-      - "backend:host-gateway"
+    # Backend uses host network, so depends_on without condition is sufficient
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
 
     networks:
       - graduation-thesis-net
