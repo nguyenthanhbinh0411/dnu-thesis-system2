@@ -670,10 +670,14 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
   useEffect(() => {
     const connection = new HubConnectionBuilder()
       .withUrl(getNotificationsHubUrl(), {
-        accessTokenFactory: () => getAccessToken() || "",
+        accessTokenFactory: () => {
+          const token = getAccessToken();
+          console.info(`[NotificationBell] accessTokenFactory called. Token present: ${!!token}, theme: ${theme}`);
+          return token || "";
+        },
       })
       .withAutomaticReconnect([0, 2000, 5000, 10000])
-      .configureLogging(LogLevel.Warning)
+      .configureLogging(LogLevel.Information)
       .build();
 
     connectionRef.current = connection;
@@ -721,7 +725,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
         }
       } catch (error) {
         if (isMounted) {
-          console.error("Notification hub connect failed:", error);
+          console.error("[NotificationBell] Notification hub connect failed:", error);
           setConnectionState("disconnected");
         }
       }

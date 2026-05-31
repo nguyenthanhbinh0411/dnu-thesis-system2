@@ -1230,22 +1230,40 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
+    // isActive flag prevents stale async callbacks from showing toasts
+    // after this effect has been cleaned up (e.g., user switched or logged out)
+    let isActive = true;
+
     const setup = async () => {
       try {
         await chatRealtime.start();
-      } catch {
-        addToast("Không thể kết nối realtime chat.", "warning");
+      } catch (err) {
+        if (!isActive) return; // Component was unmounted or deps changed – ignore
+        console.error("[ChatContext] Failed to start real-time chat connection:", err);
+        addToast(
+          `Không thể kết nối realtime chat: ${err instanceof Error ? err.message : String(err)}`,
+          "warning"
+        );
       }
 
-      await refreshConversations();
+      if (!isActive) return;
+
+      try {
+        await refreshConversations();
+      } catch (err) {
+        console.error("[ChatContext] Failed to load list of conversations during setup:", err);
+      }
     };
 
     void setup();
 
     return () => {
+      isActive = false;
       void chatRealtime.stop();
     };
-  }, [addToast, enabled, refreshConversations]);
+    // currentUserCode is intentionally included: when a different user logs in,
+    // we must restart the connection so the new token is used from the start.
+  }, [addToast, currentUserCode, enabled, refreshConversations]);
 
   useEffect(() => {
     if (!enabled) return;

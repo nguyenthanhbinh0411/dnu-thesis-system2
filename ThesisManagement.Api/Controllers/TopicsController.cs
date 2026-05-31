@@ -10,6 +10,7 @@ using ThesisManagement.Api.DTOs.Topics.Command;
 using ThesisManagement.Api.DTOs.Topics.Query;
 using ThesisManagement.Api.Models;
 using ThesisManagement.Api.Services;
+using ThesisManagement.Api.Services.Chat;
 
 namespace ThesisManagement.Api.Controllers
 {
@@ -24,6 +25,7 @@ namespace ThesisManagement.Api.Controllers
         private readonly IDeleteTopicCommand _deleteTopicCommand;
         private readonly ApplicationDbContext _context;
         private readonly ITopicCodeGenerator _topicCodeGenerator;
+        private readonly IChatProvisionService _chatProvisionService;
 
         public TopicsController(
             IUnitOfWork uow,
@@ -37,7 +39,8 @@ namespace ThesisManagement.Api.Controllers
             IUpdateTopicCommand updateTopicCommand,
             IDeleteTopicCommand deleteTopicCommand,
             ApplicationDbContext context,
-            ITopicCodeGenerator topicCodeGenerator) : base(uow, codeGen, mapper)
+            ITopicCodeGenerator topicCodeGenerator,
+            IChatProvisionService chatProvisionService) : base(uow, codeGen, mapper)
         {
             _getTopicsListQuery = getTopicsListQuery;
             _getTopicDetailQuery = getTopicDetailQuery;
@@ -48,6 +51,7 @@ namespace ThesisManagement.Api.Controllers
             _deleteTopicCommand = deleteTopicCommand;
             _context = context;
             _topicCodeGenerator = topicCodeGenerator;
+            _chatProvisionService = chatProvisionService;
         }
 
         [HttpGet("get-list")]
@@ -138,6 +142,7 @@ namespace ThesisManagement.Api.Controllers
             // auto-assign and cannot be reset while a term is active. The only relevant check is whether
             // this catalog topic is already assigned to a topic in the CURRENT defense term.
             var unusedCatalogTopics = await _context.CatalogTopics
+                .Where(c => c.DefenseTermId == request.DefenseTermId)
                 .Where(c => !_context.Topics.Any(t => t.CatalogTopicCode == c.CatalogTopicCode
                                                    && t.DefenseTermId == request.DefenseTermId))
                 .ToListAsync();
@@ -191,58 +196,82 @@ namespace ThesisManagement.Api.Controllers
                     ? catalogTopicTagsMap[catalogTopic.CatalogTopicCode]
                     : new List<Tag>();
 
-                // Get candidates with remaining quota, fallback to all if none
-                var candidates = termLecturers
-                    .Where(l => lecturerVirtualLoads[l.LecturerCode] < lecturerQuotas[l.LecturerCode])
-                    .ToList();
+                LecturerProfile? bestLecturer = null;
+                var matchCount = 0;
+                var commonTagNames = new List<string>();
+                var isFallback = false;
 
-                if (candidates.Count == 0)
+                if (catalogTopic != null && !string.IsNullOrEmpty(catalogTopic.LecturerCode))
                 {
-                    candidates = termLecturers;
-                }
+                    var proposingLecturer = termLecturers.FirstOrDefault(l =>
+                        string.Equals(l.LecturerCode, catalogTopic.LecturerCode, StringComparison.OrdinalIgnoreCase));
 
-                if (candidates.Count == 0)
-                {
-                    // No active lecturers in the period
-                    continue;
-                }
-
-                // Match quality scoring and ordering
-                var scoredCandidates = candidates.Select(l =>
-                {
-                    var lecturerTags = lecturerTagsMap.ContainsKey(l.LecturerCode)
-                        ? lecturerTagsMap[l.LecturerCode]
-                        : new List<Tag>();
-
-                    var common = studentTopicTags
-                        .Select(t => t.TagCode)
-                        .Intersect(lecturerTags.Select(t => t.TagCode), StringComparer.OrdinalIgnoreCase)
-                        .ToList();
-
-                    var commonTagNames = studentTopicTags
-                        .Where(t => common.Contains(t.TagCode, StringComparer.OrdinalIgnoreCase))
-                        .Select(t => t.TagName)
-                        .ToList();
-
-                    return new
+                    if (proposingLecturer != null && lecturerVirtualLoads[proposingLecturer.LecturerCode] < lecturerQuotas[proposingLecturer.LecturerCode])
                     {
-                        Lecturer = l,
-                        MatchCount = common.Count,
-                        CommonTagNames = commonTagNames,
-                        IsSameDept = l.DepartmentCode == student.DepartmentCode,
-                        Load = lecturerVirtualLoads[l.LecturerCode]
-                    };
-                })
-                .OrderByDescending(x => studentTopicTags.Count == 0 || x.MatchCount > 0)
-                .ThenByDescending(x => x.IsSameDept)
-                .ThenByDescending(x => x.MatchCount)
-                .ThenBy(x => x.Load)
-                .First();
+                        bestLecturer = proposingLecturer;
+                        matchCount = studentTopicTags.Count;
+                        commonTagNames = studentTopicTags.Select(t => t.TagName).ToList();
+                        isFallback = false;
+                    }
+                }
 
-                var bestLecturer = scoredCandidates.Lecturer;
+                if (bestLecturer == null)
+                {
+                    // Get candidates with remaining quota, fallback to all if none
+                    var candidates = termLecturers
+                        .Where(l => lecturerVirtualLoads[l.LecturerCode] < lecturerQuotas[l.LecturerCode])
+                        .ToList();
+
+                    if (candidates.Count == 0)
+                    {
+                        candidates = termLecturers;
+                    }
+
+                    if (candidates.Count == 0)
+                    {
+                        // No active lecturers in the period
+                        continue;
+                    }
+
+                    // Match quality scoring and ordering
+                    var scoredCandidates = candidates.Select(l =>
+                    {
+                        var lecturerTags = lecturerTagsMap.ContainsKey(l.LecturerCode)
+                            ? lecturerTagsMap[l.LecturerCode]
+                            : new List<Tag>();
+
+                        var common = studentTopicTags
+                            .Select(t => t.TagCode)
+                            .Intersect(lecturerTags.Select(t => t.TagCode), StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+
+                        var commonTagNamesList = studentTopicTags
+                            .Where(t => common.Contains(t.TagCode, StringComparer.OrdinalIgnoreCase))
+                            .Select(t => t.TagName)
+                            .ToList();
+
+                        return new
+                        {
+                            Lecturer = l,
+                            MatchCount = common.Count,
+                            CommonTagNames = commonTagNamesList,
+                            IsSameDept = l.DepartmentCode == student.DepartmentCode,
+                            Load = lecturerVirtualLoads[l.LecturerCode]
+                        };
+                    })
+                    .OrderByDescending(x => studentTopicTags.Count == 0 || x.MatchCount > 0)
+                    .ThenByDescending(x => x.IsSameDept)
+                    .ThenByDescending(x => x.MatchCount)
+                    .ThenBy(x => x.Load)
+                    .First();
+
+                    bestLecturer = scoredCandidates.Lecturer;
+                    matchCount = scoredCandidates.MatchCount;
+                    commonTagNames = scoredCandidates.CommonTagNames;
+                    isFallback = catalogTopic == null || scoredCandidates.MatchCount == 0;
+                }
+
                 lecturerVirtualLoads[bestLecturer.LecturerCode]++;
-
-                var isFallback = catalogTopic == null || scoredCandidates.MatchCount == 0;
 
                 previewResults.Add(new AutoAssignPreviewDto
                 {
@@ -253,9 +282,9 @@ namespace ThesisManagement.Api.Controllers
                     TopicTitle = catalogTopic?.Title ?? $"Đề tài tốt nghiệp - {student.FullName}",
                     SupervisorLecturerCode = bestLecturer.LecturerCode,
                     SupervisorLecturerName = bestLecturer.FullName ?? string.Empty,
-                    MatchTagsCount = scoredCandidates.MatchCount,
+                    MatchTagsCount = matchCount,
                     IsFallback = isFallback,
-                    CommonTags = scoredCandidates.CommonTagNames
+                    CommonTags = commonTagNames
                 });
             }
 
@@ -341,6 +370,8 @@ namespace ThesisManagement.Api.Controllers
                 }
             }
 
+            var createdTopics = new List<Topic>();
+
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
@@ -382,6 +413,7 @@ namespace ThesisManagement.Api.Controllers
                     };
 
                     _context.Topics.Add(topicEntity);
+                    createdTopics.Add(topicEntity);
                     await _context.SaveChangesAsync(); // populated TopicID
 
                     // 1. Initial Milestone Link (MS_PROG1 because registration is auto-approved)
@@ -461,6 +493,20 @@ namespace ThesisManagement.Api.Controllers
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
+
+                // Auto-create chat rooms for all successfully assigned topics
+                foreach (var topic in createdTopics)
+                {
+                    try
+                    {
+                        await _chatProvisionService.EnsureForAcceptedTopicAsync(topic);
+                    }
+                    catch (Exception chatEx)
+                    {
+                        // We swallow the exception to ensure topic assignment succeeds even if chat creation fails
+                        Console.WriteLine($"Error provisioning chat for topic {topic.TopicCode}: {chatEx.Message}");
+                    }
+                }
 
                 return Ok(ApiResponse<object>.SuccessResponse(new { message = "Phân công đề tài tự động thành công." }));
             }

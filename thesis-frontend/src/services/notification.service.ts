@@ -105,7 +105,11 @@ function getNormalizedBaseUrl(): string {
 }
 
 export function getNotificationsHubUrl(): string {
-  return `${getNormalizedBaseUrl()}/hubs/notifications`;
+  const defaultHubUrl = "/hubs/notifications";
+  const envUrl = import.meta.env.VITE_NOTIFICATIONS_HUB_URL;
+  return envUrl
+    ? envUrl.toString()
+    : `${window.location.origin}${defaultHubUrl}`;
 }
 
 export async function scanSystemAlerts(periodId: number): Promise<ApiResponse<any>> {

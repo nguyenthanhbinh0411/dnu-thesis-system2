@@ -33,6 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isSwitching, setIsSwitching] = useState(false);
   const [switchProgress, setSwitchProgress] = useState(0);
 
+  // Persist user to localStorage whenever it changes
   useEffect(() => {
     if (user) {
       localStorage.setItem("app_user", JSON.stringify(user));
@@ -41,17 +42,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [user]);
 
-  useEffect(() => {
-    if (!hasValidAccessToken() && user) {
-      setUser(null);
-    }
-  }, [user]);
-
+  // Single consolidated effect: sync roles from token and clear user if token is gone.
+  // IMPORTANT: Both operations are merged here to prevent cascading renders caused
+  // by having two separate effects that both depend on [user] and both call setUser.
   useEffect(() => {
     if (!user) return;
+
+    // If the access token is no longer valid, log the user out
+    if (!hasValidAccessToken()) {
+      setUser(null);
+      return;
+    }
+
+    // Sync roles array from the current token (in case token was refreshed)
     const rolesFromToken = getAllRolesFromAccessToken();
     if (rolesFromToken.length === 0) return;
-    
+
     const hasChanged = JSON.stringify(rolesFromToken) !== JSON.stringify(user.roles);
     if (!hasChanged) return;
 
@@ -63,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       };
     });
   }, [user]);
+
 
   const login = (u: User | null) => {
     if (u && u.role) {

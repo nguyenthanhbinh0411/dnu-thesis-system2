@@ -12,8 +12,14 @@ export type ChatRealtimeListener = (event: ChatRealtimeEvent) => void;
 
 // Use relative path so SignalR resolves against current origin (browser).
 // Vite proxy (dev) and nginx (prod) both forward /hubs/chat → backend.
-const defaultHubUrl = `${API_BASE_PATH}/hubs/chat`;
-const hubUrl = (import.meta.env.VITE_CHAT_HUB_URL || defaultHubUrl).toString();
+const defaultHubUrl = "/hubs/chat";
+const hubUrl = (
+  import.meta.env.VITE_CHAT_HUB_URL ||
+  (typeof window !== "undefined"
+    ? `${window.location.origin}${defaultHubUrl}`
+    : defaultHubUrl)
+).toString();
+
 
 export class ChatRealtimeService {
   private connection: HubConnection | null = null;
@@ -37,10 +43,14 @@ export class ChatRealtimeService {
 
     const connection = new HubConnectionBuilder()
       .withUrl(hubUrl, {
-        accessTokenFactory: () => getAccessToken() ?? "",
+        accessTokenFactory: () => {
+          const token = getAccessToken();
+          console.info(`[ChatRealtime] accessTokenFactory called. Token present: ${!!token}. URL: ${hubUrl}`);
+          return token ?? "";
+        },
       })
       .withAutomaticReconnect()
-      .configureLogging(LogLevel.Warning)
+      .configureLogging(LogLevel.Information)
       .build();
 
     connection.onreconnected(async () => {
@@ -292,16 +302,46 @@ export class ChatRealtimeService {
   }
 
   async start(): Promise<void> {
-    if (this.started) return;
-
     const connection = this.getConnection();
+    console.info(`[ChatRealtime] start() called. Connection state: ${connection.state}`);
+
     if (connection.state === HubConnectionState.Connected) {
       this.started = true;
       return;
     }
 
-    await connection.start();
-    this.started = true;
+    if (
+      connection.state === HubConnectionState.Connecting ||
+      connection.state === HubConnectionState.Reconnecting
+    ) {
+      console.info(`[ChatRealtime] Connection is already in progress (state: ${connection.state}).`);
+      this.started = true;
+      return;
+    }
+
+    if (connection.state === HubConnectionState.Disconnecting) {
+      console.info("[ChatRealtime] Connection is currently disconnecting. Waiting for state to clear...");
+      let attempts = 0;
+      while (connection.state === HubConnectionState.Disconnecting && attempts < 10) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        attempts++;
+      }
+      console.info(`[ChatRealtime] Disconnecting state cleared. Current state: ${connection.state}`);
+    }
+
+    if (connection.state === HubConnectionState.Disconnected) {
+      try {
+        console.info("[ChatRealtime] Starting SignalR chat connection...");
+        await connection.start();
+        this.started = true;
+        console.info("[ChatRealtime] SignalR chat connection established successfully.");
+      } catch (err) {
+        console.error("[ChatRealtime] SignalR connection start failed:", err);
+        // Nếu start thất bại, hủy bỏ connection này để lần sau tạo mới
+        this.connection = null;
+        throw err;
+      }
+    }
   }
 
   async stop(): Promise<void> {
@@ -310,6 +350,9 @@ export class ChatRealtimeService {
     try {
       await this.connection.stop();
     } finally {
+      // Reset connection về null để lần start() tiếp theo luôn tạo HubConnection mới.
+      // SignalR không hỗ trợ tái sử dụng một connection đã bị stop.
+      this.connection = null;
       this.started = false;
       this.joinedConversations.clear();
       this.joinedConversationIds.clear();
