@@ -1814,6 +1814,7 @@ const CommitteeManagement: React.FC = () => {
       },
       exportCommitteeRoster: async (
         format: "xlsx" | "excel" | "csv" | "pdf",
+        councilId?: number,
       ) => {
         if (!defensePeriodId) {
           throw new Error("Thiếu mã đợt đồ án tốt nghiệp để xuất danh sách hội đồng.");
@@ -1822,6 +1823,7 @@ const CommitteeManagement: React.FC = () => {
         const params = new URLSearchParams({
           reportType: "committee-roster",
           format,
+          ...(councilId ? { councilId: String(councilId) } : {}),
         }).toString();
 
         return fetchData<unknown>(
@@ -5024,6 +5026,58 @@ const CommitteeManagement: React.FC = () => {
       }
     },
     [adminApi, defensePeriodId, filteredCouncilRows, notifyError, notifySuccess, notifyWarning],
+  );
+
+  const exportSingleCommitteeRoster = useCallback(
+    async (councilId: number, committeeCode: string, format: "xlsx" | "excel" | "csv" | "pdf") => {
+      if (!defensePeriodId) {
+        notifyWarning("Thiếu mã đợt đồ án tốt nghiệp để xuất danh sách hội đồng.");
+        return;
+      }
+
+      try {
+        setActionInFlight(`Xuất danh sách hội đồng ${committeeCode}`);
+        const result = await adminApi.exportCommitteeRoster(format, councilId);
+
+        let blob: Blob;
+        let extension = format === "excel" ? "xlsx" : format;
+
+        if (typeof result === "string") {
+          blob = new Blob([result], { type: "text/csv;charset=utf-8;" });
+        } else if (result instanceof ArrayBuffer) {
+          const contentType =
+            format === "pdf"
+              ? "application/pdf"
+              : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+          blob = new Blob([result], { type: contentType });
+        } else {
+          const rawText = JSON.stringify(result ?? "", null, 2);
+          blob = new Blob([rawText], { type: "text/plain;charset=utf-8;" });
+        }
+
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        const fileDate = new Date().toISOString().slice(0, 10);
+        anchor.href = objectUrl;
+        anchor.download = `committee-roster-${committeeCode}-${fileDate}.${extension}`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(objectUrl);
+        notifySuccess(
+          `Đã xuất file danh sách hội đồng ${committeeCode} (${format.toUpperCase()}).`,
+        );
+      } catch (error) {
+        notifyError(
+          error instanceof Error
+            ? error.message
+            : `Không thể xuất file danh sách hội đồng ${committeeCode}.`,
+        );
+      } finally {
+        setActionInFlight(null);
+      }
+    },
+    [adminApi, defensePeriodId, notifyError, notifySuccess, notifyWarning],
   );
 
   const lockCouncils = async () => {
@@ -10306,6 +10360,24 @@ const CommitteeManagement: React.FC = () => {
                             style={{ minHeight: 34, padding: 0 }}
                           >
                             <Copy size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="committee-ghost-btn committee-icon-btn"
+                            title="Tải danh sách thành viên hội đồng"
+                            aria-label="Tải danh sách thành viên hội đồng"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (!row.councilId) {
+                                notifyWarning("Vui lòng lưu hội đồng trước khi tải danh sách.");
+                                return;
+                              }
+                              void exportSingleCommitteeRoster(row.councilId, row.id, "xlsx");
+                            }}
+                            disabled={Boolean(actionInFlight)}
+                            style={{ minHeight: 34, padding: 0 }}
+                          >
+                            <Download size={14} />
                           </button>
                           <button
                             type="button"

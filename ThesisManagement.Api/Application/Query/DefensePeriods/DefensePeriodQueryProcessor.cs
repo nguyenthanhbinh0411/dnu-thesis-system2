@@ -2755,7 +2755,7 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                     DefenseDay = committee.DefenseDate?.Day.ToString("00"),
                     DefenseMonth = committee.DefenseDate?.Month.ToString("00"),
                     DefenseYear = committee.DefenseDate?.Year.ToString(),
-                    MajorCode = "CNTT",
+                    MajorCode = "7480201",
                     MajorName = "Công nghệ thông tin",
                     FinalScoreNumber = string.Empty,
                     FinalScoreText = string.Empty

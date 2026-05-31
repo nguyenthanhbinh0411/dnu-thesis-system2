@@ -1798,7 +1798,7 @@ namespace ThesisManagement.Api.Controllers
 
             if (normalized == "committee-roster")
             {
-                return await ExportCommitteeRoster(periodId, format);
+                return await ExportCommitteeRoster(periodId, format, councilId);
             }
 
             if (normalized == "sync-errors")
@@ -4331,7 +4331,7 @@ namespace ThesisManagement.Api.Controllers
             return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
         }
 
-        private async Task<IActionResult> ExportCommitteeRoster(int periodId, [FromQuery] string format = "xlsx")
+        private async Task<IActionResult> ExportCommitteeRoster(int periodId, [FromQuery] string format = "xlsx", [FromQuery] int? councilId = null)
         {
             var normalizedFormat = (format ?? "xlsx").Trim().ToLowerInvariant();
             if (normalizedFormat != "xlsx" && normalizedFormat != "excel" && normalizedFormat != "csv" && normalizedFormat != "pdf")
@@ -4339,18 +4339,24 @@ namespace ThesisManagement.Api.Controllers
                 return BadRequest(ApiResponse<object>.Fail("reportType=committee-roster chỉ hỗ trợ format=xlsx, csv hoặc pdf.", 400));
             }
 
-            var snapshot = await BuildCommitteeRosterSnapshot(periodId, HttpContext.RequestAborted);
+            var snapshot = await BuildCommitteeRosterSnapshot(periodId, councilId, HttpContext.RequestAborted);
             var exportResult = await _committeeRosterExportService.ExportRosterAsync(snapshot, periodId, normalizedFormat, HttpContext.RequestAborted);
             return File(exportResult.Content, exportResult.ContentType, exportResult.FileName);
         }
 
-        private async Task<CommitteeRosterExportSnapshotDto> BuildCommitteeRosterSnapshot(int periodId, CancellationToken cancellationToken)
+        private async Task<CommitteeRosterExportSnapshotDto> BuildCommitteeRosterSnapshot(int periodId, int? councilId, CancellationToken cancellationToken)
         {
-            var assignments = await _db.DefenseAssignments
+            var assignmentsQuery = _db.DefenseAssignments
                 .AsNoTracking()
                 .Where(x => x.DefenseTermId == periodId)
-                .Where(x => !string.IsNullOrWhiteSpace(x.CommitteeCode) || x.CommitteeID.HasValue)
-                .ToListAsync(cancellationToken);
+                .Where(x => !string.IsNullOrWhiteSpace(x.CommitteeCode) || x.CommitteeID.HasValue);
+
+            if (councilId.HasValue)
+            {
+                assignmentsQuery = assignmentsQuery.Where(x => x.CommitteeID == councilId.Value);
+            }
+
+            var assignments = await assignmentsQuery.ToListAsync(cancellationToken);
 
             if (assignments.Count == 0)
             {
@@ -4541,11 +4547,27 @@ namespace ThesisManagement.Api.Controllers
                 }
             }
 
+            string? targetCommitteeCode = null;
+            string? targetCommitteeName = null;
+            if (councilId.HasValue)
+            {
+                var targetCommittee = await _db.Committees
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.CommitteeID == councilId.Value, cancellationToken);
+                if (targetCommittee != null)
+                {
+                    targetCommitteeCode = targetCommittee.CommitteeCode;
+                    targetCommitteeName = targetCommittee.Name;
+                }
+            }
+
             return new CommitteeRosterExportSnapshotDto
             {
                 Rows = numberedRows,
                 TotalCommittees = numberedRows.Select(x => x.CommitteeCode).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
-                ExportedAt = DateTime.UtcNow
+                ExportedAt = DateTime.UtcNow,
+                TargetCommitteeCode = targetCommitteeCode,
+                TargetCommitteeName = targetCommitteeName
             };
         }
 
