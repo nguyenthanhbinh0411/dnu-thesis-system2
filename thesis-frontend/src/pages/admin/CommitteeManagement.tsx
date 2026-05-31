@@ -11242,7 +11242,7 @@ const CommitteeManagement: React.FC = () => {
                               onChange={(e) => setMorningTopicsPerSessionConfig(Number(e.target.value))}
                               style={{ height: 38, fontSize: 13 }}
                             >
-                              {[1, 2, 3, 4, 5, 6].map(v => <option key={v} value={v}>{v}</option>)}
+                              {[1, 2, 3, 4, 5, 6, 7].map(v => <option key={v} value={v}>{v}</option>)}
                             </select>
                           </label>
                           <label style={{ display: "grid", gap: 6 }}>
@@ -11252,7 +11252,7 @@ const CommitteeManagement: React.FC = () => {
                               onChange={(e) => setAfternoonTopicsPerSessionConfig(Number(e.target.value))}
                               style={{ height: 38, fontSize: 13 }}
                             >
-                              {[1, 2, 3, 4, 5, 6].map(v => <option key={v} value={v}>{v}</option>)}
+                              {[1, 2, 3, 4, 5, 6, 7].map(v => <option key={v} value={v}>{v}</option>)}
                             </select>
                           </label>
                         </div>
@@ -12460,7 +12460,7 @@ const CommitteeManagement: React.FC = () => {
                                                 onClick={() => moveManualTopicToSession(item.studentCode, "MORNING")}
                                                 aria-label={`Thêm đề tài ${item.studentCode} vào buổi sáng`}
                                               >
-                                                + Buổi sáng
+                                                + Sáng
                                               </button>
                                               <button
                                                 type="button"
@@ -12468,7 +12468,7 @@ const CommitteeManagement: React.FC = () => {
                                                 onClick={() => moveManualTopicToSession(item.studentCode, "AFTERNOON")}
                                                 aria-label={`Thêm đề tài ${item.studentCode} vào buổi chiều`}
                                               >
-                                                + Buổi chiều
+                                                + Chiều
                                               </button>
                                             </div>
                                           )}
