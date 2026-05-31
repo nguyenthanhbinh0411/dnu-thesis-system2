@@ -19,7 +19,7 @@
 
 | Component | Technology | Location | Port |
 |-----------|------------|----------|------|
-| Backend API | ASP.NET Core 8 | `ThesisManagement.Api/` | 8080 (internal) |
+| Backend API | ASP.NET Core 8 | `ThesisManagement.Api/` | 9699 (internal) |
 | Frontend Web | React + Vite | `thesis-frontend/` | 80 (nginx) |
 | Database | Oracle External | N/A | N/A |
 | Web Server | Nginx Alpine | Container | 8888 (public) |
@@ -37,7 +37,7 @@ Internet (port 8888)
           │ /api, /hubs
           ▼
 ┌───────────────────┐
-│   ASP.NET Core    │  :8080 (internal only)
+│   ASP.NET Core    │  :9699 (internal only)
 │   graduation-thesis-api │
 └─────────┬─────────┘
           │ DB Connection
@@ -91,7 +91,7 @@ Internet (port 8888)
 | Port | Service | Access | Notes |
 |------|---------|--------|-------|
 | 8888 | Frontend (nginx) | Public | HTTP only |
-| 8080 | Backend API | Internal only | Not exposed to host |
+| 9699 | Backend API | Internal only | Not exposed to host |
 | 1912 | SSH | Admin only | Server firewall |
 | 5432 | Database | Internal only | Not exposed |
 
@@ -216,10 +216,11 @@ ssh -v -p 1912 devfit@118.70.169.236 "echo 'SSH OK'"
 ├── .deploy.env           # Non-sensitive config (auto-generated)
 ├── .env                  # Merged (auto-generated)
 ├── docker-compose.production.yml
-└── images/
-    ├── backend-image-{sha}.tar.gz
-    └── frontend-image-{sha}.tar.gz
+├── deploy_wait.sh        # Deployment helper script
+└── (No images/ directory - images are loaded directly into Docker daemon)
 ```
+
+> **Note:** Docker images are transferred via SSH pipe and loaded directly into Docker daemon. No `.tar.gz` files are stored on the server.
 
 ### Create .env.runtime
 
@@ -279,6 +280,7 @@ ls -la /opt/graduation-thesis/.env.runtime
 | `JWT_AUDIENCE` | No | JWT audience (default: ThesisManagement.Client) |
 | `JWT_EXPIRY_MINUTES` | No | Token expiry (default: 60) |
 | `MEGA_API_KEY` | No | Mega.nz API key (optional) |
+| `RUN_DB_MIGRATIONS` | No | Set to `true` only when needing to run EF migrations. Default: `false` (recommended for production) |
 
 ---
 
@@ -296,7 +298,15 @@ git push origin main
 1. Go to GitHub → Actions
 2. Select "Deploy to Production"
 3. Click "Run workflow"
-4. Optionally skip frontend/backend build
+4. Optionally skip frontend/backend build with `skip_frontend` and `skip_backend` inputs
+
+### Workflow Requirements
+
+The GitHub Actions workflow uses:
+- `actions/setup-dotnet@v4` for .NET SDK
+- `actions/setup-node@v4` for Node.js
+- `docker/setup-buildx-action@v3` for Docker builds
+- SSH pipe (`docker save | ssh | docker load`) for image transfer - **no GitHub artifacts used**
 
 ### Deployment Flow
 
@@ -305,7 +315,7 @@ git push origin main
 │   Source    │───  main    ──▶│ GitHub Actions  │
 │   Code      │               │                 │
 └─────────────┘               └────────┬────────┘
-                                      │
+                                       │
                           ┌───────────┴───────────┐
                           ▼                       ▼
                     ┌──────────┐            ┌──────────┐
@@ -313,46 +323,55 @@ git push origin main
                     │ Backend │            │ Frontend │
                     │  (DLL)  │            │  (dist)  │
                     └────┬─────┘            └────┬─────┘
-                          │                      │
-                          └──────────┬───────────┘
-                                     ▼
-                          ┌──────────────────┐
-                          │ Build Docker      │
-                          │ Images           │
-                          │ graduation-thesis │
-                          │ -api:{sha}       │
-                          │ -web:{sha}       │
-                          └────────┬─────────┘
-                                   │
-                          ┌────────┴────────┐
-                          ▼                 ▼
+                         │                      │
+                         └──────────┬───────────┘
+                                    ▼
+                         ┌──────────────────┐
+                         │ Build Docker      │
+                         │ Images           │
+                         │ graduation-thesis │
+                         │ -api:{sha}       │
+                         │ -web:{sha}       │
+                         └────────┬─────────┘
+                                  │
+                         ┌────────┴────────┐
+                         ▼                 ▼
                     ┌──────────┐      ┌──────────┐
-                    │  Save   │      │  Upload  │
-                    │  .tar.gz│─────▶│ via SCP │
-                    └──────────┘      └────┬─────┘
-                                           │
-                          ┌─────────────────┴─────────────────┐
-                          ▼                                   ▼
-                    ┌──────────┐                       ┌──────────┐
-                    │  Load   │                       │ Verify   │
-                    │ Images  │                       │ .env.    │
-                    └────┬─────┘                       │ runtime  │
-                         │                             └────┬─────┘
-                         └────────────┬──────────────────────┘
-                                      ▼
-                          ┌─────────────────────┐
-                          │ Merge .deploy.env   │
-                          │ + .env.runtime      │
-                          │ = .env              │
-                          └──────────┬──────────┘
-                                     │
-                          ┌──────────┴──────────┐
-                          ▼                     ▼
-                    ┌──────────┐         ┌──────────┐
-                    │ Deploy  │────────▶│ Health   │
-                    │ Services│         │ Check   │
-                    └──────────┘         └──────────┘
+                    │  Save   │      │  Save   │
+                    │ + Pipe │      │ + Pipe │
+                    │  via   │      │  via   │
+                    │  SSH   │      │  SSH   │
+                    └────┬─────┘      └────┬─────┘
+                         │                │
+                         └───────┬────────┘
+                                 ▼
+                    ┌─────────────────────┐
+                    │ Load Docker Images │
+                    │ on Server         │
+                    └──────────┬──────────┘
+                               │
+                    ┌──────────┴──────────┐
+                    ▼                     ▼
+              ┌──────────┐         ┌──────────┐
+              │ Verify   │         │ Merge    │
+              │ .env.    │         │ .deploy  │
+              │ runtime  │         │ + .env   │
+              └────┬─────┘         │ .runtime │
+                  │                └────┬─────┘
+                  └────────────┬──────────┘
+                               ▼
+                    ┌─────────────────────┐
+                    │ Deploy Services     │
+                    │ + Health Check     │
+                    └─────────────────────┘
 ```
+
+### Key Differences from Old Workflow
+
+- **No GitHub Artifacts**: Docker images are transferred directly via SSH pipe (`docker save | ssh | docker load`)
+- **No artifact storage quota issues**: Images are never stored on GitHub servers
+- **Faster transfer**: Direct pipe transfer can be faster for moderate image sizes
+- **Single job deployment**: All steps run in one job for simplicity
 
 ---
 
@@ -390,7 +409,7 @@ ssh -p 1912 devfit@118.70.169.236 "docker logs graduation-thesis-web --tail 50"
 ssh -p 1912 devfit@118.70.169.236 "curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:8888/"
 
 # Test backend health (internal)
-ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:8080/healthz"
+ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:9699/healthz"
 
 # Test API proxy
 ssh -p 1912 devfit@118.70.169.236 "curl -fsS http://127.0.0.1:8888/api/"
@@ -399,13 +418,13 @@ ssh -p 1912 devfit@118.70.169.236 "curl -fsS http://127.0.0.1:8888/api/"
 ### Verify Listening Ports
 
 ```bash
-ssh -p 1912 devfit@118.70.169.236 "ss -tulpn | grep -E ':(8888|8080)'"
+ssh -p 1912 devfit@118.70.169.236 "ss -tulpn | grep -E ':(8888|9699)'"
 ```
 
 Expected output:
 ```
 tcp   LISTEN   0.511   0.0.0.0:8888   0.0.0.0:*   nginx/graduation-thesis-web
-tcp   LISTEN   0.128   172.28.0.2:8080   0.0.0.0:*   dotnet/ThesisManagement.Api
+tcp   LISTEN   0.128   127.0.0.1:9699   0.0.0.0:*   dotnet/ThesisManagement.Api
 ```
 
 ---
@@ -583,7 +602,7 @@ nginx
 ssh -p 1912 devfit@118.70.169.236 "docker ps | grep backend"
 
 # Check backend health
-ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:8080/healthz"
+ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:9699/healthz"
 
 # Check nginx logs
 ssh -p 1912 devfit@118.70.169.236 "docker logs graduation-thesis-web --tail 20"
@@ -596,7 +615,7 @@ ssh -p 1912 devfit@118.70.169.236 "docker restart graduation-thesis-api"
 
 # Wait and check
 sleep 30
-ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:8080/healthz"
+ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:9699/healthz"
 ```
 
 ---
@@ -639,7 +658,7 @@ Container graduation-thesis-api health check exceeded timeout
 **Diagnosis:**
 ```bash
 # Check if health endpoint is accessible
-ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:8080/healthz"
+ssh -p 1912 devfit@118.70.169.236 "docker exec graduation-thesis-api wget -qO- http://localhost:9699/healthz"
 
 # Check container startup logs
 ssh -p 1912 devfit@118.70.169.236 "docker logs graduation-thesis-api --tail 200"
@@ -655,7 +674,76 @@ ssh -p 1912 devfit@118.70.169.236 "docker restart graduation-thesis-api"
 
 ---
 
-## 9. Database Backup
+## 9. EF Core Migration Management
+
+> **IMPORTANT:** Production does NOT auto-migrate by default. This is intentional to prevent schema corruption.
+
+### Migration Safety Model
+
+| Environment | Auto Migrate | Setting |
+|-------------|--------------|---------|
+| Development | Yes | `ASPNETCORE_ENVIRONMENT=Development` |
+| Production | **No** | `RUN_DB_MIGRATIONS=false` (default) |
+
+### If You Need to Run Migrations
+
+**Option 1: One-time migration with environment variable**
+
+1. Set `RUN_DB_MIGRATIONS=true` in `.env.runtime` on server
+2. Deploy - migrations will run automatically
+3. After deployment succeeds, set `RUN_DB_MIGRATIONS=false`
+4. Redeploy to disable auto-migration
+
+```bash
+# On server, edit .env.runtime
+nano /opt/graduation-thesis/.env.runtime
+# Add: RUN_DB_MIGRATIONS=true
+
+# Redeploy
+cd /opt/graduation-thesis
+docker compose -f docker-compose.production.yml up -d --no-deps backend
+
+# After migrations complete, disable
+# Change RUN_DB_MIGRATIONS=false and redeploy
+```
+
+**Option 2: Manual migration using baseline script**
+
+If database schema already exists but EF doesn't know about it:
+
+1. Run the baseline script on Oracle:
+   ```bash
+   sqlplus user/password@host:1521/service @scripts/baseline-migration-history.sql
+   ```
+
+2. Deploy with `RUN_DB_MIGRATIONS=false`
+
+### Checking Pending Migrations
+
+```bash
+# SSH to server and check container logs
+ssh -p 1912 devfit@118.70.169.236 "docker logs graduation-thesis-api --tail 100" | grep -i migration
+```
+
+Expected log when migration is disabled:
+```
+warn: Production automatic migrations are DISABLED.
+warn: Found 9 pending migrations that are NOT applied:
+warn:   - 20260516144500_InitialCreate
+...
+```
+
+### Error: ORA-00955
+
+**Cause:** EF tries to create a table that already exists.
+
+**Solution:**
+1. Run `scripts/baseline-migration-history.sql` on Oracle to mark existing migrations as applied
+2. Deploy with `RUN_DB_MIGRATIONS=false`
+
+---
+
+## 10. Database Backup
 
 > **IMPORTANT: Always backup database before any deployment that might affect schema.**
 
@@ -750,7 +838,7 @@ docker compose --env-file .env -f docker-compose.production.yml up -d
 ```bash
 curl http://127.0.0.1:8888/
 curl http://127.0.0.1:8888/api/
-docker exec graduation-thesis-api wget -qO- http://localhost:8080/healthz
+docker exec graduation-thesis-api wget -qO- http://localhost:9699/healthz
 ```
 
 ### Backup Before Deploy
@@ -783,3 +871,115 @@ Before deployment, verify:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-05-16 | Initial CI/CD with security model |
+| 1.1 | 2026-05-30 | Updated for SSH pipe image transfer (no artifacts) |
+| 1.2 | 2026-05-30 | Added actions/setup-dotnet for .NET SDK installation |
+| 1.3 | 2026-05-30 | Changed backend port from 8080 to 9699 |
+| 1.4 | 2026-05-30 | Added .dockerignore and optimized deploy workflow |
+| 1.5 | 2026-05-30 | Fixed compose network and depends_on issues |
+| 1.6 | 2026-05-30 | Fixed production migration: disabled auto-migrate, added RUN_DB_MIGRATIONS flag, added baseline script |
+| 1.7 | 2026-05-30 | Fixed DB_CONNECTION_STRING env var in docker-compose, improved startup logging |
+| 1.8 | 2026-05-30 | Fixed Nginx proxy from host.docker.internal to 127.0.0.1 |
+
+## Connection String Configuration Guide
+
+### Environment Variable Priority
+
+The application uses the following priority order for database connection string:
+
+1. **`DB_CONNECTION_STRING`** environment variable (highest priority - recommended for production)
+2. **`ConnectionStrings:DefaultConnection`** from `appsettings.json` (fallback - development only)
+
+### How It Works
+
+1. **Program.cs** reads `DB_CONNECTION_STRING` directly via `Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")`
+2. If not set, it falls back to `Configuration.GetConnectionString("DefaultConnection")`
+3. If neither is available, the application throws an error on startup
+
+### Docker Compose Configuration
+
+The production `docker-compose.production.yml` sets both:
+
+```yaml
+environment:
+  - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}                    # For Program.cs (PRIMARY)
+  - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}  # For appsettings fallback
+```
+
+### Verification Commands
+
+After deployment, verify the connection string is correctly configured:
+
+```bash
+# Navigate to deployment directory
+cd /opt/graduation-thesis
+
+# 1. Check .env.runtime has DB_CONNECTION_STRING
+cat .env.runtime | grep DB_CONNECTION_STRING
+
+# 2. Verify merged .env has the value
+cat .env | grep DB_CONNECTION_STRING
+
+# 3. Check docker-compose config shows correct env
+docker compose -f docker-compose.production.yml config | grep -A2 DB_CONNECTION_STRING
+
+# 4. Verify env is set inside container
+docker compose -f docker-compose.production.yml exec backend printenv | grep DB_CONNECTION_STRING
+
+# 5. Check startup logs for database configuration
+docker compose -f docker-compose.production.yml logs --tail=100 backend | grep -E "Database configuration|DataSource|DB_CONNECTION_STRING"
+```
+
+### Expected Log Output
+
+When `DB_CONNECTION_STRING` is correctly set:
+
+```
+Database configuration loaded from DB_CONNECTION_STRING environment variable. Provider=Oracle, UserId=DEV, DataSource=//127.0.0.1:1522/XEPDB1
+```
+
+When using fallback (should NOT happen in production):
+
+```
+DB_CONNECTION_STRING environment variable is not set. Using ConnectionStrings:DefaultConnection from appsettings.json. This fallback should only be used in development.
+```
+
+---
+
+## Nginx Configuration Verification
+
+After deployment, verify Nginx can proxy to backend correctly:
+
+```bash
+# Navigate to deployment directory
+cd /opt/graduation-thesis
+
+# 1. Check Nginx config syntax
+docker exec graduation-thesis-web nginx -t
+
+# 2. Verify Nginx can resolve 127.0.0.1
+docker exec graduation-thesis-web getent hosts 127.0.0.1
+
+# 3. Check Nginx logs for errors
+docker logs graduation-thesis-web --tail 50
+
+# 4. Test API proxy through Nginx
+curl -v http://127.0.0.1:8888/api/
+
+# 5. Check backend is accessible from host
+curl -v http://127.0.0.1:9699/healthz
+```
+
+### Common Nginx Issues
+
+**"host not found in upstream host.docker.internal"**
+- This means Nginx config uses `host.docker.internal` which doesn't resolve on Linux
+- Fix: Change to `127.0.0.1` (backend uses `network_mode: host`)
+
+**502 Bad Gateway**
+- Backend may not be running or on wrong port
+- Check: `docker ps | grep graduation-thesis-api`
+- Verify: `curl http://127.0.0.1:9699/healthz`
+
+**Nginx container restarting**
+- Check logs: `docker logs graduation-thesis-web --tail 100`
+- Common cause: invalid config or missing upstream

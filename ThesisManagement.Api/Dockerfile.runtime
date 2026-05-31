@@ -1,12 +1,13 @@
 # ============================================
 # Runtime Dockerfile for ThesisManagement.Api
 # Packages pre-built DLL from artifact
+# Supports EF Core migrations on startup
 # ============================================
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 
-# Install wget for healthcheck
-RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
+# Install wget for healthcheck and bash for entrypoint script
+RUN apt-get update && apt-get install -y wget bash && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
 RUN groupadd --gid 1000 appgroup && \
@@ -17,6 +18,10 @@ WORKDIR /app
 # Copy pre-built published files
 COPY . ./
 
+# Copy and set up entrypoint script for migrations
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Set ownership
 RUN chown -R appuser:appgroup /app
 
@@ -25,14 +30,14 @@ USER appuser
 
 # Environment defaults
 ENV ASPNETCORE_ENVIRONMENT=Production
-ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://+:9699
 
-# Expose internal port (not published to host)
-EXPOSE 8080
+# Expose internal port
+EXPOSE 9699
 
-# Healthcheck using wget (available in aspnet base image)
+# Healthcheck using wget (aspnet image has wget)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-    CMD wget -qO- http://localhost:8080/healthz || exit 1
+    CMD wget -qO- http://localhost:9699/healthz || exit 1
 
-# Entry point - uses DLL name from .csproj AssemblyName
-ENTRYPOINT ["dotnet", "ThesisManagement.Api.dll"]
+# Entry point - runs migrations then starts the application
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
