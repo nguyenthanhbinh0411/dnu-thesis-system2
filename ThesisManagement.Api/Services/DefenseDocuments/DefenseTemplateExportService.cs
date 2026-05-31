@@ -21,7 +21,7 @@ namespace ThesisManagement.Api.Services.DefenseDocuments
     public sealed class DefenseTemplateExportService : IDefenseTemplateExportService
     {
         private const string FixedMajorName = "Công nghệ thông tin";
-        private const string FixedMajorCode = "CNTT";
+        private const string FixedMajorCode = "7480201";
         private const string MeetingTemplateFileName = "BIÊN BẢN HỌP.docx";
         private const string ReviewerTemplateFileName = "NHẬN XÉT CỦA NGƯỜI PHẢN BIỆN.docx";
         private const string DocxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";

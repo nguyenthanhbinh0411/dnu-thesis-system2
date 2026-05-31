@@ -1316,6 +1316,7 @@ const CommitteeManagement: React.FC = () => {
   const [, setReadinessNote] = useState<string>("");
   const [actionInFlight, setActionInFlight] = useState<string | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportMenuState, setExportMenuState] = useState<"main" | "roster-formats" | "room-formats">("main");
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
   const [, setApiSignal] = useState<{
     at: string;
@@ -1358,6 +1359,7 @@ const CommitteeManagement: React.FC = () => {
         !exportMenuRef.current.contains(event.target as Node)
       ) {
         setExportMenuOpen(false);
+        setExportMenuState("main");
       }
     };
 
@@ -1814,6 +1816,7 @@ const CommitteeManagement: React.FC = () => {
       },
       exportCommitteeRoster: async (
         format: "xlsx" | "excel" | "csv" | "pdf",
+        councilId?: number,
       ) => {
         if (!defensePeriodId) {
           throw new Error("Thiếu mã đợt đồ án tốt nghiệp để xuất danh sách hội đồng.");
@@ -1822,6 +1825,7 @@ const CommitteeManagement: React.FC = () => {
         const params = new URLSearchParams({
           reportType: "committee-roster",
           format,
+          ...(councilId ? { councilId: String(councilId) } : {}),
         }).toString();
 
         return fetchData<unknown>(
@@ -5024,6 +5028,112 @@ const CommitteeManagement: React.FC = () => {
       }
     },
     [adminApi, defensePeriodId, filteredCouncilRows, notifyError, notifySuccess, notifyWarning],
+  );
+
+  const exportSingleCommitteeRoster = useCallback(
+    async (councilId: number, committeeCode: string, format: "xlsx" | "excel" | "csv" | "pdf") => {
+      if (!defensePeriodId) {
+        notifyWarning("Thiếu mã đợt đồ án tốt nghiệp để xuất danh sách hội đồng.");
+        return;
+      }
+
+      try {
+        setActionInFlight(`Xuất danh sách hội đồng ${committeeCode}`);
+        const result = await adminApi.exportCommitteeRoster(format, councilId);
+
+        let blob: Blob;
+        let extension = format === "excel" ? "xlsx" : format;
+
+        if (typeof result === "string") {
+          blob = new Blob([result], { type: "text/csv;charset=utf-8;" });
+        } else if (result instanceof ArrayBuffer) {
+          const contentType =
+            format === "pdf"
+              ? "application/pdf"
+              : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+          blob = new Blob([result], { type: contentType });
+        } else {
+          const rawText = JSON.stringify(result ?? "", null, 2);
+          blob = new Blob([rawText], { type: "text/plain;charset=utf-8;" });
+        }
+
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        const fileDate = new Date().toISOString().slice(0, 10);
+        anchor.href = objectUrl;
+        anchor.download = `committee-roster-${committeeCode}-${fileDate}.${extension}`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(objectUrl);
+        notifySuccess(
+          `Đã xuất file danh sách hội đồng ${committeeCode} (${format.toUpperCase()}).`,
+        );
+      } catch (error) {
+        notifyError(
+          error instanceof Error
+            ? error.message
+            : `Không thể xuất file danh sách hội đồng ${committeeCode}.`,
+        );
+      } finally {
+        setActionInFlight(null);
+      }
+    },
+    [adminApi, defensePeriodId, notifyError, notifySuccess, notifyWarning],
+  );
+
+  const exportRoomMatrix = useCallback(
+    async (format: "xlsx" | "pdf") => {
+      if (!defensePeriodId) {
+        notifyWarning("Thiếu mã đợt đồ án tốt nghiệp để xuất bảng phân phòng.");
+        return;
+      }
+
+      try {
+        setActionInFlight("Xuất bảng phân phòng bảo vệ");
+        setExportMenuOpen(false);
+        setExportMenuState("main");
+
+        const endpoint = `${defensePeriodBase}/operations/export?template=room-matrix&format=${format}`;
+        
+        const result = await fetchData<ArrayBuffer>(endpoint, {
+          method: "GET",
+          skipAuthRedirect: true,
+        });
+
+        if (!result || result.byteLength === 0) {
+          throw new Error("File xuất rỗng hoặc không hợp lệ.");
+        }
+
+        const contentType =
+          format === "pdf"
+            ? "application/pdf"
+            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        const blob = new Blob([result], { type: contentType });
+
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        const fileDate = new Date().toISOString().slice(0, 10);
+        anchor.href = objectUrl;
+        anchor.download = `room-matrix-${defensePeriodId}-${fileDate}.${format}`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(objectUrl);
+        notifySuccess(
+          `Đã xuất bảng phân phòng bảo vệ (${format.toUpperCase()}).`,
+        );
+      } catch (error) {
+        notifyError(
+          error instanceof Error
+            ? error.message
+            : "Không thể xuất bảng phân phòng bảo vệ.",
+        );
+      } finally {
+        setActionInFlight(null);
+      }
+    },
+    [defensePeriodBase, defensePeriodId, notifyError, notifySuccess, notifyWarning],
   );
 
   const lockCouncils = async () => {
@@ -10082,10 +10192,13 @@ const CommitteeManagement: React.FC = () => {
                   <button
                     type="button"
                     className="committee-ghost-btn"
-                    onClick={() => setExportMenuOpen((open) => !open)}
+                    onClick={() => {
+                      setExportMenuOpen((open) => !open);
+                      setExportMenuState("main");
+                    }}
                     disabled={filteredCouncilRows.length === 0 || Boolean(actionInFlight)}
                   >
-                    <Download size={14} /> Xuất danh sách hội đồng
+                    <Download size={14} /> Xuất file
                   </button>
                   {exportMenuOpen && (
                     <div
@@ -10098,39 +10211,135 @@ const CommitteeManagement: React.FC = () => {
                         border: "1px solid #cbd5e1",
                         borderRadius: 12,
                         boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
-                        minWidth: 210,
+                        minWidth: 220,
                         zIndex: 1100,
                         overflow: "hidden",
                       }}
                     >
-                      <button
-                        type="button"
-                        onClick={() => void exportCouncilRoster("xlsx")}
-                        style={menuItemStyle}
-                      >
-                        <FileSpreadsheet size={16} /> Excel (.xlsx)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void exportCouncilRoster("excel")}
-                        style={menuItemStyle}
-                      >
-                        <FileSpreadsheet size={16} /> Excel (legacy)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void exportCouncilRoster("csv")}
-                        style={menuItemStyle}
-                      >
-                        <FileText size={16} /> CSV (.csv)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void exportCouncilRoster("pdf")}
-                        style={menuItemStyle}
-                      >
-                        <Download size={16} /> PDF (.pdf)
-                      </button>
+                      {exportMenuState === "main" && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setExportMenuState("roster-formats")}
+                            style={{
+                              ...menuItemStyle,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              width: "100%",
+                              padding: "10px 16px",
+                            }}
+                          >
+                            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <Users size={16} style={{ color: "#3b82f6" }} /> Danh sách hội đồng
+                            </span>
+                            <ChevronRight size={14} style={{ color: "#64748b" }} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExportMenuState("room-formats")}
+                            style={{
+                              ...menuItemStyle,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              width: "100%",
+                              padding: "10px 16px",
+                            }}
+                          >
+                            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <Building2 size={16} style={{ color: "#10b981" }} /> Phân phòng bảo vệ
+                            </span>
+                            <ChevronRight size={14} style={{ color: "#64748b" }} />
+                          </button>
+                        </>
+                      )}
+
+                      {exportMenuState === "roster-formats" && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setExportMenuState("main")}
+                            style={{
+                              ...menuItemStyle,
+                              background: "#f8fafc",
+                              borderBottom: "1px solid #e2e8f0",
+                              fontWeight: 600,
+                              color: "#475569",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              padding: "10px 16px",
+                            }}
+                          >
+                            <ChevronLeft size={14} /> Quay lại
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void exportCouncilRoster("xlsx")}
+                            style={menuItemStyle}
+                          >
+                            <FileSpreadsheet size={16} style={{ color: "#10b981" }} /> Excel (.xlsx)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void exportCouncilRoster("excel")}
+                            style={menuItemStyle}
+                          >
+                            <FileSpreadsheet size={16} style={{ color: "#64748b" }} /> Excel (legacy)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void exportCouncilRoster("csv")}
+                            style={menuItemStyle}
+                          >
+                            <FileText size={16} style={{ color: "#3b82f6" }} /> CSV (.csv)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void exportCouncilRoster("pdf")}
+                            style={menuItemStyle}
+                          >
+                            <Download size={16} style={{ color: "#ef4444" }} /> PDF (.pdf)
+                          </button>
+                        </>
+                      )}
+
+                      {exportMenuState === "room-formats" && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setExportMenuState("main")}
+                            style={{
+                              ...menuItemStyle,
+                              background: "#f8fafc",
+                              borderBottom: "1px solid #e2e8f0",
+                              fontWeight: 600,
+                              color: "#475569",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              padding: "10px 16px",
+                            }}
+                          >
+                            <ChevronLeft size={14} /> Quay lại
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void exportRoomMatrix("xlsx")}
+                            style={menuItemStyle}
+                          >
+                            <FileSpreadsheet size={16} style={{ color: "#10b981" }} /> Excel (.xlsx)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void exportRoomMatrix("pdf")}
+                            style={menuItemStyle}
+                          >
+                            <Download size={16} style={{ color: "#ef4444" }} /> PDF (.pdf)
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -10306,6 +10515,24 @@ const CommitteeManagement: React.FC = () => {
                             style={{ minHeight: 34, padding: 0 }}
                           >
                             <Copy size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="committee-ghost-btn committee-icon-btn"
+                            title="Tải danh sách thành viên hội đồng"
+                            aria-label="Tải danh sách thành viên hội đồng"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (!row.councilId) {
+                                notifyWarning("Vui lòng lưu hội đồng trước khi tải danh sách.");
+                                return;
+                              }
+                              void exportSingleCommitteeRoster(row.councilId, row.id, "xlsx");
+                            }}
+                            disabled={Boolean(actionInFlight)}
+                            style={{ minHeight: 34, padding: 0 }}
+                          >
+                            <Download size={14} />
                           </button>
                           <button
                             type="button"
@@ -11170,7 +11397,7 @@ const CommitteeManagement: React.FC = () => {
                               onChange={(e) => setMorningTopicsPerSessionConfig(Number(e.target.value))}
                               style={{ height: 38, fontSize: 13 }}
                             >
-                              {[1, 2, 3, 4, 5, 6].map(v => <option key={v} value={v}>{v}</option>)}
+                              {[1, 2, 3, 4, 5, 6, 7].map(v => <option key={v} value={v}>{v}</option>)}
                             </select>
                           </label>
                           <label style={{ display: "grid", gap: 6 }}>
@@ -11180,7 +11407,7 @@ const CommitteeManagement: React.FC = () => {
                               onChange={(e) => setAfternoonTopicsPerSessionConfig(Number(e.target.value))}
                               style={{ height: 38, fontSize: 13 }}
                             >
-                              {[1, 2, 3, 4, 5, 6].map(v => <option key={v} value={v}>{v}</option>)}
+                              {[1, 2, 3, 4, 5, 6, 7].map(v => <option key={v} value={v}>{v}</option>)}
                             </select>
                           </label>
                         </div>
@@ -12388,7 +12615,7 @@ const CommitteeManagement: React.FC = () => {
                                                 onClick={() => moveManualTopicToSession(item.studentCode, "MORNING")}
                                                 aria-label={`Thêm đề tài ${item.studentCode} vào buổi sáng`}
                                               >
-                                                + Buổi sáng
+                                                + Sáng
                                               </button>
                                               <button
                                                 type="button"
@@ -12396,7 +12623,7 @@ const CommitteeManagement: React.FC = () => {
                                                 onClick={() => moveManualTopicToSession(item.studentCode, "AFTERNOON")}
                                                 aria-label={`Thêm đề tài ${item.studentCode} vào buổi chiều`}
                                               >
-                                                + Buổi chiều
+                                                + Chiều
                                               </button>
                                             </div>
                                           )}

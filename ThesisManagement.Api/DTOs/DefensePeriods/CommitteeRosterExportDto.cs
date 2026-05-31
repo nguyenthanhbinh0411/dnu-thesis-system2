@@ -46,4 +46,8 @@ public class CommitteeRosterExportSnapshotDto
     public int TotalCommittees { get; set; }
     
     public DateTime? ExportedAt { get; set; }
+
+    public string? TargetCommitteeCode { get; set; }
+
+    public string? TargetCommitteeName { get; set; }
 }

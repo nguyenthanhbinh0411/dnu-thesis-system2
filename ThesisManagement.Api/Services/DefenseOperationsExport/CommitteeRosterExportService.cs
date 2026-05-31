@@ -73,24 +73,40 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
         sheet.Column("M").Width = 12; // Buổi
         sheet.Column("N").Width = 16; // Ngày
 
-        BuildHeader(sheet);
+        BuildHeader(sheet, roster);
         BuildDataRows(sheet, roster);
         ConfigurePrintSettings(sheet);
 
         using var ms = new MemoryStream();
         workbook.SaveAs(ms);
         var content = ms.ToArray();
-        var fileName = $"DANH_SACH_HOI_DONG_{periodId}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+        var suffix = !string.IsNullOrWhiteSpace(roster.TargetCommitteeCode)
+            ? roster.TargetCommitteeCode.Replace(" ", "_")
+            : (!string.IsNullOrWhiteSpace(roster.TargetCommitteeName)
+                ? roster.TargetCommitteeName.Replace(" ", "_")
+                : $"{periodId}");
+        var fileName = $"DANH_SACH_HOI_DONG_{suffix}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
         return (content, fileName, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     }
 
-    private static void BuildHeader(IXLWorksheet sheet)
+    private static void BuildHeader(IXLWorksheet sheet, CommitteeRosterExportSnapshotDto roster)
     {
+        var title = Title;
+        if (!string.IsNullOrWhiteSpace(roster.TargetCommitteeCode))
+        {
+            title = $"DANH SÁCH THÀNH VIÊN HỘI ĐỒNG: {(roster.TargetCommitteeCode).ToUpper()}";
+        }
+        else if (!string.IsNullOrWhiteSpace(roster.TargetCommitteeName))
+        {
+            title = $"DANH SÁCH THÀNH VIÊN HỘI ĐỒNG: {(roster.TargetCommitteeName).ToUpper()}";
+        }
+
         sheet.Range("A1:E1").Merge().Value = School;
         sheet.Range("A2:E2").Merge().Value = Faculty;
         sheet.Range("I1:N1").Merge().Value = Country;
         sheet.Range("I2:N2").Merge().Value = CountryMotto;
-        sheet.Range("A4:N4").Merge().Value = Title;
+        sheet.Range("A4:N4").Merge().Value = title;
         sheet.Range("A5:N5").Merge().Value = Major;
 
         sheet.Range("A7:A8").Merge().Value = "TT";
@@ -364,7 +380,13 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
         }
 
         var content = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(builder.ToString())).ToArray();
-        var fileName = $"DANH_SACH_HOI_DONG_{periodId}_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+        
+        var suffix = !string.IsNullOrWhiteSpace(roster.TargetCommitteeCode)
+            ? roster.TargetCommitteeCode.Replace(" ", "_")
+            : (!string.IsNullOrWhiteSpace(roster.TargetCommitteeName)
+                ? roster.TargetCommitteeName.Replace(" ", "_")
+                : $"{periodId}");
+        var fileName = $"DANH_SACH_HOI_DONG_{suffix}_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
         return (content, fileName, "text/csv; charset=utf-8");
     }
 
@@ -372,6 +394,16 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
     {
         QuestPDF.Settings.License = LicenseType.Community;
         var culture = CultureInfo.InvariantCulture;
+
+        var title = Title;
+        if (!string.IsNullOrWhiteSpace(roster.TargetCommitteeCode))
+        {
+            title = $"DANH SÁCH THÀNH VIÊN HỘI ĐỒNG: {(roster.TargetCommitteeCode).ToUpper()}";
+        }
+        else if (!string.IsNullOrWhiteSpace(roster.TargetCommitteeName))
+        {
+            title = $"DANH SÁCH THÀNH VIÊN HỘI ĐỒNG: {(roster.TargetCommitteeName).ToUpper()}";
+        }
 
         var document = Document.Create(container =>
         {
@@ -398,7 +430,7 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
                         });
                     });
 
-                    column.Item().PaddingTop(8).AlignCenter().Text(Title).Bold().FontSize(14);
+                    column.Item().PaddingTop(8).AlignCenter().Text(title).Bold().FontSize(14);
                     column.Item().AlignCenter().Text(Major).Bold().FontSize(12);
                     column.Item().AlignCenter().Text($"Hà Nội, ngày {DateTime.Now:dd} tháng {DateTime.Now:MM} năm {DateTime.Now:yyyy}").FontSize(9);
                 });
@@ -488,7 +520,13 @@ public class CommitteeRosterExportService : ICommitteeRosterExportService
         });
 
         var buffer = document.GeneratePdf();
-        var fileName = $"DANH_SACH_HOI_DONG_{periodId}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+        
+        var suffix = !string.IsNullOrWhiteSpace(roster.TargetCommitteeCode)
+            ? roster.TargetCommitteeCode.Replace(" ", "_")
+            : (!string.IsNullOrWhiteSpace(roster.TargetCommitteeName)
+                ? roster.TargetCommitteeName.Replace(" ", "_")
+                : $"{periodId}");
+        var fileName = $"DANH_SACH_HOI_DONG_{suffix}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
         return (buffer, fileName, "application/pdf");
     }
 
