@@ -728,9 +728,6 @@ const RoomsManagement: React.FC = () => {
           <button className="rooms-btn rooms-btn-secondary" onClick={() => setShowImport(true)}>
             <FileUp size={14} /> Import
           </button>
-          <button className="rooms-btn rooms-btn-secondary" onClick={handleExport} disabled={isExporting}>
-            <FileDown size={14} /> {isExporting ? "Đang xuất..." : "Export"}
-          </button>
           <button className="rooms-btn rooms-btn-primary" onClick={() => { setEditingRoomId(null); setFormState({ roomCode: "", status: "Đang hoạt động" }); setShowForm(true); }}>
             <Plus size={14} /> Thêm phòng
           </button>

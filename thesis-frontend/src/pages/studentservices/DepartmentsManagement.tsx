@@ -503,6 +503,7 @@ const DepartmentsManagement: React.FC = () => {
             moduleName="departments"
             moduleLabel="Quản lý khoa"
             onImportSuccess={loadRows}
+            hideExport={true}
           />
           <button
             type="button"

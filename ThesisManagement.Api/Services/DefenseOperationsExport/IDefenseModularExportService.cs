@@ -28,5 +28,41 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
             string format,
             List<string>? fields = null,
             CancellationToken cancellationToken = default);
+
+        Task<ApiResponse<(byte[] Content, string FileName, string ContentType)>> ExportDepartmentsAsync(
+            int periodId,
+            string format,
+            List<string>? fields = null,
+            CancellationToken cancellationToken = default);
+
+        Task<ApiResponse<(byte[] Content, string FileName, string ContentType)>> ExportClassesAsync(
+            int periodId,
+            string format,
+            List<string>? fields = null,
+            CancellationToken cancellationToken = default);
+
+        Task<ApiResponse<(byte[] Content, string FileName, string ContentType)>> ExportTagsAsync(
+            int periodId,
+            string format,
+            List<string>? fields = null,
+            CancellationToken cancellationToken = default);
+
+        Task<ApiResponse<(byte[] Content, string FileName, string ContentType)>> ExportCatalogTopicsAsync(
+            int periodId,
+            string format,
+            List<string>? fields = null,
+            CancellationToken cancellationToken = default);
+
+        Task<ApiResponse<(byte[] Content, string FileName, string ContentType)>> ExportRoomsAsync(
+            int periodId,
+            string format,
+            List<string>? fields = null,
+            CancellationToken cancellationToken = default);
+
+        Task<ApiResponse<(byte[] Content, string FileName, string ContentType)>> ExportUsersAsync(
+            int periodId,
+            string format,
+            List<string>? fields = null,
+            CancellationToken cancellationToken = default);
     }
 }

@@ -419,58 +419,75 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
 
         private string GetLabel(string key)
         {
-            return key switch
+            return key.ToLowerInvariant() switch
             {
-                "StudentCode" => "Mã sinh viên",
-                "UserCode" => "Mã user",
-                "FullName" => "Họ và tên",
-                "Gender" => "Giới tính",
-                "DateOfBirth" => "Ngày sinh",
-                "FacultyCode" => "Khoa",
-                "DepartmentCode" => "Bộ môn",
-                "ClassCode" => "Lớp",
-                "EnrollmentYear" => "Khóa học",
-                "GraduationYear" => "Năm tốt nghiệp",
-                "GPA" => "Điểm TB",
-                "AcademicStanding" => "Xếp loại",
-                "ParticipationStatus" => "Trạng thái tham gia",
-                "StudentEmail" => "Email",
-                "PhoneNumber" => "Số điện thoại",
-                "Address" => "Địa chỉ",
-                "Status" => "Trạng thái",
-                "Notes" => "Ghi chú",
-                "LecturerCode" => "Mã giảng viên",
-                "ProfileImage" => "Ảnh hồ sơ",
-                "Degree" => "Học hàm/Học vị",
-                "Organization" => "Cơ quan công tác",
-                "Email" => "Email",
-                "GuideQuota" => "Định mức HD",
-                "DefenseQuota" => "Định mức bảo vệ",
-                "CurrentGuidingCount" => "Đang HD",
-                "RemainingGuideQuota" => "Còn lại",
-                "Specialties" => "Chuyên môn",
-                "TopicCode" => "Mã đề tài",
-                "CatalogTopicCode" => "Mã danh mục",
-                "Title" => "Tên đề tài",
-                "Type" => "Loại đề tài",
-                "Summary" => "Tóm tắt",
-                "ProposerStudentCode" => "Mã SV",
-                "ProposerName" => "Sinh viên thực hiện",
-                "ProposerUserCode" => "Mã user SV",
-                "SupervisorLecturerCode" => "Mã GVHD",
-                "SupervisorName" => "Giảng viên hướng dẫn",
-                "SupervisorUserCode" => "Mã user GVHD",
-                "Score" => "Điểm số",
-                "TopicTags" => "Tag đề tài",
-                "LecturerComment" => "Nhận xét giảng viên",
-                "ResubmitCount" => "Số lần nộp lại",
-                "NumChapters" => "Số chương",
-                "NumPages" => "Số trang",
-                "NumTables" => "Số bảng",
-                "NumFigures" => "Số hình",
-                "NumReferences" => "Tài liệu tham khảo",
-                "NumVietnameseReferences" => "Tài liệu tiếng Việt",
-                "NumForeignReferences" => "Tài liệu tiếng Anh",
+                "studentcode" => "Mã sinh viên",
+                "usercode" => "Mã user",
+                "fullname" => "Họ và tên",
+                "gender" => "Giới tính",
+                "dateofbirth" => "Ngày sinh",
+                "facultycode" => "Khoa viện",
+                "departmentcode" => "Mã khoa",
+                "classcode" => "Mã lớp",
+                "enrollmentyear" => "Khóa học",
+                "graduationyear" => "Năm tốt nghiệp",
+                "gpa" => "Điểm TB",
+                "academicstanding" => "Xếp loại",
+                "participationstatus" => "Trạng thái tham gia",
+                "studentemail" => "Email",
+                "phonenumber" => "Số điện thoại",
+                "address" => "Địa chỉ",
+                "status" => "Trạng thái",
+                "notes" => "Ghi chú",
+                "lecturercode" => "Mã giảng viên",
+                "profileimage" => "Ảnh hồ sơ",
+                "degree" => "Học hàm/Học vị",
+                "organization" => "Cơ quan công tác",
+                "email" => "Email",
+                "guidequota" => "Định mức HD",
+                "defensequota" => "Định mức bảo vệ",
+                "currentguidingcount" => "Đang HD",
+                "remainingguidequota" => "Còn lại",
+                "specialties" => "Chuyên môn",
+                "topiccode" => "Mã đề tài",
+                "catalogtopiccode" => "Mã đề tài mẫu",
+                "title" => "Tên đề tài",
+                "type" => "Loại đề tài",
+                "summary" => "Tóm tắt",
+                "proposerstudentcode" => "Mã SV",
+                "proposername" => "Sinh viên thực hiện",
+                "proposerusercode" => "Mã user SV",
+                "supervisorlecturercode" => "Mã GVHD",
+                "supervisorname" => "Giảng viên hướng dẫn",
+                "supervisorusercode" => "Mã user GVHD",
+                "score" => "Điểm số",
+                "topictags" => "Tag đề tài",
+                "lecturercomment" => "Nhận xét giảng viên",
+                "resubmitcount" => "Số lần nộp lại",
+                "numchapters" => "Số chương",
+                "numpages" => "Số trang",
+                "numtables" => "Số bảng",
+                "numfigures" => "Số hình",
+                "numreferences" => "Tài liệu tham khảo",
+                "numvietnamesereferences" => "Tài liệu tiếng Việt",
+                "numforeignreferences" => "Tài liệu tiếng Anh",
+                
+                // New system management fields
+                "name" => "Tên",
+                "description" => "Mô tả",
+                "classid" => "ID lớp học",
+                "classname" => "Tên lớp",
+                "tagcode" => "Mã Tag",
+                "tagname" => "Tên Tag",
+                "assignedstatus" => "Trạng thái",
+                "tagcodes" => "Các thẻ (Tag)",
+                "roomcode" => "Mã phòng bảo vệ",
+                "createdat" => "Thời gian khởi tạo",
+                "lastupdated" => "Cập nhật cuối",
+                "userid" => "ID tài khoản",
+                "username" => "Tên đăng nhập",
+                "role" => "Vai trò / Quyền",
+                "isactive" => "Trạng thái hoạt động",
                 _ => key
             };
         }
@@ -554,6 +571,362 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
                 "Score" => t.Score?.ToString("0.0") ?? string.Empty,
                 "Status" => t.Status,
                 "TopicTags" => string.Empty,
+                _ => string.Empty
+            };
+        }
+
+        public async Task<ApiResponse<(byte[] Content, string FileName, string ContentType)>> ExportDepartmentsAsync(
+            int periodId,
+            string format,
+            List<string>? fields = null,
+            CancellationToken cancellationToken = default)
+        {
+            var period = await _db.DefenseTerms.FirstOrDefaultAsync(x => x.DefenseTermId == periodId, cancellationToken);
+            if (period == null) return ApiResponse<(byte[] Content, string FileName, string ContentType)>.Fail("Không tìm thấy đợt đồ án.", 404);
+
+            var items = await _db.Departments.AsNoTracking().OrderBy(x => x.DepartmentCode).ToListAsync(cancellationToken);
+
+            using var workbook = new XLWorkbook();
+            var ws = workbook.AddWorksheet("Khoa");
+            int row = 1;
+
+            WriteInstitutionalHeader(ws, ref row, "DANH SÁCH KHOA HỆ THỐNG", period.Description ?? period.TermCode);
+
+            var finalFields = fields?.Count > 0 ? fields : new List<string> { "DepartmentCode", "Name", "Description" };
+            var headers = finalFields.Select(GetLabel).ToList();
+            headers.Insert(0, "STT");
+
+            WriteTableHeader(ws, row, headers);
+            row++;
+
+            int stt = 1;
+            foreach (var d in items)
+            {
+                var values = new List<object> { stt++ };
+                foreach (var f in finalFields)
+                {
+                    values.Add(ResolveDepartmentValue(d, f));
+                }
+                WriteDataRow(ws, row, values);
+                row++;
+            }
+
+            ApplyFormatting(ws, row - 1, headers.Count);
+
+            using var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ApiResponse<(byte[] Content, string FileName, string ContentType)>.SuccessResponse(
+                (ms.ToArray(), $"DanhSachKhoa_{period.TermCode}_{DateTime.Now:yyyyMMdd}.xlsx", XlsxContentType));
+        }
+
+        public async Task<ApiResponse<(byte[] Content, string FileName, string ContentType)>> ExportClassesAsync(
+            int periodId,
+            string format,
+            List<string>? fields = null,
+            CancellationToken cancellationToken = default)
+        {
+            var period = await _db.DefenseTerms.FirstOrDefaultAsync(x => x.DefenseTermId == periodId, cancellationToken);
+            if (period == null) return ApiResponse<(byte[] Content, string FileName, string ContentType)>.Fail("Không tìm thấy đợt đồ án.", 404);
+
+            var items = await _db.Classes
+                .AsNoTracking()
+                .Include(x => x.Department)
+                .OrderBy(x => x.ClassCode)
+                .ToListAsync(cancellationToken);
+
+            using var workbook = new XLWorkbook();
+            var ws = workbook.AddWorksheet("LopHoc");
+            int row = 1;
+
+            WriteInstitutionalHeader(ws, ref row, "DANH SÁCH LỚP HỌC HỆ THỐNG", period.Description ?? period.TermCode);
+
+            var finalFields = fields?.Count > 0 ? fields : new List<string> { "ClassID", "ClassCode", "Name", "DepartmentCode" };
+            var headers = finalFields.Select(GetLabel).ToList();
+            headers.Insert(0, "STT");
+
+            WriteTableHeader(ws, row, headers);
+            row++;
+
+            int stt = 1;
+            foreach (var c in items)
+            {
+                var values = new List<object> { stt++ };
+                foreach (var f in finalFields)
+                {
+                    values.Add(ResolveClassValue(c, f));
+                }
+                WriteDataRow(ws, row, values);
+                row++;
+            }
+
+            ApplyFormatting(ws, row - 1, headers.Count);
+
+            using var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ApiResponse<(byte[] Content, string FileName, string ContentType)>.SuccessResponse(
+                (ms.ToArray(), $"DanhSachLopHoc_{period.TermCode}_{DateTime.Now:yyyyMMdd}.xlsx", XlsxContentType));
+        }
+
+        public async Task<ApiResponse<(byte[] Content, string FileName, string ContentType)>> ExportTagsAsync(
+            int periodId,
+            string format,
+            List<string>? fields = null,
+            CancellationToken cancellationToken = default)
+        {
+            var period = await _db.DefenseTerms.FirstOrDefaultAsync(x => x.DefenseTermId == periodId, cancellationToken);
+            if (period == null) return ApiResponse<(byte[] Content, string FileName, string ContentType)>.Fail("Không tìm thấy đợt đồ án.", 404);
+
+            var items = await _db.Tags.AsNoTracking().OrderBy(x => x.TagCode).ToListAsync(cancellationToken);
+
+            using var workbook = new XLWorkbook();
+            var ws = workbook.AddWorksheet("TagLinhVuc");
+            int row = 1;
+
+            WriteInstitutionalHeader(ws, ref row, "DANH SÁCH LĨNH VỰC / TAG HỆ THỐNG", period.Description ?? period.TermCode);
+
+            var finalFields = fields?.Count > 0 ? fields : new List<string> { "TagCode", "TagName", "Description" };
+            var headers = finalFields.Select(GetLabel).ToList();
+            headers.Insert(0, "STT");
+
+            WriteTableHeader(ws, row, headers);
+            row++;
+
+            int stt = 1;
+            foreach (var t in items)
+            {
+                var values = new List<object> { stt++ };
+                foreach (var f in finalFields)
+                {
+                    values.Add(ResolveTagValue(t, f));
+                }
+                WriteDataRow(ws, row, values);
+                row++;
+            }
+
+            ApplyFormatting(ws, row - 1, headers.Count);
+
+            using var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ApiResponse<(byte[] Content, string FileName, string ContentType)>.SuccessResponse(
+                (ms.ToArray(), $"DanhSachTagLinhVuc_{period.TermCode}_{DateTime.Now:yyyyMMdd}.xlsx", XlsxContentType));
+        }
+
+        public async Task<ApiResponse<(byte[] Content, string FileName, string ContentType)>> ExportCatalogTopicsAsync(
+            int periodId,
+            string format,
+            List<string>? fields = null,
+            CancellationToken cancellationToken = default)
+        {
+            var period = await _db.DefenseTerms.FirstOrDefaultAsync(x => x.DefenseTermId == periodId, cancellationToken);
+            if (period == null) return ApiResponse<(byte[] Content, string FileName, string ContentType)>.Fail("Không tìm thấy đợt đồ án.", 404);
+
+            var items = await _db.CatalogTopics
+                .AsNoTracking()
+                .Include(x => x.CatalogTopicTags!)
+                    .ThenInclude(xt => xt.Tag)
+                .OrderBy(x => x.CatalogTopicCode)
+                .ToListAsync(cancellationToken);
+
+            using var workbook = new XLWorkbook();
+            var ws = workbook.AddWorksheet("KhoDeTaiMau");
+            int row = 1;
+
+            WriteInstitutionalHeader(ws, ref row, "DANH SÁCH ĐỀ TÀI MẪU HỆ THỐNG", period.Description ?? period.TermCode);
+
+            var finalFields = fields?.Count > 0 ? fields : new List<string> { "CatalogTopicCode", "Title", "Summary", "DepartmentCode", "AssignedStatus", "TagCodes" };
+            var headers = finalFields.Select(GetLabel).ToList();
+            headers.Insert(0, "STT");
+
+            WriteTableHeader(ws, row, headers);
+            row++;
+
+            int stt = 1;
+            foreach (var ct in items)
+            {
+                var values = new List<object> { stt++ };
+                foreach (var f in finalFields)
+                {
+                    values.Add(ResolveCatalogTopicValue(ct, f));
+                }
+                WriteDataRow(ws, row, values);
+                row++;
+            }
+
+            ApplyFormatting(ws, row - 1, headers.Count);
+
+            using var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ApiResponse<(byte[] Content, string FileName, string ContentType)>.SuccessResponse(
+                (ms.ToArray(), $"DanhSachDeTaiMau_{period.TermCode}_{DateTime.Now:yyyyMMdd}.xlsx", XlsxContentType));
+        }
+
+        public async Task<ApiResponse<(byte[] Content, string FileName, string ContentType)>> ExportRoomsAsync(
+            int periodId,
+            string format,
+            List<string>? fields = null,
+            CancellationToken cancellationToken = default)
+        {
+            var period = await _db.DefenseTerms.FirstOrDefaultAsync(x => x.DefenseTermId == periodId, cancellationToken);
+            if (period == null) return ApiResponse<(byte[] Content, string FileName, string ContentType)>.Fail("Không tìm thấy đợt đồ án.", 404);
+
+            var items = await _db.Rooms.AsNoTracking().OrderBy(x => x.RoomCode).ToListAsync(cancellationToken);
+
+            using var workbook = new XLWorkbook();
+            var ws = workbook.AddWorksheet("PhongBaoVe");
+            int row = 1;
+
+            WriteInstitutionalHeader(ws, ref row, "DANH SÁCH PHÒNG BẢO VỆ HỘI ĐỒNG", period.Description ?? period.TermCode);
+
+            var finalFields = fields?.Count > 0 ? fields : new List<string> { "RoomCode", "Status", "CreatedAt", "LastUpdated" };
+            var headers = finalFields.Select(GetLabel).ToList();
+            headers.Insert(0, "STT");
+
+            WriteTableHeader(ws, row, headers);
+            row++;
+
+            int stt = 1;
+            foreach (var r in items)
+            {
+                var values = new List<object> { stt++ };
+                foreach (var f in finalFields)
+                {
+                    values.Add(ResolveRoomValue(r, f));
+                }
+                WriteDataRow(ws, row, values);
+                row++;
+            }
+
+            ApplyFormatting(ws, row - 1, headers.Count);
+
+            using var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ApiResponse<(byte[] Content, string FileName, string ContentType)>.SuccessResponse(
+                (ms.ToArray(), $"DanhSachPhongBaoVe_{period.TermCode}_{DateTime.Now:yyyyMMdd}.xlsx", XlsxContentType));
+        }
+
+        public async Task<ApiResponse<(byte[] Content, string FileName, string ContentType)>> ExportUsersAsync(
+            int periodId,
+            string format,
+            List<string>? fields = null,
+            CancellationToken cancellationToken = default)
+        {
+            var period = await _db.DefenseTerms.FirstOrDefaultAsync(x => x.DefenseTermId == periodId, cancellationToken);
+            if (period == null) return ApiResponse<(byte[] Content, string FileName, string ContentType)>.Fail("Không tìm thấy đợt đồ án.", 404);
+
+            var items = await _db.Users
+                .AsNoTracking()
+                .Include(x => x.StudentProfile)
+                .Include(x => x.LecturerProfile)
+                .OrderBy(x => x.UserCode)
+                .ToListAsync(cancellationToken);
+
+            using var workbook = new XLWorkbook();
+            var ws = workbook.AddWorksheet("TaiKhoan");
+            int row = 1;
+
+            WriteInstitutionalHeader(ws, ref row, "DANH SÁCH TÀI KHOẢN NGƯỜI DÙNG HỆ THỐNG", period.Description ?? period.TermCode);
+
+            var finalFields = fields?.Count > 0 ? fields : new List<string> { "UserID", "UserCode", "FullName", "Email", "Role", "IsActive" };
+            var headers = finalFields.Select(GetLabel).ToList();
+            headers.Insert(0, "STT");
+
+            WriteTableHeader(ws, row, headers);
+            row++;
+
+            int stt = 1;
+            foreach (var u in items)
+            {
+                var values = new List<object> { stt++ };
+                foreach (var f in finalFields)
+                {
+                    values.Add(ResolveUserValue(u, f));
+                }
+                WriteDataRow(ws, row, values);
+                row++;
+            }
+
+            ApplyFormatting(ws, row - 1, headers.Count);
+
+            using var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ApiResponse<(byte[] Content, string FileName, string ContentType)>.SuccessResponse(
+                (ms.ToArray(), $"DanhSachTaiKhoan_{period.TermCode}_{DateTime.Now:yyyyMMdd}.xlsx", XlsxContentType));
+        }
+
+        private object ResolveDepartmentValue(Department d, string key)
+        {
+            return key.ToLowerInvariant() switch
+            {
+                "departmentcode" => d.DepartmentCode,
+                "name" => d.Name,
+                "description" => d.Description ?? string.Empty,
+                _ => string.Empty
+            };
+        }
+
+        private object ResolveClassValue(Class c, string key)
+        {
+            return key.ToLowerInvariant() switch
+            {
+                "classid" => c.ClassID,
+                "classcode" => c.ClassCode,
+                "name" => c.ClassName,
+                "classname" => c.ClassName,
+                "departmentcode" => c.DepartmentCode ?? c.Department?.DepartmentCode ?? string.Empty,
+                _ => string.Empty
+            };
+        }
+
+        private object ResolveTagValue(Tag t, string key)
+        {
+            return key.ToLowerInvariant() switch
+            {
+                "tagcode" => t.TagCode,
+                "tagname" => t.TagName,
+                "description" => t.Description ?? string.Empty,
+                _ => string.Empty
+            };
+        }
+
+        private object ResolveCatalogTopicValue(CatalogTopic ct, string key)
+        {
+            return key.ToLowerInvariant() switch
+            {
+                "catalogtopiccode" => ct.CatalogTopicCode,
+                "title" => ct.Title,
+                "summary" => ct.Summary ?? string.Empty,
+                "departmentcode" => ct.DepartmentCode ?? string.Empty,
+                "assignedstatus" => ct.AssignedStatus ?? "Chưa phân công",
+                "tagcodes" => ct.CatalogTopicTags != null 
+                    ? string.Join(", ", ct.CatalogTopicTags.Select(x => x.Tag?.TagName ?? x.TagCode ?? string.Empty).Where(x => !string.IsNullOrEmpty(x)))
+                    : string.Empty,
+                _ => string.Empty
+            };
+        }
+
+        private object ResolveRoomValue(Room r, string key)
+        {
+            return key.ToLowerInvariant() switch
+            {
+                "roomcode" => r.RoomCode,
+                "status" => r.Status ?? "Hoạt động",
+                "createdat" => r.CreatedAt.ToString("dd/MM/yyyy HH:mm:ss"),
+                "lastupdated" => r.LastUpdated.ToString("dd/MM/yyyy HH:mm:ss"),
+                _ => string.Empty
+            };
+        }
+
+        private object ResolveUserValue(User u, string key)
+        {
+            return key.ToLowerInvariant() switch
+            {
+                "userid" => u.UserID,
+                "usercode" => u.UserCode,
+                "username" => u.UserCode,
+                "fullname" => u.StudentProfile?.FullName ?? u.LecturerProfile?.FullName ?? "-",
+                "email" => u.StudentProfile?.StudentEmail ?? u.LecturerProfile?.Email ?? "-",
+                "role" => u.Role,
+                "isactive" => u.StudentProfile?.Status ?? "Đang hoạt động",
                 _ => string.Empty
             };
         }

@@ -1038,7 +1038,7 @@ const LecturerCatalogTopicsPage: React.FC = () => {
                           style={{
                             display: "-webkit-box",
                             WebkitBoxOrient: "vertical",
-                            WebkitLineClamp: 2,
+                            WebkitLineClamp: 3,
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "normal",
@@ -1107,13 +1107,22 @@ const LecturerCatalogTopicsPage: React.FC = () => {
                         )}
                       </td>
                       <td>
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "nowrap", alignItems: "center" }}>
                           {Array.isArray(row.tags) && row.tags.length > 0 ? (
-                            row.tags.map((tag) => (
-                              <span key={`${row.catalogTopicID}-${tag.tagID}`} className="tag-pill">
-                                {tag.tagName || tag.tagCode}
+                            <>
+                              <span key={`${row.catalogTopicID}-${row.tags[0].tagID}`} className="tag-pill">
+                                {row.tags[0].tagName || row.tags[0].tagCode}
                               </span>
-                            ))
+                              {row.tags.length > 1 && (
+                                <span
+                                  className="tag-pill"
+                                  style={{ background: "#f1f5f9", borderColor: "#cbd5e1", color: "#475569" }}
+                                  title={row.tags.slice(1).map(t => t.tagName || t.tagCode).join(", ")}
+                                >
+                                  +{row.tags.length - 1}
+                                </span>
+                              )}
+                            </>
                           ) : (
                             <span style={{ color: "#94a3b8", fontSize: "13px" }}>--</span>
                           )}

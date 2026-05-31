@@ -1888,6 +1888,66 @@ namespace ThesisManagement.Api.Controllers
             return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
         }
 
+        [HttpGet("{periodId:int}/exports/departments")]
+        [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
+        public async Task<IActionResult> ExportDepartments(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
+        {
+            var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
+            var result = await _modularExportService.ExportDepartmentsAsync(periodId, format, fieldList, HttpContext.RequestAborted);
+            if (!result.Success) return StatusCode(result.HttpStatusCode, result);
+            return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+        }
+
+        [HttpGet("{periodId:int}/exports/classes")]
+        [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
+        public async Task<IActionResult> ExportClasses(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
+        {
+            var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
+            var result = await _modularExportService.ExportClassesAsync(periodId, format, fieldList, HttpContext.RequestAborted);
+            if (!result.Success) return StatusCode(result.HttpStatusCode, result);
+            return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+        }
+
+        [HttpGet("{periodId:int}/exports/tags")]
+        [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
+        public async Task<IActionResult> ExportTags(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
+        {
+            var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
+            var result = await _modularExportService.ExportTagsAsync(periodId, format, fieldList, HttpContext.RequestAborted);
+            if (!result.Success) return StatusCode(result.HttpStatusCode, result);
+            return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+        }
+
+        [HttpGet("{periodId:int}/exports/catalogtopics")]
+        [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
+        public async Task<IActionResult> ExportCatalogTopics(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
+        {
+            var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
+            var result = await _modularExportService.ExportCatalogTopicsAsync(periodId, format, fieldList, HttpContext.RequestAborted);
+            if (!result.Success) return StatusCode(result.HttpStatusCode, result);
+            return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+        }
+
+        [HttpGet("{periodId:int}/exports/rooms")]
+        [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
+        public async Task<IActionResult> ExportRooms(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
+        {
+            var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
+            var result = await _modularExportService.ExportRoomsAsync(periodId, format, fieldList, HttpContext.RequestAborted);
+            if (!result.Success) return StatusCode(result.HttpStatusCode, result);
+            return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+        }
+
+        [HttpGet("{periodId:int}/exports/users")]
+        [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
+        public async Task<IActionResult> ExportUsers(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
+        {
+            var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
+            var result = await _modularExportService.ExportUsersAsync(periodId, format, fieldList, HttpContext.RequestAborted);
+            if (!result.Success) return StatusCode(result.HttpStatusCode, result);
+            return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+        }
+
         private static string EscapeCsv(string? v)
         {
             if (string.IsNullOrEmpty(v)) return string.Empty;

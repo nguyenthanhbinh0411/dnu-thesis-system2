@@ -2598,14 +2598,24 @@ const TopicRegistration: React.FC = () => {
                               </div>
                             )}
                           </div>
-                          <h3 className="text-lg font-bold text-slate-800 mb-4 group-hover:text-orange-500 transition-colors line-clamp-2">{topic.title}</h3>
+                          <h3 className="text-lg font-bold text-slate-800 mb-4 group-hover:text-orange-500 transition-colors line-clamp-3">{topic.title}</h3>
                           <p className="text-[12px] text-slate-400 mb-8 flex-1 line-clamp-3">{topic.summary}</p>
-                          <div className="flex flex-wrap gap-2 mb-6">
-                            {topic.tags?.slice(0, 3).map(tag => (
-                              <span key={tag.tagID} className="text-[9px] font-bold bg-orange-50/50 text-orange-600 px-3 py-1 rounded-lg uppercase">
-                                {tag.tagName}
-                              </span>
-                            ))}
+                          <div className="flex flex-nowrap items-center gap-2 mb-6">
+                            {Array.isArray(topic.tags) && topic.tags.length > 0 ? (
+                              <>
+                                <span key={topic.tags[0].tagID} className="text-[9px] font-bold bg-orange-50/50 text-orange-600 px-3 py-1 rounded-lg uppercase whitespace-nowrap">
+                                  {topic.tags[0].tagName}
+                                </span>
+                                {topic.tags.length > 1 && (
+                                  <span
+                                    className="text-[9px] font-bold bg-slate-100 text-slate-600 px-3 py-1 rounded-lg uppercase whitespace-nowrap"
+                                    title={topic.tags.slice(1).map(t => t.tagName).join(", ")}
+                                  >
+                                    +{topic.tags.length - 1}
+                                  </span>
+                                )}
+                              </>
+                            ) : null}
                           </div>
                           <div className="flex items-center gap-3 text-[10px] font-black text-slate-400 border-t border-slate-50 pt-5 mt-auto">
                             <Building size={14} />
@@ -2633,8 +2643,19 @@ const TopicRegistration: React.FC = () => {
                               <td className="px-8 py-6"><span className="text-xs font-black text-orange-500">{topic.catalogTopicCode}</span></td>
                               <td className="px-8 py-6"><p className="text-[14px] font-bold text-slate-700">{topic.title}</p></td>
                               <td className="px-8 py-6">
-                                <div className="flex gap-1.5 flex-wrap">
-                                  {topic.tags?.slice(0, 2).map(tag => (<span key={tag.tagID} className="text-[10px] font-bold bg-slate-100 text-slate-500 px-3 py-1 rounded-lg">{tag.tagName}</span>))}
+                                <div className="flex gap-1.5 flex-nowrap items-center">
+                                  {Array.isArray(topic.tags) && topic.tags.length > 0 ? (
+                                    <>
+                                      <span key={topic.tags[0].tagID} className="text-[10px] font-bold bg-slate-100 text-slate-500 px-3 py-1 rounded-lg whitespace-nowrap">
+                                        {topic.tags[0].tagName}
+                                      </span>
+                                      {topic.tags.length > 1 && (
+                                        <span className="text-[10px] font-bold bg-slate-200 text-slate-600 px-3 py-1 rounded-lg whitespace-nowrap" title={topic.tags.slice(1).map(t => t.tagName).join(", ")}>
+                                          +{topic.tags.length - 1}
+                                        </span>
+                                      )}
+                                    </>
+                                  ) : null}
                                 </div>
                               </td>
                               <td className="px-8 py-6">

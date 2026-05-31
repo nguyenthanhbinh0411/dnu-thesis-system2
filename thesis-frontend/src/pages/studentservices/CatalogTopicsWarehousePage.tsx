@@ -783,6 +783,7 @@ const CatalogTopicsWarehousePage: React.FC = () => {
             moduleName="catalogtopics"
             moduleLabel="Kho đề tài có sẵn"
             onImportSuccess={loadRows}
+            hideExport={true}
           />
         </div>
       </div>
@@ -1006,7 +1007,22 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                 rows.map((row) => (
                   <tr key={`catalogtopic-${row.catalogTopicID}`}>
                     <td>{row.catalogTopicCode || "--"}</td>
-                    <td style={{ wordBreak: "break-word" }}>{row.title || "--"}</td>
+                    <td style={{ wordBreak: "break-word" }}>
+                      <div
+                        title={row.title || ""}
+                        style={{
+                          display: "-webkit-box",
+                          WebkitBoxOrient: "vertical",
+                          WebkitLineClamp: 3,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "normal",
+                          lineHeight: "1.5"
+                        }}
+                      >
+                        {row.title || "--"}
+                      </div>
+                    </td>
                     <td>
                       <div
                         title={row.summary || ""}
@@ -1097,23 +1113,39 @@ const CatalogTopicsWarehousePage: React.FC = () => {
                     </td>
                     <td>
                       {Array.isArray(row.tags) && row.tags.length > 0 ? (
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {row.tags.map((tag) => (
+                        <div style={{ display: "flex", gap: 6, flexWrap: "nowrap", alignItems: "center" }}>
+                          <span
+                            key={`${row.catalogTopicID}-${row.tags[0].tagID}`}
+                            style={{
+                              border: "1px solid #bfdbfe",
+                              color: "#1e3a5f",
+                              background: "#f0f6ff",
+                              borderRadius: 999,
+                              padding: "2px 8px",
+                              fontSize: 12,
+                              fontWeight: 600,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {row.tags[0].tagName || row.tags[0].tagCode}
+                          </span>
+                          {row.tags.length > 1 && (
                             <span
-                              key={`${row.catalogTopicID}-${tag.tagID}`}
                               style={{
-                                border: "1px solid #bfdbfe",
-                                color: "#1e3a5f",
-                                background: "#f0f6ff",
+                                border: "1px solid #cbd5e1",
+                                color: "#475569",
+                                background: "#f1f5f9",
                                 borderRadius: 999,
                                 padding: "2px 8px",
                                 fontSize: 12,
                                 fontWeight: 600,
+                                whiteSpace: "nowrap"
                               }}
+                              title={row.tags.slice(1).map(t => t.tagName || t.tagCode).join(", ")}
                             >
-                              {tag.tagName || tag.tagCode}
+                              +{row.tags.length - 1}
                             </span>
-                          ))}
+                          )}
                         </div>
                       ) : (
                         "--"

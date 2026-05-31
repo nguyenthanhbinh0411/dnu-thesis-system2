@@ -767,6 +767,7 @@ const LecturerProfilesManagement: React.FC = () => {
             moduleName="lecturers"
             moduleLabel="Quản lý giảng viên"
             onImportSuccess={loadRows}
+            hideExport={true}
           />
           <button
             type="button"

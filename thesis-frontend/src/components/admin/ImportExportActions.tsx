@@ -47,6 +47,7 @@ interface ImportExportActionsProps {
   moduleName: ManagementModule;
   moduleLabel: string;
   onImportSuccess?: () => Promise<void> | void;
+  hideExport?: boolean;
 }
 
 const ALLOWED_FORMATS: DataExchangeFormat[] = ["xlsx", "csv", "json"];
@@ -314,6 +315,7 @@ const ImportExportActions: React.FC<ImportExportActionsProps> = ({
   moduleName,
   moduleLabel,
   onImportSuccess,
+  hideExport = false,
 }) => {
   const { addToast } = useToast();
   const config = getConfig(moduleName);
@@ -918,13 +920,15 @@ const ImportExportActions: React.FC<ImportExportActionsProps> = ({
         >
           <Upload size={16} /> Import
         </button>
-        <button
-          type="button"
-          style={styles.secondaryButton}
-          onClick={handleOpenExport}
-        >
-          <Download size={16} /> Export
-        </button>
+        {!hideExport && (
+          <button
+            type="button"
+            style={styles.secondaryButton}
+            onClick={handleOpenExport}
+          >
+            <Download size={16} /> Export
+          </button>
+        )}
       </div>
 
       {dialogMode && (
@@ -963,15 +967,17 @@ const ImportExportActions: React.FC<ImportExportActionsProps> = ({
                 >
                   <FileUp size={15} /> Import
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setDialogMode("export")}
-                  style={
-                    dialogMode === "export" ? styles.tabActive : styles.tab
-                  }
-                >
-                  <Download size={15} /> Export
-                </button>
+                {!hideExport && (
+                  <button
+                    type="button"
+                    onClick={() => setDialogMode("export")}
+                    style={
+                      dialogMode === "export" ? styles.tabActive : styles.tab
+                    }
+                  >
+                    <Download size={15} /> Export
+                  </button>
+                )}
               </div>
 
               <div style={styles.body}>

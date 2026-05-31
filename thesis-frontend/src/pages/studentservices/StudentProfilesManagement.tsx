@@ -726,6 +726,7 @@ const StudentProfilesManagement: React.FC = () => {
               setPage(1);
               setRefreshTick((prev) => prev + 1);
             }}
+            hideExport={true}
           />
           <button type="button" className="spm-create-btn" onClick={openCreate}>
             <Plus size={14} /> Thêm mới
