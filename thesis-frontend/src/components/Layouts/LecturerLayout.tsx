@@ -290,7 +290,7 @@ const LecturerLayout: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [reactivePeriodId]);
+  }, []);
 
   const headerPeriodStyle =
     headerPeriod.tone === "error"
@@ -1198,7 +1198,7 @@ const LecturerLayout: React.FC = () => {
           }}
           onPointerUpCapture={collapseSidebarOnActivity}
         >
-          {reactivePeriodId != null || /\/(profile|change-password|notifications)$/.test(location.pathname) ? (
+          {reactivePeriodId != null || getActiveDefensePeriodId() != null || /\/(profile|change-password|notifications)$/.test(location.pathname) ? (
             <Outlet />
           ) : (
             <LecturerNoPeriodPlaceholder />

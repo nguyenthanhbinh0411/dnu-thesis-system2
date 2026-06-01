@@ -23,6 +23,7 @@ import TagsManagement from "../studentservices/TagsManagement";
 import CatalogTopicsWarehousePage from "../studentservices/CatalogTopicsWarehousePage";
 import RoomsManagement from "./RoomsManagement";
 import UsersManagement from "./UsersManagement";
+import "./Dashboard.css";
 import { fetchData, normalizeUrl, FetchDataError } from "../../api/fetchData";
 import { useToast } from "../../context/useToast";
 import { getAccessToken } from "../../services/auth-session.service";
@@ -439,6 +440,12 @@ const InfoManagement: React.FC = () => {
             {activeTab === "users" && <UsersManagement />}
             {activeTab === "statistics" && (
               <div style={{ display: "grid", gap: "24px" }}>
+                <div className="dashboard-header">
+                  <h1>
+                    <Activity size={28} color="#1e3a5f" /> Thống kê và Xuất báo cáo
+                  </h1>
+                  <p>Xem số liệu thống kê tổng quan và xuất các biểu mẫu báo cáo dữ liệu định dạng Excel / PDF.</p>
+                </div>
                 <div style={{ background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
                   <label style={{ display: "block", fontSize: "14px", fontWeight: "700", color: "#334155", marginBottom: "8px" }}>
                     Chọn đợt đồ án tốt nghiệp cần thống kê:

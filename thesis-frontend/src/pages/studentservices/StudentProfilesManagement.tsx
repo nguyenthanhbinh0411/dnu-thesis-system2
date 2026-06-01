@@ -673,11 +673,11 @@ const StudentProfilesManagement: React.FC = () => {
 
   return (
     <div className="student-profiles-module">
-      <div className="spm-header">
+      <div className="dashboard-header">
         <h1>
-          <Users size={30} color="#1e3a5f" /> Danh sách sinh viên
+          <Users size={28} color="#1e3a5f" /> Quản lý sinh viên
         </h1>
-        <p>Hiển thị theo dashboard báo cáo sinh viên và tiến độ đề tài.</p>
+        <p>Danh sách thông tin cơ bản của sinh viên và phân bổ đợt bảo vệ tốt nghiệp.</p>
       </div>
 
       <div className="spm-toolbar">

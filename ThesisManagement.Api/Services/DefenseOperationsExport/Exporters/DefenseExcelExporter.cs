@@ -275,9 +275,9 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport.Exporters
 
         private void WriteSignatureSection(IXLWorksheet worksheet, ref int row, DateTime now, string currentUserName)
         {
-            MergeAndStyle(worksheet, row, 2, row, 6, "Người lập biểu", true, 11);
             MergeAndStyle(worksheet, row, 8, row, 12, $"{_branding.Location}, ngày {now:dd} tháng {now:MM} năm {now:yyyy}", false, 10);
             row++;
+            MergeAndStyle(worksheet, row, 2, row, 6, "NGƯỜI LẬP BIỂU", true, 11);
             MergeAndStyle(worksheet, row, 8, row, 12, _branding.Signatory2Role, true, 11);
             row += 3;
             MergeAndStyle(worksheet, row, 2, row, 6, currentUserName, true, 11);

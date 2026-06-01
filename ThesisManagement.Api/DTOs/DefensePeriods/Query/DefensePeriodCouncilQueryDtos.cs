@@ -162,6 +162,9 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
 
         // Revision info
         public StudentRevisionInfoDto? Revision { get; set; }
+
+        // Committee Members
+        public List<CouncilMemberDto> Members { get; set; } = new();
     }
 
     public class StudentRevisionInfoDto

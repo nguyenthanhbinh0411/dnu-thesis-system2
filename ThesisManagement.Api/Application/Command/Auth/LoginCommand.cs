@@ -96,7 +96,10 @@ namespace ThesisManagement.Api.Application.Command.Auth
 
             _currentUserService.SetCurrentUser(user.UserID, user.UserCode, user.Role);
 
-            var accessToken = _jwtTokenService.GenerateToken(user);
+            var sessionId = Guid.NewGuid().ToString();
+            _cache.Set($"active_session_{user.UserID}", sessionId, TimeSpan.FromHours(12));
+
+            var accessToken = _jwtTokenService.GenerateToken(user, sessionId);
             var expiresAt = _jwtTokenService.GetTokenExpiryUtc();
 
             var data = new LoginResponseDto(user.UserID, user.UserCode, user.Role, user.CreatedAt);

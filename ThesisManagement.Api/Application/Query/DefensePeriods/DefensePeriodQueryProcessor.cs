@@ -1771,6 +1771,25 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                 assignment?.Session,
                 periodConfig);
 
+            var members = new List<CouncilMemberDto>();
+            if (committee != null)
+            {
+                members = await _db.CommitteeMembers.AsNoTracking()
+                    .Where(cm => cm.CommitteeID == committee.CommitteeID)
+                    .Join(_db.LecturerProfiles.AsNoTracking(),
+                        cm => cm.MemberLecturerCode,
+                        lp => lp.LecturerCode,
+                        (cm, lp) => new CouncilMemberDto
+                        {
+                            Role = cm.Role ?? string.Empty,
+                            LecturerCode = cm.MemberLecturerCode ?? string.Empty,
+                            LecturerName = lp.FullName ?? cm.MemberLecturerCode ?? string.Empty,
+                            Degree = lp.Degree,
+                            Organization = lp.Organization
+                        })
+                    .ToListAsync(cancellationToken);
+            }
+
             var projection = new StudentDefenseInfoDtoV2
             {
                 StudentCode = resolvedStudentCode,
@@ -1804,7 +1823,9 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                     RequiredContent = revision.RequiredRevisionContent,
                     Deadline = revision.SubmissionDeadline,
                     Status = revision.Status.ToString()
-                }
+                },
+
+                Members = members
             };
 
             return ApiResponse<StudentDefenseInfoDtoV2>.SuccessResponse(
@@ -2414,7 +2435,7 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                         if (liveScoreTk.HasValue) liveComponentScores.Add(liveScoreTk.Value);
                         if (liveScorePb.HasValue) liveComponentScores.Add(liveScorePb.Value);
 
-                        if (liveComponentScores.Count >= 3)
+                        if (liveComponentScores.Count >= 4)
                         {
                             liveFinalScore = Math.Round(liveComponentScores.Average(), 1);
                             
@@ -2882,15 +2903,15 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
             return normalizedFormat switch
             {
                 "xlsx" => ApiResponse<(byte[] Content, string FileName, string ContentType)>.SuccessResponse((
-                    BuildFlexibleXlsxContent(rows, normalizedType, selectedFields),
+                    BuildFlexibleXlsxContent(rows, normalizedType, selectedFields, request.GroupBy),
                     $"{fileStem}.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
                 "pdf" => ApiResponse<(byte[] Content, string FileName, string ContentType)>.SuccessResponse((
-                    BuildFlexiblePdfContent(rows, normalizedType, selectedFields),
+                    BuildFlexiblePdfContent(rows, normalizedType, selectedFields, request.GroupBy),
                     $"{fileStem}.pdf",
                     "application/pdf")),
                 _ => ApiResponse<(byte[] Content, string FileName, string ContentType)>.SuccessResponse((
-                    BuildFlexibleCsvContent(rows, normalizedType, selectedFields),
+                    BuildFlexibleCsvContent(rows, normalizedType, selectedFields, request.GroupBy),
                     $"{fileStem}.csv",
                     "text/csv; charset=utf-8"))
             };
@@ -3934,9 +3955,8 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                     new("SubmittedCount", "So thanh phan da nop"),
                     new("RequiredCount", "So thanh phan can"),
                     new("AssignmentCode", "Ma phan cong"),
-                    new("TopicTags", "Tag chuan muc"),
-                    new("DocumentCount", "So tai lieu"),
-                    new("SignedStatus", "Trang thai ky")
+                    new("SignedStatus", "Trang thai ky"),
+                    new("IsPassed", "Kết quả")
                 };
 
             if (selectedFields == null || selectedFields.Count == 0)
@@ -4020,6 +4040,7 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                 "Status" => row.Status,
                 "DocumentCount" => row.DocumentCount.ToString(),
                 "SignedStatus" => row.SignedStatus,
+                "IsPassed" => row.Score.HasValue && row.Score.Value >= 5.0m ? "Đạt" : "Không đạt",
                 _ => string.Empty
             };
         }
@@ -4040,7 +4061,41 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
             };
         }
 
-        private static byte[] BuildFlexibleCsvContent(List<ScoreRowData> rows, string reportType, IReadOnlyCollection<string>? selectedFields)
+        private static string GetGroupKey(ScoreRowData row, string? groupBy)
+        {
+            var s = (groupBy ?? string.Empty).Trim().ToLowerInvariant();
+            if (s == "supervisor" || s == "lecturer")
+            {
+                return row.SupervisorLecturerCode ?? string.Empty;
+            }
+            if (s == "topic" || s == "title")
+            {
+                return row.TopicCode ?? string.Empty;
+            }
+            return row.CommitteeCode ?? string.Empty;
+        }
+
+        private static IEnumerable<ScoreRowData> OrderScoreRows(List<ScoreRowData> rows, string? groupBy)
+        {
+            var s = (groupBy ?? string.Empty).Trim().ToLowerInvariant();
+            if (s == "supervisor" || s == "lecturer")
+            {
+                return rows.OrderBy(r => r.SupervisorLecturerName ?? string.Empty)
+                           .ThenBy(r => r.SupervisorLecturerCode ?? string.Empty)
+                           .ThenBy(r => r.StudentCode);
+            }
+            if (s == "topic" || s == "title")
+            {
+                return rows.OrderBy(r => r.TopicTitle ?? string.Empty)
+                           .ThenBy(r => r.TopicCode ?? string.Empty)
+                           .ThenBy(r => r.StudentCode);
+            }
+            return rows.OrderBy(r => r.CommitteeCode ?? string.Empty)
+                       .ThenBy(r => r.Session)
+                       .ThenBy(r => r.StudentCode);
+        }
+
+        private static byte[] BuildFlexibleCsvContent(List<ScoreRowData> rows, string reportType, IReadOnlyCollection<string>? selectedFields, string? groupBy = null)
         {
             var normalizedType = NormalizeExportReportType(reportType);
             var columns = ResolveFlexibleColumns(normalizedType, selectedFields);
@@ -4063,7 +4118,8 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
             }
             else
             {
-                foreach (var row in rows.OrderBy(r => r.CouncilId).ThenBy(r => r.Session).ThenBy(r => r.StudentCode))
+                var orderedRows = OrderScoreRows(rows, groupBy);
+                foreach (var row in orderedRows)
                 {
                     sb.AppendLine(string.Join(",", columns.Select(x => EscapeCsv(GetFlexibleRowValue(row, x.Key)))));
                 }
@@ -4086,7 +4142,7 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
             return Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
         }
 
-        private static byte[] BuildFlexibleXlsxContent(List<ScoreRowData> rows, string reportType, IReadOnlyCollection<string>? selectedFields)
+        private static byte[] BuildFlexibleXlsxContent(List<ScoreRowData> rows, string reportType, IReadOnlyCollection<string>? selectedFields, string? groupBy = null)
         {
             var normalizedType = NormalizeExportReportType(reportType);
             var columns = ResolveFlexibleColumns(normalizedType, selectedFields);
@@ -4153,17 +4209,57 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
             }
             else
             {
-                foreach (var row in rows.OrderBy(r => r.CouncilId).ThenBy(r => r.Session).ThenBy(r => r.StudentCode))
+                var orderedRows = OrderScoreRows(rows, groupBy).ToList();
+                var groupedRows = orderedRows.GroupBy(r => GetGroupKey(r, groupBy)).ToList();
+
+                foreach (var group in groupedRows)
                 {
-                    for (var i = 0; i < columns.Count; i++)
+                    int startRow = currentRow;
+                    foreach (var row in group)
                     {
-                        sheet.Cell(currentRow, i + 1).Value = GetFlexibleRowValue(row, columns[i].Key);
+                        for (var i = 0; i < columns.Count; i++)
+                        {
+                            sheet.Cell(currentRow, i + 1).Value = GetFlexibleRowValue(row, columns[i].Key);
+                        }
+                        if (columns.Any(c => string.Equals(c.Key, "TopicTitle", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            sheet.Row(currentRow).Height = 30;
+                        }
+                        currentRow++;
                     }
-                    if (columns.Any(c => string.Equals(c.Key, "TopicTitle", StringComparison.OrdinalIgnoreCase)))
+                    int endRow = currentRow - 1;
+
+                    if (endRow - startRow >= 1)
                     {
-                        sheet.Row(currentRow).Height = 30;
+                        var s = (groupBy ?? string.Empty).Trim().ToLowerInvariant();
+                        List<string> columnsToMerge = new();
+                        if (s == "supervisor" || s == "lecturer")
+                        {
+                            columnsToMerge = new List<string> { "SupervisorLecturerCode", "SupervisorLecturerName", "SupervisorOrganization" };
+                        }
+                        else if (s == "topic" || s == "title")
+                        {
+                            columnsToMerge = new List<string> { "TopicCode", "TopicTitle" };
+                        }
+                        else // default is council
+                        {
+                            columnsToMerge = new List<string> { "CommitteeCode", "CommitteeName", "Room" };
+                        }
+
+                        for (var colIdx = 0; colIdx < columns.Count; colIdx++)
+                        {
+                            var colKey = columns[colIdx].Key;
+                            if (columnsToMerge.Any(k => string.Equals(k, colKey, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                var colNum = colIdx + 1;
+                                var range = sheet.Range(startRow, colNum, endRow, colNum);
+                                range.Merge();
+                                range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                                range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                                range.Style.Alignment.WrapText = true;
+                            }
+                        }
                     }
-                    currentRow++;
                 }
             }
 
@@ -4205,7 +4301,7 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
             return ms.ToArray();
         }
 
-        private static byte[] BuildFlexiblePdfContent(List<ScoreRowData> rows, string reportType, IReadOnlyCollection<string>? selectedFields)
+        private static byte[] BuildFlexiblePdfContent(List<ScoreRowData> rows, string reportType, IReadOnlyCollection<string>? selectedFields, string? groupBy = null)
         {
             QuestPDF.Settings.License = LicenseType.Community;
             var normalizedType = NormalizeExportReportType(reportType);
@@ -4282,7 +4378,8 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
                             }
                             else
                             {
-                                foreach (var row in rows.OrderBy(r => r.CouncilId).ThenBy(r => r.Session).ThenBy(r => r.StudentCode))
+                                var orderedRows = OrderScoreRows(rows, groupBy);
+                                foreach (var row in orderedRows)
                                 {
                                     for (var i = 0; i < columns.Count; i++)
                                     {
@@ -4330,11 +4427,10 @@ namespace ThesisManagement.Api.Application.Query.DefensePeriods
 
             var upper = role.Trim().ToUpperInvariant();
             if (upper.Contains("GVHD")) return "GVHD";
-            if (upper.Contains("CHU") || upper == "CT") return "CT";
-            if (upper.Contains("UVTK") || upper.Contains("THU") || upper == "TK" || upper.Contains("SECRETARY")) return "UVTK";
-            if (upper.Contains("UVPB") || upper.Contains("PHAN") || upper == "PB" || upper.Contains("REVIEWER")) return "UVPB";
-            if (upper == "UV") return "UV";
-            if (upper.Contains("UY VIEN") || upper == "MEMBER") return "UV";
+            if (upper.Contains("CHU") || upper.Contains("CHỦ") || upper == "CT") return "CT";
+            if (upper.Contains("UVTK") || upper.Contains("THU") || upper.Contains("THƯ") || upper == "TK" || upper.Contains("SECRETARY")) return "UVTK";
+            if (upper.Contains("UVPB") || upper.Contains("PHAN") || upper.Contains("PHẢN") || upper == "PB" || upper.Contains("REVIEWER")) return "UVPB";
+            if (upper == "UV" || upper.Contains("UY VIEN") || upper.Contains("ỦY VIÊN") || upper == "MEMBER") return "UV";
             return upper;
         }
 

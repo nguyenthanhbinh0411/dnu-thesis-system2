@@ -144,6 +144,8 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
         public int? CouncilId { get; set; }
 
         public List<string> SelectedFields { get; set; } = new();
+
+        public string? GroupBy { get; set; }
     }
 
     public class CouncilUpsertDto

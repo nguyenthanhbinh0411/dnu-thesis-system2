@@ -46,7 +46,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
 
         private readonly ApplicationDbContext _db;
         private readonly ThesisManagement.Api.Services.IUnitOfWork _uow;
-        private readonly IHubContext<ChatHub> _hub;
+        private readonly IHubContext<DefenseHub> _hub;
         private readonly IDefenseAuditTrailService _auditTrail;
         private readonly IDefenseResiliencePolicy _resiliencePolicy;
         private readonly ISystemActivityLogger _systemActivityLogger;
@@ -54,7 +54,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
         public DefenseScoreWorkflowService(
             ApplicationDbContext db,
             ThesisManagement.Api.Services.IUnitOfWork uow,
-            IHubContext<ChatHub> hub,
+            IHubContext<DefenseHub> hub,
             IDefenseAuditTrailService auditTrail,
             IDefenseResiliencePolicy resiliencePolicy,
             ISystemActivityLogger systemActivityLogger)
@@ -211,7 +211,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 {
                     await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
                     {
-                        await _hub.Clients.All.SendAsync("DefenseScoreVarianceAlert", new { CommitteeId = committeeId, AssignmentId = request.AssignmentId, Variance = variance }, ct);
+                        await _hub.Clients.Group(DefenseHub.CommitteeGroup(committeeId)).SendAsync("DefenseScoreVarianceAlert", new { CommitteeId = committeeId, AssignmentId = request.AssignmentId, Variance = variance }, ct);
                     }, cancellationToken);
                 }
             }
@@ -236,6 +236,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 cancellationToken: cancellationToken);
 
             await tx.CommitAsync(cancellationToken);
+
+            await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
+            {
+                await _hub.Clients.Group(DefenseHub.CommitteeGroup(committeeId)).SendAsync("DefenseScoreSubmitted", new { CommitteeId = committeeId, AssignmentId = request.AssignmentId, LecturerCode = lecturerCode }, ct);
+            }, cancellationToken);
         }
 
         public async Task OpenSessionAsync(int committeeId, string lecturerCode, int actorUserId, string? reason = null, bool isAdmin = false, CancellationToken cancellationToken = default)
@@ -307,6 +312,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             }
 
             var beforeSnapshot = new { committee.Status, committee.LastUpdated };
+            var now = DateTime.UtcNow;
             if (committeeStatus == CommitteeStatus.Draft && !isAdminLockedSession)
             {
                 throw new BusinessRuleException("Hội đồng đang ở trạng thái Draft. Không thể mở ca đồ án tốt nghiệp.", "UC3.4.INVALID_COMMITTEE_STATE");
@@ -314,7 +320,59 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
 
             if (committeeStatus == CommitteeStatus.Finalized || committeeStatus == CommitteeStatus.Published)
             {
-                throw new BusinessRuleException("Hội đồng đã chốt/công bố kết quả, không thể mở ca đồ án tốt nghiệp.", "UC3.4.INVALID_COMMITTEE_STATE");
+                if (isAdmin)
+                {
+                    // Nếu là Admin mở phiên của hội đồng đã đóng/công bố, thực hiện mở lại và đưa về trạng thái chốt điểm (Completed) để bảo toàn điểm số
+                    committee.Status = DefenseWorkflowStateMachine.ToValue(CommitteeStatus.Completed);
+                    committee.LastUpdated = now;
+                    _uow.Committees.Update(committee);
+
+                    foreach (var assignment in assignments)
+                    {
+                        var assignmentStatus = DefenseWorkflowStateMachine.ParseAssignmentStatus(assignment.Status);
+                        if (assignmentStatus != AssignmentStatus.Graded)
+                        {
+                            assignment.Status = DefenseWorkflowStateMachine.ToValue(AssignmentStatus.Graded);
+                            assignment.LastUpdated = now;
+                            _uow.DefenseAssignments.Update(assignment);
+                        }
+                    }
+
+                    await _uow.SaveChangesAsync();
+                    await tx.CommitAsync(cancellationToken);
+
+                    await _auditTrail.WriteAsync(
+                        "ADMIN_REOPEN_SESSION",
+                        "SUCCESS",
+                        beforeSnapshot,
+                        new { committee.Status, committee.LastUpdated },
+                        new { CommitteeId = committeeId, LecturerCode = lecturerCode, Reason = reason, IsAdmin = isAdmin },
+                        actorUserId,
+                        cancellationToken);
+
+                    string logReasonStr = !string.IsNullOrWhiteSpace(reason) ? $" [Lý do: {reason}]" : "";
+                    await _systemActivityLogger.WriteLogAsync(
+                        entityName: "Committee",
+                        entityId: committeeId.ToString(),
+                        actionType: "REOPEN_SESSION",
+                        actionDescription: $"[REOPEN_SESSION]{logReasonStr} Quản trị viên mở lại phiên bảo vệ hội đồng {committee.CommitteeCode} (sau khi đã đóng vĩnh viễn, trở về trạng thái chốt điểm)",
+                        actorUserId: actorUserId,
+                        module: "Defense",
+                        status: "SUCCESS",
+                        relatedRecordCode: committee.CommitteeCode,
+                        cancellationToken: cancellationToken);
+
+                    await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
+                    {
+                        await _hub.Clients.Group(DefenseHub.CommitteeGroup(committeeId)).SendAsync("DefenseSessionReopened", new { CommitteeId = committeeId }, ct);
+                    }, cancellationToken);
+
+                    return;
+                }
+                else
+                {
+                    throw new BusinessRuleException("Hội đồng đã chốt/công bố kết quả, không thể mở ca đồ án tốt nghiệp.", "UC3.4.INVALID_COMMITTEE_STATE");
+                }
             }
 
             if (committeeStatus == CommitteeStatus.Paused)
@@ -322,7 +380,6 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 throw new BusinessRuleException("Phiên hội đồng đang tạm dừng. Vui lòng tiếp tục phiên trước khi mở lại.", "UC3.4.SESSION_PAUSED");
             }
 
-            var now = DateTime.UtcNow;
             if (committeeStatus == CommitteeStatus.Ready || committeeStatus == CommitteeStatus.Completed || isAdminLockedSession)
             {
                 committee.Status = DefenseWorkflowStateMachine.ToValue(CommitteeStatus.Ongoing);
@@ -394,7 +451,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
 
             await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
             {
-                await _hub.Clients.All.SendAsync("DefenseSessionOpened", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
+                await _hub.Clients.Group(DefenseHub.CommitteeGroup(committeeId)).SendAsync("DefenseSessionOpened", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
             }, cancellationToken);
         }
 
@@ -467,7 +524,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
 
             await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
             {
-                await _hub.Clients.All.SendAsync("DefenseSessionPaused", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
+                await _hub.Clients.Group(DefenseHub.CommitteeGroup(committeeId)).SendAsync("DefenseSessionPaused", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
             }, cancellationToken);
         }
 
@@ -540,7 +597,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
 
             await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
             {
-                await _hub.Clients.All.SendAsync("DefenseSessionResumed", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
+                await _hub.Clients.Group(DefenseHub.CommitteeGroup(committeeId)).SendAsync("DefenseSessionResumed", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
             }, cancellationToken);
         }
 
@@ -610,7 +667,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
 
             await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
             {
-                await _hub.Clients.All.SendAsync("DefenseSessionClosed", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
+                await _hub.Clients.Group(DefenseHub.CommitteeGroup(committeeId)).SendAsync("DefenseSessionClosed", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
             }, cancellationToken);
         }
 
@@ -636,26 +693,20 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             }
 
             var now = DateTime.UtcNow;
-            committee.Status = DefenseWorkflowStateMachine.ToValue(CommitteeStatus.Ongoing);
+            // Trở về trạng thái chốt điểm (Completed) thay vì Ongoing để giữ nguyên bảng điểm cũ
+            committee.Status = DefenseWorkflowStateMachine.ToValue(CommitteeStatus.Completed);
             committee.LastUpdated = now;
             _uow.Committees.Update(committee);
 
             var assignments = await _db.DefenseAssignments.Where(x => x.CommitteeID == committeeId).ToListAsync(cancellationToken);
-            var assignmentIds = assignments.Select(x => x.AssignmentID).ToList();
 
-            // Remove old results so reopening starts with clean slate
-            var oldResults = await _db.DefenseResults.Where(x => assignmentIds.Contains(x.AssignmentId)).ToListAsync(cancellationToken);
-            foreach (var r in oldResults)
-            {
-                _uow.DefenseResults.Remove(r);
-            }
-
+            // Giữ nguyên các bản ghi DefenseResults hiện tại để bảo toàn điểm số đã chốt trước đó
             foreach (var assignment in assignments)
             {
                 var assignmentStatus = DefenseWorkflowStateMachine.ParseAssignmentStatus(assignment.Status);
-                if (assignmentStatus != AssignmentStatus.Defending)
+                if (assignmentStatus != AssignmentStatus.Graded)
                 {
-                    assignment.Status = DefenseWorkflowStateMachine.ToValue(AssignmentStatus.Defending);
+                    assignment.Status = DefenseWorkflowStateMachine.ToValue(AssignmentStatus.Graded);
                     assignment.LastUpdated = now;
                     _uow.DefenseAssignments.Update(assignment);
                 }
@@ -667,8 +718,8 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
             await _auditTrail.WriteAsync(
                 "ADMIN_REOPEN_SESSION",
                 "SUCCESS",
-                new { CommitteeId = committeeId, BeforeStatus = CommitteeStatus.Finalized, Reason = reason },
-                new { CommitteeId = committeeId, AfterStatus = CommitteeStatus.Ongoing },
+                new { CommitteeId = committeeId, BeforeStatus = committeeStatus, Reason = reason },
+                new { CommitteeId = committeeId, AfterStatus = CommitteeStatus.Completed },
                 new { CommitteeId = committeeId },
                 actorUserId,
                 cancellationToken);
@@ -678,7 +729,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 entityName: "Committee",
                 entityId: committeeId.ToString(),
                 actionType: "REOPEN_SESSION",
-                actionDescription: $"[REOPEN_SESSION]{logReason} Quản trị viên mở lại phiên bảo vệ hội đồng {committee.CommitteeCode} (sau khi đã đóng vĩnh viễn)",
+                actionDescription: $"[REOPEN_SESSION]{logReason} Quản trị viên mở lại phiên bảo vệ hội đồng {committee.CommitteeCode} (sau khi đã đóng vĩnh viễn, trở về trạng thái chốt điểm)",
                 actorUserId: actorUserId,
                 module: "Defense",
                 status: "SUCCESS",
@@ -687,7 +738,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
 
             await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
             {
-                await _hub.Clients.All.SendAsync("DefenseSessionReopened", new { CommitteeId = committeeId }, ct);
+                await _hub.Clients.Group(DefenseHub.CommitteeGroup(committeeId)).SendAsync("DefenseSessionReopened", new { CommitteeId = committeeId }, ct);
             }, cancellationToken);
         }
 
@@ -843,7 +894,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 if (!finalScore.HasValue)
                 {
                     throw new BusinessRuleException(
-                        $"Đề tài với mã {assignmentId} không đủ điều kiện chốt điểm vì thiếu điểm thành phần (cần ít nhất 3 thành viên chấm).",
+                        $"Đề tài với mã {assignmentId} không đủ điều kiện chốt điểm vì thiếu điểm thành phần (cần cả 4 vai trò: Giảng viên hướng dẫn, Chủ tịch, Thư ký, Ủy viên phản biện chấm).",
                         DefenseUcErrorCodes.Scoring.IncompleteAlert);
                 }
 
@@ -1036,6 +1087,11 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
 
             await tx.CommitAsync(cancellationToken);
 
+            await _resiliencePolicy.ExecuteAsync("DEFENSE_HUB_NOTIFY", async ct =>
+            {
+                await _hub.Clients.Group(DefenseHub.CommitteeGroup(committeeId)).SendAsync("DefenseSessionLocked", new { CommitteeId = committeeId, LecturerCode = lecturerCode }, ct);
+            }, cancellationToken);
+
             await _auditTrail.WriteAsync(
                 "LOCK_SESSION",
                 "SUCCESS",
@@ -1073,10 +1129,10 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
 
             var upper = role.Trim().ToUpperInvariant();
             if (upper.Contains("GVHD")) return "GVHD";
-            if (upper.Contains("CHU") || upper == "CT") return "CT";
-            if (upper.Contains("UVTK") || upper.Contains("THU") || upper == "TK" || upper.Contains("SECRETARY")) return "UVTK";
-            if (upper.Contains("UVPB") || upper.Contains("PHAN") || upper == "PB" || upper.Contains("REVIEWER")) return "UVPB";
-            if (upper == "UV" || upper.Contains("UY VIEN") || upper == "MEMBER") return "UV";
+            if (upper.Contains("CHU") || upper.Contains("CHỦ") || upper == "CT") return "CT";
+            if (upper.Contains("UVTK") || upper.Contains("THU") || upper.Contains("THƯ") || upper == "TK" || upper.Contains("SECRETARY")) return "UVTK";
+            if (upper.Contains("UVPB") || upper.Contains("PHAN") || upper.Contains("PHẢN") || upper == "PB" || upper.Contains("REVIEWER")) return "UVPB";
+            if (upper == "UV" || upper.Contains("UY VIEN") || upper.Contains("ỦY VIÊN") || upper == "MEMBER") return "UV";
             return upper;
         }
 
@@ -1236,7 +1292,7 @@ namespace ThesisManagement.Api.Application.Command.DefensePeriods.Services
                 .Select(x => x!.Value)
                 .ToList();
 
-            if (componentScores.Count >= 3)
+            if (componentScores.Count >= 4)
             {
                 return Math.Round(componentScores.Average(), 1);
             }

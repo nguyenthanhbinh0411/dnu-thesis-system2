@@ -82,6 +82,8 @@ type CatalogTopicWithTags = {
   createdAt: string;
   lastUpdated: string;
   defenseTermId?: number | null;
+  lecturerCode?: string | null;
+  lecturerName?: string | null;
   tags: Array<{
     tagID: number;
     tagCode: string;
@@ -176,6 +178,7 @@ const TopicRegistration: React.FC = () => {
   const [filteredLecturers, setFilteredLecturers] = useState<LecturerProfile[]>(
     [],
   );
+  const [termGuidingCounts, setTermGuidingCounts] = useState<Record<string, number>>({});
   const [defaultDepartment, setDefaultDepartment] = useState<Department | null>(
     null,
   );
@@ -201,6 +204,7 @@ const TopicRegistration: React.FC = () => {
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
   const [catalogSearchQuery, setCatalogSearchQuery] = useState("");
   const [catalogTagFilter, setCatalogTagFilter] = useState<string | null>(null);
+  const [catalogLecturerFilter, setCatalogLecturerFilter] = useState<string | null>(null);
   const [catalogViewMode, setCatalogViewMode] = useState<"card" | "table">("card");
   const [isTopicRenameModalOpen, setIsTopicRenameModalOpen] = useState(false);
 
@@ -210,9 +214,10 @@ const TopicRegistration: React.FC = () => {
       (!selectedDefenseTermId || t.defenseTermId === selectedDefenseTermId) &&
       (t.title.toLowerCase().includes(catalogSearchQuery.toLowerCase()) ||
         t.catalogTopicCode.toLowerCase().includes(catalogSearchQuery.toLowerCase())) &&
-      (!catalogTagFilter || (t.tags && t.tags.some(tag => tag.tagCode === catalogTagFilter)))
+      (!catalogTagFilter || (t.tags && t.tags.some(tag => tag.tagCode === catalogTagFilter))) &&
+      (!catalogLecturerFilter || (t.lecturerCode || "").trim().toUpperCase() === catalogLecturerFilter.trim().toUpperCase())
     );
-  }, [catalogTopics, catalogSearchQuery, catalogTagFilter, selectedDefenseTermId]);
+  }, [catalogTopics, catalogSearchQuery, catalogTagFilter, catalogLecturerFilter, selectedDefenseTermId]);
   const [editFormData, setEditFormData] = useState<TopicFormData>({
     topicCode: "",
     title: "",
@@ -247,22 +252,20 @@ const TopicRegistration: React.FC = () => {
   const loadInitialData = useCallback(async () => {
     try {
       setLoading(true);
-      const [catalogRes, lecturerRes, departmentRes, tagRes, defenseTermRes] =
+      const [catalogRes, departmentRes, tagRes, defenseTermRes] =
         await Promise.all([
           getCatalogTopicsWithTagsApi({
             assignedStatus: "Chưa giao",
             page: 0,
             pageSize: 200,
           }),
-          fetchData("/LecturerProfiles/get-list"),
           fetchData("/Departments/get-list"),
           fetchData("/Tags/list"),
           getDefenseTermList(),
         ]);
 
       setCatalogTopics(catalogRes || []);
-      const fetchedAllLecturers = (lecturerRes as ApiResponse<LecturerProfile[]>)?.data || [];
-      setAllLecturers(fetchedAllLecturers);
+      setAllLecturers([]);
       setLecturers([]); // Will be populated by the selectedDefenseTermId useEffect
       setFilteredLecturers([]);
 
@@ -384,32 +387,49 @@ const TopicRegistration: React.FC = () => {
     }
   }, [userCode]);
 
-  // Load and filter lecturers whenever the selected defense term or master lecturers list changes
+  // Load and filter lecturers whenever the selected defense term changes
   useEffect(() => {
-    if (!selectedDefenseTermId || allLecturers.length === 0) {
+    if (!selectedDefenseTermId) {
       setLecturers([]);
+      setTermGuidingCounts({});
       return;
     }
 
-    const fetchAndFilterLecturersByTerm = async () => {
+    const fetchLecturersByTerm = async () => {
       try {
-        const termLecturerRes = await fetchData(
-          `/DefenseTermLecturers/get-list?DefenseTermId=${selectedDefenseTermId}&PageSize=500`
-        );
-        const termLecturers = (termLecturerRes as ApiResponse<any[]>)?.data || [];
-        const termLecturerCodes = new Set(termLecturers.map((tl) => tl.lecturerCode).filter(Boolean));
+        // Fetch term lecturers and lecturer profiles in parallel
+        const [termLecturerRes, lecturerRes] = await Promise.all([
+          fetchData(`/DefenseTermLecturers/get-list?DefenseTermId=${selectedDefenseTermId}&PageSize=500`),
+          fetchData(`/LecturerProfiles/get-list?DefenseTermId=${selectedDefenseTermId}&PageSize=500`)
+        ]);
 
-        const filteredTermLecturers = allLecturers.filter((lp) =>
-          termLecturerCodes.has(lp.lecturerCode)
+        const termLecturers = (termLecturerRes as ApiResponse<any[]>)?.data || [];
+        const termLecturerCodes = new Set(
+          termLecturers.map((tl) => (tl.lecturerCode || "").trim().toUpperCase()).filter(Boolean)
         );
+
+        const lecturerProfiles = (lecturerRes as ApiResponse<LecturerProfile[]>)?.data || [];
+        const filteredTermLecturers = lecturerProfiles.filter((lp) =>
+          termLecturerCodes.has((lp.lecturerCode || "").trim().toUpperCase())
+        );
+
         setLecturers(filteredTermLecturers);
+        setAllLecturers(filteredTermLecturers); // populate both for compatibility
+
+        const counts: Record<string, number> = {};
+        filteredTermLecturers.forEach((l) => {
+          if (l.lecturerCode) {
+            counts[l.lecturerCode.trim().toUpperCase()] = l.currentGuidingCount ?? 0;
+          }
+        });
+        setTermGuidingCounts(counts);
       } catch (err) {
-        console.error("Error fetching/filtering term lecturers:", err);
+        console.error("Error fetching term lecturers:", err);
       }
     };
 
-    void fetchAndFilterLecturersByTerm();
-  }, [selectedDefenseTermId, allLecturers]);
+    void fetchLecturersByTerm();
+  }, [selectedDefenseTermId]);
 
   const handleContinueAfterSuccess = async () => {
     // Close modal and refresh data/form after registration
@@ -447,6 +467,9 @@ const TopicRegistration: React.FC = () => {
     setSelectedDefenseTermId(null);
     setWorkflowDetail(null);
     setIsEditing(false);
+    setCatalogSearchQuery("");
+    setCatalogTagFilter(null);
+    setCatalogLecturerFilter(null);
   };
 
   const toTopicModel = useCallback(
@@ -617,8 +640,8 @@ const TopicRegistration: React.FC = () => {
               const availableLecturers =
                 (lecturersRes as ApiResponse<LecturerProfile[]>)?.data || [];
               // Giao với danh sách giảng viên của đợt bảo vệ hiện hành
-              const termLecturerCodes = new Set(lecturers.map((l) => l.lecturerCode).filter(Boolean));
-              const finalLecturers = availableLecturers.filter((l) => termLecturerCodes.has(l.lecturerCode));
+              const termLecturerCodes = new Set(lecturers.map((l) => (l.lecturerCode || "").trim().toUpperCase()).filter(Boolean));
+              const finalLecturers = availableLecturers.filter((l) => termLecturerCodes.has((l.lecturerCode || "").trim().toUpperCase()));
               setFilteredLecturers(finalLecturers);
             }
           } catch (error) {
@@ -644,9 +667,9 @@ const TopicRegistration: React.FC = () => {
             const lecturerTags =
               (lecturerTagsRes as ApiResponse<LecturerTag[]>)?.data || [];
 
-            const tagLecturerCodes = lecturerTags.map((lt) => lt.lecturerCode);
+            const tagLecturerCodes = lecturerTags.map((lt) => (lt.lecturerCode || "").trim().toUpperCase()).filter(Boolean);
             const availableLecturers = lecturers.filter((l) =>
-              tagLecturerCodes.includes(l.lecturerCode),
+              tagLecturerCodes.includes((l.lecturerCode || "").trim().toUpperCase()),
             );
 
             setFilteredLecturers(availableLecturers);
@@ -784,8 +807,8 @@ const TopicRegistration: React.FC = () => {
             (lecturersRes as ApiResponse<LecturerProfile[]>)?.data || [];
 
           // Giao với danh sách giảng viên của đợt bảo vệ hiện hành
-          const termLecturerCodes = new Set(lecturers.map((l) => l.lecturerCode).filter(Boolean));
-          const finalLecturers = availableLecturers.filter((l) => termLecturerCodes.has(l.lecturerCode));
+          const termLecturerCodes = new Set(lecturers.map((l) => (l.lecturerCode || "").trim().toUpperCase()).filter(Boolean));
+          const finalLecturers = availableLecturers.filter((l) => termLecturerCodes.has((l.lecturerCode || "").trim().toUpperCase()));
 
           setFilteredLecturers(finalLecturers);
           // Set first selected tag as selectedTagInfo for display
@@ -972,8 +995,28 @@ const TopicRegistration: React.FC = () => {
         (lecturersRes as ApiResponse<LecturerProfile[]>)?.data || [];
 
       // Giao với danh sách giảng viên của đợt bảo vệ hiện hành
-      const termLecturerCodes = new Set(lecturers.map((l) => l.lecturerCode).filter(Boolean));
-      const finalLecturers = availableLecturers.filter((l) => termLecturerCodes.has(l.lecturerCode));
+      const termLecturerCodes = new Set(lecturers.map((l) => (l.lecturerCode || "").trim().toUpperCase()).filter(Boolean));
+      const finalLecturers = availableLecturers.filter((l) => termLecturerCodes.has((l.lecturerCode || "").trim().toUpperCase()));
+
+      // Ensure the proposing lecturer is included in finalLecturers if they are in the active term
+      if (selectedTopic.lecturerCode) {
+        const proposingLecturer = lecturers.find(
+          (l) => l.lecturerCode?.trim().toUpperCase() === selectedTopic.lecturerCode?.trim().toUpperCase()
+        );
+        if (proposingLecturer && !finalLecturers.some((l) => (l.lecturerCode || "").trim().toUpperCase() === proposingLecturer.lecturerCode?.trim().toUpperCase())) {
+          finalLecturers.push(proposingLecturer);
+        }
+      }
+
+      let supervisorLecturerProfileID: number | null = null;
+      if (selectedTopic.lecturerCode) {
+        const matchedLecturer = lecturers.find(
+          (l) => l.lecturerCode?.trim().toUpperCase() === selectedTopic.lecturerCode?.trim().toUpperCase()
+        );
+        if (matchedLecturer) {
+          supervisorLecturerProfileID = matchedLecturer.lecturerProfileID;
+        }
+      }
 
       // Update state
       setSelectedTagInfo(firstTag || null);
@@ -981,14 +1024,25 @@ const TopicRegistration: React.FC = () => {
       setFilteredLecturers(finalLecturers);
 
       // Update form data
-      setFormData({
-        ...formData,
-        catalogTopicID,
-        title: selectedTopic.title,
-        summary: selectedTopic.summary,
-        tagID: firstTag?.tagID || null,
-        supervisorLecturerProfileID: null, // Reset lecturer selection
-      });
+      if (isEditing) {
+        setEditFormData((prev) => ({
+          ...prev,
+          catalogTopicID,
+          title: selectedTopic.title,
+          summary: selectedTopic.summary,
+          tagID: firstTag?.tagID || null,
+          supervisorLecturerProfileID: supervisorLecturerProfileID,
+        }));
+      } else {
+        setFormData({
+          ...formData,
+          catalogTopicID,
+          title: selectedTopic.title,
+          summary: selectedTopic.summary,
+          tagID: firstTag?.tagID || null,
+          supervisorLecturerProfileID: supervisorLecturerProfileID,
+        });
+      }
 
       setError(null); // Clear any previous errors
     } catch (error) {
@@ -1533,8 +1587,8 @@ const TopicRegistration: React.FC = () => {
               }}
               required
               disabled={!!getActiveDefensePeriodId()}
+              className="font-vietnam"
               style={{
-
                 width: "100%",
                 padding: "12px 16px",
                 border: "2px solid #ddd",
@@ -1542,13 +1596,14 @@ const TopicRegistration: React.FC = () => {
                 fontSize: "16px",
                 backgroundColor: "#fff",
                 transition: "border-color 0.3s ease",
+                fontFamily: "'Be Vietnam Pro', sans-serif",
               }}
               onFocus={(e) => (e.target.style.borderColor = "#f37021")}
               onBlur={(e) => (e.target.style.borderColor = "#ddd")}
             >
-              <option value="">-- Chọn đợt đồ án tốt nghiệp --</option>
+              <option value="" style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}>-- Chọn đợt đồ án tốt nghiệp --</option>
               {defenseTerms.map((term) => (
-                <option key={term.defenseTermId} value={term.defenseTermId}>
+                <option key={term.defenseTermId} value={term.defenseTermId} style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}>
                   {term.defenseTermCode} - {term.defenseTermName}
                 </option>
               ))}
@@ -1688,6 +1743,7 @@ const TopicRegistration: React.FC = () => {
                 })
               }
               required
+              className="font-vietnam"
               style={{
                 width: "100%",
                 padding: "12px 16px",
@@ -1696,21 +1752,28 @@ const TopicRegistration: React.FC = () => {
                 fontSize: "16px",
                 backgroundColor: "#fff",
                 transition: "border-color 0.3s ease",
+                fontFamily: "'Be Vietnam Pro', sans-serif",
               }}
               onFocus={(e) => (e.target.style.borderColor = "#f37021")}
               onBlur={(e) => (e.target.style.borderColor = "#ddd")}
             >
-              <option value="">-- Chọn giảng viên --</option>
-              {filteredLecturers.map((lecturer) => (
-                <option
-                  key={lecturer.lecturerProfileID}
-                  value={lecturer.lecturerProfileID}
-                >
-                  {lecturer.fullName || lecturer.lecturerCode} -{" "}
-                  {lecturer.degree} ({lecturer.currentGuidingCount}/
-                  {lecturer.guideQuota})
-                </option>
-              ))}
+              <option value="" style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}>-- Chọn giảng viên --</option>
+              {filteredLecturers.map((lecturer) => {
+                const lecturerCodeUpper = (lecturer.lecturerCode || "").trim().toUpperCase();
+                const termGuidingCount = termGuidingCounts[lecturerCodeUpper] ?? 0;
+                const quota = lecturer.guideQuota ?? 10;
+                return (
+                  <option
+                    key={lecturer.lecturerProfileID}
+                    value={lecturer.lecturerProfileID}
+                    style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}
+                  >
+                    {lecturer.fullName || lecturer.lecturerCode} -{" "}
+                    {lecturer.degree} ({termGuidingCount}/
+                    {quota})
+                  </option>
+                );
+              })}
             </select>
 
             {/* Quota Info */}
@@ -1733,14 +1796,16 @@ const TopicRegistration: React.FC = () => {
                       editFormData.supervisorLecturerProfileID,
                   );
                   if (!lecturer) return null;
-                  const available =
-                    lecturer.guideQuota - lecturer.currentGuidingCount;
+                  const lecturerCodeUpper = (lecturer.lecturerCode || "").trim().toUpperCase();
+                  const termGuidingCount = termGuidingCounts[lecturerCodeUpper] ?? 0;
+                  const quota = lecturer.guideQuota ?? 10;
+                  const available = quota - termGuidingCount;
                   return (
                     <>
                       <strong>{lecturer.fullName}</strong> - {lecturer.degree}
                       <br />
-                      Sinh viên hướng dẫn: {lecturer.currentGuidingCount}/
-                      {lecturer.guideQuota}
+                      Sinh viên hướng dẫn: {termGuidingCount}/
+                      {quota}
                       {available > 0
                         ? ` (Còn ${available} slot)`
                         : " (Hạn chế)"}
@@ -1835,7 +1900,10 @@ const TopicRegistration: React.FC = () => {
 
   // If student already has a pending or approved topic, show unified dossier card
   if (existingTopic) {
-    const supervisor = lecturers.find(l => l.userCode === existingTopic.supervisorUserCode || l.lecturerCode === existingTopic.supervisorLecturerCode);
+    const supervisor = lecturers.find(l => 
+      (l.userCode || "").trim().toUpperCase() === (existingTopic.supervisorUserCode || "").trim().toUpperCase() || 
+      (l.lecturerCode || "").trim().toUpperCase() === (existingTopic.supervisorLecturerCode || "").trim().toUpperCase()
+    );
     const isApproved = existingTopic.status === "Chấp thuận" || existingTopic.status === "Chính thức";
     const isActionRequired = existingTopic.status === "Từ chối" || existingTopic.status === "Cần sửa đổi";
 
@@ -2137,6 +2205,19 @@ const TopicRegistration: React.FC = () => {
           <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em]">Thesis Registration Workspace</p>
         </header>
 
+        {/* Hướng dẫn/Lưu ý đăng ký đề tài */}
+        <div className="mb-8 p-6 bg-amber-50/80 border-2 border-amber-200/60 rounded-[32px] shadow-sm flex items-start gap-4 animate-fadeIn">
+          <div className="p-3 bg-amber-100 rounded-2xl text-amber-600 flex-shrink-0">
+            <AlertCircle size={24} className="stroke-[2]" />
+          </div>
+          <div>
+            <h4 className="text-[14px] font-black text-amber-800 uppercase tracking-wider mb-1 font-vietnam">Lưu ý quan trọng về việc Đăng ký Đề tài</h4>
+            <p className="text-amber-700 text-sm leading-relaxed font-vietnam font-medium">
+              Sinh viên vui lòng hoàn thành đăng ký đề tài tốt nghiệp trước hạn định. <strong>Nếu quá thời hạn quy định mà sinh viên vẫn chưa có đề tài được phê duyệt</strong>, Nhà trường sẽ tự động thực hiện phân công đề tài chỉ định ngẫu nhiên và sinh viên sẽ phải hoàn toàn tự chịu trách nhiệm về kết quả thực hiện đề tài đó.
+            </p>
+          </div>
+        </div>
+
         <form onSubmit={isEditing ? handleEditSubmit : handleSubmit} className="bg-white rounded-[48px] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.08)] border border-slate-200 overflow-hidden flex flex-col xl:flex-row min-h-[800px] items-stretch">
 
           {/* SECTION 1: Parameters (32%) */}
@@ -2326,15 +2407,25 @@ const TopicRegistration: React.FC = () => {
                             <td className={`py-3 border-y-2 transition-all ${isSelected ? "border-[#F37021]" : "border-slate-300"
                               }`}>
                               <div className="flex flex-col items-center gap-1.5 min-w-[100px]">
-                                <span className={`text-[11px] font-black ${lecturer.currentGuidingCount >= lecturer.guideQuota ? "text-red-500" : "text-[#F37021]"}`}>
-                                  {lecturer.currentGuidingCount} / {lecturer.guideQuota}
-                                </span>
-                                <div className="h-1.5 w-20 bg-slate-100 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full transition-all duration-1000 ${lecturer.currentGuidingCount >= lecturer.guideQuota ? "bg-red-500" : "bg-[#F37021]"}`}
-                                    style={{ width: `${Math.min(100, (lecturer.currentGuidingCount / lecturer.guideQuota) * 100)}%` }}
-                                  />
-                                </div>
+                                {(() => {
+                                  const lecturerCodeUpper = (lecturer.lecturerCode || "").trim().toUpperCase();
+                                  const termGuidingCount = termGuidingCounts[lecturerCodeUpper] ?? 0;
+                                  const quota = lecturer.guideQuota ?? 10;
+                                  const isOverQuota = termGuidingCount >= quota;
+                                  return (
+                                    <>
+                                      <span className={`text-[11px] font-black ${isOverQuota ? "text-red-500" : "text-[#F37021]"}`}>
+                                        {termGuidingCount} / {quota}
+                                      </span>
+                                      <div className="h-1.5 w-20 bg-slate-100 rounded-full overflow-hidden">
+                                        <div
+                                          className={`h-full transition-all duration-1000 ${isOverQuota ? "bg-red-500" : "bg-[#F37021]"}`}
+                                          style={{ width: `${Math.min(100, (termGuidingCount / quota) * 100)}%` }}
+                                        />
+                                      </div>
+                                    </>
+                                  );
+                                })()}
                               </div>
                             </td>
                             <td className={`px-4 py-3 rounded-r-[18px] border-y-2 border-r-2 transition-all ${isSelected ? "border-[#F37021]" : "border-slate-300"
@@ -2553,15 +2644,30 @@ const TopicRegistration: React.FC = () => {
                     className="w-full pl-14 pr-6 py-5 bg-slate-50/50 border-2 border-slate-100 rounded-3xl text-sm focus:outline-none focus:border-orange-500 focus:bg-white transition-all font-bold"
                   />
                 </div>
-                <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex items-center gap-4 w-full md:w-auto">
                   <select
                     value={catalogTagFilter || ""}
                     onChange={(e) => setCatalogTagFilter(e.target.value || null)}
-                    className="w-full md:w-64 px-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-3xl text-xs font-black uppercase tracking-widest focus:outline-none focus:border-orange-500 appearance-none cursor-pointer"
+                    className="w-full md:w-64 px-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-3xl text-xs font-black uppercase tracking-widest focus:outline-none focus:border-orange-500 appearance-none cursor-pointer font-vietnam"
+                    style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}
                   >
-                    <option value="">Lọc theo lĩnh vực</option>
+                    <option value="" style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}>Lọc theo lĩnh vực</option>
                     {tags.map(tag => (
-                      <option key={tag.tagID} value={tag.tagCode}>{tag.tagName}</option>
+                      <option key={tag.tagID} value={tag.tagCode} style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}>{tag.tagName}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={catalogLecturerFilter || ""}
+                    onChange={(e) => setCatalogLecturerFilter(e.target.value || null)}
+                    className="w-full md:w-64 px-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-3xl text-xs font-black uppercase tracking-widest focus:outline-none focus:border-orange-500 appearance-none cursor-pointer font-vietnam"
+                    style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}
+                  >
+                    <option value="" style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}>Lọc theo giảng viên</option>
+                    {lecturers.map(lecturer => (
+                      <option key={lecturer.lecturerProfileID} value={lecturer.lecturerCode} style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}>
+                        {lecturer.fullName || lecturer.lecturerCode}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -2617,9 +2723,17 @@ const TopicRegistration: React.FC = () => {
                               </>
                             ) : null}
                           </div>
-                          <div className="flex items-center gap-3 text-[10px] font-black text-slate-400 border-t border-slate-50 pt-5 mt-auto">
-                            <Building size={14} />
-                            <span>{topic.departmentCode || "CNTT"}</span>
+                          <div className="flex items-center justify-between text-[10px] font-black text-slate-400 border-t border-slate-50 pt-5 mt-auto">
+                            <div className="flex items-center gap-2">
+                              <Building size={14} />
+                              <span>{topic.departmentCode || "CNTT"}</span>
+                            </div>
+                            {topic.lecturerName && (
+                              <div className="flex items-center gap-1 text-orange-600 bg-orange-50 px-2.5 py-1 rounded-lg">
+                                <PersonIcon size={12} />
+                                <span>{topic.lecturerName}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -2631,6 +2745,7 @@ const TopicRegistration: React.FC = () => {
                         <tr className="bg-slate-50/50 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">
                           <th className="px-8 py-6">Mã Đề tài</th>
                           <th className="px-8 py-6">Tên Đề tài</th>
+                          <th className="px-8 py-6">Đề xuất bởi</th>
                           <th className="px-8 py-6">Lĩnh vực</th>
                           <th className="px-8 py-6">Trạng thái</th>
                           <th className="px-8 py-6 text-center">Thao tác</th>
@@ -2642,6 +2757,7 @@ const TopicRegistration: React.FC = () => {
                             <tr key={topic.catalogTopicID} onClick={() => { handleCatalogTopicChange(topic.catalogTopicID); setIsCatalogModalOpen(false); }} className={`group cursor-pointer hover:bg-orange-50/10 ${(isEditing ? editFormData.catalogTopicID : formData.catalogTopicID) === topic.catalogTopicID ? "bg-orange-50/20" : ""}`}>
                               <td className="px-8 py-6"><span className="text-xs font-black text-orange-500">{topic.catalogTopicCode}</span></td>
                               <td className="px-8 py-6"><p className="text-[14px] font-bold text-slate-700">{topic.title}</p></td>
+                              <td className="px-8 py-6"><span className="text-xs font-bold text-slate-600">{topic.lecturerName || "--"}</span></td>
                               <td className="px-8 py-6">
                                 <div className="flex gap-1.5 flex-nowrap items-center">
                                   {Array.isArray(topic.tags) && topic.tags.length > 0 ? (

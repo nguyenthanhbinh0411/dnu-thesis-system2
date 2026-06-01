@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using ThesisManagement.Api.Application.Command.Auth;
 using ThesisManagement.Api.Application.Command.CatalogTopicTags;
 using ThesisManagement.Api.Application.Command.CatalogTopics;
@@ -203,6 +204,61 @@ builder.Services.AddAuthentication(options =>
                 context.Token = accessToken;
             }
             return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            var cache = context.HttpContext.RequestServices.GetRequiredService<IMemoryCache>();
+            var claimsPrincipal = context.Principal;
+            var userIdClaim = claimsPrincipal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var sessionIdClaim = claimsPrincipal?.FindFirst("sessionId")?.Value;
+
+            if (userIdClaim != null)
+            {
+                if (sessionIdClaim == null)
+                {
+                    context.Fail("Token không hợp lệ. Vui lòng đăng nhập lại.");
+                }
+                else
+                {
+                    var cacheKey = $"active_session_{userIdClaim}";
+                    if (!cache.TryGetValue(cacheKey, out object? cachedVal))
+                    {
+                        // Restore active session ID from the current token if cache is empty
+                        cache.Set(cacheKey, (object)sessionIdClaim, TimeSpan.FromHours(12));
+                        cachedVal = sessionIdClaim;
+                    }
+
+                    var activeSessionId = cachedVal as string;
+                    if (activeSessionId != sessionIdClaim)
+                    {
+                        context.Fail("Tài khoản của bạn đã được đăng nhập từ một thiết bị khác.");
+                    }
+                }
+            }
+            return Task.CompletedTask;
+        },
+        OnChallenge = async context =>
+        {
+            context.HandleResponse();
+
+            context.Response.StatusCode = 401;
+            context.Response.ContentType = "application/json";
+
+            var message = "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.";
+            if (context.AuthenticateFailure != null)
+            {
+                message = context.AuthenticateFailure.Message;
+            }
+
+            var apiResponse = new
+            {
+                success = false,
+                statusCode = 401,
+                message = message,
+                code = "SESSION_EXPIRED"
+            };
+
+            await context.Response.WriteAsJsonAsync(apiResponse);
         }
     };
 });

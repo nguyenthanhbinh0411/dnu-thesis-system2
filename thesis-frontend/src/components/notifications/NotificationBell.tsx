@@ -95,6 +95,26 @@ const priorityLabelMap: Record<string, string> = {
   URGENT: "Khẩn",
 };
 
+const categoryTranslationMap: Record<string, string> = {
+  REGISTRATION: "Đăng ký đề tài",
+  ASSIGNMENT: "Phân công hướng dẫn",
+  PROGRESS: "Tiến độ thực hiện",
+  COMMITTEE: "Hội đồng bảo vệ",
+  GRADING: "Chấm điểm bảo vệ",
+  POSTDEFENSE: "Sau bảo vệ",
+  TOPIC_WORKFLOW: "Quy trình đề tài",
+  PROGRESS_SUBMISSION: "Nộp báo cáo tiến độ",
+  DEFENSE_REVISION: "Chỉnh sửa sau bảo vệ",
+  IN_APP: "Trong ứng dụng",
+  SYSTEM: "Hệ thống",
+  ALERT: "Cảnh báo hệ thống",
+};
+
+const translateCategory = (cat: string): string => {
+  const normalized = String(cat ?? "").trim().toUpperCase();
+  return categoryTranslationMap[normalized] || cat;
+};
+
 const fallbackActionUrlByType: Record<string, string> = {
   OPEN_DEFENSE_STUDENT: "/student/defense-info",
   OPEN_DEFENSE_SUPERVISOR: "/lecturer/students",
@@ -146,6 +166,7 @@ const attachPeriodIdQuery = (
 const normalizeActionTarget = (
   rawActionUrl: string,
   actionType: string,
+  theme: NotificationTheme,
 ): {
   targetUrl: string;
   isExternal: boolean;
@@ -188,25 +209,70 @@ const normalizeActionTarget = (
   const periodId = periodIdFromQuery ?? periodIdFromPath;
 
   let inAppPath = normalizedPath;
-  if (/^\/defense\/periods\/\d+\/student(?:\/.*)?$/i.test(normalizedPath)) {
-    inAppPath = "/student/defense-info";
-  } else if (
-    /^\/defense-periods\/\d+\/student(?:\/.*)?$/i.test(normalizedPath)
-  ) {
-    inAppPath = "/student/defense-info";
-  } else if (
-    /^\/defense\/periods\/\d+\/lecturer(?:\/.*)?$/i.test(normalizedPath)
-  ) {
-    inAppPath = "/lecturer/committees";
-  } else if (
-    /^\/defense-periods\/\d+\/lecturer(?:\/.*)?$/i.test(normalizedPath)
-  ) {
-    inAppPath = "/lecturer/committees";
-  } else if (
-    /^\/lecturer\/revisions(?:\/.*)?$/i.test(normalizedPath) ||
-    /^\/lecturer\/post-defense(?:\/.*)?$/i.test(normalizedPath)
-  ) {
-    inAppPath = "/lecturer/post-defense";
+
+  if (theme === "student") {
+    if (
+      normalizedPath.startsWith("/lecturer") ||
+      normalizedPath.startsWith("/admin") ||
+      normalizedPath.startsWith("/secretary")
+    ) {
+      inAppPath = "/student";
+    } else if (
+      /^\/(?:defense-periods|defense\/periods)\/\d+\/student(?:\/.*)?$/i.test(normalizedPath)
+    ) {
+      inAppPath = "/student/defense-info";
+    } else if (
+      /^\/(?:defense-periods|defense\/periods)\/\d+\/lecturer(?:\/.*)?$/i.test(normalizedPath)
+    ) {
+      inAppPath = "/student/defense-info";
+    } else if (
+      /^\/(?:defense-periods|defense\/periods)\/\d+(?:\/.*)?$/i.test(normalizedPath)
+    ) {
+      inAppPath = "/student/defense-info";
+    } else if (/^\/progress(?:\/.*)?$/i.test(normalizedPath)) {
+      inAppPath = "/student/progress";
+    } else if (/^\/reports(?:\/.*)?$/i.test(normalizedPath)) {
+      inAppPath = "/student/reports";
+    } else if (/^\/topics(?:\/.*)?$/i.test(normalizedPath)) {
+      inAppPath = "/student/topics";
+    }
+  } else if (theme === "lecturer") {
+    if (
+      normalizedPath.startsWith("/student") ||
+      normalizedPath.startsWith("/admin") ||
+      normalizedPath.startsWith("/secretary")
+    ) {
+      inAppPath = "/lecturer";
+    } else if (
+      /^\/(?:defense-periods|defense\/periods)\/\d+\/student(?:\/.*)?$/i.test(normalizedPath)
+    ) {
+      inAppPath = "/lecturer/committees";
+    } else if (
+      /^\/(?:defense-periods|defense\/periods)\/\d+\/lecturer(?:\/.*)?$/i.test(normalizedPath)
+    ) {
+      inAppPath = "/lecturer/committees";
+    } else if (
+      /^\/(?:defense-periods|defense\/periods)\/\d+(?:\/.*)?$/i.test(normalizedPath)
+    ) {
+      inAppPath = "/lecturer/committees";
+    } else if (
+      /^\/lecturer\/revisions(?:\/.*)?$/i.test(normalizedPath) ||
+      /^\/lecturer\/post-defense(?:\/.*)?$/i.test(normalizedPath)
+    ) {
+      inAppPath = "/lecturer/post-defense";
+    } else if (/^\/progress(?:\/.*)?$/i.test(normalizedPath)) {
+      inAppPath = "/lecturer/students";
+    } else if (/^\/reports(?:\/.*)?$/i.test(normalizedPath)) {
+      inAppPath = "/lecturer/reports";
+    } else if (/^\/topics(?:\/.*)?$/i.test(normalizedPath)) {
+      inAppPath = "/lecturer/topic-review";
+    }
+  } else if (theme === "admin" || theme === "secretary") {
+    if (
+      /^\/(?:defense-periods|defense\/periods)\/\d+(?:\/.*)?$/i.test(normalizedPath)
+    ) {
+      inAppPath = "/admin/defense-periods";
+    }
   }
 
   let targetUrl = `${inAppPath}${parsedUrl.search}${parsedUrl.hash}`;
@@ -235,15 +301,58 @@ const resolveCategoryTarget = (
     .toUpperCase();
 
   if (theme === "student") {
-    if (category === "TOPIC_WORKFLOW") return "/student/topics";
-    if (category === "PROGRESS_SUBMISSION") return "/student/reports";
-    if (category === "DEFENSE_REVISION") return "/student/defense-info";
+    if (
+      category === "REGISTRATION" ||
+      category === "ASSIGNMENT" ||
+      category === "TOPIC_WORKFLOW"
+    ) {
+      return "/student/topics";
+    }
+    if (category === "PROGRESS") {
+      return "/student/progress";
+    }
+    if (category === "PROGRESS_SUBMISSION") {
+      return "/student/reports";
+    }
+    if (category === "COMMITTEE") {
+      return "/student/schedule";
+    }
+    if (
+      category === "GRADING" ||
+      category === "POSTDEFENSE" ||
+      category === "DEFENSE_REVISION" ||
+      category === "ALERT"
+    ) {
+      return "/student/defense-info";
+    }
+    if (category === "SYSTEM") {
+      return "/student";
+    }
   }
 
   if (theme === "lecturer") {
-    if (category === "TOPIC_WORKFLOW") return "/lecturer/topic-review";
-    if (category === "PROGRESS_SUBMISSION") return "/lecturer/reports";
-    if (category === "DEFENSE_REVISION" || category === "POSTDEFENSE") return "/lecturer/post-defense";
+    if (category === "REGISTRATION" || category === "TOPIC_WORKFLOW") {
+      return "/lecturer/topic-review";
+    }
+    if (category === "ASSIGNMENT" || category === "PROGRESS") {
+      return "/lecturer/students";
+    }
+    if (category === "PROGRESS_SUBMISSION") {
+      return "/lecturer/reports";
+    }
+    if (category === "COMMITTEE" || category === "GRADING") {
+      return "/lecturer/committees";
+    }
+    if (
+      category === "POSTDEFENSE" ||
+      category === "DEFENSE_REVISION" ||
+      category === "ALERT"
+    ) {
+      return "/lecturer/post-defense";
+    }
+    if (category === "SYSTEM") {
+      return "/lecturer";
+    }
   }
 
   if (theme === "admin" || theme === "secretary") {
@@ -624,6 +733,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
       const resolvedTarget = normalizeActionTarget(
         rawActionUrl,
         normalizedActionType,
+        theme,
       );
 
       if (!resolvedTarget?.targetUrl) {
@@ -852,50 +962,9 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
               >
                 Thông báo
               </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color:
-                    connectionState === "connected"
-                      ? "#059669"
-                      : connectionState === "reconnecting"
-                        ? "#D97706"
-                        : "#B91C1C",
-                }}
-              >
-                {connectionState === "connected"
-                  ? "Realtime đang kết nối"
-                  : connectionState === "reconnecting"
-                    ? "Đang reconnect..."
-                    : "Mất kết nối realtime"}
-              </div>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button
-                style={{
-                  ...feedButtonBase,
-                  background: mode === "feed" ? "#F37021" : "#E5E7EB",
-                  color: mode === "feed" ? "#FFFFFF" : "#374151",
-                }}
-                onClick={() => setMode("feed")}
-              >
-                Feed
-              </button>
-              <button
-                style={{
-                  ...feedButtonBase,
-                  background: mode === "preferences" ? "#F37021" : "#E5E7EB",
-                  color: mode === "preferences" ? "#FFFFFF" : "#374151",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-                onClick={() => setMode("preferences")}
-              >
-                <Settings2 size={13} />
-                Preferences
-              </button>
               <button
                 onClick={() => setIsOpen(false)}
                 style={{
@@ -903,6 +972,10 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
                   background: "transparent",
                   cursor: "pointer",
                   color: "#6B7280",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 4,
                 }}
               >
                 <X size={16} />
@@ -941,20 +1014,6 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
                     onClick={() => setReadFilter("unread")}
                   >
                     Chưa đọc
-                  </button>
-                  <button
-                    style={{
-                      ...feedButtonBase,
-                      background: "#F3F4F6",
-                      color: "#374151",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                    onClick={() => void syncFeed()}
-                  >
-                    <RefreshCw size={12} />
-                    Đồng bộ
                   </button>
                   {(theme === "admin" || theme === "secretary") && (
                     <button
@@ -1008,16 +1067,27 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
                     background: "#FFFFFF",
                   }}
                 >
-                  <option value="">Tất cả category</option>
+                  <option value="">Tất cả danh mục</option>
                   {categoryOptions.map((category) => (
                     <option key={category} value={category}>
-                      {category}
+                      {translateCategory(category)}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div style={{ maxHeight: 420, overflowY: "auto" }}>
+              <div
+                onScroll={(e) => {
+                  const target = e.currentTarget;
+                  const isNearBottom =
+                    target.scrollHeight - target.scrollTop <=
+                    target.clientHeight + 20;
+                  if (isNearBottom && hasMore && !loadingMore && !loadingFeed) {
+                    void fetchFeed(page + 1, false);
+                  }
+                }}
+                style={{ maxHeight: 420, overflowY: "auto" }}
+              >
                 {loadingFeed ? (
                   <div
                     style={{
@@ -1176,36 +1246,21 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
                     );
                   })
                 )}
-              </div>
-
-              {hasMore && (
-                <div
-                  style={{
-                    padding: 12,
-                    borderTop: "1px solid #E5E7EB",
-                    display: "flex",
-                    justifyContent: "center",
-                  }}
-                >
-                  <button
-                    onClick={() => void fetchFeed(page + 1, false)}
-                    disabled={loadingMore}
+                {loadingMore && (
+                  <div
                     style={{
-                      border: "1px solid #D1D5DB",
-                      borderRadius: 8,
-                      padding: "8px 14px",
-                      background: "#FFFFFF",
-                      color: "#374151",
+                      padding: "10px",
+                      textAlign: "center",
                       fontSize: 12,
-                      fontWeight: 600,
-                      cursor: loadingMore ? "not-allowed" : "pointer",
-                      opacity: loadingMore ? 0.6 : 1,
+                      color: "#6B7280",
+                      background: "#F9FAFB",
+                      borderTop: "1px solid #F3F4F6",
                     }}
                   >
-                    {loadingMore ? "Đang tải..." : "Xem thêm"}
-                  </button>
-                </div>
-              )}
+                    Đang tải thêm...
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <div style={{ maxHeight: 470, overflowY: "auto", padding: 12 }}>
@@ -1477,15 +1532,11 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ theme }) => {
               color: "#6B7280",
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
+              justifyContent: "center",
             }}
           >
             <span>
-              Unread badge: <strong>{unreadCount}</strong>
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <CircleAlert size={12} />
-              realtime + api sync
+              Số tin chưa đọc: <strong>{unreadCount}</strong>
             </span>
           </div>
         </div>

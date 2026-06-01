@@ -409,10 +409,10 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport
 
             // Signature
             int row = lastRow + 3;
-            ws.Cell(row, 2).Value = "Người lập biểu";
-            ws.Cell(row, 2).Style.Font.Bold = true;
             ws.Cell(row, 8).Value = $"{_branding.Location}, ngày {DateTime.Now:dd} tháng {DateTime.Now:MM} năm {DateTime.Now:yyyy}";
             row++;
+            ws.Cell(row, 2).Value = "NGƯỜI LẬP BIỂU";
+            ws.Cell(row, 2).Style.Font.Bold = true;
             ws.Cell(row, 8).Value = _branding.Signatory2Role;
             ws.Cell(row, 8).Style.Font.Bold = true;
         }

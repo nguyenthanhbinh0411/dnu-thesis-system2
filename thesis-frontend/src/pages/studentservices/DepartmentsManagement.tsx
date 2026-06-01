@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit, Eye, Filter, Plus, Search, Trash2 } from "lucide-react";
+import { Edit, Eye, Filter, Plus, Search, Trash2, Building2 } from "lucide-react";
 import { fetchData, normalizeUrl } from "../../api/fetchData";
 import ImportExportActions from "../../components/admin/ImportExportActions.tsx";
 import ManagementFormSection from "../../components/admin/ManagementFormSection";
@@ -472,12 +472,11 @@ const DepartmentsManagement: React.FC = () => {
 
   return (
     <div className="departments-module">
-      <div className="departments-header">
-        <h1>Quản lý khoa</h1>
-        <p>
-          Dữ liệu chuẩn theo schema Departments (departmentCode, name,
-          description).
-        </p>
+      <div className="dashboard-header">
+        <h1>
+          <Building2 size={28} color="#1e3a5f" /> Quản lý khoa
+        </h1>
+        <p>Danh mục các khoa đào tạo và đơn vị quản lý chuyên môn thuộc hệ thống.</p>
       </div>
 
       <div className="departments-toolbar">

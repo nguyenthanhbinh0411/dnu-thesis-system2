@@ -326,9 +326,16 @@ export async function fetchData<TResponse = unknown>(
       typeof window !== "undefined"
     ) {
       clearAuthSession();
-      markSessionExpiredMessage(
-        "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại",
-      );
+
+      let expiredMsg = "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.";
+      if (parsed && typeof parsed === "object") {
+        const errObj = parsed as Record<string, unknown>;
+        if (typeof errObj.message === "string" && errObj.message) {
+          expiredMsg = errObj.message;
+        }
+      }
+
+      markSessionExpiredMessage(expiredMsg);
 
       if (!window.location.pathname.startsWith("/login")) {
         window.location.href = "/login";

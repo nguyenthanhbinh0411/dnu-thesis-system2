@@ -16,7 +16,7 @@ namespace ThesisManagement.Api.Services
             _configuration = configuration;
         }
 
-        public string GenerateToken(User user)
+        public string GenerateToken(User user, string sessionId)
         {
             var issuer = _configuration["Jwt:Issuer"] ?? "ThesisManagement.Api";
             var audience = _configuration["Jwt:Audience"] ?? "ThesisManagement.Client";
@@ -27,7 +27,8 @@ namespace ThesisManagement.Api.Services
             {
                 new Claim(ClaimTypes.NameIdentifier, user.UserID.ToString()),
                 new Claim(ClaimTypes.Name, user.UserCode),
-                new Claim("userCode", user.UserCode)
+                new Claim("userCode", user.UserCode),
+                new Claim("sessionId", sessionId)
             };
 
             if (!string.IsNullOrEmpty(user.Role))

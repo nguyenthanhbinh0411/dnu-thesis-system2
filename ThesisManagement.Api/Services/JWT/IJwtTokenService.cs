@@ -4,7 +4,7 @@ namespace ThesisManagement.Api.Services
 {
     public interface IJwtTokenService
     {
-        string GenerateToken(User user);
+        string GenerateToken(User user, string sessionId);
         DateTime GetTokenExpiryUtc();
     }
 }

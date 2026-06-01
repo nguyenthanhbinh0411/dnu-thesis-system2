@@ -43,8 +43,29 @@ namespace ThesisManagement.Api.Application.Common.Constraints
                 return;
             }
 
+            int? currentTermId = null;
+            if (context.CommitteeId > 0)
+            {
+                var committee = await _db.Committees.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.CommitteeID == context.CommitteeId, cancellationToken);
+                if (committee != null)
+                {
+                    currentTermId = committee.DefenseTermId;
+                }
+            }
+
+            if (!currentTermId.HasValue)
+            {
+                var firstTopic = await _db.Topics.AsNoTracking()
+                    .FirstOrDefaultAsync(x => normalizedTopicCodes.Contains(x.TopicCode), cancellationToken);
+                if (firstTopic != null)
+                {
+                    currentTermId = firstTopic.DefenseTermId;
+                }
+            }
+
             var conflict = await _db.DefenseAssignments.AsNoTracking()
-                .Where(x => x.CommitteeID.HasValue && x.CommitteeID != context.CommitteeId && x.TopicCode != null)
+                .Where(x => x.CommitteeID.HasValue && x.CommitteeID != context.CommitteeId && x.TopicCode != null && x.DefenseTermId == currentTermId)
                 .Join(_db.Topics.AsNoTracking(), a => a.TopicCode!, t => t.TopicCode, (a, t) => new { a.CommitteeID, a.TopicCode, t.ProposerStudentCode })
                 .FirstOrDefaultAsync(x => x.ProposerStudentCode != null && studentCodes.Contains(x.ProposerStudentCode), cancellationToken);
 

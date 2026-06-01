@@ -306,8 +306,9 @@ public class PostDefenseWorkflowServiceTests
         proxy.Setup(x => x.SendCoreAsync(It.IsAny<string>(), It.IsAny<object?[]>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         clients.Setup(x => x.All).Returns(proxy.Object);
+        clients.Setup(x => x.Group(It.IsAny<string>())).Returns(proxy.Object);
 
-        var hub = new Mock<IHubContext<ChatHub>>();
+        var hub = new Mock<IHubContext<DefenseHub>>();
         hub.Setup(x => x.Clients).Returns(clients.Object);
 
         var audit = new Mock<IDefenseAuditTrailService>();

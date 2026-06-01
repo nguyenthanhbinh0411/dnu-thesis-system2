@@ -161,7 +161,7 @@ const defensePeriodApi = {
     }),
   snapshot: (id: number) => fetchData<ApiResponse<any>>(`/defense-periods/${id}/management/snapshot`, { method: "GET" }),
   monitoring: (id: number) => fetchData<ApiResponse<any>>(`/defense-periods/${id}/monitoring/snapshot`, { method: "GET" }),
-  export: (id: number, reportType: string, format: string = "xlsx", councilId?: number, fields?: string[]) => {
+  export: (id: number, reportType: string, format: string = "xlsx", councilId?: number, fields?: string[], groupBy?: string) => {
     const isSpecial = ["students", "lecturers", "assigned-topics", "lecturers-grouped-students"].includes(reportType);
     let baseUrl = "";
 
@@ -176,6 +176,7 @@ const defensePeriodApi = {
     if (reportType && !isSpecial) params.set("reportType", reportType);
     if (councilId) params.set("councilId", String(councilId));
     if (fields && fields.length > 0) params.set("fields", fields.join(","));
+    if (groupBy) params.set("groupBy", groupBy);
 
     return normalizeUrl(`${baseUrl}?${params.toString()}`);
   },
@@ -269,13 +270,35 @@ const milestoneApi = {
   delete: (id: number) => fetchData<ApiResponse<any>>(`/MilestoneTemplates/delete/${id}`, { method: "DELETE" }),
 };
 
+const FINAL_TERM_FIELDS = [
+  { key: "RowNumber", label: "STT", category: "Thông tin chung" },
+  { key: "StudentCode", label: "Mã sinh viên", category: "Thông tin sinh viên" },
+  { key: "StudentName", label: "Họ và tên", category: "Thông tin sinh viên" },
+  { key: "ClassName", label: "Lớp", category: "Thông tin sinh viên" },
+  { key: "CohortCode", label: "Khóa", category: "Thông tin sinh viên" },
+  { key: "TopicTitle", label: "Tên đề tài", category: "Thông tin đề tài" },
+  { key: "SupervisorLecturerName", label: "Giảng viên hướng dẫn", category: "Giảng viên hướng dẫn" },
+  { key: "SupervisorOrganization", label: "Đơn vị GVHD", category: "Giảng viên hướng dẫn" },
+  { key: "CommitteeCode", label: "Mã hội đồng", category: "Hội đồng bảo vệ" },
+  { key: "CommitteeName", label: "Tên hội đồng", category: "Hội đồng bảo vệ" },
+  { key: "Room", label: "Phòng bảo vệ", category: "Hội đồng bảo vệ" },
+  { key: "ScoreGvhd", label: "Điểm GVHD", category: "Điểm số" },
+  { key: "ScoreCt", label: "Điểm Chủ tịch", category: "Điểm số" },
+  { key: "ScoreTk", label: "Điểm Thư ký", category: "Điểm số" },
+  { key: "ScorePb", label: "Điểm Phản biện", category: "Điểm số" },
+  { key: "Score", label: "Điểm tổng kết", category: "Điểm số" },
+  { key: "Grade", label: "Điểm chữ", category: "Điểm số" },
+  { key: "IsPassed", label: "Kết quả (Đạt/Không đạt)", category: "Kết quả" },
+  { key: "DefenseDate", label: "Ngày bảo vệ", category: "Lịch bảo vệ" },
+  { key: "Session", label: "Ca bảo vệ", category: "Lịch bảo vệ" },
+];
+
 const STATISTICS_REPORTS = [
   { key: "students", label: "Danh sách sinh viên theo đợt", desc: "Xuất dữ liệu chi tiết sinh viên trong đợt (đề tài, điểm số, trạng thái).", icon: <Users size={20} />, type: "modular", fields: STUDENT_FIELDS },
   { key: "lecturers", label: "Danh sách giảng viên theo đợt", desc: "Dữ liệu giảng viên tham gia, bao gồm hạn ngạch hướng dẫn và chấm điểm.", icon: <UserCheck size={20} />, type: "modular", fields: LECTURER_FIELDS },
   { key: "assigned-topics", label: "Phân công đề tài & Giảng viên hướng dẫn", desc: "Báo cáo chi tiết các đề tài đã được gán sinh viên và giảng viên hướng dẫn.", icon: <FileSpreadsheet size={20} />, type: "modular", fields: TOPIC_FIELDS },
   { key: "lecturers-grouped-students", label: "Danh sách hướng dẫn gộp theo giảng viên", desc: "Báo cáo danh sách sinh viên theo từng giảng viên hướng dẫn, có gộp cột giảng viên.", icon: <LayoutDashboard size={20} />, type: "modular", fields: GROUPED_LECTURER_FIELDS },
-  { key: "committee-roster", label: "Danh sách Hội đồng & Phân công", desc: "Xuất file Excel tổng hợp hội đồng, thành viên và đề tài.", icon: <Users size={20} />, type: "excel" },
-  { key: "final-term", label: "Bảng điểm tổng kết đợt", desc: "Danh sách điểm số cuối cùng của toàn bộ sinh viên trong đợt.", icon: <ShieldCheck size={20} />, type: "pdf" },
+  { key: "final-term", label: "Bảng điểm tổng kết đợt", desc: "Danh sách điểm số cuối cùng của toàn bộ sinh viên trong đợt.", icon: <ShieldCheck size={20} />, type: "modular", fields: FINAL_TERM_FIELDS },
 ];
 
 // --- Helper Functions ---
@@ -377,7 +400,7 @@ const getNextActionLabel = (status?: DefenseTermStatus): string => {
     case "Assignment": return "Theo dõi tiến độ";
     case "ProgressTracking": return "Chuẩn bị hội đồng";
     case "CommitteePreparation": return "Bắt đầu bảo vệ";
-    case "Running": return "Chốt & Tổng kết đợt";
+    case "Running": return "Hậu bảo vệ";
     case "Paused": return "Tiếp tục đợt";
     case "Finalization": return "Đóng & Lưu trữ";
     case "Finalized": return "Đóng & Lưu trữ";
@@ -1020,10 +1043,10 @@ const DefensePeriodsManagement: React.FC = () => {
         status: mapStatus(r.status)
       }));
       setRows(data);
-      
+
       const currentSelectedId = selectedIdRef.current;
       const currentExists = currentSelectedId ? data.find(r => r.defenseTermId === currentSelectedId) : null;
-      
+
       if (currentExists) {
         // Keep currently selected period (manual selection)
       } else {
@@ -1155,7 +1178,7 @@ const DefensePeriodsManagement: React.FC = () => {
         deadline: null,
         defenseTermId: selectedId
       };
-      
+
       const res = await milestoneApi.create(payload);
       if (readEnvelopeSuccess(res)) {
         addToast("Thêm mốc mới thành công!", "success");
@@ -1611,10 +1634,10 @@ const DefensePeriodsManagement: React.FC = () => {
     });
   };
 
-  const handleDownloadReport = async (item: any, format: string = "xlsx", fields?: string[]) => {
+  const handleDownloadReport = async (item: any, format: string = "xlsx", fields?: string[], groupBy?: string) => {
     if (!selectedId) return;
 
-    const url = defensePeriodApi.export(selectedId, item.key, format, undefined, fields);
+    const url = defensePeriodApi.export(selectedId, item.key, format, undefined, fields, groupBy);
     const token = getAccessToken();
 
     setRefreshing(true);
@@ -3348,6 +3371,7 @@ const DefensePeriodsManagement: React.FC = () => {
                 selectedId={selectedId}
                 refreshing={refreshing}
                 onDownload={handleDownloadReport}
+                periodStatus={selectedRow?.status}
               />
             )}
           </div>
@@ -3528,13 +3552,41 @@ export default DefensePeriodsManagement;
 const StatisticsSection: React.FC<{
   selectedId: number | null;
   refreshing: boolean;
-  onDownload: (item: any, format: string, fields?: string[]) => void;
-}> = ({ selectedId, refreshing, onDownload }) => {
+  onDownload: (item: any, format: string, fields?: string[], groupBy?: string) => void;
+  periodStatus?: string;
+}> = ({ selectedId, refreshing, onDownload, periodStatus }) => {
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(STATISTICS_REPORTS[0].key);
-  const [selectedFields, setSelectedFields] = useState<string[]>(STATISTICS_REPORTS[0].fields?.map(f => f.key) || []);
+  const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [exportFormat, setExportFormat] = useState("xlsx");
+  const [groupBy, setGroupBy] = useState<string>("council");
 
   const currentTemplate = STATISTICS_REPORTS.find(t => t.key === selectedTemplateKey) || STATISTICS_REPORTS[0];
+
+  const getStatusWeight = (status?: string) => {
+    const s = (status ?? "").trim().toLowerCase();
+    switch (s) {
+      case "draft": return 0;
+      case "registration":
+      case "preparing": return 1;
+      case "assignment": return 2;
+      case "progresstracking": return 3;
+      case "committeepreparation": return 4;
+      case "running": return 5;
+      case "scoringlocked": return 6;
+      case "finalization": return 7;
+      case "finalized":
+      case "published": return 8;
+      case "closed": return 9;
+      case "archived": return 10;
+      default: return 0;
+    }
+  };
+
+  const isTemplateLocked = (key: string) => {
+    const w = getStatusWeight(periodStatus);
+    if (key === "final-term") return w < 7;
+    return w < 1;
+  };
 
   const categories = useMemo(() => {
     const cats: Record<string, any[]> = {};
@@ -3550,7 +3602,11 @@ const StatisticsSection: React.FC<{
   // Sync fields when template changes
   useEffect(() => {
     if (currentTemplate.fields) {
-      setSelectedFields(currentTemplate.fields.map(f => f.key));
+      if (currentTemplate.key === "final-term") {
+        setSelectedFields(["StudentCode", "StudentName", "ClassName", "CohortCode", "TopicTitle", "SupervisorLecturerName", "ScoreGvhd", "ScoreCt", "ScoreTk", "ScorePb", "Score", "Grade", "IsPassed"]);
+      } else {
+        setSelectedFields(currentTemplate.fields.map(f => f.key));
+      }
     } else {
       setSelectedFields([]);
     }
@@ -3559,6 +3615,8 @@ const StatisticsSection: React.FC<{
   const toggleField = (key: string) => {
     setSelectedFields(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   };
+
+  const isCurrentLocked = isTemplateLocked(currentTemplate.key);
 
   return (
     <div style={{ display: "grid", gap: "24px", animation: "fadeIn 0.4s ease-out" }}>
@@ -3571,22 +3629,34 @@ const StatisticsSection: React.FC<{
           </div>
 
           <div style={{ display: "grid", gap: "10px" }}>
-            {STATISTICS_REPORTS.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => setSelectedTemplateKey(item.key)}
-                style={{
-                  width: "100%", padding: "16px", borderRadius: "16px", textAlign: "left",
-                  border: `2px solid ${selectedTemplateKey === item.key ? DEEP_BLUE_PRIMARY : "transparent"}`,
-                  background: selectedTemplateKey === item.key ? "white" : "transparent",
-                  boxShadow: selectedTemplateKey === item.key ? "0 4px 12px rgba(0,0,0,0.05)" : "none",
-                  cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", gap: "12px"
-                }}
-              >
-                <div style={{ color: selectedTemplateKey === item.key ? DEEP_BLUE_PRIMARY : "#94a3b8" }}>{item.icon}</div>
-                <span style={{ fontSize: "14px", fontWeight: selectedTemplateKey === item.key ? "700" : "600", color: selectedTemplateKey === item.key ? "#1e293b" : "#64748b" }}>{item.label}</span>
-              </button>
-            ))}
+            {STATISTICS_REPORTS.map((item) => {
+              const active = selectedTemplateKey === item.key;
+              const locked = isTemplateLocked(item.key);
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => setSelectedTemplateKey(item.key)}
+                  style={{
+                    width: "100%", padding: "16px", borderRadius: "16px", textAlign: "left",
+                    border: `2px solid ${active ? DEEP_BLUE_PRIMARY : "transparent"}`,
+                    background: active ? "white" : locked ? "#f8fafc" : "transparent",
+                    boxShadow: active ? "0 4px 12px rgba(0,0,0,0.05)" : "none",
+                    cursor: "pointer", transition: "all 0.2s", display: "flex", flexDirection: "column", gap: "6px"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>
+                    <div style={{ color: active ? DEEP_BLUE_PRIMARY : locked ? "#94a3b8" : "#475569" }}>{item.icon}</div>
+                    <span style={{ fontSize: "14px", fontWeight: active ? "700" : "600", color: active ? "#1e293b" : locked ? "#64748b" : "#475569", flex: 1 }}>{item.label}</span>
+                    {locked && <Lock size={14} color="#f59e0b" style={{ marginLeft: "auto" }} />}
+                  </div>
+                  {locked && (
+                    <span style={{ fontSize: "11px", color: "#d97706", fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <AlertCircle size={11} /> {item.key === "final-term" ? "Yêu cầu Hậu bảo vệ" : "Yêu cầu Đăng ký"}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -3596,7 +3666,7 @@ const StatisticsSection: React.FC<{
               <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: DEEP_BLUE_PRIMARY, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800" }}>2</div>
               <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Cấu hình trường dữ liệu</h3>
             </div>
-            {currentTemplate.fields && (
+            {!isCurrentLocked && currentTemplate.fields && (
               <div style={{ display: "flex", gap: "16px" }}>
                 <button onClick={() => setSelectedFields(currentTemplate.fields?.map(f => f.key) || [])} style={{ background: "none", border: "none", color: DEEP_BLUE_PRIMARY, fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>Chọn tất cả</button>
                 <button onClick={() => setSelectedFields([])} style={{ background: "none", border: "none", color: "#ef4444", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>Bỏ chọn</button>
@@ -3604,8 +3674,54 @@ const StatisticsSection: React.FC<{
             )}
           </div>
 
-          {currentTemplate.fields ? (
+          {isCurrentLocked ? (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px", color: "#64748b", background: "#fffbeb", border: "1px dashed #f59e0b", borderRadius: "20px", gap: "16px", textAlign: "center", minHeight: "350px" }}>
+              <div style={{ padding: "16px", borderRadius: "50%", background: "#fef3c7", color: "#d97706", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Lock size={36} />
+              </div>
+              <h4 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#b45309" }}>Mẫu báo cáo đang bị khóa</h4>
+              <p style={{ margin: 0, fontSize: "13px", color: "#78350f", maxWidth: "450px", lineHeight: "1.6" }}>
+                {currentTemplate.key === "final-term"
+                  ? "Bảng điểm tổng kết đợt chỉ có thể tải xuống khi đợt bảo vệ đã ở giai đoạn Hậu bảo vệ trở đi (khi điểm số đã được nhập và khóa hội đồng)."
+                  : "Báo cáo này chỉ khả dụng khi đợt bảo vệ đã ở giai đoạn Đăng ký trở đi."}
+              </p>
+              <div style={{ fontSize: "12px", background: "#fef3c7", padding: "8px 16px", borderRadius: "20px", fontWeight: "800", color: "#b45309", display: "flex", alignItems: "center", gap: "8px" }}>
+                Giai đoạn hiện tại của đợt: {getStatusPresentation(periodStatus || "Draft").label}
+              </div>
+            </div>
+          ) : currentTemplate.fields ? (
             <div style={{ flex: 1, display: "grid", gap: "32px" }}>
+              {currentTemplate.key === "final-term" && (
+                <div style={{ background: "#f8fafc", padding: "24px", borderRadius: "18px", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontSize: "12px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
+                    Gom nhóm dữ liệu bảo vệ (Excel / PDF)
+                  </div>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    {[
+                      { id: "council", label: "Theo Hội đồng" },
+                      { id: "supervisor", label: "Theo Giảng viên HD" },
+                      { id: "topic", label: "Theo Đề tài" }
+                    ].map(mode => {
+                      const active = groupBy === mode.id;
+                      return (
+                        <button
+                          key={mode.id}
+                          onClick={() => setGroupBy(mode.id)}
+                          style={{
+                            padding: "12px 24px", borderRadius: "12px", border: `2px solid ${active ? DEEP_BLUE_PRIMARY : "#e2e8f0"}`,
+                            background: active ? `${DEEP_BLUE_PRIMARY}05` : "white",
+                            color: active ? DEEP_BLUE_PRIMARY : "#475569",
+                            fontWeight: "800", fontSize: "13px", cursor: "pointer", transition: "all 0.2s"
+                          }}
+                        >
+                          {mode.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {Object.entries(categories).map(([cat, fields]) => (
                 <div key={cat}>
                   <div style={{ fontSize: "12px", fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "16px", display: "flex", alignItems: "center", gap: "10px" }}>
@@ -3674,17 +3790,17 @@ const StatisticsSection: React.FC<{
         </div>
 
         <button
-          onClick={() => onDownload(currentTemplate, exportFormat, selectedFields)}
-          disabled={!selectedId || refreshing || (currentTemplate.fields && selectedFields.length === 0)}
+          onClick={() => onDownload(currentTemplate, exportFormat, selectedFields, currentTemplate.key === "final-term" ? groupBy : undefined)}
+          disabled={!selectedId || refreshing || isCurrentLocked || (currentTemplate.fields && selectedFields.length === 0)}
           style={{
             padding: "16px 48px", borderRadius: "16px", border: "none",
-            background: "#3b82f6", color: "white", fontWeight: "800", fontSize: "15px",
-            cursor: "pointer", display: "flex", alignItems: "center", gap: "12px",
-            boxShadow: "0 10px 15px -3px rgba(59, 130, 246, 0.3)", transition: "all 0.2s"
+            background: isCurrentLocked ? "#475569" : "#3b82f6", color: "white", fontWeight: "800", fontSize: "15px",
+            cursor: isCurrentLocked ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: "12px",
+            boxShadow: isCurrentLocked ? "none" : "0 10px 15px -3px rgba(59, 130, 246, 0.3)", transition: "all 0.2s"
           }}
         >
-          {refreshing ? <RefreshCw size={20} style={{ animation: "spin 2s linear infinite" }} /> : <Download size={20} />}
-          Xuất dữ liệu ngay
+          {refreshing ? <RefreshCw size={20} className="animate-spin" /> : <Download size={20} />}
+          {isCurrentLocked ? "Báo cáo bị khóa" : "Xuất dữ liệu ngay"}
         </button>
       </div>
     </div>

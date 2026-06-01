@@ -1202,6 +1202,120 @@ const formatLogDateTime = (dateString: any): string => {
   });
 };
 
+const getStatusWeight = (status: string | undefined | null): number => {
+  if (!status) return 0;
+  const s = String(status).trim().toLowerCase();
+  switch (s) {
+    case "draft":
+    case "soạn thảo":
+    case "nháp":
+      return 0;
+    case "registration":
+    case "đăng ký":
+    case "mở đăng ký":
+      return 1;
+    case "assignment":
+    case "phân công":
+    case "phân công gvhd":
+      return 2;
+    case "progresstracking":
+    case "tiến độ":
+    case "theo dõi tiến độ":
+      return 3;
+    case "committeepreparation":
+    case "chuẩn bị hội đồng":
+    case "phân công hội đồng":
+      return 4;
+    case "running":
+    case "bảo vệ":
+    case "đang chạy":
+      return 5;
+    case "paused":
+    case "tạm dừng":
+      return 5.5;
+    case "scoringlocked":
+    case "khóa điểm":
+      return 6;
+    case "finalization":
+    case "finalized":
+    case "hậu bảo vệ":
+      return 7;
+    case "published":
+    case "công bố":
+      return 8;
+    case "closed":
+    case "archived":
+    case "đã đóng":
+    case "kết thúc":
+    case "lưu trữ":
+      return 9;
+    default:
+      return 0;
+  }
+};
+
+const getPeriodStatusLabel = (status: string | undefined | null): string => {
+  if (!status) return "Không xác định";
+  const s = String(status).trim().toLowerCase();
+  switch (s) {
+    case "draft":
+    case "soạn thảo":
+    case "nháp":
+      return "Soạn thảo";
+    case "registration":
+    case "đăng ký":
+    case "mở đăng ký":
+      return "Đăng ký đề tài";
+    case "assignment":
+    case "phân công":
+    case "phân công gvhd":
+      return "Phân công GVHD";
+    case "progresstracking":
+    case "tiến độ":
+    case "theo dõi tiến độ":
+      return "Theo dõi tiến độ";
+    case "committeepreparation":
+    case "chuẩn bị hội đồng":
+    case "phân công hội đồng":
+      return "Chuẩn bị hội đồng";
+    case "running":
+    case "bảo vệ":
+    case "đang chạy":
+      return "Bảo vệ & Chấm điểm";
+    case "paused":
+    case "tạm dừng":
+      return "Tạm dừng đợt";
+    case "scoringlocked":
+    case "khóa điểm":
+      return "Khóa điểm";
+    case "finalization":
+    case "finalized":
+    case "hậu bảo vệ":
+      return "Hậu bảo vệ";
+    case "published":
+    case "công bố":
+      return "Công bố kết quả";
+    case "closed":
+    case "archived":
+    case "đã đóng":
+    case "kết thúc":
+    case "lưu trữ":
+      return "Đóng & Lưu trữ";
+    default:
+      return status;
+  }
+};
+
+const STATUS_ROADMAP = [
+  { key: 0, label: "Soạn thảo", desc: "Khởi tạo đợt đồ án" },
+  { key: 1, label: "Đăng ký & Phân công", desc: "Đăng ký đề tài & Gán GV" },
+  { key: 3, label: "Tiến độ", desc: "Theo dõi thực hiện" },
+  { key: 4, label: "Hội đồng", desc: "Chuẩn bị hội đồng" },
+  { key: 5, label: "Bảo vệ", desc: "Chấm điểm & biên bản" },
+  { key: 7, label: "Hậu bảo vệ", desc: "Tổng kết & Nộp lại" },
+  { key: 9, label: "Đóng & Lưu trữ", desc: "Kết thúc & Lưu trữ" },
+];
+
 const CommitteeOperationsManagement: React.FC = () => {
   const { addToast } = useToast();
   const [searchParams] = useSearchParams();
@@ -7313,6 +7427,327 @@ const CommitteeOperationsManagement: React.FC = () => {
 
   if ((loadingSnapshot || analyticsLoading) && !snapshot && !analyticsDistribution) {
     return renderLoading();
+  }
+
+  const currentPeriod = periods.find((p) => p.defenseTermId === periodId);
+  const currentStatusWeight = getStatusWeight(currentPeriod?.status);
+  const isPhaseNotReached = periods.length > 0 && currentStatusWeight < 5;
+
+  if (isPhaseNotReached) {
+    const currentPeriodName = currentPeriod?.name || "Đợt bảo vệ hiện tại";
+    const currentStatusLabel = getPeriodStatusLabel(currentPeriod?.status);
+
+    return (
+      <div style={{
+        minHeight: "calc(100vh - 120px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "48px 32px",
+        background: "#F8FAFC",
+        position: "relative",
+        overflow: "hidden",
+        fontFamily: "'Be Vietnam Pro', sans-serif"
+      }}>
+        {/* Animated Background Blobs */}
+        <div style={{
+          position: "absolute",
+          top: "10%",
+          right: "5%",
+          width: "35%",
+          height: "35%",
+          background: "radial-gradient(circle, rgba(243, 112, 33, 0.05) 0%, transparent 70%)",
+          filter: "blur(50px)",
+          borderRadius: "50%",
+        }} />
+        <div style={{
+          position: "absolute",
+          bottom: "10%",
+          left: "5%",
+          width: "35%",
+          height: "35%",
+          background: "radial-gradient(circle, rgba(0, 28, 61, 0.05) 0%, transparent 70%)",
+          filter: "blur(50px)",
+          borderRadius: "50%",
+        }} />
+
+        <div style={{
+          background: "white",
+          borderRadius: 24,
+          padding: "48px 40px",
+          border: "1px solid #E2E8F0",
+          boxShadow: "0 20px 40px rgba(15,23,42,0.06)",
+          textAlign: "center",
+          maxWidth: 760,
+          width: "100%",
+          position: "relative",
+          zIndex: 2,
+        }}>
+          {/* Lock Icon */}
+          <div style={{
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, #001C3D 0%, #1E3A5F 100%)",
+            color: "#FFF",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 24px auto",
+            boxShadow: "0 10px 25px rgba(0, 28, 61, 0.2)",
+          }}>
+            <Lock size={36} />
+          </div>
+
+          <h2 style={{
+            margin: "0 0 8px 0",
+            fontSize: 22,
+            fontWeight: 800,
+            color: "#001C3D",
+            letterSpacing: "-0.01em"
+          }}>
+            CHƯA ĐẾN GIAI ĐOẠN ĐIỀU HÀNH CHẤM ĐIỂM & BẢO VỆ
+          </h2>
+          
+          <p style={{
+            margin: "0 auto 32px auto",
+            fontSize: 14,
+            color: "#64748B",
+            maxWidth: 540,
+            lineHeight: 1.6
+          }}>
+            Trang <strong>Điều hành chấm điểm & Bảo vệ</strong> chỉ khả dụng khi đợt bảo vệ hiện hành chuyển sang giai đoạn <strong>Bảo vệ</strong> (hoặc muộn hơn).
+          </p>
+
+          {/* Period Info Card */}
+          <div style={{
+            background: "#F8FAFC",
+            border: "1px solid #E2E8F0",
+            borderRadius: 16,
+            padding: "16px 24px",
+            marginBottom: 36,
+            textAlign: "left",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 16
+          }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>Đợt bảo vệ:</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", marginTop: 4 }}>{currentPeriodName}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>Trạng thái hiện tại:</div>
+              <div style={{ 
+                display: "inline-flex", 
+                alignItems: "center", 
+                gap: 6,
+                fontSize: 14, 
+                fontWeight: 700, 
+                color: "#D97706",
+                marginTop: 4 
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#D97706" }} />
+                {currentStatusLabel}
+              </div>
+            </div>
+          </div>
+
+          {/* Roadmap Pipeline */}
+          <div style={{ marginBottom: 40, overflowX: "auto" }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 24, textAlign: "left" }}>
+              LỘ TRÌNH ĐỢT BẢO VỆ:
+            </div>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              position: "relative",
+              padding: "0 10px",
+              minWidth: 640
+            }}>
+              {/* Connecting Background Line (Grey) */}
+              <div style={{
+                position: "absolute",
+                top: "18px",
+                left: "40px",
+                right: "40px",
+                height: "2.5px",
+                background: "#E2E8F0",
+                zIndex: 1
+              }} />
+
+              {/* Connecting Progress Line (Green) */}
+              <div style={{
+                position: "absolute",
+                top: "18px",
+                left: "40px",
+                width: `${(() => {
+                  const activeIndex = STATUS_ROADMAP.findIndex(step => {
+                    if (step.key === 0 && currentStatusWeight === 0) return true;
+                    if (step.key === 1 && (currentStatusWeight === 1 || currentStatusWeight === 2)) return true;
+                    if (step.key === 3 && currentStatusWeight === 3) return true;
+                    if (step.key === 4 && currentStatusWeight === 4) return true;
+                    if (step.key === 5 && (currentStatusWeight === 5 || currentStatusWeight === 5.5)) return true;
+                    if (step.key === 7 && (currentStatusWeight === 6 || currentStatusWeight === 7)) return true;
+                    if (step.key === 9 && (currentStatusWeight === 8 || currentStatusWeight === 9)) return true;
+                    return false;
+                  });
+                  const activeIdx = activeIndex !== -1 ? activeIndex : 0;
+                  return (activeIdx / 6) * 88;
+                })()}%`,
+                height: "2.5px",
+                background: "#10B981",
+                zIndex: 1,
+                transition: "width 0.4s ease"
+              }} />
+
+              {STATUS_ROADMAP.map((step) => {
+                const isActive = (() => {
+                  if (step.key === 0 && currentStatusWeight === 0) return true;
+                  if (step.key === 1 && (currentStatusWeight === 1 || currentStatusWeight === 2)) return true;
+                  if (step.key === 3 && currentStatusWeight === 3) return true;
+                  if (step.key === 4 && currentStatusWeight === 4) return true;
+                  if (step.key === 5 && (currentStatusWeight === 5 || currentStatusWeight === 5.5)) return true;
+                  if (step.key === 7 && (currentStatusWeight === 6 || currentStatusWeight === 7)) return true;
+                  if (step.key === 9 && (currentStatusWeight === 8 || currentStatusWeight === 9)) return true;
+                  return false;
+                })();
+
+                const isCompleted = !isActive && (() => {
+                  if (step.key === 0 && currentStatusWeight > 0) return true;
+                  if (step.key === 1 && currentStatusWeight > 2) return true;
+                  if (step.key === 3 && currentStatusWeight > 3) return true;
+                  if (step.key === 4 && currentStatusWeight > 4) return true;
+                  if (step.key === 5 && currentStatusWeight > 5.5) return true;
+                  if (step.key === 7 && currentStatusWeight > 7) return true;
+                  if (step.key === 9 && currentStatusWeight > 9) return true;
+                  return false;
+                })();
+
+                return (
+                  <div key={step.key} style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    position: "relative",
+                    zIndex: 2,
+                    width: 90
+                  }}>
+                    {/* Circle */}
+                    <div style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: "50%",
+                      background: "#FFFFFF",
+                      border: isCompleted 
+                        ? "2.5px solid #10B981" 
+                        : isActive 
+                          ? "2.5px solid #A5B4FC" 
+                          : "2.5px solid #E2E8F0",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.3s ease",
+                      boxShadow: isActive ? "0 0 14px rgba(165, 180, 252, 0.4)" : "none",
+                    }}>
+                      {isCompleted ? (
+                        <div style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: "50%",
+                          background: "#10B981",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#FFFFFF",
+                          fontSize: 12,
+                          fontWeight: 900
+                        }}>
+                          ✓
+                        </div>
+                      ) : isActive ? (
+                        <div style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: "50%",
+                          background: "#001C3D",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#FFFFFF",
+                          boxShadow: "0 4px 10px rgba(0, 28, 93, 0.3)"
+                        }}>
+                          <div style={{
+                            width: 0,
+                            height: 0,
+                            borderTop: "5px solid transparent",
+                            borderBottom: "5px solid transparent",
+                            borderLeft: "8px solid #FFFFFF",
+                            marginLeft: 2
+                          }} />
+                        </div>
+                      ) : (
+                        <div style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: "#CBD5E1"
+                        }} />
+                      )}
+                    </div>
+
+                    {/* Labels */}
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      color: isActive ? "#001C3D" : isCompleted ? "#0F172A" : "#94A3B8",
+                      marginTop: 12,
+                      textAlign: "center",
+                      lineHeight: 1.2
+                    }}>
+                      {step.label}
+                    </span>
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 600,
+                      color: isActive ? "#475569" : "#94A3B8",
+                      marginTop: 4,
+                      textAlign: "center",
+                      lineHeight: 1.3
+                    }}>
+                      {step.desc}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Action Button */}
+          <a
+            href="/admin/defense-periods"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              background: "#001C3D",
+              color: "#FFF",
+              padding: "12px 28px",
+              borderRadius: "12px",
+              textDecoration: "none",
+              fontSize: 14,
+              fontWeight: 800,
+              boxShadow: "0 4px 12px rgba(0, 28, 61, 0.15)",
+              transition: "transform 0.2s ease"
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}
+          >
+            Quản lý đợt bảo vệ
+          </a>
+        </div>
+      </div>
+    );
   }
 
   // --- MODAL RENDERING FUNCTIONS (SCOPED) ---

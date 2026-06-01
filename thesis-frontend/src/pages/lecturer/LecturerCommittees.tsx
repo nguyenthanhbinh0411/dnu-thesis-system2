@@ -63,6 +63,8 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { getAccessToken } from "../../services/auth-session.service";
+import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from "@microsoft/signalr";
+import { API_BASE_PATH } from "../../utils/apiConfig";
 
 type Committee = {
   id: string;
@@ -73,7 +75,7 @@ type Committee = {
   date: string | null;
   slot: string | null;
   studentCount: number;
-  status: "Sắp diễn ra" | "Đang họp" | "Đã chốt" | "Đã đóng";
+  status: "Sắp diễn ra" | "Đang họp" | "Đã chốt" | "Đã đóng" | "Tạm dừng";
   normalizedRole: CommitteeRoleCode;
   roleCode: CommitteeRoleCode;
   roleLabel: string;
@@ -177,6 +179,7 @@ const mapCommitteeStatus = (value: unknown): Committee["status"] => {
   if (raw === "FINALIZED") return "Đã đóng";
   if (raw === "LOCKED" || raw === "COMPLETED") return "Đã chốt";
   if (raw === "LIVE" || raw === "ONGOING") return "Đang họp";
+  if (raw === "PAUSED") return "Tạm dừng";
   return "Sắp diễn ra";
 };
 
@@ -184,6 +187,8 @@ const getCommitteeStatusVisual = (status: Committee["status"]) => {
   switch (status) {
     case "Đang họp":
       return { icon: <Activity size={14} />, label: "Đang họp", color: "#ef4444", bg: "#fef2f2", border: "#fecaca" };
+    case "Tạm dừng":
+      return { icon: <Clock3 size={14} />, label: "Tạm dừng", color: "#eab308", bg: "#fef9c3", border: "#fef08a" };
     case "Đã chốt":
       return { icon: <Lock size={14} />, label: "Đã chốt điểm", color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe" };
     case "Đã đóng":
@@ -214,6 +219,104 @@ const LecturerCommittees: React.FC = () => {
   const [modalTopicSearchTerm, setModalTopicSearchTerm] = useState("");
   const [detailTab, setDetailTab] = useState<CommitteeDetailTabKey>("members");
   const [scoringMatrix, setScoringMatrix] = useState<ScoringMatrixRow[]>([]);
+  const [hubConnection, setHubConnection] = useState<HubConnection | null>(null);
+
+  useEffect(() => {
+    const defaultHubUrl = `/hubs/defense`;
+    const envUrl = import.meta.env.VITE_DEFENSE_HUB_URL;
+    const hubUrl = envUrl 
+        ? envUrl.toString() 
+        : `${window.location.origin}${defaultHubUrl}`;
+
+    console.log("COMMITTEES SignalR connecting to:", hubUrl);
+
+    const connection = new HubConnectionBuilder()
+        .withUrl(hubUrl, {
+            accessTokenFactory: () => getAccessToken() ?? "",
+        })
+        .withAutomaticReconnect()
+        .configureLogging(LogLevel.Warning)
+        .build();
+
+    // Listen to defense session state events in real-time
+    connection.on("DefenseSessionOpened", (event: any) => {
+        const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+        console.log("COMMITTEES SignalR DefenseSessionOpened received:", event);
+        if (committeeId) {
+            setCommittees(prev => 
+                prev.map(c => c.numericId === Number(committeeId) ? { ...c, status: "Đang họp" } : c)
+            );
+        }
+    });
+
+    connection.on("DefenseSessionPaused", (event: any) => {
+        const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+        console.log("COMMITTEES SignalR DefenseSessionPaused received:", event);
+        if (committeeId) {
+            setCommittees(prev => 
+                prev.map(c => c.numericId === Number(committeeId) ? { ...c, status: "Tạm dừng" } : c)
+            );
+        }
+    });
+
+    connection.on("DefenseSessionResumed", (event: any) => {
+        const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+        console.log("COMMITTEES SignalR DefenseSessionResumed received:", event);
+        if (committeeId) {
+            setCommittees(prev => 
+                prev.map(c => c.numericId === Number(committeeId) ? { ...c, status: "Đang họp" } : c)
+            );
+        }
+    });
+
+    connection.on("DefenseSessionClosed", (event: any) => {
+        const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+        console.log("COMMITTEES SignalR DefenseSessionClosed received:", event);
+        if (committeeId) {
+            setCommittees(prev => 
+                prev.map(c => c.numericId === Number(committeeId) ? { ...c, status: "Đã chốt" } : c)
+            );
+        }
+    });
+
+    connection.on("DefenseSessionReopened", (event: any) => {
+        const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+        console.log("COMMITTEES SignalR DefenseSessionReopened received:", event);
+        if (committeeId) {
+            setCommittees(prev => 
+                prev.map(c => c.numericId === Number(committeeId) ? { ...c, status: "Đã chốt" } : c)
+            );
+        }
+    });
+
+    const startHubConnection = async () => {
+        try {
+            await connection.start();
+            console.log("COMMITTEES SignalR connected successfully.");
+            if (connection.state === HubConnectionState.Connected) {
+                setHubConnection(connection);
+            }
+        } catch (err) {
+            console.error("COMMITTEES SignalR Connection Error: ", err);
+        }
+    };
+
+    void startHubConnection();
+
+    return () => {
+        const stopHub = async () => {
+            if (connection.state === HubConnectionState.Connected) {
+                try {
+                    await connection.stop();
+                } catch {
+                    // ignore
+                }
+            }
+            setHubConnection(null);
+        };
+        void stopHub();
+    };
+  }, []);
 
   useEffect(() => {
     if (!detailCommitteeId) {

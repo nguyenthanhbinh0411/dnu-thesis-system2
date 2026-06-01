@@ -675,10 +675,12 @@ const RoomsManagement: React.FC = () => {
     <div className="rooms-module">
       <style>{INJECTED_STYLES}</style>
 
-      <header className="rooms-header">
-        <h1><Building2 size={24} color="#1e3a5f" /> Quản lý Phòng bảo vệ</h1>
-        <p>Quản lý danh sách các phòng học được sử dụng làm hội đồng bảo vệ khóa luận.</p>
-      </header>
+      <div className="dashboard-header">
+        <h1>
+          <Building size={28} color="#1e3a5f" /> Quản lý phòng bảo vệ
+        </h1>
+        <p>Danh sách các phòng học, giảng đường được bố trí làm địa điểm hội đồng bảo vệ khóa luận.</p>
+      </div>
 
       <div className="rooms-stats-grid">
         <div className="rooms-stat-card">

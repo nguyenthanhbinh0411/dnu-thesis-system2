@@ -10,6 +10,7 @@ import {
   Trash2,
   X,
   RefreshCw,
+  ClipboardList,
 } from "lucide-react";
 import { fetchData, FetchDataError } from "../../api/fetchData";
 import ImportExportActions from "../../components/admin/ImportExportActions";
@@ -676,11 +677,10 @@ const CatalogTopicsWarehousePage: React.FC = () => {
   return (
     <div className="warehouse-module admin-dashboard">
       <div className="dashboard-header">
-        <h1>Kho đề tài có sẵn</h1>
-        <p>
-          Quản lý danh sách CatalogTopics theo API mới kèm tags, đồng thời vẫn
-          hỗ trợ import danh mục theo file.
-        </p>
+        <h1>
+          <ClipboardList size={28} color="#1e3a5f" /> Quản lý kho đề tài mẫu
+        </h1>
+        <p>Danh mục đề tài mẫu tham khảo, quản lý trạng thái gán và lĩnh vực khoa học tương ứng.</p>
       </div>
 
       <div className="warehouse-toolbar">

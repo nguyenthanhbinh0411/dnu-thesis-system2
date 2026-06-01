@@ -39,6 +39,14 @@ type SessionCode = "MORNING" | "AFTERNOON";
 type StudentPanel = "overview" | "revision";
 type RevisionStatusCode = 1 | 2 | 3;
 
+type CouncilMember = {
+  role: string;
+  lecturerCode: string;
+  lecturerName: string;
+  degree?: string | null;
+  organization?: string | null;
+};
+
 type DefenseInfoView = {
   studentCode: string;
   studentName: string;
@@ -61,6 +69,7 @@ type DefenseInfoView = {
   scoreUvpb: number | null;
   isScoreLocked: boolean;
   revision: StudentRevisionInfoDto | null;
+  members: CouncilMember[];
 };
 
 type StudentRevisionInfoDto = {
@@ -121,6 +130,7 @@ const DEFAULT_DEFENSE_INFO: DefenseInfoView = {
   scoreUvpb: null,
   isScoreLocked: false,
   revision: null,
+  members: [],
 };
 
 const toRecord = (value: unknown): Record<string, unknown> | null => {
@@ -229,6 +239,7 @@ const StudentDefenseInfo: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [periodId, setPeriodId] = useState<number | null>(() => getActiveDefensePeriodId());
   const [activePanel, setActivePanel] = useState<StudentPanel>("overview");
+  const [hasAutoSwitchedTab, setHasAutoSwitchedTab] = useState(false);
   const [defenseInfo, setDefenseInfo] = useState<DefenseInfoView>(DEFAULT_DEFENSE_INFO);
   const [notifications, setNotifications] = useState<StudentNotification[]>([]);
   const [revisionHistory, setRevisionHistory] = useState<RevisionHistoryView[]>([]);
@@ -288,7 +299,14 @@ const StudentDefenseInfo: React.FC = () => {
           scoreUvtk: readNumberLike(pickCaseInsensitiveValue(source, ["scoreUvtk", "ScoreUvtk", "scoreTk", "ScoreTk"], null)),
           scoreUvpb: readNumberLike(pickCaseInsensitiveValue(source, ["scoreUvpb", "ScoreUvpb", "scorePb", "ScorePb"], null)),
           isScoreLocked: readBooleanLike(pickCaseInsensitiveValue(source, ["isScoreLocked", "IsScoreLocked"], false)),
-          revision: null
+          revision: null,
+          members: toRecordArray(pickCaseInsensitiveValue(source, ["members", "Members"], [])).map((m) => ({
+            role: String(pickCaseInsensitiveValue(m, ["role", "Role"], "")),
+            lecturerCode: String(pickCaseInsensitiveValue(m, ["lecturerCode", "LecturerCode"], "")),
+            lecturerName: String(pickCaseInsensitiveValue(m, ["lecturerName", "LecturerName"], "")),
+            degree: toStringOrNull(pickCaseInsensitiveValue(m, ["degree", "Degree"], null)),
+            organization: toStringOrNull(pickCaseInsensitiveValue(m, ["organization", "Organization"], null)),
+          })),
         };
 
         const revisionRecord = toRecord(pickCaseInsensitiveValue(source, ["revision", "Revision"], null));
@@ -302,7 +320,8 @@ const StudentDefenseInfo: React.FC = () => {
             deadline: toIsoDateOrNull(pickCaseInsensitiveValue(revisionRecord, ["deadline", "Deadline"], null)),
             status: toStringOrNull(pickCaseInsensitiveValue(revisionRecord, ["status", "Status"], null)),
           };
-          if (mappedInfo.revision.needsRevision && activePanel === "overview") {
+          if (mappedInfo.revision.needsRevision && !hasAutoSwitchedTab) {
+            setHasAutoSwitchedTab(true);
             setActivePanel("revision");
           }
         }
@@ -362,7 +381,7 @@ const StudentDefenseInfo: React.FC = () => {
     } finally {
       setLoadingData(false);
     }
-  }, [periodId, addToast, activePanel]);
+  }, [periodId, addToast, hasAutoSwitchedTab]);
 
   useEffect(() => {
     fetchSnapshot();
@@ -407,7 +426,8 @@ const StudentDefenseInfo: React.FC = () => {
 
   const latestSubmittedRevision = useMemo(() => revisionHistory[0] ?? null, [revisionHistory]);
   const showSubmittedWaitingCard = Boolean(latestSubmittedRevision && latestSubmittedRevision.finalStatus === 1);
-  const isSubmissionLocked = showSubmittedWaitingCard;
+  const isApproved = Boolean(latestSubmittedRevision && latestSubmittedRevision.finalStatus === 2);
+  const isSubmissionLocked = showSubmittedWaitingCard || isApproved;
 
   return (
     <div className="stu-dashboard-container">
@@ -489,7 +509,11 @@ const StudentDefenseInfo: React.FC = () => {
           </div>
           <div className="stu-card-info">
             <h4>Kết quả tổng</h4>
-            <p>{defenseInfo.finalScore != null ? `${defenseInfo.finalScore} (${defenseInfo.grade})` : "Chưa có điểm"}</p>
+            <p>
+              {defenseInfo.finalScore != null 
+                ? (defenseInfo.grade ? `${defenseInfo.finalScore} (${defenseInfo.grade})` : `${defenseInfo.finalScore}`) 
+                : "Chưa có điểm"}
+            </p>
           </div>
         </div>
 
@@ -504,7 +528,7 @@ const StudentDefenseInfo: React.FC = () => {
         </div>
       </div>
 
-      <div className="stu-main-workspace">
+      <div className="stu-main-workspace" style={revisionHistory.length === 0 ? { gridTemplateColumns: "1fr" } : undefined}>
         <div className="stu-content-card">
           <div className="stu-card-header">
             <div className="stu-tabs">
@@ -541,6 +565,60 @@ const StudentDefenseInfo: React.FC = () => {
                     <div className="value leading-relaxed">{defenseInfo.topicTitle || "Đang cập nhật..."}</div>
                   </div>
                 </div>
+
+                {defenseInfo.members && defenseInfo.members.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="text-[10px] font-black text-[#94a3b8] uppercase tracking-widest mb-4">Thành viên hội đồng bảo vệ</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {defenseInfo.members.map((member, idx) => {
+                        const isChair = member.role.toUpperCase() === "CT";
+                        const isSecretary = member.role.toUpperCase() === "UVTK";
+                        const isReviewer = member.role.toUpperCase() === "UVPB";
+                        
+                        let badgeBg = "bg-slate-100 text-slate-700 border-slate-200";
+                        let roleLabel = member.role;
+                        if (isChair) {
+                          badgeBg = "bg-blue-50 text-blue-700 border-blue-100";
+                          roleLabel = "Chủ tịch";
+                        } else if (isSecretary) {
+                          badgeBg = "bg-emerald-50 text-emerald-700 border-emerald-100";
+                          roleLabel = "Thư ký";
+                        } else if (isReviewer) {
+                          badgeBg = "bg-amber-50 text-amber-700 border-amber-100";
+                          roleLabel = "Ủy viên Phản biện";
+                        } else if (member.role.toUpperCase() === "UV") {
+                          badgeBg = "bg-slate-50 text-slate-700 border-slate-100";
+                          roleLabel = "Ủy viên";
+                        }
+
+                        const nameWithDegree = member.degree 
+                          ? `${member.degree} ${member.lecturerName}` 
+                          : member.lecturerName;
+
+                        return (
+                          <div key={idx} className="p-5 bg-white border border-slate-100 rounded-2xl flex flex-col justify-between shadow-sm relative overflow-hidden group hover:border-[#F37021]/30 transition-all duration-300">
+                            <div>
+                              <div className="flex justify-between items-center mb-3">
+                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase border ${badgeBg}`}>
+                                  {roleLabel}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded">
+                                  {member.lecturerCode}
+                                </span>
+                              </div>
+                              <h5 className="font-extrabold text-sm text-slate-800 mb-1 group-hover:text-[#F37021] transition-colors">
+                                {nameWithDegree}
+                              </h5>
+                              <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                                {member.organization || "Trường Đại học Đại Nam"}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {(defenseInfo.isScoreLocked || defenseInfo.finalScore != null) && (
                   <div className="mt-4">
@@ -621,78 +699,74 @@ const StudentDefenseInfo: React.FC = () => {
                     </p>
                   </div>
                 )}
-                <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100 mb-4">
-                  <h5 className="flex items-center gap-2 text-sm font-black text-blue-900 mb-2"><MessageCircle size={16} /> Yêu cầu chỉnh sửa từ Hội đồng</h5>
-                  <p className="text-xs font-bold text-blue-700 leading-relaxed">{defenseInfo.revision?.revisionReason || "Vui lòng hoàn thiện báo cáo theo góp ý của hội đồng."}</p>
-                </div>
-                <div className="flex flex-col gap-4">
-                  <div className="stu-input-group">
-                    <label>Nội dung sinh viên đã sửa</label>
-                    <textarea
-                      className="stu-textarea"
-                      placeholder="Mô tả tóm tắt những nội dung bạn đã cập nhật..."
-                      value={revisedContent}
-                      onChange={(e) => setRevisedContent(e.target.value)}
-                      disabled={isSubmissionLocked}
-                    />
-                  </div>
-                  <div className="stu-input-group">
-                    <label>Tệp báo cáo hoàn thiện (PDF)</label>
-                    <div
-                      className="stu-file-drop"
-                      onClick={() => {
-                        if (isSubmissionLocked) return;
-                        fileInputRef.current?.click();
-                      }}
-                      style={isSubmissionLocked ? { opacity: 0.6, cursor: "not-allowed" } : undefined}
-                    >
-                      <input type="file" ref={fileInputRef} className="hidden" accept=".pdf" disabled={isSubmissionLocked} onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setSelectedFile(file);
-                        setSelectedFileName(file?.name || "");
-                      }} />
-                      {selectedFile ? (
-                        <div className="flex flex-col items-center gap-2">
-                          <FileText size={32} className="text-[#F37021]" />
-                          <span className="text-sm font-black text-slate-900">{selectedFileName}</span>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center gap-2 text-slate-400">
-                          <Upload size={32} />
-                          <span className="text-sm font-black">Chọn hoặc kéo thả tệp PDF vào đây</span>
-                        </div>
-                      )}
+                {isApproved && (
+                  <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 mb-2 flex items-center gap-4">
+                    <CheckCircle2 className="text-emerald-500 w-8 h-8 flex-shrink-0" />
+                    <div>
+                      <h5 className="text-sm font-black text-emerald-800 mb-1">Báo cáo hoàn thiện đã được phê duyệt</h5>
+                      <p className="text-xs font-bold text-emerald-700 leading-relaxed">
+                        Hội đồng đã phê duyệt bản chỉnh sửa báo cáo hoàn thiện của bạn. Chúc mừng bạn đã hoàn thành đợt bảo vệ đồ án tốt nghiệp!
+                      </p>
                     </div>
                   </div>
-                  <button className="stu-submit-btn" disabled={submittingRevision || !selectedFile || isSubmissionLocked} onClick={submitRevision}>
-                    {isSubmissionLocked ? "ĐANG CHỜ THƯ KÝ KIỂM TRA" : (submittingRevision ? "Đang xử lý..." : "Nộp báo cáo hoàn thiện")}
-                  </button>
-                </div>
+                )}
+                {!isApproved && (
+                  <>
+                    <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100 mb-4">
+                      <h5 className="flex items-center gap-2 text-sm font-black text-blue-900 mb-2"><MessageCircle size={16} /> Yêu cầu chỉnh sửa từ Hội đồng</h5>
+                      <p className="text-xs font-bold text-blue-700 leading-relaxed">{defenseInfo.revision?.revisionReason || "Vui lòng hoàn thiện báo cáo theo góp ý của hội đồng."}</p>
+                    </div>
+                    <div className="flex flex-col gap-4">
+                      <div className="stu-input-group">
+                        <label>Nội dung sinh viên đã sửa</label>
+                        <textarea
+                          className="stu-textarea"
+                          placeholder="Mô tả tóm tắt những nội dung bạn đã cập nhật..."
+                          value={revisedContent}
+                          onChange={(e) => setRevisedContent(e.target.value)}
+                          disabled={isSubmissionLocked}
+                        />
+                      </div>
+                      <div className="stu-input-group">
+                        <label>Tệp báo cáo hoàn thiện (PDF)</label>
+                        <div
+                          className="stu-file-drop"
+                          onClick={() => {
+                            if (isSubmissionLocked) return;
+                            fileInputRef.current?.click();
+                          }}
+                          style={isSubmissionLocked ? { opacity: 0.6, cursor: "not-allowed" } : undefined}
+                        >
+                          <input type="file" ref={fileInputRef} className="hidden" accept=".pdf" disabled={isSubmissionLocked} onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            setSelectedFile(file);
+                            setSelectedFileName(file?.name || "");
+                          }} />
+                          {selectedFile ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <FileText size={32} className="text-[#F37021]" />
+                              <span className="text-sm font-black text-slate-900">{selectedFileName}</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-2 text-slate-400">
+                              <Upload size={32} />
+                              <span className="text-sm font-black">Chọn hoặc kéo thả tệp PDF vào đây</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <button className="stu-submit-btn" disabled={submittingRevision || !selectedFile || isSubmissionLocked} onClick={submitRevision}>
+                        {isSubmissionLocked ? "ĐANG CHỜ THƯ KÝ KIỂM TRA" : (submittingRevision ? "Đang xử lý..." : "Nộp báo cáo hoàn thiện")}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
         </div>
 
         <div className="flex flex-col gap-8">
-          <div className="stu-sidebar-card">
-            <h4 className="text-sm font-black text-slate-900 flex items-center gap-2"><Bell size={18} className="text-[#F37021]" /> Thông báo mới</h4>
-            <div className="flex flex-col gap-4">
-              {notifications.length > 0 ? (
-                notifications.slice(0, 3).map((note, idx) => (
-                  <div key={idx} className="stu-reminder-item">
-                    <div className="stu-reminder-icon"><Bell size={18} /></div>
-                    <div className="stu-reminder-content">
-                      <h5>{formatNotificationType(note.type)}</h5>
-                      <p>{note.message}</p>
-                      <span className="text-[10px] font-bold text-slate-400 mt-1 block">{formatDateTime(note.timestamp)}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8"><p className="text-xs font-bold text-slate-400 italic">Chưa có thông báo mới</p></div>
-              )}
-            </div>
-          </div>
 
           {revisionHistory.length > 0 && (
             <div className="stu-sidebar-card">

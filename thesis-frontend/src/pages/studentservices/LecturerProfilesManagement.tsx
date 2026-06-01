@@ -9,6 +9,7 @@ import {
   Trash2,
   User,
   Users,
+  GraduationCap,
 } from "lucide-react";
 import { fetchData, getAvatarUrl } from "../../api/fetchData";
 import ImportExportActions from "../../components/admin/ImportExportActions.tsx";
@@ -125,9 +126,6 @@ const fields: FieldDef[] = [
   { name: "email", label: "email" },
   { name: "phoneNumber", label: "phoneNumber" },
   { name: "degree", label: "degree" },
-  { name: "guideQuota", label: "guideQuota", type: "number" },
-  { name: "defenseQuota", label: "defenseQuota", type: "number" },
-  { name: "currentGuidingCount", label: "currentGuidingCount", type: "number" },
   { name: "profileImage", label: "profileImage" },
   { name: "gender", label: "gender" },
   { name: "dateOfBirth", label: "dateOfBirth", type: "date" },
@@ -140,15 +138,12 @@ const filterFields: FieldDef[] = [
   { name: "userCode", label: "Mã user" },
   { name: "departmentCode", label: "Khoa" },
   { name: "degree", label: "Học vị" },
-  { name: "guideQuota", label: "Chỉ tiêu hướng dẫn", type: "number" },
   { name: "gender", label: "Giới tính" },
 ];
 
 const tableColumns = [
   { key: "departmentCode", label: "KHOA" },
   { key: "degree", label: "HỌC VỊ" },
-  { key: "defenseQuota", label: "BẢO VỆ" },
-  { key: "currentGuidingCount", label: "ĐANG HƯỚNG DẪN" },
 ] as const;
 
 const editFieldSections: Array<{
@@ -168,8 +163,8 @@ const editFieldSections: Array<{
   },
   {
     title: "Thông tin chuyên môn",
-    description: "Học vị và chỉ tiêu giảng dạy.",
-    fields: ["degree", "guideQuota", "defenseQuota", "currentGuidingCount"],
+    description: "Học vị giảng dạy.",
+    fields: ["degree"],
   },
   {
     title: "Thông tin bổ sung",
@@ -407,32 +402,6 @@ function getTopicTypeLabel(type?: string): string {
 
 const LecturerProfilesManagement: React.FC = () => {
   const { addToast } = useToast();
-  const activePeriodId = useActiveDefensePeriodId();
-  const [periods, setPeriods] = useState<DefensePeriod[]>([]);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
-
-  useEffect(() => {
-    const fetchPeriods = async () => {
-      try {
-        const response = await fetchData<ApiResponse<DefensePeriod[]>>(
-          "/defense-periods",
-          { method: "GET" }
-        );
-        if (response?.success && response.data) {
-          setPeriods(response.data);
-        }
-      } catch {
-        setPeriods([]);
-      }
-    };
-    void fetchPeriods();
-  }, []);
-
-  useEffect(() => {
-    if (activePeriodId) {
-      setSelectedPeriodId(activePeriodId);
-    }
-  }, [activePeriodId]);
 
   const [rows, setRows] = useState<RecordData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -474,18 +443,12 @@ const LecturerProfilesManagement: React.FC = () => {
       page,
       pageSize,
       search: searchKeyword,
-      DefenseTermId: selectedPeriodId || undefined,
       ...advancedFilters,
     }),
-    [advancedFilters, page, pageSize, searchKeyword, selectedPeriodId],
+    [advancedFilters, page, pageSize, searchKeyword],
   );
 
   const loadRows = useCallback(async () => {
-    if (!selectedPeriodId) {
-      setRows([]);
-      setTotalCount(0);
-      return;
-    }
     setIsLoading(true);
     try {
       const query = buildQuery(listQuery);
@@ -509,7 +472,7 @@ const LecturerProfilesManagement: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [addToast, listQuery, selectedPeriodId]);
+  }, [addToast, listQuery]);
 
   useEffect(() => {
     void loadRows();
@@ -668,9 +631,6 @@ const LecturerProfilesManagement: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (activeModal === "create") {
-        if (selectedPeriodId) {
-          payload.defenseTermId = selectedPeriodId;
-        }
         await requestApiData<RecordData>(
           "/LecturerProfiles/create",
           { method: "POST", body: payload },
@@ -717,12 +677,9 @@ const LecturerProfilesManagement: React.FC = () => {
     <div className="lecturer-profiles-module">
       <div className="dashboard-header">
         <h1>
-          <Users size={30} color="#1e3a5f" /> Quản lý giảng viên
+          <GraduationCap size={28} color="#1e3a5f" /> Quản lý giảng viên
         </h1>
-        <p>
-          Dữ liệu chuẩn theo schema LecturerProfiles (email, guideQuota,
-          defenseQuota, currentGuidingCount...).
-        </p>
+        <p>Dữ liệu hồ sơ cơ bản của giảng viên (học hàm, học vị, liên hệ, cơ quan công tác).</p>
       </div>
 
       <div className="lpm-toolbar">
@@ -736,25 +693,6 @@ const LecturerProfilesManagement: React.FC = () => {
         </div>
 
         <div className="lpm-actions-wrap">
-          <div className="lpm-period-select-wrap">
-            <select
-              value={selectedPeriodId || ""}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSelectedPeriodId(val ? Number(val) : null);
-                setPage(1);
-              }}
-              className="lpm-period-select"
-            >
-              <option value="">-- Chọn đợt bảo vệ --</option>
-              {periods.map((p) => (
-                <option key={p.defenseTermId} value={p.defenseTermId}>
-                  {p.name} {p.defenseTermId === activePeriodId ? "(Hiện tại)" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <button
             type="button"
             className="lpm-btn lpm-btn-secondary"
@@ -885,40 +823,19 @@ const LecturerProfilesManagement: React.FC = () => {
                       </div>
                     </div>
                   </td>
-                  {tableColumns.map((column) => {
-                    if (column.key === "currentGuidingCount") {
-                      const { current, quota, ratio } = getGuidingProgress(row);
-                      return (
-                        <td key={`${column.key}-${index}`}>
-                          <div className="lecturer-progress-cell">
-                            <div className="lecturer-progress-track">
-                              <div
-                                className="lecturer-progress-fill"
-                                style={{ width: `${ratio}%` }}
-                              />
-                            </div>
-                            <strong>
-                              {current}/{quota || "--"}
-                            </strong>
-                          </div>
-                        </td>
-                      );
-                    }
-
-                    return (
-                      <td key={`${column.key}-${index}`}>
-                        <div
-                          className={
-                            column.key === "degree"
-                              ? "lecturer-table-degree"
-                              : "lecturer-muted"
-                          }
-                        >
-                          {toDisplay(row[column.key]) || "--"}
-                        </div>
-                      </td>
-                    );
-                  })}
+                  {tableColumns.map((column) => (
+                    <td key={`${column.key}-${index}`}>
+                      <div
+                        className={
+                          column.key === "degree"
+                            ? "lecturer-table-degree"
+                            : "lecturer-muted"
+                        }
+                      >
+                        {toDisplay(row[column.key]) || "--"}
+                      </div>
+                    </td>
+                  ))}
                   <td>
                     <div className="lecturer-action-buttons">
                       <button
@@ -1028,11 +945,6 @@ const LecturerProfilesManagement: React.FC = () => {
                         <span className="lecturer-detail-chip">
                           {detailDepartmentCode}
                         </span>
-                        <span className="lecturer-detail-gpa">
-                          Hướng dẫn{" "}
-                          {String(selectedRow?.currentGuidingCount ?? "--")}/
-                          {String(selectedRow?.guideQuota ?? "--")}
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -1109,26 +1021,6 @@ const LecturerProfilesManagement: React.FC = () => {
                               <strong>
                                 {String(selectedRow?.phoneNumber || "--")}
                               </strong>
-                            </div>
-                          </div>
-
-                          <div className="lecturer-guide-quota">
-                            <div className="lecturer-guide-quota-row">
-                              <span>Chỉ tiêu hướng dẫn</span>
-                              <strong>
-                                {String(
-                                  selectedRow?.currentGuidingCount ?? 0,
-                                )}
-                                /{String(selectedRow?.guideQuota ?? "--")}
-                              </strong>
-                            </div>
-                            <div className="lecturer-progress-track-lg">
-                              <div
-                                className="lecturer-progress-fill"
-                                style={{
-                                  width: `${getGuidingProgress(selectedRow || {}).ratio}%`,
-                                }}
-                              />
                             </div>
                           </div>
                         </section>

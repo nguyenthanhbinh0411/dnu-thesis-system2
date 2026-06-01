@@ -47,6 +47,51 @@ public class DefensePeriodScoringQueriesTests
 
         var topic = db.Topics.Single(x => x.TopicCode == "T001");
         topic.Score = 9m;
+        
+        // Seed 4th member and score (UVPB L003)
+        db.CommitteeMembers.Add(new CommitteeMember
+        {
+            CommitteeMemberID = 3,
+            CommitteeID = 11,
+            CommitteeCode = "CMT-11",
+            MemberLecturerCode = "L003",
+            Role = "UVPB"
+        });
+        db.DefenseScores.Add(new DefenseScore
+        {
+            ScoreID = 5,
+            ScoreCode = "SC-5",
+            AssignmentID = 101,
+            AssignmentCode = "ASG-001",
+            MemberLecturerCode = "L003",
+            Score = 7m,
+            IsSubmitted = true
+        });
+        db.SaveChanges();
+
+        var processor = new DefensePeriodQueryProcessor(db);
+
+        var result = await processor.GetScoringMatrixAsync(periodId: 1, isForLecturer: true);
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().NotBeNull();
+
+        var scored = result.Data!.Single(x => x.AssignmentCode == "ASG-001");
+        scored.ScoreGvhd.Should().Be(9m);
+        scored.ScoreCt.Should().Be(8m);
+        scored.ScoreTk.Should().Be(5m);
+        scored.ScorePb.Should().Be(7m);
+        scored.FinalScore.Should().Be(7.2m); // (9 + 8 + 5 + 7) / 4 = 7.25 -> rounded to 7.2 ( Banker's rounding )
+    }
+
+    [Fact]
+    public async Task GetScoringMatrixAsync_ShouldNotCalculateFinalScoreWithOnlyThreeComponentScores()
+    {
+        await using var db = CreateDbContext();
+        SeedScoringScenario(db);
+
+        var topic = db.Topics.Single(x => x.TopicCode == "T001");
+        topic.Score = 9m;
         db.SaveChanges();
 
         var processor = new DefensePeriodQueryProcessor(db);
@@ -61,7 +106,7 @@ public class DefensePeriodScoringQueriesTests
         scored.ScoreCt.Should().Be(8m);
         scored.ScoreTk.Should().Be(5m);
         scored.ScorePb.Should().BeNull();
-        scored.FinalScore.Should().Be(7.3m);
+        scored.FinalScore.Should().BeNull();
     }
 
     [Fact]

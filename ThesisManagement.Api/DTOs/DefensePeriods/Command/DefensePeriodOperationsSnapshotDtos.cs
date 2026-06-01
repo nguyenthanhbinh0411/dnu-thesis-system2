@@ -15,6 +15,7 @@ namespace ThesisManagement.Api.DTOs.DefensePeriods
         public bool? IsPassed { get; set; }
         public string? Template { get; set; }
         public List<string>? SelectedFields { get; set; }
+        public string? GroupBy { get; set; }
 
         [Range(1, 200)]
         public int RevisionPage { get; set; } = 1;

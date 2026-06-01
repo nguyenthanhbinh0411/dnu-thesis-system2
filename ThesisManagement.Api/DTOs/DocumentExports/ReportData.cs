@@ -30,7 +30,13 @@ public sealed class ReportData
 
     public string? ReviewerQuestions { get; set; }
 
+    public string? CouncilQuestions { get; set; }
+
     public string? StudentAnswers { get; set; }
+
+    public string? ReviewerAnswers { get; set; }
+
+    public string? CouncilAnswers { get; set; }
 
     public string? Strengths { get; set; }
 

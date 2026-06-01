@@ -5,27 +5,6 @@
   background: #fff;
 }
 
-.lecturer-profiles-module .dashboard-header {
-  margin-bottom: 18px;
-}
-
-.lecturer-profiles-module .dashboard-header h1 {
-  margin: 0 0 8px;
-  font-size: 22px;
-  font-weight: 700;
-  color: #1a1a1a;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  line-height: 1.2;
-}
-
-.lecturer-profiles-module .dashboard-header p {
-  margin: 0;
-  color: #667085;
-  font-size: 12px;
-}
-
 .lecturer-table-wrap {
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -1035,10 +1014,6 @@
 @media (max-width: 768px) {
   .lecturer-profiles-module {
     padding: 14px;
-  }
-
-  .lecturer-profiles-module .dashboard-header h1 {
-    font-size: 22px;
   }
 
   .lecturer-profiles-module .spm-form-grid {

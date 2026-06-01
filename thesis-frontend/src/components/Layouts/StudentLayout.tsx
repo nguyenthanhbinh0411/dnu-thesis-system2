@@ -1080,7 +1080,7 @@ const StudentLayout: React.FC = () => {
           }}
           onPointerUpCapture={collapseSidebarOnActivity}
         >
-          {reactivePeriodId != null || /\/(profile|change-password)$/.test(location.pathname) ? (
+          {reactivePeriodId != null || getActiveDefensePeriodId() != null || /\/(profile|change-password)$/.test(location.pathname) ? (
             <Outlet />
           ) : (
             <NoPeriodPlaceholder />

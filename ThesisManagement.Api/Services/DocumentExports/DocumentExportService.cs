@@ -230,10 +230,41 @@ public sealed class DocumentExportService : IDocumentExportService
 
             if (!string.Equals(original, modified, StringComparison.Ordinal))
             {
-                texts[0].Text = modified;
-                for (var i = 1; i < texts.Count; i++)
+                if (modified.Contains('\n'))
                 {
-                    texts[i].Text = string.Empty;
+                    var lines = modified.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                    var parentRun = texts[0].Parent;
+                    if (parentRun != null)
+                    {
+                        foreach (var txt in texts)
+                        {
+                            txt.Remove();
+                        }
+                        for (int i = 0; i < lines.Length; i++)
+                        {
+                            if (i > 0)
+                            {
+                                parentRun.AppendChild(new Break());
+                            }
+                            parentRun.AppendChild(new Text(lines[i]) { Space = SpaceProcessingModeValues.Preserve });
+                        }
+                    }
+                    else
+                    {
+                        texts[0].Text = modified;
+                        for (var i = 1; i < texts.Count; i++)
+                        {
+                            texts[i].Text = string.Empty;
+                        }
+                    }
+                }
+                else
+                {
+                    texts[0].Text = modified;
+                    for (var i = 1; i < texts.Count; i++)
+                    {
+                        texts[i].Text = string.Empty;
+                    }
                 }
             }
         }
@@ -286,10 +317,41 @@ public sealed class DocumentExportService : IDocumentExportService
 
             if (!string.Equals(original, modified, StringComparison.Ordinal))
             {
-                texts[0].Text = modified;
-                for (var i = 1; i < texts.Count; i++)
+                if (modified.Contains('\n'))
                 {
-                    texts[i].Text = string.Empty;
+                    var lines = modified.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                    var parentRun = texts[0].Parent;
+                    if (parentRun != null)
+                    {
+                        foreach (var txt in texts)
+                        {
+                            txt.Remove();
+                        }
+                        for (int i = 0; i < lines.Length; i++)
+                        {
+                            if (i > 0)
+                            {
+                                parentRun.AppendChild(new Break());
+                            }
+                            parentRun.AppendChild(new Text(lines[i]) { Space = SpaceProcessingModeValues.Preserve });
+                        }
+                    }
+                    else
+                    {
+                        texts[0].Text = modified;
+                        for (var i = 1; i < texts.Count; i++)
+                        {
+                            texts[i].Text = string.Empty;
+                        }
+                    }
+                }
+                else
+                {
+                    texts[0].Text = modified;
+                    for (var i = 1; i < texts.Count; i++)
+                    {
+                        texts[i].Text = string.Empty;
+                    }
                 }
             }
         }

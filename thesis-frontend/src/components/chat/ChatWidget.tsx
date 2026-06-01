@@ -19,6 +19,8 @@ import {
   Heart,
   Frown,
   Zap,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import "./ChatWidget.css";
 import { getAvatarUrl, normalizeUrl } from "../../api/fetchData";
@@ -36,22 +38,27 @@ type ChatWidgetTheme = "student" | "lecturer";
 
 // Helper function to get reaction icon component
 const getReactionIconComponent = (iconName: string): React.ReactNode => {
-  switch (iconName) {
-    case "thumbs-up":
-      return <ThumbsUp size={14} />;
-    case "heart":
-      return <Heart size={14} />;
-    case "smile":
-      return <Smile size={14} />;
-    case "eye":
-      return <Eye size={14} />;
-    case "frown":
-      return <Frown size={14} />;
-    case "zap":
-      return <Zap size={14} />;
-    default:
-      return <Smile size={14} />;
-  }
+  const emojiMap: Record<string, string> = {
+    "thumbs-up": "👍",
+    "heart": "❤️",
+    "smile": "😆",
+    "eye": "😮",
+    "frown": "😭",
+    "zap": "😡",
+  };
+  const emoji = emojiMap[iconName] || "😆";
+  return (
+    <span
+      style={{
+        fontSize: "18px",
+        lineHeight: "1",
+        display: "inline-block",
+        verticalAlign: "middle",
+      }}
+    >
+      {emoji}
+    </span>
+  );
 };
 
 interface ChatWidgetProps {
@@ -198,6 +205,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
     selectConversation,
     closeConversationPopup,
     sendMessage,
+    editMessage,
+    deleteMessage,
     retryAttachmentUpload,
     toggleReaction,
     markConversationRead,
@@ -211,6 +220,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
   const [messageTextByConversation, setMessageTextByConversation] = useState<
     Record<number, string>
   >({});
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
+
+  const handleSaveEdit = async (conversationId: number, messageId: number) => {
+    const trimmed = editingText.trim();
+    if (!trimmed) return;
+    await editMessage(conversationId, messageId, trimmed);
+    setEditingMessageId(null);
+    setEditingText("");
+  };
   const [filesByConversation, setFilesByConversation] = useState<
     Record<number, File[]>
   >({});
@@ -1045,6 +1065,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                 return (
                   <div
                     key={String(message.messageID)}
+                    onMouseEnter={() => {
+                      if (!message.isDeleted && isMine) {
+                        setHoveredMessageId(message.messageID);
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      setHoveredMessageId((prev) => prev === message.messageID ? null : prev);
+                    }}
                     style={{
                       alignSelf: isMine ? "flex-end" : "flex-start",
                       maxWidth: "100%",
@@ -1107,12 +1135,70 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                       </div>
                     )}
 
+                    {isMine &&
+                      !message.isDeleted &&
+                      hoveredMessageId === message.messageID &&
+                      editingMessageId !== message.messageID && (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                            alignSelf: "center",
+                            background: "#fff",
+                            border: "1px solid rgba(148,163,184,0.25)",
+                            borderRadius: 6,
+                            padding: "2px 4px",
+                            boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+                            zIndex: 10,
+                          }}
+                        >
+                          <button
+                            onClick={() => {
+                              setEditingMessageId(message.messageID);
+                              setEditingText(message.content || "");
+                            }}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              cursor: "pointer",
+                              padding: 2,
+                              color: "#64748b",
+                              display: "flex",
+                              alignItems: "center",
+                            }}
+                            title="Sửa tin nhắn"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm("Bạn có chắc chắn muốn xóa tin nhắn này không?")) {
+                                void deleteMessage(conversation.conversationID, message.messageID);
+                              }
+                            }}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              cursor: "pointer",
+                              padding: 2,
+                              color: "#dc2626",
+                              display: "flex",
+                              alignItems: "center",
+                            }}
+                            title="Xóa tin nhắn"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
+
                     <div
                       style={{
-                        width: "fit-content",
-                        minWidth: isMine && message.content ? 132 : undefined,
-                        maxWidth: isMine ? "98%" : "85%",
-                        padding: "8px 10px",
+                        width: editingMessageId === message.messageID ? "280px" : "fit-content",
+                        minWidth: editingMessageId === message.messageID ? "280px" : (isMine && message.content ? 132 : undefined),
+                        maxWidth: "85%",
+                        padding: "10px 12px",
                         borderRadius: 12,
                         background: isMine
                           ? palette.selfMessageBg
@@ -1136,19 +1222,104 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                         </div>
                       )}
 
-                      {!!message.content && (
-                        <div
-                          style={{
-                            color: palette.titleColor,
-                            fontSize: isMine ? 14 : 13,
-                            lineHeight: 1.45,
-                            whiteSpace: "normal",
-                            wordBreak: "normal",
-                            marginBottom: attachments.length ? 8 : 0,
-                          }}
-                        >
-                          {message.content}
+                      {editingMessageId === message.messageID ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", boxSizing: "border-box" }}>
+                          <textarea
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                void handleSaveEdit(conversation.conversationID, message.messageID);
+                              } else if (e.key === "Escape") {
+                                setEditingMessageId(null);
+                              }
+                            }}
+                            style={{
+                              width: "100%",
+                              minHeight: 56,
+                              borderRadius: 8,
+                              border: "1.5px solid #f37021",
+                              outline: "none",
+                              padding: "8px 10px",
+                              fontSize: 13,
+                              color: palette.titleColor,
+                              resize: "none",
+                              fontFamily: "inherit",
+                              background: "#fff",
+                              boxShadow: "0 2px 8px rgba(243, 112, 33, 0.08)",
+                              boxSizing: "border-box",
+                            }}
+                            autoFocus
+                          />
+                          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                            <button
+                              onClick={() => setEditingMessageId(null)}
+                              style={{
+                                border: "none",
+                                background: "rgba(0, 0, 0, 0.06)",
+                                color: "#475569",
+                                borderRadius: 6,
+                                padding: "5px 12px",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                transition: "all 0.2s",
+                              }}
+                            >
+                              Hủy
+                            </button>
+                            <button
+                              onClick={() => void handleSaveEdit(conversation.conversationID, message.messageID)}
+                              disabled={!editingText.trim()}
+                              style={{
+                                border: "none",
+                                background: palette.buttonBg,
+                                color: "#fff",
+                                borderRadius: 6,
+                                padding: "5px 12px",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: !editingText.trim() ? "not-allowed" : "pointer",
+                                opacity: !editingText.trim() ? 0.6 : 1,
+                                boxShadow: "0 2px 6px rgba(243, 112, 33, 0.2)",
+                                transition: "all 0.2s",
+                              }}
+                            >
+                              Lưu
+                            </button>
+                          </div>
                         </div>
+                      ) : (
+                        !!message.content && (
+                          <div
+                            style={{
+                              color: palette.titleColor,
+                              fontSize: isMine ? 14 : 13,
+                              lineHeight: 1.45,
+                              whiteSpace: "normal",
+                              wordBreak: "normal",
+                              marginBottom: attachments.length ? 8 : 0,
+                              fontStyle: message.isDeleted ? "italic" : "normal",
+                              opacity: message.isDeleted ? 0.75 : 1,
+                            }}
+                          >
+                            {message.content}
+                            {message.editedAt && !message.isDeleted && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  color: palette.subtitleColor,
+                                  marginLeft: 6,
+                                  fontStyle: "italic",
+                                }}
+                                title={new Date(message.editedAt).toLocaleString("vi-VN")}
+                              >
+                                (Đã chỉnh sửa)
+                              </span>
+                            )}
+                          </div>
+                        )
                       )}
 
                       {attachments.length > 0 && (
@@ -1358,59 +1529,62 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                         </div>
                       )}
 
-                      <div
-                        style={{
-                          marginTop: 4,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: palette.subtitleColor,
-                            fontStyle: message.isOptimistic
-                              ? "italic"
-                              : "normal",
-                          }}
-                        >
-                          {message.isOptimistic
-                            ? "Đang gửi..."
-                            : formatMessageTime(message.sentAt)}
-                        </span>
-
+                      {editingMessageId !== message.messageID && (
                         <div
                           style={{
+                            marginTop: 4,
                             display: "flex",
+                            justifyContent: "space-between",
                             alignItems: "center",
-                            gap: 6,
+                            gap: 8,
                           }}
                         >
-                          {/* read count handled by chip below */}
-                        </div>
-                      </div>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: palette.subtitleColor,
+                              fontStyle: message.isOptimistic
+                                ? "italic"
+                                : "normal",
+                            }}
+                          >
+                            {message.isOptimistic
+                              ? "Đang gửi..."
+                              : formatMessageTime(message.sentAt)}
+                          </span>
 
-                      <div
-                        ref={
-                          message.messageID === pickerMessageId
-                            ? pickerContainerRef
-                            : undefined
-                        }
-                        style={{
-                          position: "absolute",
-                          bottom: -22,
-                          [isMine ? "left" : "right"]: 8,
-                          zIndex: 3,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: isMine ? "flex-start" : "flex-end",
-                          gap: 6,
-                          width: "calc(100% - 16px)",
-                          maxWidth: "100%",
-                        }}
-                      >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            {/* read count handled by chip below */}
+                          </div>
+                        </div>
+                      )}
+
+                      {editingMessageId !== message.messageID && (
+                        <div
+                          ref={
+                            message.messageID === pickerMessageId
+                              ? pickerContainerRef
+                              : undefined
+                          }
+                          style={{
+                            position: "absolute",
+                            bottom: -22,
+                            [isMine ? "left" : "right"]: 8,
+                            zIndex: 3,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: isMine ? "flex-start" : "flex-end",
+                            gap: 6,
+                            width: "calc(100% - 16px)",
+                            maxWidth: "100%",
+                          }}
+                        >
                         <div
                           style={{
                             position: "relative",
@@ -1419,56 +1593,59 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                             order: 2,
                           }}
                         >
-                          <button
-                            onMouseEnter={(event) => {
-                              if (!myReaction) {
+                          {!message.isDeleted && (
+                            <button
+                              onMouseEnter={(event) => {
+                                if (!myReaction) {
+                                  setPickerMessageId(message.messageID);
+                                  openReactionPickerPopover(
+                                    message.messageID,
+                                    event.currentTarget,
+                                    isMine,
+                                  );
+                                }
+                              }}
+                              onClick={(event) => {
+                                if (myReaction) {
+                                  void toggleReaction(
+                                    message.conversationID,
+                                    message.messageID,
+                                    myReaction.reactionType,
+                                    true,
+                                  );
+                                  return;
+                                }
                                 setPickerMessageId(message.messageID);
                                 openReactionPickerPopover(
                                   message.messageID,
                                   event.currentTarget,
                                   isMine,
                                 );
+                              }}
+                              className={`chat-reaction-toggle ${
+                                myReaction ? "is-reacted" : ""
+                              }`}
+                              style={{
+                                fontSize: myReaction ? 15 : 12,
+                                color: myReaction
+                                  ? palette.titleColor
+                                  : "#94a3b8",
+                              }}
+                              title={
+                                myReaction ? "Bấm để gỡ cảm xúc" : "Thả cảm xúc"
                               }
-                            }}
-                            onClick={(event) => {
-                              if (myReaction) {
-                                void toggleReaction(
-                                  message.conversationID,
-                                  message.messageID,
-                                  myReaction.reactionType,
-                                  true,
-                                );
-                                return;
-                              }
-                              setPickerMessageId(message.messageID);
-                              openReactionPickerPopover(
-                                message.messageID,
-                                event.currentTarget,
-                                isMine,
-                              );
-                            }}
-                            className={`chat-reaction-toggle ${
-                              myReaction ? "is-reacted" : ""
-                            }`}
-                            style={{
-                              fontSize: myReaction ? 15 : 12,
-                              color: myReaction
-                                ? palette.titleColor
-                                : "#94a3b8",
-                            }}
-                            title={
-                              myReaction ? "Bấm để gỡ cảm xúc" : "Thả cảm xúc"
-                            }
-                          >
-                            {myReaction ? (
-                              getReactionIconComponent(
-                                reactionIconMap[myReaction.reactionType] ||
-                                  "smile",
-                              )
-                            ) : (
-                              <Smile size={14} />
-                            )}
-                          </button>
+                            >
+                              {myReaction ? (
+                                getReactionIconComponent(
+                                  reactionIconMap[myReaction.reactionType] ||
+                                    "smile",
+                                )
+                              ) : (
+                                <Smile size={14} />
+                              )}
+                            </button>
+                          )}
+                        </div>
 
                           {pickerMessageId === message.messageID &&
                             !myReaction &&
@@ -1486,6 +1663,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                                     ? "translateX(-50%)"
                                     : "translate(-50%, -100%)",
                                   display: "flex",
+                                  alignItems: "center",
                                   gap: 2,
                                   padding: 4,
                                   background: "#fff",
@@ -1520,6 +1698,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                                           fontSize: 14,
                                           opacity: 0.85,
                                           padding: "0 2px",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
                                         }}
                                         title={`Reaction ${reactionType}`}
                                       >
@@ -1528,10 +1709,40 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                                     );
                                   },
                                 )}
+                                <div
+                                  style={{
+                                    width: "1px",
+                                    height: "16px",
+                                    background: "rgba(148,163,184,0.3)",
+                                    alignSelf: "center",
+                                    margin: "0 4px",
+                                  }}
+                                />
+                                <button
+                                  onClick={() => {
+                                    setPickerMessageId(null);
+                                    setPickerPopoverAnchor(null);
+                                  }}
+                                  style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                    color: "#94a3b8",
+                                    padding: "0 6px",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    fontSize: "14px",
+                                    fontWeight: 600,
+                                    transition: "color 0.2s",
+                                  }}
+                                  title="Đóng"
+                                >
+                                  <X size={14} />
+                                </button>
                               </div>,
                               document.body,
                             )}
-                        </div>
 
                         {(reactionGroups.length > 0 ||
                           (hasReaders && isLatestForSender)) && (
@@ -1819,6 +2030,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ theme }) => {
                           </div>
                         )}
                       </div>
+                    )}
                     </div>
                   </div>
                 );

@@ -9,6 +9,7 @@ import {
     type WorkflowActionTrace,
 } from "../../types/defense-workflow-contract";
 import { useToast } from "../../context/useToast";
+import { useAuth } from "../../hooks/useAuth";
 import { FetchDataError, fetchData, normalizeUrl } from "../../api/fetchData";
 import type { ApiResponse } from "../../types/api";
 import {
@@ -72,7 +73,7 @@ import {
     Flag,
     Circle,
 } from "lucide-react";
-import { getAccessToken, getLecturerCode } from "../../services/auth-session.service";
+import { getAccessToken, getLecturerCode, setLecturerCode } from "../../services/auth-session.service";
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from "@microsoft/signalr";
 import { API_BASE_PATH } from "../../utils/apiConfig";
 
@@ -813,6 +814,7 @@ const includesAnyAction = (allowedActions: string[], ...targets: string[]): bool
 const LecturerCommitteeGradingRoom: React.FC = () => {
     const { addToast } = useToast();
     const navigate = useNavigate();
+    const auth = useAuth();
     const [searchParams, setSearchParams] = useSearchParams();
     const isGradingScreen = true;
     const committeeIdParam = String(searchParams.get("committeeId") ?? "").trim();
@@ -1294,8 +1296,30 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
     const [revisionQueue, setRevisionQueue] = useState<RevisionRequest[]>([]);
     const [selectedCommitteeId, setSelectedCommitteeId] = useState<string>("");
     const [activeSessionTab, setActiveSessionTab] = useState<"morning" | "afternoon">("morning");
-    const myCode = useMemo(() => getLecturerCode()?.trim().toUpperCase() || "", []);
+    const [myCode, setMyCode] = useState<string>(() => getLecturerCode()?.trim().toUpperCase() || "");
+
+    useEffect(() => {
+        const fetchMyProfile = async () => {
+            try {
+                if (!auth.user?.userCode) return;
+                const res = await fetchData<ApiResponse<any[]>>(
+                    `/LecturerProfiles/get-list?UserCode=${encodeURIComponent(auth.user.userCode)}`
+                );
+                const data = res?.data || [];
+                if (data.length > 0 && data[0].lecturerCode) {
+                    const code = data[0].lecturerCode.trim().toUpperCase();
+                    setMyCode(code);
+                    setLecturerCode(code);
+                }
+            } catch (err) {
+                console.error("[GradingRoom] Error fetching current lecturer profile:", err);
+            }
+        };
+        void fetchMyProfile();
+    }, [auth.user?.userCode]);
+
     const [joinedCommitteeId, setJoinedCommitteeId] = useState<string>("");
+    const hasRedirectedRef = React.useRef(false);
     const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTabKey>("scoring");
     const [loadingData, setLoadingData] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
@@ -1512,28 +1536,40 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         }
 
         if (!committeeIdParam) {
-            notifyInfo("Vui lòng bấm Tham gia tại hội đồng để vào phòng chấm.");
-            navigate("/lecturer/committees", { replace: true });
+            if (!hasRedirectedRef.current) {
+                hasRedirectedRef.current = true;
+                notifyInfo("Vui lòng bấm Tham gia tại hội đồng để vào phòng chấm.");
+                navigate("/lecturer/committees", { replace: true });
+            }
             return;
         }
 
         const targetCommittee = committees.find((item) => item.id === committeeIdParam) ?? null;
 
         if (!targetCommittee) {
-            notifyInfo("Không tìm thấy hội đồng đã chọn. Vui lòng vào lại từ Danh sách hội đồng.");
-            navigate("/lecturer/committees", { replace: true });
+            if (!hasRedirectedRef.current) {
+                hasRedirectedRef.current = true;
+                notifyInfo("Không tìm thấy hội đồng đã chọn. Vui lòng vào lại từ Danh sách hội đồng.");
+                navigate("/lecturer/committees", { replace: true });
+            }
             return;
         }
 
         if (targetCommittee.status === "Đã đóng") {
-            notifyInfo("Hội đồng đã đóng phiên vĩnh viễn. Chỉ quản trị viên mở lại thì mới vào được phòng.");
-            navigate("/lecturer/committees", { replace: true });
+            if (!hasRedirectedRef.current) {
+                hasRedirectedRef.current = true;
+                notifyInfo("Hội đồng đã đóng phiên vĩnh viễn. Chỉ quản trị viên mở lại thì mới vào được phòng.");
+                navigate("/lecturer/committees", { replace: true });
+            }
             return;
         }
 
         if (targetCommittee.status === "Sắp diễn ra" && targetCommittee.roleCode !== "UVTK") {
-            notifyInfo("Chỉ Thư ký hội đồng mới được vào phòng để mở phiên trước khi Chủ tịch tham gia.");
-            navigate("/lecturer/committees", { replace: true });
+            if (!hasRedirectedRef.current) {
+                hasRedirectedRef.current = true;
+                notifyInfo("Chỉ Thư ký hội đồng mới được vào phòng để mở phiên trước khi Chủ tịch tham gia.");
+                navigate("/lecturer/committees", { replace: true });
+            }
             return;
         }
 
@@ -2274,261 +2310,265 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         setMinuteSavedAt(toStringOrNull(target.lastUpdated));
     };
 
-    useEffect(() => {
-        const hydrateLecturerData = async () => {
+    const hydrateLecturerData = async (silent = false) => {
+        if (!silent) {
             setLoadingData(true);
-            try {
-                const [committeeRes, revisionRes] = await Promise.all([
-                    lecturerApi.getCommittees() as Promise<
-                        ApiResponse<{
-                            items?: Array<Record<string, unknown>>;
-                            councilListLocked?: boolean | null;
-                            councilLockStatus?: string | null;
-                        }>
-                    >,
-                    lecturerApi.getRevisionQueue(),
-                ]);
-                setCurrentSnapshotError(null);
-
-                const allowedActions =
-                    committeeRes?.allowedActions ?? committeeRes?.AllowedActions;
-                if (allowedActions) {
-                    setFallbackAllowedActions(normalizeAllowedActions(allowedActions));
-                }
-
-                const committeePayload =
-                    (committeeRes?.data as {
+        }
+        try {
+            const [committeeRes, revisionRes] = await Promise.all([
+                lecturerApi.getCommittees() as Promise<
+                    ApiResponse<{
                         items?: Array<Record<string, unknown>>;
                         councilListLocked?: boolean | null;
                         councilLockStatus?: string | null;
-                    } | null) ?? null;
+                    }>
+                >,
+                lecturerApi.getRevisionQueue(),
+            ]);
+            setCurrentSnapshotError(null);
 
-                const lockStatusText = String(committeePayload?.councilLockStatus ?? "")
-                    .trim()
-                    .toUpperCase();
-                if (typeof committeePayload?.councilListLocked === "boolean") {
-                    setCouncilListLocked(committeePayload.councilListLocked);
-                    setCouncilLockStatus(
-                        lockStatusText || (committeePayload.councilListLocked ? "LOCKED" : "UNLOCKED"),
-                    );
-                } else if (lockStatusText) {
-                    setCouncilListLocked(lockStatusText === "LOCKED");
-                    setCouncilLockStatus(lockStatusText);
-                } else {
-                    setCouncilListLocked(null);
-                    setCouncilLockStatus("UNKNOWN");
-                }
+            const allowedActions =
+                committeeRes?.allowedActions ?? committeeRes?.AllowedActions;
+            if (allowedActions) {
+                setFallbackAllowedActions(normalizeAllowedActions(allowedActions));
+            }
 
-                const committeeItems =
-                    (committeePayload?.items ?? []) as Array<Record<string, unknown>>;
+            const committeePayload =
+                (committeeRes?.data as {
+                    items?: Array<Record<string, unknown>>;
+                    councilListLocked?: boolean | null;
+                    councilLockStatus?: string | null;
+                } | null) ?? null;
 
-                if (committeeItems.length) {
-                    const mapped = committeeItems.map((item, index) => {
-                        const roleValue = pickSnapshotSection<unknown>(
-                            item,
-                            ["normalizedRole", "NormalizedRole", "role", "Role"],
-                            "",
-                        );
-                        const roleCode = normalizeCommitteeRole(roleValue);
-                        const numericIdRaw = Number(
-                            pickSnapshotSection<unknown>(
-                                item,
-                                ["committeeId", "CommitteeId", "councilId", "CouncilId", "id", "Id"],
-                                0,
-                            ),
-                        );
-                        const committeeCode = String(
-                            pickSnapshotSection<unknown>(
-                                item,
-                                ["committeeCode", "CommitteeCode", "councilCode", "CouncilCode"],
-                                `HD-${index + 1}`,
-                            ),
-                        ).trim() || `HD-${index + 1}`;
-                        const fallbackNumeric = Number(String(committeeCode).replace(/\D+/g, ""));
-                        const numericId =
-                            Number.isFinite(numericIdRaw) && numericIdRaw > 0
-                                ? numericIdRaw
-                                : Number.isFinite(fallbackNumeric) && fallbackNumeric > 0
-                                    ? fallbackNumeric
-                                    : index + 1;
-
-                        const allowedScoringActions = normalizeAllowedActions(
-                            pickSnapshotSection<unknown>(
-                                item,
-                                ["allowedScoringActions", "AllowedScoringActions"],
-                                [],
-                            ),
-                        );
-                        const allowedMinuteActions = normalizeAllowedActions(
-                            pickSnapshotSection<unknown>(
-                                item,
-                                ["allowedMinuteActions", "AllowedMinuteActions"],
-                                [],
-                            ),
-                        );
-                        const allowedRevisionActions = normalizeAllowedActions(
-                            pickSnapshotSection<unknown>(
-                                item,
-                                ["allowedRevisionActions", "AllowedRevisionActions"],
-                                [],
-                            ),
-                        );
-
-                        const sessionRaw = toStringOrNull(
-                            pickSnapshotSection<unknown>(
-                                item,
-                                ["sessionCode", "SessionCode", "session", "Session"],
-                                null,
-                            ),
-                        );
-
-                        const committeeName =
-                            toStringOrNull(
-                                pickSnapshotSection<unknown>(
-                                    item,
-                                    ["name", "Name", "committeeName", "CommitteeName"],
-                                    null,
-                                ),
-                            ) ?? `Hội đồng ${committeeCode}`;
-
-                        const startTime = normalizeTimeText(
-                            pickSnapshotSection<unknown>(
-                                item,
-                                ["startTime", "StartTime", "slotStart", "SlotStart"],
-                                null,
-                            ),
-                        );
-                        const endTime = normalizeTimeText(
-                            pickSnapshotSection<unknown>(
-                                item,
-                                ["endTime", "EndTime", "slotEnd", "SlotEnd"],
-                                null,
-                            ),
-                        );
-
-                        const scheduledAt = toIsoDateOrNull(
-                            pickSnapshotSection<unknown>(
-                                item,
-                                ["scheduledAt", "ScheduledAt", "defenseDate", "DefenseDate"],
-                                null,
-                            ),
-                        );
-
-                        const resolvedSession = sessionRaw
-                            ? normalizeSessionCode(sessionRaw)
-                            : inferSessionFromTime(startTime);
-
-                        const slot =
-                            startTime && endTime
-                                ? `${startTime} - ${endTime}`
-                                : startTime
-                                    ? `Từ ${startTime}`
-                                    : endTime
-                                        ? `Đến ${endTime}`
-                                        : null;
-
-                        const defenseDate = scheduledAt ? scheduledAt.slice(0, 10) : null;
-
-                        const members = mapCommitteeMembers(
-                            pickSnapshotSection<unknown>(
-                                item,
-                                ["members", "Members", "committeeMembers", "CommitteeMembers"],
-                                [],
-                            ),
-                        );
-
-                        return {
-                            id: committeeCode,
-                            name: committeeName,
-                            numericId,
-                            room: String(pickSnapshotSection<unknown>(item, ["room", "Room"], "-") ?? "-") || "-",
-                            session: resolvedSession,
-                            date: defenseDate,
-                            slot,
-                            studentCount: Number(
-                                pickSnapshotSection<unknown>(
-                                    item,
-                                    ["studentCount", "StudentCount", "topicCount", "TopicCount", "assignmentCount", "AssignmentCount"],
-                                    0,
-                                ) ?? 0,
-                            ),
-                            status: mapCommitteeStatus(pickSnapshotSection<unknown>(item, ["status", "Status"], "")),
-                            normalizedRole: roleCode,
-                            roleCode,
-                            roleLabel: getRoleLabel(roleCode),
-                            roleRaw: String(pickSnapshotSection<unknown>(item, ["role", "Role"], "")).trim(),
-                            allowedScoringActions,
-                            allowedMinuteActions,
-                            allowedRevisionActions,
-                            members,
-                        };
-                    }) satisfies Committee[];
-                    setCommittees(mapped);
-                    setSelectedCommitteeId((prev) => (mapped.some((item) => item.id === prev) ? prev : mapped[0]?.id ?? ""));
-                    setDetailCommitteeId((prev) => (mapped.some((item) => item.id === prev) ? prev : ""));
-                } else {
-                    setCommittees([]);
-                    setSelectedCommitteeId("");
-                    setDetailCommitteeId("");
-                }
-
-                if (!notifyApiFailure(revisionRes as ApiResponse<unknown>, "Không tải được hàng chờ chỉnh sửa.")) {
-                    const mappedRevisions = mapRevisionQueueRows((revisionRes?.data ?? []) as Array<Record<string, unknown>>);
-                    setRevisionQueue(mappedRevisions);
-                    setRevision(mappedRevisions[0] ?? EMPTY_REVISION);
-                }
-
-                await refreshAllScoringRows();
-            } catch (error) {
-                setCommittees([]);
-                setAllScoringRows([]);
-                setRevisionQueue([]);
-                setRevision(EMPTY_REVISION);
-                setSelectedCommitteeId("");
-                setDetailCommitteeId("");
+            const lockStatusText = String(committeePayload?.councilLockStatus ?? "")
+                .trim()
+                .toUpperCase();
+            if (typeof committeePayload?.councilListLocked === "boolean") {
+                setCouncilListLocked(committeePayload.councilListLocked);
+                setCouncilLockStatus(
+                    lockStatusText || (committeePayload.councilListLocked ? "LOCKED" : "UNLOCKED"),
+                );
+            } else if (lockStatusText) {
+                setCouncilListLocked(lockStatusText === "LOCKED");
+                setCouncilLockStatus(lockStatusText);
+            } else {
                 setCouncilListLocked(null);
                 setCouncilLockStatus("UNKNOWN");
+            }
 
-                if (error instanceof FetchDataError) {
-                    const apiMessage = readApiErrorMessage(error.data);
+            const committeeItems =
+                (committeePayload?.items ?? []) as Array<Record<string, unknown>>;
 
-                    if (error.status === 404) {
-                        const message =
-                            apiMessage ??
-                            "Bạn chưa được gán vào đợt đồ án tốt nghiệp đang hoạt động. Vui lòng liên hệ quản trị viên.";
-                        setCurrentSnapshotError(message);
-                        setCurrentPeriod(null);
-                        notifyInfo(message);
-                        return;
-                    }
+            if (committeeItems.length) {
+                const mapped = committeeItems.map((item, index) => {
+                    const roleValue = pickSnapshotSection<unknown>(
+                        item,
+                        ["normalizedRole", "NormalizedRole", "role", "Role"],
+                        "",
+                    );
+                    const roleCode = normalizeCommitteeRole(roleValue);
+                    const numericIdRaw = Number(
+                        pickSnapshotSection<unknown>(
+                            item,
+                            ["committeeId", "CommitteeId", "councilId", "CouncilId", "id", "Id"],
+                            0,
+                        ),
+                    );
+                    const committeeCode = String(
+                        pickSnapshotSection<unknown>(
+                            item,
+                            ["committeeCode", "CommitteeCode", "councilCode", "CouncilCode"],
+                            `HD-${index + 1}`,
+                        ),
+                    ).trim() || `HD-${index + 1}`;
+                    const fallbackNumeric = Number(String(committeeCode).replace(/\D+/g, ""));
+                    const numericId =
+                        Number.isFinite(numericIdRaw) && numericIdRaw > 0
+                            ? numericIdRaw
+                            : Number.isFinite(fallbackNumeric) && fallbackNumeric > 0
+                                ? fallbackNumeric
+                                : index + 1;
 
-                    if (error.status === 409) {
-                        const message =
-                            apiMessage ??
-                            "Tài khoản hiện tại đang gắn với nhiều đợt đồ án tốt nghiệp hoạt động. Vui lòng liên hệ quản trị viên để xử lý dữ liệu.";
-                        setCurrentSnapshotError(message);
-                        setCurrentPeriod(null);
-                        notifyError(message);
-                        return;
-                    }
+                    const allowedScoringActions = normalizeAllowedActions(
+                        pickSnapshotSection<unknown>(
+                            item,
+                            ["allowedScoringActions", "AllowedScoringActions"],
+                            [],
+                        ),
+                    );
+                    const allowedMinuteActions = normalizeAllowedActions(
+                        pickSnapshotSection<unknown>(
+                            item,
+                            ["allowedMinuteActions", "AllowedMinuteActions"],
+                            [],
+                        ),
+                    );
+                    const allowedRevisionActions = normalizeAllowedActions(
+                        pickSnapshotSection<unknown>(
+                            item,
+                            ["allowedRevisionActions", "AllowedRevisionActions"],
+                            [],
+                        ),
+                    );
+
+                    const sessionRaw = toStringOrNull(
+                        pickSnapshotSection<unknown>(
+                            item,
+                            ["sessionCode", "SessionCode", "session", "Session"],
+                            null,
+                        ),
+                    );
+
+                    const committeeName =
+                        toStringOrNull(
+                            pickSnapshotSection<unknown>(
+                                item,
+                                ["name", "Name", "committeeName", "CommitteeName"],
+                                null,
+                            ),
+                        ) ?? `Hội đồng ${committeeCode}`;
+
+                    const startTime = normalizeTimeText(
+                        pickSnapshotSection<unknown>(
+                            item,
+                            ["startTime", "StartTime", "slotStart", "SlotStart"],
+                            null,
+                        ),
+                    );
+                    const endTime = normalizeTimeText(
+                        pickSnapshotSection<unknown>(
+                            item,
+                            ["endTime", "EndTime", "slotEnd", "SlotEnd"],
+                            null,
+                        ),
+                    );
+
+                    const scheduledAt = toIsoDateOrNull(
+                        pickSnapshotSection<unknown>(
+                            item,
+                            ["scheduledAt", "ScheduledAt", "defenseDate", "DefenseDate"],
+                            null,
+                        ),
+                    );
+
+                    const resolvedSession = sessionRaw
+                        ? normalizeSessionCode(sessionRaw)
+                        : inferSessionFromTime(startTime);
+
+                    const slot =
+                        startTime && endTime
+                            ? `${startTime} - ${endTime}`
+                            : startTime
+                                ? `Từ ${startTime}`
+                                : endTime
+                                    ? `Đến ${endTime}`
+                                    : null;
+
+                    const defenseDate = scheduledAt ? scheduledAt.slice(0, 10) : null;
+
+                    const members = mapCommitteeMembers(
+                        pickSnapshotSection<unknown>(
+                            item,
+                            ["members", "Members", "committeeMembers", "CommitteeMembers"],
+                            [],
+                        ),
+                    );
+
+                    return {
+                        id: committeeCode,
+                        name: committeeName,
+                        numericId,
+                        room: String(pickSnapshotSection<unknown>(item, ["room", "Room"], "-") ?? "-") || "-",
+                        session: resolvedSession,
+                        date: defenseDate,
+                        slot,
+                        studentCount: Number(
+                            pickSnapshotSection<unknown>(
+                                item,
+                                ["studentCount", "StudentCount", "topicCount", "TopicCount", "assignmentCount", "AssignmentCount"],
+                                0,
+                            ) ?? 0,
+                        ),
+                        status: mapCommitteeStatus(pickSnapshotSection<unknown>(item, ["status", "Status"], "")),
+                        normalizedRole: roleCode,
+                        roleCode,
+                        roleLabel: getRoleLabel(roleCode),
+                        roleRaw: String(pickSnapshotSection<unknown>(item, ["role", "Role"], "")).trim(),
+                        allowedScoringActions,
+                        allowedMinuteActions,
+                        allowedRevisionActions,
+                        members,
+                    };
+                }) satisfies Committee[];
+                setCommittees(mapped);
+                setSelectedCommitteeId((prev) => (mapped.some((item) => item.id === prev) ? prev : mapped[0]?.id ?? ""));
+                setDetailCommitteeId((prev) => (mapped.some((item) => item.id === prev) ? prev : ""));
+            } else {
+                setCommittees([]);
+                setSelectedCommitteeId("");
+                setDetailCommitteeId("");
+            }
+
+            if (!notifyApiFailure(revisionRes as ApiResponse<unknown>, "Không tải được hàng chờ chỉnh sửa.")) {
+                const mappedRevisions = mapRevisionQueueRows((revisionRes?.data ?? []) as Array<Record<string, unknown>>);
+                setRevisionQueue(mappedRevisions);
+                setRevision(mappedRevisions[0] ?? EMPTY_REVISION);
+            }
+
+            await refreshAllScoringRows();
+        } catch (error) {
+            setCommittees([]);
+            setAllScoringRows([]);
+            setRevisionQueue([]);
+            setRevision(EMPTY_REVISION);
+            setSelectedCommitteeId("");
+            setDetailCommitteeId("");
+            setCouncilListLocked(null);
+            setCouncilLockStatus("UNKNOWN");
+
+            if (error instanceof FetchDataError) {
+                const apiMessage = readApiErrorMessage(error.data);
+
+                if (error.status === 404) {
+                    const message =
+                        apiMessage ??
+                        "Bạn chưa được gán vào đợt đồ án tốt nghiệp đang hoạt động. Vui lòng liên hệ quản trị viên.";
+                    setCurrentSnapshotError(message);
+                    setCurrentPeriod(null);
+                    notifyInfo(message);
+                    return;
                 }
 
-                if (error instanceof Error && error.message === "CURRENT_PERIOD_CONTRACT_INVALID") {
-                    const message = "Dữ liệu snapshot hiện tại không chứa thông tin đợt đồ án tốt nghiệp hợp lệ.";
+                if (error.status === 409) {
+                    const message =
+                        apiMessage ??
+                        "Tài khoản hiện tại đang gắn với nhiều đợt đồ án tốt nghiệp hoạt động. Vui lòng liên hệ quản trị viên để xử lý dữ liệu.";
                     setCurrentSnapshotError(message);
                     setCurrentPeriod(null);
                     notifyError(message);
                     return;
                 }
+            }
 
-                setCurrentSnapshotError("Không tải được dữ liệu giảng viên từ API.");
-                notifyError("Không tải được dữ liệu giảng viên từ API.");
-            } finally {
+            if (error instanceof Error && error.message === "CURRENT_PERIOD_CONTRACT_INVALID") {
+                const message = "Dữ liệu snapshot hiện tại không chứa thông tin đợt đồ án tốt nghiệp hợp lệ.";
+                setCurrentSnapshotError(message);
+                setCurrentPeriod(null);
+                notifyError(message);
+                return;
+            }
+
+            setCurrentSnapshotError("Không tải được dữ liệu giảng viên từ API.");
+            notifyError("Không tải được dữ liệu giảng viên từ API.");
+        } finally {
+            if (!silent) {
                 setLoadingData(false);
             }
-        };
+        }
+    };
 
-        void hydrateLecturerData();
+    useEffect(() => {
+        void hydrateLecturerData(false);
     }, [periodId]);
 
     const committeeStats = useMemo(() => {
@@ -2843,7 +2883,15 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         if (scoringMatrix.length === 0) return false;
         return scoringMatrix.every(row => {
             const s = row.status.toUpperCase();
-            return s === "COMPLETED" || s === "LOCKED" || (row.requiredCount > 0 && row.submittedCount >= row.requiredCount);
+            if (s === "COMPLETED" || s === "LOCKED") return true;
+
+            // Must have scores from all 4 roles: Giảng viên hướng dẫn (GVHD), Chủ tịch (CT), Thư ký (UVTK), và Ủy viên phản biện (UVPB)
+            return (
+                row.scoreGvhd !== null && row.scoreGvhd !== undefined &&
+                row.scoreCt !== null && row.scoreCt !== undefined &&
+                row.scoreTk !== null && row.scoreTk !== undefined &&
+                row.scorePb !== null && row.scorePb !== undefined
+            );
         });
     }, [scoringMatrix]);
 
@@ -2997,6 +3045,20 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         setRevisionDeadlineDays("");
     }, [isChairRole, selectedCommitteeId, selectedAssignmentId]);
 
+    const refreshScoringDataRef = React.useRef(refreshScoringData);
+    const refreshAllScoringRowsRef = React.useRef(refreshAllScoringRows);
+    const hydrateLecturerDataRef = React.useRef(hydrateLecturerData);
+    const selectedCommitteeNumericIdRef = React.useRef(selectedCommitteeNumericId);
+    const selectedCommitteeIdRef = React.useRef(selectedCommitteeId);
+
+    useEffect(() => {
+        refreshScoringDataRef.current = refreshScoringData;
+        refreshAllScoringRowsRef.current = refreshAllScoringRows;
+        hydrateLecturerDataRef.current = hydrateLecturerData;
+        selectedCommitteeNumericIdRef.current = selectedCommitteeNumericId;
+        selectedCommitteeIdRef.current = selectedCommitteeId;
+    });
+
     useEffect(() => {
         if (!joinedCommitteeId || !selectedCommitteeNumericId) {
             setOnlineLecturerCodes([]);
@@ -3026,7 +3088,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
 
             console.log("GRADEROOM SignalR MemberOnlineStatusChanged event received:", { committeeId, lecturerCode, status });
 
-            if (Number(committeeId) === selectedCommitteeNumericId) {
+            if (Number(committeeId) === selectedCommitteeNumericIdRef.current) {
                 const code = String(lecturerCode || "").trim().toUpperCase();
                 if (code) {
                     const isOnline = String(status).toUpperCase() === "ONLINE";
@@ -3065,17 +3127,105 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             }
         });
 
+        connection.on("DefenseScoreSubmitted", (event: any) => {
+            const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+            const assignmentId = pickCaseInsensitiveValue<number>(event, ["assignmentId", "AssignmentId"], 0);
+            const lecturerCode = pickCaseInsensitiveValue<string>(event, ["lecturerCode", "LecturerCode"], "");
+
+            console.log("GRADEROOM SignalR DefenseScoreSubmitted event received:", { committeeId, assignmentId, lecturerCode });
+
+            if (Number(committeeId) === selectedCommitteeNumericIdRef.current) {
+                console.log("GRADEROOM SignalR DefenseScoreSubmitted matches current committee. Refreshing grading room scores...");
+                void refreshScoringDataRef.current(selectedCommitteeNumericIdRef.current);
+                void refreshAllScoringRowsRef.current();
+            }
+        });
+
+        connection.on("DefenseSessionOpened", (event: any) => {
+            const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+            console.log("GRADEROOM SignalR DefenseSessionOpened received:", event);
+            if (Number(committeeId) === selectedCommitteeNumericIdRef.current) {
+                setCommittees(prev => 
+                    prev.map(c => c.numericId === Number(committeeId) ? { ...c, status: "Đang họp" } : c)
+                );
+                void refreshScoringDataRef.current(selectedCommitteeNumericIdRef.current);
+                void hydrateLecturerDataRef.current(true); // silent refresh of actions/permissions
+            }
+        });
+
+        connection.on("DefenseSessionPaused", (event: any) => {
+            const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+            console.log("GRADEROOM SignalR DefenseSessionPaused received:", event);
+            if (Number(committeeId) === selectedCommitteeNumericIdRef.current) {
+                setCommittees(prev => 
+                    prev.map(c => c.numericId === Number(committeeId) ? { ...c, status: "Tạm dừng" } : c)
+                );
+                void refreshScoringDataRef.current(selectedCommitteeNumericIdRef.current);
+                void hydrateLecturerDataRef.current(true); // silent refresh of actions/permissions
+            }
+        });
+
+        connection.on("DefenseSessionResumed", (event: any) => {
+            const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+            console.log("GRADEROOM SignalR DefenseSessionResumed received:", event);
+            if (Number(committeeId) === selectedCommitteeNumericIdRef.current) {
+                setCommittees(prev => 
+                    prev.map(c => c.numericId === Number(committeeId) ? { ...c, status: "Đang họp" } : c)
+                );
+                void refreshScoringDataRef.current(selectedCommitteeNumericIdRef.current);
+                void hydrateLecturerDataRef.current(true); // silent refresh of actions/permissions
+            }
+        });
+
+        connection.on("DefenseSessionLocked", (event: any) => {
+            const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+            console.log("GRADEROOM SignalR DefenseSessionLocked received:", event);
+            if (Number(committeeId) === selectedCommitteeNumericIdRef.current) {
+                setCommittees(prev => 
+                    prev.map(c => c.numericId === Number(committeeId) ? { ...c, status: "Đã chốt" } : c)
+                );
+                void refreshScoringDataRef.current(selectedCommitteeNumericIdRef.current);
+                void refreshAllScoringRowsRef.current();
+                void hydrateLecturerDataRef.current(true); // silent refresh of actions/permissions
+            }
+        });
+
+         connection.on("DefenseSessionClosed", (event: any) => {
+            const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+            console.log("GRADEROOM SignalR DefenseSessionClosed received:", event);
+            if (Number(committeeId) === selectedCommitteeNumericIdRef.current) {
+                setCommittees(prev => 
+                    prev.map(c => c.numericId === Number(committeeId) ? { ...c, status: "Đã đóng" } : c)
+                );
+                notifyInfo("Hội đồng đã đóng phiên vĩnh viễn. Chỉ quản trị viên mở lại thì mới vào được phòng.");
+                navigate("/lecturer/committees", { replace: true });
+            }
+        });
+
+        connection.on("DefenseSessionReopened", (event: any) => {
+            const committeeId = pickCaseInsensitiveValue<number>(event, ["committeeId", "CommitteeId"], 0);
+            console.log("GRADEROOM SignalR DefenseSessionReopened received:", event);
+            if (Number(committeeId) === selectedCommitteeNumericIdRef.current) {
+                setCommittees(prev => 
+                    prev.map(c => c.numericId === Number(committeeId) ? { ...c, status: "Đã chốt" } : c)
+                );
+                void refreshScoringDataRef.current(selectedCommitteeNumericIdRef.current);
+                void refreshAllScoringRowsRef.current();
+                void hydrateLecturerDataRef.current(true); // silent refresh of actions/permissions
+            }
+        });
+
         const startHubConnection = async () => {
             try {
                 await connection.start();
                 console.log("GRADEROOM SignalR connected successfully. Connection state:", connection.state);
                 if (connection.state === HubConnectionState.Connected) {
                     setHubConnection(connection);
-                    console.log("GRADEROOM SignalR invoking JoinCommittee with:", selectedCommitteeNumericId);
-                    await connection.invoke("JoinCommittee", selectedCommitteeNumericId);
+                    console.log("GRADEROOM SignalR invoking JoinCommittee with:", selectedCommitteeNumericIdRef.current);
+                    await connection.invoke("JoinCommittee", selectedCommitteeNumericIdRef.current);
                     
-                    console.log("GRADEROOM SignalR invoking GetOnlineMembers with:", selectedCommitteeNumericId);
-                    const initialOnline = await connection.invoke<string[]>("GetOnlineMembers", selectedCommitteeNumericId);
+                    console.log("GRADEROOM SignalR invoking GetOnlineMembers with:", selectedCommitteeNumericIdRef.current);
+                    const initialOnline = await connection.invoke<string[]>("GetOnlineMembers", selectedCommitteeNumericIdRef.current);
                     console.log("GRADEROOM SignalR GetOnlineMembers result:", initialOnline);
                     const normalized = (initialOnline || []).map(code => code.trim().toUpperCase());
                     setOnlineLecturerCodes(normalized);
@@ -3091,7 +3241,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
             const stopHubConnection = async () => {
                 if (connection.state === HubConnectionState.Connected) {
                     try {
-                        await connection.invoke("LeaveCommittee", selectedCommitteeNumericId);
+                        await connection.invoke("LeaveCommittee", selectedCommitteeNumericIdRef.current);
                     } catch (err) {
                         // ignore
                     }
@@ -3567,9 +3717,11 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
         const trimmedReason = `Chốt điểm hội đồng ${selectedCommitteeId || selectedCommitteeNumericId}`;
 
         try {
-            const submittedOk = await handleSubmitScore({ suppressToast: true });
-            if (!submittedOk) {
-                return;
+            if (myScore !== "") {
+                const submittedOk = await handleSubmitScore({ suppressToast: true });
+                if (!submittedOk) {
+                    return;
+                }
             }
 
             const idempotencyKey = createIdempotencyKey(periodIdText || "NA", "lecturer-session-lock");
@@ -4399,7 +4551,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                 {/* Role-specific session actions */}
                                 {(isSecretaryRole || isChairRole) && (
                                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                        {selectedCommittee?.status === "Sắp diễn ra" && isSecretaryRole && (
+                                        {selectedCommittee?.status === "Sắp diễn ra" && isSecretaryRole && !isReviewerRole && !isChairRole && (
                                             <button
                                                 type="button"
                                                 className="lec-primary"
@@ -4411,7 +4563,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                             </button>
                                         )}
 
-                                        {selectedCommittee?.status === "Đang họp" && isSecretaryRole && !isSessionPaused && (
+                                        {selectedCommittee?.status === "Đang họp" && isSecretaryRole && !isSessionPaused && !isReviewerRole && !isChairRole && (
                                             <button
                                                 type="button"
                                                 className="lec-primary"
@@ -4422,7 +4574,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                             </button>
                                         )}
 
-                                        {selectedCommittee?.status === "Tạm dừng" && isSecretaryRole && (
+                                        {selectedCommittee?.status === "Tạm dừng" && isSecretaryRole && !isReviewerRole && !isChairRole && (
                                             <button
                                                 type="button"
                                                 className="lec-primary"
@@ -4457,7 +4609,7 @@ const LecturerCommitteeGradingRoom: React.FC = () => {
                                                     </button>
                                                 )}
 
-                                                {isSecretaryRole && (
+                                                {isSecretaryRole && !isReviewerRole && !isChairRole && (
                                                     <button
                                                         type="button"
                                                         className="lec-primary"

@@ -198,7 +198,7 @@ const AdminLayout: React.FC = () => {
             top: 0,
             left: 0,
             height: "100vh",
-            zIndex: 9999,
+            zIndex: 10005,
           }}
         >
           <div
@@ -439,7 +439,7 @@ const AdminLayout: React.FC = () => {
               right: 0,
               top: 0,
               height: 72,
-              zIndex: 60,
+              zIndex: showDropdown ? 10001 : 60,
               transition: "left 0.28s ease",
             }}
           >
@@ -706,6 +706,8 @@ const AdminLayout: React.FC = () => {
               minWidth: 0,
               boxSizing: "border-box",
               width: "100%",
+              position: "relative",
+              zIndex: showDropdown ? 1 : 10000,
             }}
             onPointerDownCapture={collapseSidebarOnActivity}
             onFocusCapture={collapseSidebarOnActivity}

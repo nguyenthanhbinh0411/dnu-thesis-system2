@@ -206,11 +206,8 @@ namespace ThesisManagement.Api.Application.Query.LecturerProfiles
             }
             else
             {
-                // Nhánh dự phòng: Lấy từ CSDL View nếu không có bộ lọc đợt
-                countMap = await _db.LecturerDashboardView
-                    .Where(x => pageLecturerIds.Contains(x.LecturerProfileID))
-                    .Select(x => new { x.LecturerProfileID, x.CurrentGuidingCount })
-                    .ToDictionaryAsync(x => x.LecturerProfileID, x => x.CurrentGuidingCount);
+                // Khi không truyền đợt lọc (lấy danh sách thông tin cơ bản), ta không cần đếm/lấy
+                countMap = new Dictionary<int, int>();
             }
 
             var mappedItems = itemList

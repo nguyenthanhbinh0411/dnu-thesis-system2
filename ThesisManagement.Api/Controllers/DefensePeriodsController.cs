@@ -1651,6 +1651,31 @@ namespace ThesisManagement.Api.Controllers
             [FromQuery] string? template = "dashboard")
         {
             var normalizedTemplate = (template ?? query.Template ?? "dashboard").Trim().ToLowerInvariant();
+
+            var period = await _db.DefenseTerms.AsNoTracking().FirstOrDefaultAsync(x => x.DefenseTermId == periodId);
+            if (period == null)
+            {
+                return BadRequest(ApiResponse<object>.Fail("Không tìm thấy đợt bảo vệ.", 404));
+            }
+
+            var termStatus = period.Status;
+            var weight = GetStatusWeight(termStatus);
+
+            if (normalizedTemplate == "final-term")
+            {
+                if (weight < 7)
+                {
+                    return BadRequest(ApiResponse<object>.Fail("Bảng điểm tổng kết đợt chỉ có thể tải xuống khi đợt bảo vệ đã ở giai đoạn Hậu bảo vệ trở đi.", 400));
+                }
+            }
+            else if (normalizedTemplate == "students" || normalizedTemplate == "lecturers" || normalizedTemplate == "assigned-topics" || normalizedTemplate == "lecturers-grouped-students")
+            {
+                if (weight < 1)
+                {
+                    return BadRequest(ApiResponse<object>.Fail("Báo cáo chỉ khả dụng khi đợt bảo vệ đã bắt đầu giai đoạn Đăng ký trở đi.", 400));
+                }
+            }
+
             var operationsAction = await GetOperationsSnapshotCompact(periodId, query);
             if (!TryExtractApiResponse(operationsAction, out var operations, out var operationsStatusCode) || operations == null)
             {
@@ -1715,9 +1740,37 @@ namespace ThesisManagement.Api.Controllers
             [FromQuery] string reportType = "final-term",
             [FromQuery] string format = "csv",
             [FromQuery] int? councilId = null,
-            [FromQuery] int? assignmentId = null)
+            [FromQuery] int? assignmentId = null,
+            [FromQuery] string? fields = null,
+            [FromQuery] string? groupBy = null)
         {
             var normalized = (reportType ?? string.Empty).Trim().ToLowerInvariant();
+
+            var period = await _db.DefenseTerms.AsNoTracking().FirstOrDefaultAsync(x => x.DefenseTermId == periodId);
+            if (period == null)
+            {
+                return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt bảo vệ.", 404));
+            }
+
+            var termStatus = period.Status;
+            var weight = GetStatusWeight(termStatus);
+
+            if (normalized == "final-term")
+            {
+                if (weight < 7)
+                {
+                    return BadRequest(ApiResponse<object>.Fail("Bảng điểm tổng kết đợt chỉ có thể tải xuống khi đợt bảo vệ đã ở giai đoạn Hậu bảo vệ trở đi.", 400));
+                }
+            }
+            else if (normalized == "students" || normalized == "lecturers" || normalized == "assigned-topics" || normalized == "lecturers-grouped-students")
+            {
+                if (weight < 1)
+                {
+                    return BadRequest(ApiResponse<object>.Fail("Báo cáo chỉ khả dụng khi đợt bảo vệ đã bắt đầu giai đoạn Đăng ký trở đi.", 400));
+                }
+            }
+
+            var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
 
             // Handle template-based exports for minutes and reviews
             if (normalized == "minutes" || normalized == "review")
@@ -1793,7 +1846,7 @@ namespace ThesisManagement.Api.Controllers
 
             if (normalized == "final-term")
             {
-                return await ExportFinalTerm(periodId, councilId, format);
+                return await ExportFinalTerm(periodId, councilId, format, fieldList, groupBy);
             }
 
             if (normalized == "committee-roster")
@@ -1839,6 +1892,31 @@ namespace ThesisManagement.Api.Controllers
                 return BadRequest(ApiResponse<object>.Fail("Format là bắt buộc.", 400));
             }
 
+            var period = await _db.DefenseTerms.AsNoTracking().FirstOrDefaultAsync(x => x.DefenseTermId == periodId);
+            if (period == null)
+            {
+                return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt bảo vệ.", 404));
+            }
+
+            var termStatus = period.Status;
+            var weight = GetStatusWeight(termStatus);
+
+            var normalized = (request.ReportType ?? string.Empty).Trim().ToLowerInvariant();
+            if (normalized == "final-term")
+            {
+                if (weight < 7)
+                {
+                    return BadRequest(ApiResponse<object>.Fail("Bảng điểm tổng kết đợt chỉ có thể tải xuống khi đợt bảo vệ đã ở giai đoạn Hậu bảo vệ trở đi.", 400));
+                }
+            }
+            else if (normalized == "students" || normalized == "lecturers" || normalized == "assigned-topics" || normalized == "lecturers-grouped-students")
+            {
+                if (weight < 1)
+                {
+                    return BadRequest(ApiResponse<object>.Fail("Báo cáo chỉ khả dụng khi đợt bảo vệ đã bắt đầu giai đoạn Đăng ký trở đi.", 400));
+                }
+            }
+
             var result = await _reportQuery.ExecuteAsync(request, periodId, HttpContext.RequestAborted);
             if (!result.Success)
             {
@@ -1852,6 +1930,10 @@ namespace ThesisManagement.Api.Controllers
         [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
         public async Task<IActionResult> ExportStudentsByPeriod(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
         {
+            var period = await _db.DefenseTerms.AsNoTracking().FirstOrDefaultAsync(x => x.DefenseTermId == periodId);
+            if (period == null) return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt bảo vệ.", 404));
+            if (GetStatusWeight(period.Status) < 1) return BadRequest(ApiResponse<object>.Fail("Báo cáo chỉ khả dụng khi đợt bảo vệ đã bắt đầu giai đoạn Đăng ký trở đi.", 400));
+
             var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
             var result = await _modularExportService.ExportStudentsAsync(periodId, format, fieldList, HttpContext.RequestAborted);
             if (!result.Success) return StatusCode(result.HttpStatusCode, result);
@@ -1862,6 +1944,10 @@ namespace ThesisManagement.Api.Controllers
         [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
         public async Task<IActionResult> ExportLecturersByPeriod(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
         {
+            var period = await _db.DefenseTerms.AsNoTracking().FirstOrDefaultAsync(x => x.DefenseTermId == periodId);
+            if (period == null) return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt bảo vệ.", 404));
+            if (GetStatusWeight(period.Status) < 1) return BadRequest(ApiResponse<object>.Fail("Báo cáo chỉ khả dụng khi đợt bảo vệ đã bắt đầu giai đoạn Đăng ký trở đi.", 400));
+
             var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
             var result = await _modularExportService.ExportLecturersAsync(periodId, format, fieldList, HttpContext.RequestAborted);
             if (!result.Success) return StatusCode(result.HttpStatusCode, result);
@@ -1872,6 +1958,10 @@ namespace ThesisManagement.Api.Controllers
         [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
         public async Task<IActionResult> ExportAssignedTopics(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
         {
+            var period = await _db.DefenseTerms.AsNoTracking().FirstOrDefaultAsync(x => x.DefenseTermId == periodId);
+            if (period == null) return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt bảo vệ.", 404));
+            if (GetStatusWeight(period.Status) < 1) return BadRequest(ApiResponse<object>.Fail("Báo cáo chỉ khả dụng khi đợt bảo vệ đã bắt đầu giai đoạn Đăng ký trở đi.", 400));
+
             var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
             var result = await _modularExportService.ExportAssignedTopicsAsync(periodId, format, fieldList, HttpContext.RequestAborted);
             if (!result.Success) return StatusCode(result.HttpStatusCode, result);
@@ -1882,6 +1972,10 @@ namespace ThesisManagement.Api.Controllers
         [Authorize(Roles = "Admin,Head,Secretary,Lecturer")]
         public async Task<IActionResult> ExportGroupedLecturerReport(int periodId, [FromQuery] string format = "xlsx", [FromQuery] string? fields = null)
         {
+            var period = await _db.DefenseTerms.AsNoTracking().FirstOrDefaultAsync(x => x.DefenseTermId == periodId);
+            if (period == null) return NotFound(ApiResponse<object>.Fail("Không tìm thấy đợt bảo vệ.", 404));
+            if (GetStatusWeight(period.Status) < 1) return BadRequest(ApiResponse<object>.Fail("Báo cáo chỉ khả dụng khi đợt bảo vệ đã bắt đầu giai đoạn Đăng ký trở đi.", 400));
+
             var fieldList = !string.IsNullOrWhiteSpace(fields) ? fields.Split(',').ToList() : null;
             var result = await _modularExportService.ExportGroupedLecturerReportAsync(periodId, format, fieldList, HttpContext.RequestAborted);
             if (!result.Success) return StatusCode(result.HttpStatusCode, result);
@@ -4380,9 +4474,17 @@ namespace ThesisManagement.Api.Controllers
         }
 
 
-        private async Task<IActionResult> ExportFinalTerm(int periodId, [FromQuery] int? councilId = null, [FromQuery] string format = "csv")
+        private async Task<IActionResult> ExportFinalTerm(int periodId, int? councilId = null, string format = "csv", List<string>? fields = null, string? groupBy = null)
         {
-            var result = await _reportQuery.ExecuteAsync(periodId, "final-term", format, councilId);
+            var request = new DefensePeriodReportExportRequestDto
+            {
+                ReportType = "final-term",
+                Format = format,
+                CouncilId = councilId,
+                SelectedFields = fields ?? new List<string>(),
+                GroupBy = groupBy
+            };
+            var result = await _reportQuery.ExecuteAsync(request, periodId, HttpContext.RequestAborted);
             if (!result.Success)
             {
                 return StatusCode(result.HttpStatusCode == 0 ? 400 : result.HttpStatusCode, result);
@@ -6065,7 +6167,7 @@ namespace ThesisManagement.Api.Controllers
             ws.Range(row, 8, row, 10).Merge();
             
             row++;
-            ws.Cell(row, 4).Value = "Người lập biểu";
+            ws.Cell(row, 4).Value = "NGƯỜI LẬP BIỂU";
             ws.Cell(row, 4).Style.Font.Bold = true;
             ws.Cell(row, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             ws.Range(row, 4, row, 5).Merge();
@@ -6082,6 +6184,28 @@ namespace ThesisManagement.Api.Controllers
             ws.Range(row, 8, row, 10).Merge();
             
             ws.Columns().AdjustToContents();
+        }
+
+        private static int GetStatusWeight(string? status)
+        {
+            var s = (status ?? string.Empty).Trim().ToLowerInvariant();
+            return s switch
+            {
+                "draft" => 0,
+                "registration" => 1,
+                "preparing" => 1,
+                "assignment" => 2,
+                "progresstracking" => 3,
+                "committeepreparation" => 4,
+                "running" => 5,
+                "scoringlocked" => 6,
+                "finalization" => 7,
+                "finalized" => 8,
+                "published" => 8,
+                "closed" => 9,
+                "archived" => 10,
+                _ => 0
+            };
         }
     }
 }

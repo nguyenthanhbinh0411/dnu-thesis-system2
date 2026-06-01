@@ -162,7 +162,10 @@ namespace ThesisManagement.Api.Helpers
             }
 
             if (!string.IsNullOrWhiteSpace(filter.UserCode))
-                query = query.Where(x => x.UserCode == filter.UserCode);
+            {
+                var normalized = filter.UserCode.Trim().ToUpper();
+                query = query.Where(x => x.UserCode != null && x.UserCode.ToUpper() == normalized);
+            }
 
             if (!string.IsNullOrWhiteSpace(filter.DepartmentCode))
                 query = query.Where(x => x.DepartmentCode == filter.DepartmentCode);
@@ -178,7 +181,8 @@ namespace ThesisManagement.Api.Helpers
             }
             else if (!string.IsNullOrEmpty(filter.StudentCode))
             {
-                query = query.Where(x => x.StudentCode.Contains(filter.StudentCode));
+                var normalized = filter.StudentCode.Trim().ToUpper();
+                query = query.Where(x => x.StudentCode.ToUpper() == normalized);
             }
 
             if (!string.IsNullOrEmpty(filter.ClassCode))
@@ -251,7 +255,10 @@ namespace ThesisManagement.Api.Helpers
             }
 
             if (!string.IsNullOrWhiteSpace(filter.UserCode))
-                query = query.Where(x => x.UserCode == filter.UserCode);
+            {
+                var normalized = filter.UserCode.Trim().ToUpper();
+                query = query.Where(x => x.UserCode != null && x.UserCode.ToUpper() == normalized);
+            }
 
             if (!string.IsNullOrWhiteSpace(filter.DepartmentCode))
                 query = query.Where(x => x.DepartmentCode == filter.DepartmentCode);
@@ -267,7 +274,8 @@ namespace ThesisManagement.Api.Helpers
             }
             else if (!string.IsNullOrEmpty(filter.LecturerCode))
             {
-                query = query.Where(x => x.LecturerCode.Contains(filter.LecturerCode));
+                var normalized = filter.LecturerCode.Trim().ToUpper();
+                query = query.Where(x => x.LecturerCode.ToUpper() == normalized);
             }
 
             if (!string.IsNullOrEmpty(filter.Degree))

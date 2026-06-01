@@ -8,6 +8,7 @@ import {
   UserRoundCog,
   Users,
   X,
+  UserCheck,
 } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { fetchData, FetchDataError } from "../../api/fetchData";
@@ -555,13 +556,9 @@ const UsersManagement: React.FC = () => {
     <div className="users-module admin-dashboard">
       <div className="dashboard-header">
         <h1>
-          <Users size={28} style={{ marginRight: 10, color: "#1e3a5f" }} />
-          Quản lý tài khoản
+          <UserCheck size={28} color="#1e3a5f" /> Quản lý tài khoản
         </h1>
-        <p>
-          Quản trị danh sách user, phân quyền role và thao tác CRUD theo UI
-          permission.
-        </p>
+        <p>Quản lý tài khoản đăng nhập người dùng, phân quyền truy cập và trạng thái hoạt động.</p>
       </div>
 
       <div className="users-toolbar">

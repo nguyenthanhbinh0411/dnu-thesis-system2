@@ -143,12 +143,22 @@ const Reports: React.FC = () => {
   const [lecturerProfile, setLecturerProfile] = useState<LecturerProfile | null>(null);
   const [currentMilestone, setCurrentMilestone] = useState<StudentReportAggregateMilestone | null>(null);
   const [milestoneTemplates, setMilestoneTemplates] = useState<MilestoneTemplate[]>([]);
+  const [milestoneSteps, setMilestoneSteps] = useState<any[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showReportDetailModal, setShowReportDetailModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({});
   const navigate = useNavigate();
+
+  const loadMilestoneSteps = useCallback(async (milestoneId: number) => {
+    try {
+      const res = await fetchData<{ data?: any[] }>(
+        `/ProgressMilestoneSteps/get-list?milestoneId=${milestoneId}`,
+      );
+      if (res.data) setMilestoneSteps(res.data);
+    } catch (err) { console.error("Error loading milestone steps:", err); }
+  }, []);
 
   const loadStudentDashboard = useCallback(async (userCode: string) => {
     try {
@@ -160,13 +170,39 @@ const Reports: React.FC = () => {
       if (dashboardRes.success && dashboardRes.data) {
         const dashboard = dashboardRes.data;
         setTopic(dashboard.topic ? mapAggregateTopicToTopic(dashboard.topic) : null);
-        setCurrentMilestone(dashboard.currentMilestone || null);
+        const milestone = dashboard.currentMilestone || null;
+        setCurrentMilestone(milestone);
         setLecturerProfile(dashboard.supervisor ? mapAggregateSupervisorToLecturer(dashboard.supervisor) : null);
         setCanSubmit(Boolean(dashboard.canSubmit));
         setSubmitMessage(dashboard.blockReason || null);
+
+        // Fetch MilestoneID from PROGRESSMILESTONES and then query PROGRESSMILESTONESTEPS
+        if (dashboard.topic?.topicCode) {
+          try {
+            const milestoneRes = await fetchData<{ data?: any[] }>(
+              `/ProgressMilestones/get-list?TopicCode=${encodeURIComponent(dashboard.topic.topicCode)}`,
+            );
+            if (milestoneRes.data && milestoneRes.data.length > 0) {
+              const matchedMilestone = milestoneRes.data[0];
+              const milestoneId = matchedMilestone.milestoneID ?? matchedMilestone.milestoneId;
+              if (milestoneId) {
+                void loadMilestoneSteps(milestoneId);
+              }
+            } else if (milestone?.milestoneID) {
+              void loadMilestoneSteps(milestone.milestoneID);
+            }
+          } catch (err) {
+            console.error("Error loading ProgressMilestones list:", err);
+            if (milestone?.milestoneID) {
+              void loadMilestoneSteps(milestone.milestoneID);
+            }
+          }
+        } else if (milestone?.milestoneID) {
+          void loadMilestoneSteps(milestone.milestoneID);
+        }
       }
     } catch (err) { console.error("Error loading dashboard:", err); }
-  }, []);
+  }, [loadMilestoneSteps]);
 
 
   const loadMilestoneTemplates = useCallback(async () => {
@@ -206,22 +242,80 @@ const Reports: React.FC = () => {
   }, [auth.user?.userCode, loadProgressHistory, loadStudentDashboard, loadMilestoneTemplates]);
 
   const milestoneViews = useMemo(() => {
-    const sorted = [...milestoneTemplates].sort((a, b) => a.ordinal - b.ordinal);
+    const getStepName = (code: string, ordinal: number, templateName?: string) => {
+      if (templateName) return templateName;
+      const c = code?.toUpperCase() || "";
+      if (c.includes("MS_REG")) return "Đăng ký đề tài";
+      if (c.includes("MS_PROG1")) return "Báo cáo tiến độ 1";
+      if (c.includes("MS_PROG2")) return "Báo cáo tiến độ 2";
+      if (c.includes("MS_PROG3")) return "Báo cáo tiến độ 3";
+      if (c.includes("MS_FULL")) return "Hoàn thiện khóa luận";
+      switch (ordinal) {
+        case 1: return "Đăng ký đề tài";
+        case 2: return "Báo cáo tiến độ 1";
+        case 3: return "Báo cáo tiến độ 2";
+        case 4: return "Báo cáo tiến độ 3";
+        case 5: return "Hoàn thiện khóa luận";
+        default: return `Mốc ${ordinal}`;
+      }
+    };
+
+    if (milestoneSteps && milestoneSteps.length > 0) {
+      const sorted = [...milestoneSteps].sort((a, b) => a.ordinal - b.ordinal);
+      const firstNonCompletedIndex = sorted.findIndex((s) => {
+        const isCompleted = !!s.completedAt || 
+                            s.state?.toLowerCase() === "completed" || 
+                            s.state?.toLowerCase() === "hoàn thành";
+        return !isCompleted;
+      });
+
+      return sorted.map((s, idx) => {
+        const matchedTemplate = milestoneTemplates.find(
+          (t) => t.milestoneTemplateCode === s.milestoneTemplateCode || t.ordinal === s.ordinal,
+        );
+        const name = getStepName(s.milestoneTemplateCode, s.ordinal, matchedTemplate?.name);
+        const deadline = matchedTemplate?.deadline || null;
+
+        const isCompleted = !!s.completedAt || 
+                            s.state?.toLowerCase() === "completed" || 
+                            s.state?.toLowerCase() === "hoàn thành";
+        let isCurrent = s.state?.toLowerCase() === "đang thực hiện" || 
+                          s.state?.toLowerCase() === "active" ||
+                          s.state?.toLowerCase() === "in progress" ||
+                          s.state?.toLowerCase() === "in-progress";
+
+        if (!isCompleted && idx === firstNonCompletedIndex && s.state?.toLowerCase() === "pending") {
+          isCurrent = true;
+        }
+
+        const isOverdue = false; // Muted overdue warning to prevent SV panic
+
+        return {
+          milestoneTemplateID: s.stepID || s.stepId || s.ordinal,
+          milestoneTemplateCode: s.milestoneTemplateCode,
+          name,
+          ordinal: s.ordinal,
+          deadline,
+          isCompleted,
+          isCurrent,
+          isOverdue,
+        };
+      });
+    }
+
+    // Fallback to templates if steps did not load yet
+    const sortedTemplates = [...milestoneTemplates].sort((a, b) => a.ordinal - b.ordinal);
     const currentOrdinal = currentMilestone?.ordinal ?? -1;
     const currentState = currentMilestone?.state;
-    const now = new Date();
 
-    return sorted.map((m) => {
-      const isCompleted =
-        m.ordinal < currentOrdinal ||
+    return sortedTemplates.map((m) => {
+      const isCompleted = m.ordinal < currentOrdinal ||
         (m.ordinal === currentOrdinal && (currentState === "COMPLETED" || currentState === "WaitingForCommittee"));
-      const isCurrent =
-        m.ordinal === currentOrdinal && currentState !== "COMPLETED" && currentState !== "WaitingForCommittee";
-      // Ẩn cảnh báo quá hạn theo yêu cầu để tránh gây hoang mang
-      const isOverdue = false;
+      const isCurrent = m.ordinal === currentOrdinal && currentState !== "COMPLETED" && currentState !== "WaitingForCommittee";
+      const isOverdue = false; // Muted overdue warning to prevent SV panic
       return { ...m, isCompleted, isCurrent, isOverdue };
     });
-  }, [milestoneTemplates, currentMilestone]);
+  }, [milestoneTemplates, currentMilestone, milestoneSteps]);
 
   const isOverdue = useMemo(() => {
     return false; // Tạm ẩn tính năng nộp muộn phải nộp đơn để SV nộp bài bình thường
@@ -510,62 +604,6 @@ const Reports: React.FC = () => {
     </div>;
   }
 
-  const isProgressStage = getActiveDefensePeriodStatus()?.toLowerCase() === "progresstracking";
-
-  if (!isProgressStage) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "60vh",
-          textAlign: "center",
-          padding: "40px 24px",
-          fontFamily: '"Be Vietnam Pro", "Segoe UI", sans-serif',
-        }}
-      >
-        <div
-          style={{
-            width: 80,
-            height: 80,
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, rgba(243,112,33,0.12) 0%, rgba(243,112,33,0.04) 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: 24,
-          }}
-        >
-          <FileText size={36} color="#f37021" strokeWidth={1.5} />
-        </div>
-        <h2
-          style={{
-            fontSize: 22,
-            fontWeight: 700,
-            color: "#1a2736",
-            marginBottom: 10,
-            letterSpacing: "-0.3px",
-          }}
-        >
-          Chưa đến giai đoạn nộp báo cáo tiến độ
-        </h2>
-        <p
-          style={{
-            fontSize: 15,
-            color: "#6B7280",
-            maxWidth: 440,
-            lineHeight: 1.6,
-            margin: 0,
-          }}
-        >
-          Đợt đồ án tốt nghiệp hiện tại chưa bước vào giai đoạn <strong>Theo dõi tiến độ & Nộp báo cáo</strong>.
-          Vui lòng quay lại sau hoặc liên hệ khoa / phòng đào tạo để biết thêm thông tin.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 lg:p-8 w-full flex flex-col gap-6">
@@ -651,7 +689,12 @@ const Reports: React.FC = () => {
          )}
          <div className="flex justify-between items-start relative px-8">
             {milestoneViews.map((m, idx) => {
-               const tone = getMilestoneTone(m.isCompleted, m.isCurrent, m.isOverdue, m.ordinal === currentMilestone?.ordinal ? currentMilestone?.state : undefined);
+               const tone = getMilestoneTone(
+                  m.isCompleted,
+                  m.isCurrent,
+                  m.isOverdue,
+                  (m.ordinal === currentMilestone?.ordinal && m.isCompleted) ? currentMilestone?.state : undefined
+                );
                const nextMilestone = milestoneViews[idx + 1] || null;
                
                let lineColor = "#E2E8F0";
@@ -686,7 +729,7 @@ const Reports: React.FC = () => {
                         </span>
                         <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider"
                            style={{ background: tone.bg, color: tone.color, border: `1px solid ${tone.border}` }}>
-                           {m.ordinal === milestoneViews.length && currentMilestone?.state === "WaitingForCommittee"
+                           {m.ordinal === milestoneViews.length && currentMilestone?.state === "WaitingForCommittee" && m.isCompleted
                               ? "Chờ hội đồng & bảo vệ"
                               : m.isCompleted ? "Hoàn thành"
                               : m.isOverdue ? "⚠️ Quá hạn"
@@ -702,7 +745,8 @@ const Reports: React.FC = () => {
 
       <div className="unified-workspace">
         {/* --- LEFT: SUBMISSION OR LATE REQUEST PORTAL --- */}
-        {(!canSubmit || currentMilestone?.state === "WaitingForCommittee") ? (
+         {((!canSubmit && !submitMessage?.toLowerCase().includes("that bai") && !submitMessage?.toLowerCase().includes("qua han") && !submitMessage?.toLowerCase().includes("deadline")) || 
+          (currentMilestone?.state === "WaitingForCommittee" && milestoneViews && milestoneViews.length > 0 && milestoneViews[milestoneViews.length - 1]?.isCompleted)) ? (
           <div className="bg-white rounded-[24px] shadow-sm border border-slate-100 p-6 lg:p-10 flex flex-col gap-8 h-full">
             <div className="flex justify-between items-start">
               <div>

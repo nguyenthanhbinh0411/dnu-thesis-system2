@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit, Eye, Filter, Plus, Search, Trash2, X } from "lucide-react";
+import { Edit, Eye, Filter, Plus, Search, Trash2, X, BookOpen } from "lucide-react";
 import { fetchData } from "../../api/fetchData";
 import ManagementFormSection, {
   type ManagementFormField,
@@ -376,8 +376,10 @@ const TagsManagement: React.FC = () => {
   return (
     <div className="tags-module admin-dashboard">
       <div className="dashboard-header">
-        <h1>Quản lý Tag</h1>
-        <p>Quản lý danh sách, thêm, sửa và xóa Tag.</p>
+        <h1>
+          <BookOpen size={28} color="#1e3a5f" /> Quản lý tag chuyên môn
+        </h1>
+        <p>Danh mục các tag, nhãn khoa học phân loại lĩnh vực chuyên môn và hướng nghiên cứu.</p>
       </div>
 
       <div className="tags-toolbar">

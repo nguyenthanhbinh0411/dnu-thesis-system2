@@ -541,7 +541,7 @@ namespace ThesisManagement.Api.Controllers
 
         [HttpGet("minutes/export-docx")]
         [HttpGet("minutes/export-document")]
-        [Authorize(Roles = "Lecturer,Head,Secretary")]
+        [Authorize(Roles = "Admin,Lecturer,Head,Secretary")]
         public async Task<IActionResult> ExportMinutesDocx(
             int periodId,
             [FromQuery] int committeeId,
@@ -620,7 +620,7 @@ namespace ThesisManagement.Api.Controllers
         }
 
         [HttpGet("reports/export-form-1")]
-        [Authorize(Roles = "Lecturer,Head,Secretary")]
+        [Authorize(Roles = "Admin,Lecturer,Head,Secretary")]
         public async Task<IActionResult> ExportScoreSheet(
             int periodId,
             [FromQuery] int committeeId,

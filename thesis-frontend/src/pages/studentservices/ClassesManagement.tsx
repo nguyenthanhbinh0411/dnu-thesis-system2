@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit, Eye, Filter, Plus, Search, Trash2, Users } from "lucide-react";
+import { Edit, Eye, Filter, Plus, Search, Trash2, Users, Building2 } from "lucide-react";
 import { fetchData } from "../../api/fetchData";
 import TablePagination from "../../components/TablePagination/TablePagination";
 import { useToast } from "../../context/useToast";
@@ -327,6 +327,13 @@ export const ClassesManagement: React.FC = () => {
 
   return (
     <div style={{ display: "grid", gap: "24px" }}>
+      <div className="dashboard-header">
+        <h1>
+          <Building2 size={28} color="#1e3a5f" /> Quản lý lớp học
+        </h1>
+        <p>Quản lý danh sách các lớp hành chính, khóa tuyển sinh và khoa trực thuộc.</p>
+      </div>
+
       {/* Top action bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
         {/* Search */}

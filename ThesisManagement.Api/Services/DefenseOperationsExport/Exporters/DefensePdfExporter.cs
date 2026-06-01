@@ -137,7 +137,7 @@ namespace ThesisManagement.Api.Services.DefenseOperationsExport.Exporters
                         {
                             row.RelativeItem().Column(left =>
                             {
-                                left.Item().AlignCenter().Text("Người lập biểu").Bold();
+                                left.Item().AlignCenter().Text("NGƯỜI LẬP BIỂU").Bold();
                                 left.Item().AlignCenter().PaddingTop(40).Text(currentUserName).Bold();
                             });
 

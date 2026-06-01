@@ -143,14 +143,38 @@ namespace ThesisManagement.Api.Services.DefenseDocuments
             var reviewerMember = ResolveMemberByRole(data.Members, data.MemberProfiles, "UVPB");
             var committeeComments = FirstNonEmpty(parsedMinute.CommitteeMemberComments);
 
-            var reviewerQuestions = parsedMinute.QuestionAnswers
-                .Where(x => GetQuestionSource(x.Question) == "II.1")
+            // Reviewer Questions & Answers (II.1)
+            var reviewerQas = parsedMinute.QuestionAnswers
+                .Where(x => GetQuestionSource(x.Question) == "II.1" || GetQuestionSource(x.Question) == string.Empty)
+                .ToList();
+
+            var reviewerQuestions = reviewerQas
                 .Select((x, idx) => $"{idx + 1}. {StripQuestionSource(x.Question)}")
                 .ToList();
 
-            var studentAnswers = parsedMinute.QuestionAnswers
+            var reviewerAnswers = reviewerQas
                 .Where(x => !string.IsNullOrWhiteSpace(x.Answer))
                 .Select((x, idx) => $"{idx + 1}. {x.Answer!.Trim()}")
+                .ToList();
+
+            // Council Questions & Answers (II.2)
+            var councilQas = parsedMinute.QuestionAnswers
+                .Where(x => GetQuestionSource(x.Question) == "II.2")
+                .ToList();
+
+            var councilQuestions = councilQas
+                .Select((x, idx) => $"{idx + 1}. {StripQuestionSource(x.Question)}")
+                .ToList();
+
+            var councilAnswers = councilQas
+                .Where(x => !string.IsNullOrWhiteSpace(x.Answer))
+                .Select((x, idx) => $"{idx + 1}. {x.Answer!.Trim()}")
+                .ToList();
+
+            // Student answers (paired with questions for section III)
+            var studentAnswers = parsedMinute.QuestionAnswers
+                .Where(x => !string.IsNullOrWhiteSpace(x.Answer))
+                .Select(x => $"- {StripQuestionSource(x.Question)}: {x.Answer!.Trim()}")
                 .ToList();
 
             var reportData = new ExportReportData
@@ -168,8 +192,11 @@ namespace ThesisManagement.Api.Services.DefenseDocuments
                 MeetingEndTime = FormatTime(null, data.Assignment?.EndTime, data.Assignment?.ScheduledAt),
                 PresentMemberCount = data.Members.Count.ToString(),
                 AbsentMemberCount = "0",
-                ReviewerQuestions = reviewerQuestions.Count > 0 ? string.Join(Environment.NewLine, reviewerQuestions) : committeeComments,
+                ReviewerQuestions = reviewerQuestions.Count > 0 ? string.Join(Environment.NewLine, reviewerQuestions) : (parsedMinute.PlainReviewerComments ?? string.Empty),
+                CouncilQuestions = councilQuestions.Count > 0 ? string.Join(Environment.NewLine, councilQuestions) : (parsedMinute.CommitteeMemberComments ?? string.Empty),
                 StudentAnswers = studentAnswers.Count > 0 ? string.Join(Environment.NewLine, studentAnswers) : string.Empty,
+                ReviewerAnswers = reviewerAnswers.Count > 0 ? string.Join(Environment.NewLine, reviewerAnswers) : string.Empty,
+                CouncilAnswers = councilAnswers.Count > 0 ? string.Join(Environment.NewLine, councilAnswers) : string.Empty,
                 Strengths = data.Minute?.Strengths,
                 Weaknesses = data.Minute?.Weaknesses,
                 Recommendations = data.Minute?.Recommendations,
@@ -202,7 +229,12 @@ namespace ThesisManagement.Api.Services.DefenseDocuments
                 Chapter2Content = parsedMinute.ChapterContents.ElementAtOrDefault(1)?.Content,
                 Chapter3Content = parsedMinute.ChapterContents.ElementAtOrDefault(2)?.Content,
                 ChapterNContent = parsedMinute.ChapterContents.Count > 3
-                    ? string.Join(Environment.NewLine, parsedMinute.ChapterContents.Skip(3).Select(x => x.Content))
+                    ? string.Join(Environment.NewLine + Environment.NewLine, parsedMinute.ChapterContents.Skip(3).Select((x, idx) => 
+                      {
+                          var letter = idx < 22 ? (char)('d' + idx) : '?';
+                          var title = !string.IsNullOrWhiteSpace(x.ChapterTitle) ? x.ChapterTitle.Trim() : $"Chương {idx + 4}";
+                          return $"{letter}) {title}: {x.Content ?? string.Empty}".Trim();
+                      }))
                     : null,
                 ChapterCount = parsedMinute.ChapterContents.Count.ToString()
             };
@@ -862,17 +894,17 @@ namespace ThesisManagement.Api.Services.DefenseDocuments
             }
 
             var upper = role.Trim().ToUpperInvariant();
-            if (upper.Contains("CHU") || upper.Contains("CT") || upper.Contains("CHAIR"))
+            if (upper.Contains("CHU") || upper.Contains("CHỦ") || upper.Contains("CT") || upper.Contains("CHAIR"))
             {
                 return "CT";
             }
 
-            if (upper.Contains("UVTK") || upper.Contains("THU") || upper == "TK" || upper.Contains("SECRETARY"))
+            if (upper.Contains("UVTK") || upper.Contains("THU") || upper.Contains("THƯ") || upper == "TK" || upper.Contains("SECRETARY"))
             {
                 return "UVTK";
             }
 
-            if (upper.Contains("UVPB") || upper.Contains("PHAN") || upper == "PB" || upper.Contains("REVIEWER"))
+            if (upper.Contains("UVPB") || upper.Contains("PHAN") || upper.Contains("PHẢN") || upper == "PB" || upper.Contains("REVIEWER"))
             {
                 return "UVPB";
             }

@@ -21,6 +21,7 @@ import type {
 import type { LecturerProfile } from "../types/lecturer-profile";
 import type { StudentProfile } from "../types/studentProfile";
 import { useToast } from "./useToast";
+import { useActiveDefensePeriodId } from "../utils/defensePeriod";
 
 type ChatConversationView = ChatConversation & {
   unreadCount?: number;
@@ -113,6 +114,15 @@ export type ChatContextValue = {
     conversationId: number,
     content?: string,
     files?: File[],
+  ) => Promise<void>;
+  editMessage: (
+    conversationId: number,
+    messageId: number,
+    content: string,
+  ) => Promise<void>;
+  deleteMessage: (
+    conversationId: number,
+    messageId: number,
   ) => Promise<void>;
   retryAttachmentUpload: (
     conversationId: number,
@@ -355,6 +365,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   const auth = useAuth();
   const { addToast } = useToast();
 
+  const activePeriodId = useActiveDefensePeriodId();
+  const [activePeriodName, setActivePeriodName] = useState<string | null>(null);
+
   const [conversations, setConversations] = useState<ChatConversationView[]>(
     [],
   );
@@ -373,6 +386,34 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   >({});
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
+
+  useEffect(() => {
+    const fetchPeriodName = async () => {
+      if (!activePeriodId) {
+        setActivePeriodName(null);
+        return;
+      }
+      try {
+        const response = await fetchData<ApiResponse<any[]>>("/defense-periods");
+        if (response.success && Array.isArray(response.data)) {
+          const matched = response.data.find(
+            (p) =>
+              Number(p.defenseTermId ?? 0) === Number(activePeriodId) ||
+              Number(p.periodId ?? 0) === Number(activePeriodId) ||
+              Number(p.id ?? 0) === Number(activePeriodId)
+          );
+          if (matched) {
+            setActivePeriodName(matched.name || matched.termCode || "");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch active period name for chat:", err);
+      }
+    };
+    void fetchPeriodName();
+  }, [activePeriodId]);
+
+
 
   const enabled =
     !!auth.user &&
@@ -626,6 +667,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoadingConversations(false);
     }
   }, [currentUserCode, enabled, handleChatError, hydrateMemberProfiles]);
+
+  useEffect(() => {
+    if (enabled) {
+      void refreshConversations();
+    }
+  }, [activePeriodId, enabled, refreshConversations]);
 
   const loadMessages = useCallback(
     async (conversationId: number) => {
@@ -1084,6 +1131,54 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
       refreshConversations,
       uploadFiles,
     ],
+  );
+
+  const editMessage = useCallback(
+    async (conversationId: number, messageId: number, content: string) => {
+      if (!enabled) return;
+      const key = String(conversationId);
+      try {
+        const updatedMsg = await chatApi.updateMessage(messageId, { content });
+        setMessagesByConversation((prev) => {
+          const current = prev[key] || [];
+          return {
+            ...prev,
+            [key]: current.map((msg) =>
+              Number(msg.messageID) === Number(messageId)
+                ? { ...msg, content: updatedMsg.content, editedAt: updatedMsg.editedAt }
+                : msg,
+            ),
+          };
+        });
+      } catch (error) {
+        handleChatError(error, "Không thể chỉnh sửa tin nhắn.");
+      }
+    },
+    [enabled, handleChatError],
+  );
+
+  const deleteMessage = useCallback(
+    async (conversationId: number, messageId: number) => {
+      if (!enabled) return;
+      const key = String(conversationId);
+      try {
+        await chatApi.deleteMessage(messageId);
+        setMessagesByConversation((prev) => {
+          const current = prev[key] || [];
+          return {
+            ...prev,
+            [key]: current.map((msg) =>
+              Number(msg.messageID) === Number(messageId)
+                ? { ...msg, isDeleted: true, content: "Tin nhắn đã bị xóa", deletedAt: new Date().toISOString() }
+                : msg,
+            ),
+          };
+        });
+      } catch (error) {
+        handleChatError(error, "Không thể xóa tin nhắn.");
+      }
+    },
+    [enabled, handleChatError],
   );
 
   const toggleReaction = useCallback(
@@ -1556,15 +1651,25 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [activeConversationId, messagesByConversation]);
 
   const conversationsWithUnread = useMemo<ChatConversationView[]>(
-    () =>
-      conversations.map((conversation) => ({
+    () => {
+      const allWithUnread = conversations.map((conversation) => ({
         ...conversation,
         unreadCount:
           unreadByConversation[String(conversation.conversationID)] || 0,
         members:
           membersByConversation[String(conversation.conversationID)] || [],
-      })),
-    [conversations, unreadByConversation, membersByConversation],
+      }));
+
+      if (!activePeriodName) {
+        return allWithUnread;
+      }
+
+      return allWithUnread.filter((conversation) => {
+        const title = String(conversation.title || "");
+        return title.includes(`[${activePeriodName}]`);
+      });
+    },
+    [conversations, unreadByConversation, membersByConversation, activePeriodName],
   );
 
   const unreadTotal = useMemo(
@@ -1593,6 +1698,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
     closeConversationPopup,
     refreshConversations,
     sendMessage,
+    editMessage,
+    deleteMessage,
     retryAttachmentUpload,
     toggleReaction,
     markConversationRead,
